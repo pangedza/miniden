@@ -1,11 +1,49 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8">
-  <title>Базовая разметка HTML</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Добро пожаловать | Handmade</title>
+  <link rel="stylesheet" href="style.css" />
+  <meta name="description" content="Тёплое приветствие из мира handmade и вязания." />
 </head>
 <body>
-  <h1>Code Basics</h1>
-  <p>Бесплатные уроки по программированию и HTML для новичков</p>
+  <header class="site-header">
+    <h1>Добро пожаловать в мир Handmade ✨</h1>
+    <p class="subtitle">Тепло, уют и вдохновение в каждой петле 🧶</p>
+  </header>
+
+  <main>
+    <section class="hero">
+      <img
+        class="hero-image"
+        src="https://images.unsplash.com/photo-1601047928400-9f6c5d4a1b7e"
+        alt="Вязаные изделия, клубки пряжи и уютная атмосфера"
+        loading="lazy"
+      />
+      <p class="lead">
+        Здесь рождаются вещи, сделанные с любовью. Каждая петелька — маленькое чудо,
+        сотканное руками мастера.
+      </p>
+      <div class="buttons">
+        <a class="btn" href="https://www.etsy.com" target="_blank" rel="noopener">Вдохновение на Etsy</a>
+        <a class="btn btn-ghost" href="https://www.pinterest.com/search/pins/?q=knitting%20handmade" target="_blank" rel="noopener">Идеи на Pinterest</a>
+      </div>
+    </section>
+
+    <section class="links">
+      <h2>Полезные ссылки</h2>
+      <ul>
+        <li><a href="https://www.ravelry.com" target="_blank" rel="noopener">Ravelry — комьюнити вязальщиц</a></li>
+        <li><a href="https://www.lovecrafts.com/en-gb/c/yarn" target="_blank" rel="noopener">LoveCrafts — пряжа и инструменты</a></li>
+        <li><a href="https://unsplash.com/s/photos/knitting" target="_blank" rel="noopener">Unsplash — фото про вязание</a></li>
+      </ul>
+      <p class="note">Ссылки можно заменить на свои — разметка уже готова.</p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p>© 2025 Handmade by You • Создано с ❤️ и уютом</p>
+  </footer>
 </body>
 </html>
