@@ -1,0 +1,77 @@
+:root{
+  --bg: #fffaf5;
+  --ink: #333;
+  --brand: #e6a57e;
+  --brand-strong: #d18a65;
+  --accent: #f8d7c4;
+  --muted: #f0e0d0;
+  --heading: #704214;
+}
+
+* { box-sizing: border-box; }
+
+body{
+  margin:0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  line-height:1.6;
+}
+
+.site-header{
+  background: linear-gradient(180deg, var(--accent), #fbe9de);
+  padding: 2.5rem 1rem;
+  text-align:center;
+}
+
+h1{
+  margin:0 0 .5rem;
+  color: var(--heading);
+  font-size: clamp(1.8rem, 2.4vw + 1rem, 2.6rem);
+}
+
+.subtitle{ margin:0; color:#855a3a; font-style: italic; }
+
+main{ padding: 2rem 1rem; max-width: 980px; margin-inline: auto; }
+
+.hero{ text-align:center; }
+
+.hero-image{
+  width: min(100%, 760px);
+  border-radius: 12px;
+  margin: 0 auto 1.25rem;
+  display:block;
+  box-shadow: 0 6px 18px rgba(0,0,0,.12);
+}
+
+.lead{ font-size: 1.05rem; max-width: 60ch; margin: 0 auto 1rem; }
+
+.buttons{
+  display:flex; flex-wrap:wrap; gap:.75rem; justify-content:center; margin: 1rem 0 2rem;
+}
+
+.btn{
+  display:inline-block; padding:.8rem 1.2rem; border-radius: 8px;
+  background: var(--brand); color:#fff; text-decoration:none; font-weight:600;
+  transition: transform .06s ease, background .25s ease; will-change: transform;
+}
+.btn:hover{ background: var(--brand-strong); transform: translateY(-1px); }
+.btn:active{ transform: translateY(0); }
+
+.btn-ghost{
+  background: transparent; color: var(--brand-strong); border: 2px solid var(--brand-strong);
+}
+.btn-ghost:hover{ background: var(--brand-strong); color:#fff; }
+
+.links{
+  background: #fff; border: 1px solid #f1e5db; border-radius: 12px;
+  padding: 1.2rem 1rem; margin: 0 auto; max-width: 820px;
+}
+.links h2{ margin: .2rem 0 1rem; color: var(--heading); }
+.links ul{ margin:0 0 1rem; padding-left: 1.2rem; }
+.links li{ margin:.35rem 0; }
+.note{ margin:0; font-size:.95rem; color:#6b5a4d; }
+
+.site-footer{
+  background: var(--muted); text-align:center; padding: 1rem; margin-top: 2rem; font-size:.95rem;
+}
