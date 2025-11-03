@@ -2,48 +2,80 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Добро пожаловать | Handmade</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Магазин корзинок Handmade Baskets</title>
   <link rel="stylesheet" href="style.css" />
-  <meta name="description" content="Тёплое приветствие из мира handmade и вязания." />
+  <script defer src="script.js"></script>
 </head>
 <body>
-  <header class="site-header">
-    <h1>Добро пожаловать в мир Handmade ✨</h1>
-    <p class="subtitle">Тепло, уют и вдохновение в каждой петле 🧶</p>
+  <header class="topbar">
+    <div class="logo">🧺 Handmade Baskets</div>
+    <nav class="menu">
+      <a href="index.html" class="active">Главная</a>
+      <a href="catalog.html">Каталог</a>
+      <a href="#about">О нас</a>
+      <a href="#contacts">Контакты</a>
+      <a href="cart.html" class="cart-link">🛒 <span id="cart-count">0</span></a>
+    </nav>
   </header>
 
   <main>
     <section class="hero">
-      <img
-        class="hero-image"
-        src="https://images.unsplash.com/photo-1601047928400-9f6c5d4a1b7e"
-        alt="Вязаные изделия, клубки пряжи и уютная атмосфера"
-        loading="lazy"
-      />
-      <p class="lead">
-        Здесь рождаются вещи, сделанные с любовью. Каждая петелька — маленькое чудо,
-        сотканное руками мастера.
-      </p>
-      <div class="buttons">
-        <a class="btn" href="https://www.etsy.com" target="_blank" rel="noopener">Вдохновение на Etsy</a>
-        <a class="btn btn-ghost" href="https://www.pinterest.com/search/pins/?q=knitting%20handmade" target="_blank" rel="noopener">Идеи на Pinterest</a>
+      <div class="hero-text">
+        <h1>Ручные корзинки для уюта дома</h1>
+        <p>Коллекция из природных материалов, созданная мастерами с любовью и вниманием к деталям.</p>
+        <ul>
+          <li>Уникальные дизайны и формы</li>
+          <li>Экологичная лоза и текстиль</li>
+          <li>Комплекты для хранения и декора</li>
+          <li>Сезонные скидки и подарочная упаковка</li>
+        </ul>
+        <a href="catalog.html" class="btn">Перейти в каталог</a>
       </div>
     </section>
 
-    <section class="links">
-      <h2>Полезные ссылки</h2>
-      <ul>
-        <li><a href="https://www.ravelry.com" target="_blank" rel="noopener">Ravelry — комьюнити вязальщиц</a></li>
-        <li><a href="https://www.lovecrafts.com/en-gb/c/yarn" target="_blank" rel="noopener">LoveCrafts — пряжа и инструменты</a></li>
-        <li><a href="https://unsplash.com/s/photos/knitting" target="_blank" rel="noopener">Unsplash — фото про вязание</a></li>
-      </ul>
-      <p class="note">Ссылки можно заменить на свои — разметка уже готова.</p>
+    <section id="about" class="info">
+      <div class="info-text">
+        <h2>О мастерской</h2>
+        <p>
+          Мы плетём корзинки вручную в небольшой мастерской на берегу реки. Каждое изделие проходит
+          тщательный контроль качества, а материалы закупаются у проверенных фермеров и ремесленников.
+        </p>
+        <p>
+          В коллекции представлены корзины для пикников, хранения белья, комнатных растений и декора.
+          Любой заказ можно персонализировать, выбрать тканевую подкладку и нанести гравировку.
+        </p>
+      </div>
+      <div class="info-gallery">
+        <img src="https://images.unsplash.com/photo-1593946539080-9433c0d0af41?w=600" alt="Корзины ручной работы" loading="lazy" />
+        <img src="https://images.unsplash.com/photo-1523419409543-0c1df022bdd1?w=600" alt="Корзина с цветами" loading="lazy" />
+      </div>
+    </section>
+
+    <section id="contacts" class="contacts">
+      <h2>Контакты и доставка</h2>
+      <div class="contact-cards">
+        <div class="card">
+          <h3>Связаться с нами</h3>
+          <p>+7 (900) 000-00-00</p>
+          <p><a href="mailto:hello@handmadebaskets.ru">hello@handmadebaskets.ru</a></p>
+        </div>
+        <div class="card">
+          <h3>Доставка</h3>
+          <p>Отправляем заказы по всей России и СНГ транспортными компаниями.</p>
+          <p>Самовывоз из шоурума в будние дни 11:00–19:00.</p>
+        </div>
+        <div class="card">
+          <h3>Соцсети</h3>
+          <p><a href="https://www.instagram.com" target="_blank" rel="noreferrer noopener">Instagram*</a></p>
+          <p><a href="https://www.pinterest.com" target="_blank" rel="noreferrer noopener">Pinterest</a></p>
+        </div>
+      </div>
     </section>
   </main>
 
-  <footer class="site-footer">
-    <p>© 2025 Handmade by You • Создано с ❤️ и уютом</p>
+  <footer>
+    <p>© 2025 Handmade Baskets • Сделано с любовью 💛</p>
   </footer>
 </body>
 </html>
