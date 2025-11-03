@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Корзина Handmade Baskets</title>
+  <link rel="stylesheet" href="style.css" />
+  <script defer src="script.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="logo">🧺 Handmade Baskets</div>
+    <nav class="menu">
+      <a href="index.html">Главная</a>
+      <a href="catalog.html">Каталог</a>
+      <a href="cart.html" class="active">Корзина</a>
+    </nav>
+  </header>
+
+  <main class="cart">
+    <h1>Ваша корзина</h1>
+    <p class="cart-subtitle">Проверьте выбранные товары перед оформлением заказа.</p>
+
+    <div class="table-wrapper">
+      <table id="cart-table">
+        <thead>
+          <tr>
+            <th>Название</th>
+            <th>Количество</th>
+            <th>Цена</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="total" aria-live="polite">
+      <p>Итого: <span id="total-price">0</span> ₽</p>
+      <button id="checkout" class="btn" disabled>Перейти к оформлению</button>
+    </div>
+  </main>
+
+  <footer>
+    <p>© 2025 Handmade Baskets</p>
+  </footer>
+</body>
+</html>
