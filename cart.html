@@ -13,6 +13,8 @@
     <nav class="menu">
       <a href="index.html">Главная</a>
       <a href="catalog.html">Каталог</a>
+      <a href="orders.html">Заказы</a>
+      <a href="auth.html">Войти</a>
       <a href="cart.html" class="active">Корзина</a>
     </nav>
   </header>
@@ -39,10 +41,36 @@
       <p>Итого: <span id="total-price">0</span> ₽</p>
       <button id="checkout" class="btn" disabled>Перейти к оформлению</button>
     </div>
+    <p id="checkout-msg" class="note"></p>
   </main>
 
   <footer>
     <p>© 2025 Handmade Baskets</p>
   </footer>
+
+  <!-- auto-injected: checkout handler -->
+  <script type="module">
+    import { createOrder, me } from './js/api.js';
+    const btn = document.getElementById('checkout');
+    const note = document.getElementById('checkout-msg');
+    btn?.addEventListener('click', async ()=>{
+      try {
+        await me();
+        const stored = localStorage.getItem('cart');
+        const cart = JSON.parse(stored || '[]')
+          .map(i => ({ name: i.name, price: Number(i.price), qty: Number(i.qty ?? i.quantity ?? 1) }))
+          .filter(i => i.name && i.price>0 && i.qty>0);
+        if (!cart.length) { note.textContent = 'Корзина пуста'; return; }
+        const res = await createOrder(cart);
+        note.textContent = `Заказ #${res.order_id} оформлен!`;
+        localStorage.removeItem('cart');
+        setTimeout(()=>location.href='orders.html', 800);
+      } catch(e) {
+        if (String(e.message).includes('unauthorized')) location.href='auth.html';
+        else note.textContent = 'Ошибка оформления: '+e.message;
+      }
+    });
+  </script>
+  <!-- /auto-injected -->
 </body>
 </html>
