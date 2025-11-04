@@ -1,7 +1,6 @@
 <?php
-require _DIR_ . '/bootstrap.php';
+require __DIR__ . '/bootstrap.php';
 $uid = requireAuth();
-
-$stmt = $pdo->prepare('SELECT id, email, name, created_at FROM users WHERE id = ?');
-$stmt->execute([$uid]);
-json(['user' => $stmt->fetch()]);
+$q = $pdo->prepare('SELECT id,email,name,created_at FROM users WHERE id=?');
+$q->execute([$uid]);
+json(['user'=>$q->fetch()]);

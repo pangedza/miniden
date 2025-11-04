@@ -352,6 +352,28 @@ footer {
   color: #5c4732;
 }
 
+.note {
+  color: #8b5520;
+  min-height: 1.4em;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: #b86b2d;
+  border: 1px solid #b86b2d;
+}
+
+.btn-ghost:hover {
+  background: rgba(184, 107, 45, 0.1);
+}
+
+.auth {
+  padding: 3rem 1.5rem 4rem;
+  display: grid;
+  gap: 1.25rem;
+  justify-items: center;
+}
+
 .modal {
   display: none;
   position: fixed;

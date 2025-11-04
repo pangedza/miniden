@@ -1,10 +1,9 @@
 <?php
-// !!! ЗАПОЛНИ СВОИ ДАННЫЕ !!!
+// ⚠️ Заполните реальные доступы и желательно НЕ коммитьте этот файл публично.
 return [
-  'db_host' => 'localhost',
-  'db_name' => 'u3261322_default',
-  'db_user' => 'u3261322_default',
-  'db_pass' => '89dnKrAk5E6LRUNi',
-  // домен твоего сайта для куки
-  'cookie_domain' => 'miniden.ru',
+  'db_host' => 'localhost',     // localhost на REG.RU
+  'db_name' => 'your_db',
+  'db_user' => 'your_user',
+  'db_pass' => 'your_password',
+  'cookie_domain' => 'yourdomain.ru',
 ];

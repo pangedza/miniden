@@ -1,7 +1,38 @@
-const STORAGE_KEY = 'handmade-baskets-cart';
-const cart = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+const STORAGE_KEY = 'cart';
+const LEGACY_KEY = 'handmade-baskets-cart';
 
-const saveCart = () => localStorage.setItem(STORAGE_KEY, JSON.stringify(cart));
+const loadCart = () => {
+  const current = localStorage.getItem(STORAGE_KEY);
+  if (current) return JSON.parse(current);
+  const legacy = localStorage.getItem(LEGACY_KEY);
+  if (!legacy) return [];
+  localStorage.setItem(STORAGE_KEY, legacy);
+  localStorage.removeItem(LEGACY_KEY);
+  return JSON.parse(legacy);
+};
+
+const normalizeItem = (item) => {
+  const quantity = Number(item?.quantity ?? item?.qty ?? 0);
+  return {
+    name: item?.name,
+    price: Number(item?.price) || 0,
+    quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : 0,
+    qty: undefined,
+  };
+};
+
+const cart = loadCart().map((item) => {
+  const normalized = normalizeItem(item);
+  if (!normalized.quantity || normalized.quantity < 0) normalized.quantity = 0;
+  return normalized;
+});
+
+const saveCart = () => {
+  cart.forEach((item) => {
+    item.qty = item.quantity;
+  });
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(cart));
+};
 const getItemsCount = () => cart.reduce((total, item) => total + item.quantity, 0);
 
 const cartCountBadge = document.getElementById('cart-count');
@@ -52,8 +83,9 @@ addButtons.forEach((button) => {
 
     if (existingItem) {
       existingItem.quantity += 1;
+      existingItem.qty = existingItem.quantity;
     } else {
-      cart.push({ name, price, quantity: 1 });
+      cart.push({ name, price, quantity: 1, qty: 1 });
     }
 
     saveCart();
@@ -71,6 +103,13 @@ const renderCart = () => {
     updateCartCount();
     return;
   }
+
+  for (let i = cart.length - 1; i >= 0; i -= 1) {
+    if (!cart[i].quantity || cart[i].quantity <= 0) {
+      cart.splice(i, 1);
+    }
+  }
+  saveCart();
 
   cartTableBody.innerHTML = '';
 
@@ -123,8 +162,10 @@ if (cartTableBody) {
 
     if (target.classList.contains('increase')) {
       cart[index].quantity += 1;
+      cart[index].qty = cart[index].quantity;
     } else if (target.classList.contains('decrease')) {
       cart[index].quantity -= 1;
+      cart[index].qty = cart[index].quantity;
       if (cart[index].quantity <= 0) {
         cart.splice(index, 1);
       }
@@ -141,11 +182,6 @@ if (cartTableBody) {
 
 if (checkoutButton) {
   checkoutButton.addEventListener('click', () => {
-    if (cart.length === 0) return;
-
-    alert('Спасибо! Мы свяжемся с вами для подтверждения заказа.');
-    cart.splice(0, cart.length);
-    saveCart();
-    renderCart();
+    // обработчик оформления заказа подключается модулем cart.html
   });
 }

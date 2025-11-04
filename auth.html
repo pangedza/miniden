@@ -1,0 +1,30 @@
+<!doctype html><html lang="ru"><head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Вход / Регистрация</title>
+  <link rel="stylesheet" href="style.css">
+  <script defer type="module" src="js/auth.js"></script>
+</head><body>
+  <header class="topbar"><nav class="menu">
+    <a href="index.html">Главная</a>
+    <a href="catalog.html">Каталог</a>
+    <a href="cart.html">Корзина</a>
+    <a href="orders.html">Мои заказы</a>
+  </nav></header>
+  <main class="auth">
+    <h2>Вход / Регистрация</h2>
+    <div class="card" style="max-width:520px;margin:auto;padding:1rem">
+      <label>Email</label>
+      <input id="email" type="email" placeholder="you@example.com" required>
+      <label>Пароль</label>
+      <input id="password" type="password" placeholder="••••••••" required>
+      <label>Имя (необязательно)</label>
+      <input id="name" type="text" placeholder="Иван">
+      <div style="display:flex;gap:.5rem;margin-top:.75rem">
+        <button id="btn-login"  class="btn">Войти</button>
+        <button id="btn-signup" class="btn btn-ghost">Регистрация</button>
+        <button id="btn-logout" class="btn" style="margin-left:auto;display:none">Выйти</button>
+      </div>
+      <p id="auth-msg" class="note" style="margin-top:.6rem"></p>
+    </div>
+  </main>
+</body></html>
