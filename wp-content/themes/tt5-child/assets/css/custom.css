@@ -1,31 +1,55 @@
-:root {
-  --radius: 14px;
-  --shadow: 0 8px 24px rgba(0,0,0,.08);
+:root{
+  --radius: 16px;
+  --radius-lg: 20px;
+  --shadow: 0 10px 28px rgba(0,0,0,.08);
 }
-body {
-  background: var(--wp--preset--color--bg);
-  color: var(--wp--preset--color--text);
-  font-family: var(--wp--preset--font-family--inter);
-}
-.btn-animate {
-  position: relative;
-  display: inline-block;
-  overflow: hidden;
+body{ background: var(--wp--preset--color--bg); color: var(--wp--preset--color--text); }
+/* Карточки */
+.card, .wc-block-grid__product, .wp-block-group.is-style-card {
   border-radius: var(--radius);
+  background: var(--wp--preset--color--surface);
   box-shadow: var(--shadow);
-  transition: transform .25s ease, box-shadow .25s ease;
+  overflow: hidden;
 }
-.btn-animate:hover {
+.card--soft, .is-style-soft { background: #fff; box-shadow: 0 6px 20px rgba(0,0,0,.06); }
+.card__body{ padding: 14px 16px; }
+/* Кнопки */
+.btn-animate .wp-element-button, .wp-block-button.is-style-fill .wp-element-button,
+.add_to_cart_button, .single_add_to_cart_button {
+  border-radius: 9999px;
+  transition: transform .2s ease, box-shadow .2s ease, background .2s ease;
+  box-shadow: var(--shadow);
+  background: var(--wp--preset--color--primary);
+  color:#fff !important;
+}
+.btn-animate .wp-element-button:hover,
+.add_to_cart_button:hover, .single_add_to_cart_button:hover {
   transform: translateY(-2px);
-  box-shadow: 0 12px 30px rgba(0,0,0,.12);
+  box-shadow: 0 14px 32px rgba(0,0,0,.12);
+  background: var(--wp--preset--color--accent);
 }
-.card {
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  background: #fff;
-  overflow: hidden;
-  transition: transform .25s ease;
+/* Чипсы (фильтры/категории) */
+.chip {
+  display:inline-flex; align-items:center; gap:.5rem;
+  padding:.6rem .9rem; border-radius:9999px; background:#fff;
+  border:1px solid #00000012; box-shadow: 0 4px 12px rgba(0,0,0,.05);
+  transition: background .2s ease, transform .2s ease;
+  white-space:nowrap;
 }
-.card:hover {
-  transform: translateY(-3px);
+.chip:hover { transform: translateY(-1px); background: #F3EBE1; }
+/* Горизонтальные ленты */
+.h-scroll{ display:flex; gap:12px; overflow-x:auto; scroll-snap-type:x mandatory; padding-bottom:6px; }
+.h-scroll > *{ scroll-snap-align:start; min-width: 240px; }
+.h-scroll::-webkit-scrollbar{ height:8px; }
+.h-scroll::-webkit-scrollbar-thumb{ background:#00000020; border-radius:999px; }
+/* Woo — карточки в каталоге */
+.wc-block-grid__product .wc-block-grid__product-image img{ border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+.wc-block-components-product-badge{ background: var(--wp--preset--color--ok); color:#fff; border-radius:999px; padding:.2rem .5rem; }
+.price ins{ color: var(--wp--preset--color--accent); }
+/* Поиск / поля */
+.wp-block-search .wp-block-search__input{
+  border-radius: 9999px; border:1px solid #00000012; background:#fff; padding:.9rem 1.1rem;
+}
+.wp-block-search .wp-block-search__button{
+  border-radius: 9999px; margin-left:.5rem;
 }
