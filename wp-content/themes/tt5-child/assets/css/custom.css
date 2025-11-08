@@ -1,0 +1,31 @@
+:root {
+  --radius: 14px;
+  --shadow: 0 8px 24px rgba(0,0,0,.08);
+}
+body {
+  background: var(--wp--preset--color--bg);
+  color: var(--wp--preset--color--text);
+  font-family: var(--wp--preset--font-family--inter);
+}
+.btn-animate {
+  position: relative;
+  display: inline-block;
+  overflow: hidden;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  transition: transform .25s ease, box-shadow .25s ease;
+}
+.btn-animate:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 30px rgba(0,0,0,.12);
+}
+.card {
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  background: #fff;
+  overflow: hidden;
+  transition: transform .25s ease;
+}
+.card:hover {
+  transform: translateY(-3px);
+}
