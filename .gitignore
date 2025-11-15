@@ -1,0 +1,10 @@
+# python мусор
+__pycache__/
+*.pyc
+
+# виртуальное окружение
+venv/
+.venv/
+
+# env
+.env

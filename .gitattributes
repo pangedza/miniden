@@ -1,0 +1,3 @@
+# Все json – текст
+*.json text eol=lf
+
