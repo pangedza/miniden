@@ -1,3 +1,9 @@
-# Все json – текст
-*.json text eol=lf
+# Глобально считаем текстовые файлы текстом и нормализуем перевод строк
+* text=auto
 
+# Явно указываем формат для основных типов файлов
+*.py text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+*.json text eol=lf
+*.env.example text eol=lf
