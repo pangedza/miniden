@@ -14,7 +14,8 @@ from keyboards.admin_inline import (
     course_access_list_kb,
     course_access_actions_kb,
 )
-from keyboards.main_menu import get_main_menu
+from keyboards.main_menu import get_admin_menu, get_main_menu
+from utils.commands_map import get_admin_commands, get_user_commands
 from utils.texts import (
     format_admin_client_profile,
     format_orders_list_text,
@@ -103,18 +104,44 @@ async def open_admin_panel(message: types.Message, state: FSMContext):
 
     await state.clear()
 
-    kb = types.ReplyKeyboardMarkup(
-        resize_keyboard=True,
-        keyboard=[
-            [types.KeyboardButton(text="📋 Товары: корзинки")],
-            [types.KeyboardButton(text="📋 Товары: курсы")],
-            [types.KeyboardButton(text="🎓 Доступ к курсам")],
-            [types.KeyboardButton(text="📦 Заказы")],
-            [types.KeyboardButton(text="⬅️ В главное меню")],
-        ],
+    await message.answer(
+        "⚙️ Админ-панель.\nВыберите категорию:", reply_markup=get_admin_menu()
     )
 
-    await message.answer("⚙️ Админ-панель.\nВыберите категорию:", reply_markup=kb)
+
+@router.message(F.text == "👤 Клиент (CRM)")
+async def admin_client_menu_hint(message: types.Message):
+    if not _is_admin(message.from_user.id):
+        return
+
+    await message.answer(
+        "Отправьте команду <code>/client &lt;telegram_id&gt;</code>, "
+        "чтобы открыть профиль нужного клиента."
+    )
+
+
+@router.message(F.text == "🚫 Бан / ✅ Разбан")
+async def admin_ban_menu_hint(message: types.Message):
+    if not _is_admin(message.from_user.id):
+        return
+
+    await message.answer(
+        "Используйте команды:\n"
+        "• <code>/ban &lt;user_id&gt; [причина]</code>\n"
+        "• <code>/unban &lt;user_id&gt;</code>"
+    )
+
+
+@router.message(F.text == "📝 Заметки")
+async def admin_notes_menu_hint(message: types.Message):
+    if not _is_admin(message.from_user.id):
+        return
+
+    await message.answer(
+        "Работа с заметками:\n"
+        "• <code>/note &lt;user_id&gt; &lt;текст&gt;</code> — добавить заметку\n"
+        "• <code>/notes &lt;user_id&gt;</code> — посмотреть заметки"
+    )
 
 
 # =====================================================================
@@ -933,6 +960,39 @@ async def admin_course_access_revoke_user(message: types.Message, state: FSMCont
         await _send_course_access_info(message, course_id)
     else:
         await message.answer("Не удалось отозвать доступ. Возможно, его и так не было.")
+
+
+# =====================================================================
+#                          ДЕБАГ СПИСКА КОМАНД
+# =====================================================================
+
+
+@router.message(Command("debug_commands"))
+async def admin_debug_commands(message: types.Message) -> None:
+    if not _is_admin(message.from_user.id):
+        return
+
+    user_cmds = get_user_commands()
+    admin_cmds = get_admin_commands()
+
+    lines: list[str] = ["🧩 <b>Команды бота</b>", "", "👥 Пользовательские:"]
+
+    if user_cmds:
+        for name, desc in sorted(user_cmds.items()):
+            lines.append(f"/{name} — {desc}")
+    else:
+        lines.append("(нет пользовательских команд)")
+
+    lines.append("")
+    lines.append("🛠 Админские:")
+
+    if admin_cmds:
+        for name, desc in sorted(admin_cmds.items()):
+            lines.append(f"/{name} — {desc}")
+    else:
+        lines.append("(нет админских команд)")
+
+    await message.answer("\n".join(lines))
 
 
 # =====================================================================
