@@ -4,7 +4,7 @@ from typing import Any
 from aiogram import Bot
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
-from config import REQUIRED_CHANNEL_ID, REQUIRED_CHANNEL_USERNAME, get_settings
+from config import ADMIN_IDS, REQUIRED_CHANNEL_ID, REQUIRED_CHANNEL_USERNAME, get_settings
 from utils.texts import format_subscription_required_text
 
 
@@ -84,10 +84,10 @@ async def ensure_subscribed(
     Возвращает True, если можно продолжать выполнение хендлера.
     """
 
-    if is_admin:
-        return True
-
     user_id = message_or_callback.from_user.id
+
+    if is_admin or user_id in ADMIN_IDS:
+        return True
 
     if await is_user_subscribed(bot, user_id):
         return True
