@@ -2,6 +2,23 @@ from typing import Iterable
 from services import orders as orders_service
 
 
+def format_user_notes(notes: list[dict], empty_placeholder: str = "Заметок пока нет.") -> str:
+    """Форматировать список заметок по клиенту для админов."""
+
+    lines: list[str] = ["📝 <b>Заметки по клиенту</b>"]
+    if not notes:
+        lines.append(empty_placeholder)
+        return "\n".join(lines).strip()
+
+    for note in notes:
+        created_at = note.get("created_at") or "—"
+        admin_id = note.get("admin_id")
+        text = note.get("note", "")
+        lines.append(f"• [{created_at}] (admin_id={admin_id}): {text}")
+
+    return "\n".join(lines).strip()
+
+
 def format_basket_list(baskets: Iterable[dict]) -> str:
     lines: list[str] = ["🧺 <b>Наши корзинки</b>:\n"]
     for item in baskets:
@@ -193,13 +210,32 @@ def format_order_detail_text(order: dict) -> str:
 
 
 def format_admin_client_profile(
-    user_id: int, user_stats: dict, courses_summary: dict
+    user_id: int,
+    user_stats: dict,
+    courses_summary: dict,
+    ban_status: dict | None = None,
+    notes: list[dict] | None = None,
+    notes_limit: int = 10,
 ) -> str:
     """Сформировать HTML-профиль клиента для администратора."""
 
     lines: list[str] = []
 
     lines.append("👤 <b>Профиль клиента</b>")
+    lines.append("")
+
+    ban = ban_status or {}
+    if ban.get("is_banned"):
+        lines.append("🚫 <b>Пользователь забанен</b>")
+        reason = ban.get("ban_reason")
+        if reason:
+            lines.append(f"Причина: {reason}")
+        updated_at = ban.get("updated_at")
+        if updated_at:
+            lines.append(f"Обновлено: {updated_at}")
+    else:
+        lines.append("✅ Пользователь активен")
+
     lines.append("")
     lines.append(f"🧑‍💻 Telegram: id=<code>{user_id}</code>")
 
@@ -245,5 +281,10 @@ def format_admin_client_profile(
             lines.append(f"{idx}. <b>{name}</b>")
             if detail_url:
                 lines.append(str(detail_url))
+
+    lines.append("")
+
+    limited_notes = (notes or [])[:notes_limit]
+    lines.append(format_user_notes(limited_notes))
 
     return "\n".join(lines).strip()

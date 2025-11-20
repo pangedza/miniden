@@ -6,6 +6,7 @@ from aiogram.fsm.context import FSMContext
 from config import ADMIN_IDS
 from services import products as products_service
 from services import orders as orders_service
+from services import user_admin as user_admin_service
 from services import user_stats as user_stats_service
 from keyboards.admin_inline import (
     products_list_kb,
@@ -14,7 +15,11 @@ from keyboards.admin_inline import (
     course_access_actions_kb,
 )
 from keyboards.main_menu import get_main_menu
-from utils.texts import format_admin_client_profile, format_orders_list_text
+from utils.texts import (
+    format_admin_client_profile,
+    format_orders_list_text,
+    format_user_notes,
+)
 
 router = Router()
 
@@ -931,6 +936,120 @@ async def admin_course_access_revoke_user(message: types.Message, state: FSMCont
 
 
 # =====================================================================
+#                    БАН/РАЗБАН И ЗАМЕТКИ ПО ПОЛЬЗОВАТЕЛЯМ
+# =====================================================================
+
+
+@router.message(Command("ban"))
+async def admin_ban_user(message: types.Message) -> None:
+    if not _is_admin(message.from_user.id):
+        return
+
+    parts = (message.text or "").split(maxsplit=2)
+    if len(parts) < 2:
+        await message.answer("Использование: /ban <user_id> [причина]")
+        return
+
+    try:
+        target_user_id = int(parts[1])
+    except ValueError:
+        await message.answer("Использование: /ban <user_id> [причина]")
+        return
+
+    reason = parts[2].strip() if len(parts) == 3 else None
+
+    user_admin_service.set_user_ban_status(
+        target_user_id, True, admin_id=message.from_user.id, reason=reason
+    )
+
+    response = f"Пользователь {target_user_id} забанен."
+    if reason:
+        response += f" Причина: {reason}"
+
+    await message.answer(response)
+
+
+@router.message(Command("unban"))
+async def admin_unban_user(message: types.Message) -> None:
+    if not _is_admin(message.from_user.id):
+        return
+
+    parts = (message.text or "").split(maxsplit=1)
+    if len(parts) < 2:
+        await message.answer("Использование: /unban <user_id>")
+        return
+
+    try:
+        target_user_id = int(parts[1])
+    except ValueError:
+        await message.answer("Использование: /unban <user_id>")
+        return
+
+    user_admin_service.set_user_ban_status(
+        target_user_id, False, admin_id=message.from_user.id, reason=None
+    )
+
+    await message.answer(f"Пользователь {target_user_id} разбанен.")
+
+
+@router.message(Command("note"))
+async def admin_add_note(message: types.Message) -> None:
+    if not _is_admin(message.from_user.id):
+        return
+
+    parts = (message.text or "").split(maxsplit=2)
+    if len(parts) < 3:
+        await message.answer("Использование: /note <user_id> <текст заметки>")
+        return
+
+    try:
+        target_user_id = int(parts[1])
+    except ValueError:
+        await message.answer("Использование: /note <user_id> <текст заметки>")
+        return
+
+    note_text = parts[2].strip()
+    if not note_text:
+        await message.answer("Текст заметки не может быть пустым.")
+        return
+
+    user_admin_service.add_user_note(
+        user_id=target_user_id, admin_id=message.from_user.id, note=note_text
+    )
+
+    await message.answer("Заметка добавлена.")
+
+
+@router.message(Command("notes"))
+async def admin_show_notes(message: types.Message) -> None:
+    if not _is_admin(message.from_user.id):
+        return
+
+    parts = (message.text or "").split(maxsplit=1)
+    if len(parts) < 2:
+        await message.answer("Использование: /notes <user_id>")
+        return
+
+    try:
+        target_user_id = int(parts[1])
+    except ValueError:
+        await message.answer("Использование: /notes <user_id>")
+        return
+
+    notes = user_admin_service.get_user_notes(target_user_id)
+    if not notes:
+        await message.answer("Заметок для этого пользователя пока нет.")
+        return
+
+    notes_text = format_user_notes(notes)
+    await message.answer(
+        "\n".join(
+            [f"📝 Заметки для клиента <code>{target_user_id}</code>", "", notes_text]
+        ).strip()
+    )
+
+
+# =====================================================================
 #                           ПРОФИЛЬ КЛИЕНТА (CRM)
 # =====================================================================
 
@@ -956,15 +1075,31 @@ async def admin_client_profile(message: types.Message) -> None:
 
     user_stats = user_stats_service.get_user_order_stats(target_user_id)
     courses_summary = user_stats_service.get_user_courses_summary(target_user_id)
+    ban_status = user_admin_service.get_user_ban_status(target_user_id)
+    notes = user_admin_service.get_user_notes(target_user_id, limit=5)
 
-    if user_stats.get("total_orders", 0) == 0 and courses_summary.get("count", 0) == 0:
+    has_data = any(
+        [
+            user_stats.get("total_orders", 0) > 0,
+            courses_summary.get("count", 0) > 0,
+            ban_status.get("is_banned"),
+            len(notes) > 0,
+        ]
+    )
+
+    if not has_data:
         await message.answer(
             "По этому пользователю пока нет данных (заказов и курсов не найдено)."
         )
         return
 
     text = format_admin_client_profile(
-        target_user_id, user_stats=user_stats, courses_summary=courses_summary
+        target_user_id,
+        user_stats=user_stats,
+        courses_summary=courses_summary,
+        ban_status=ban_status,
+        notes=notes,
+        notes_limit=5,
     )
     await message.answer(text)
 

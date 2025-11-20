@@ -132,7 +132,33 @@ def init_db() -> None:
             ALTER TABLE products
             ADD COLUMN image_file_id TEXT;
             """
-        )
+    )
+
+    # Таблица статуса пользователя (бан/разбан)
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS user_status (
+            user_id INTEGER PRIMARY KEY,
+            is_banned INTEGER NOT NULL DEFAULT 0,
+            ban_reason TEXT,
+            updated_at TEXT,
+            updated_by INTEGER
+        );
+        """
+    )
+
+    # Таблица заметок по пользователям
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS user_notes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            admin_id INTEGER NOT NULL,
+            note TEXT NOT NULL,
+            created_at TEXT
+        );
+        """
+    )
 
     # Индексы для ускорения запросов
     cur.execute(
@@ -163,6 +189,12 @@ def init_db() -> None:
         """
         CREATE UNIQUE INDEX IF NOT EXISTS idx_user_courses_unique
         ON user_courses (user_id, course_id);
+        """
+    )
+    cur.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_user_notes_user
+        ON user_notes(user_id);
         """
     )
 
