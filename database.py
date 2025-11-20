@@ -105,6 +105,24 @@ def init_db() -> None:
         """
     )
 
+    # Таблица ручного управления доступом к курсам
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS user_courses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            course_id INTEGER NOT NULL,
+            source_order_id INTEGER NULL,
+            granted_by INTEGER NULL,
+            granted_at TEXT,
+            status TEXT NOT NULL DEFAULT 'active',
+            comment TEXT NULL,
+            FOREIGN KEY (course_id) REFERENCES products (id),
+            FOREIGN KEY (source_order_id) REFERENCES orders (id)
+        );
+        """
+    )
+
     # 🔹 Добавляем колонку image_file_id, если её ещё нет
     cur.execute("PRAGMA table_info(products);")
     p_columns = [row["name"] for row in cur.fetchall()]
@@ -139,6 +157,12 @@ def init_db() -> None:
         """
         CREATE INDEX IF NOT EXISTS idx_products_type_active
         ON products (type, is_active);
+        """
+    )
+    cur.execute(
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_user_courses_unique
+        ON user_courses (user_id, course_id);
         """
     )
 

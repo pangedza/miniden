@@ -6,7 +6,7 @@ def get_admin_menu() -> ReplyKeyboardMarkup:
     Клавиатура для админ-панели.
     """
     keyboard = [
-        [KeyboardButton(text="/orders")],
+        [KeyboardButton(text="📦 Заказы")],
         [KeyboardButton(text="/id")],
         [KeyboardButton(text="📋 Товары: корзинки")],
         [KeyboardButton(text="📋 Товары: курсы")],
