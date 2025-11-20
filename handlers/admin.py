@@ -29,6 +29,7 @@ from utils.texts import (
     format_top_products,
     format_user_courses_access_granted,
     format_user_notes,
+    format_price,
 )
 
 router = Router()
@@ -135,6 +136,7 @@ async def _send_stats_menu(target_message: types.Message) -> None:
 
 class CreateState(StatesGroup):
     waiting_name = State()
+    waiting_payment_type = State()
     waiting_price = State()
     waiting_desc = State()
     waiting_url = State()
@@ -522,9 +524,69 @@ async def create_product_name(message: types.Message, state: FSMContext):
         return
 
     await state.update_data(name=name)
-    await state.set_state(CreateState.waiting_price)
+    data = await state.get_data()
+    product_type = data.get("product_type")
 
+    if product_type == "course":
+        await state.set_state(CreateState.waiting_payment_type)
+
+        kb = types.InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    types.InlineKeyboardButton(
+                        text="💸 Бесплатный", callback_data="admin:course:new:free"
+                    )
+                ],
+                [
+                    types.InlineKeyboardButton(
+                        text="💰 Платный", callback_data="admin:course:new:paid"
+                    )
+                ],
+            ]
+        )
+
+        await message.answer(
+            "Курс платный или бесплатный?",
+            reply_markup=kb,
+        )
+        return
+
+    await state.set_state(CreateState.waiting_price)
     await message.answer(f"Название: <b>{name}</b>\nТеперь введите цену (число):")
+
+
+@router.callback_query(F.data == "admin:course:new:free")
+async def admin_course_new_free(callback: types.CallbackQuery, state: FSMContext):
+    if not _is_admin(callback.from_user.id):
+        return
+
+    current_state = await state.get_state()
+    if current_state != CreateState.waiting_payment_type.state:
+        await callback.answer("Сейчас не ожидается выбор типа оплаты", show_alert=True)
+        return
+
+    await state.update_data(price=0)
+    await state.set_state(CreateState.waiting_desc)
+
+    await callback.message.answer(
+        "Вы выбрали бесплатный курс.\nВведите описание товара (или '-' чтобы оставить пустым):"
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "admin:course:new:paid")
+async def admin_course_new_paid(callback: types.CallbackQuery, state: FSMContext):
+    if not _is_admin(callback.from_user.id):
+        return
+
+    current_state = await state.get_state()
+    if current_state != CreateState.waiting_payment_type.state:
+        await callback.answer("Сейчас не ожидается выбор типа оплаты", show_alert=True)
+        return
+
+    await state.set_state(CreateState.waiting_price)
+    await callback.message.answer("Введите стоимость курса в рублях:")
+    await callback.answer()
 
 
 @router.message(CreateState.waiting_price)
@@ -571,7 +633,7 @@ async def create_product_photo(message: types.Message, state: FSMContext):
 
     product_type = data.get("product_type")
     name = data.get("name")
-    price = data.get("price")
+    price = int(data.get("price") or 0)
     description = data.get("description") or ""
     detail_url = data.get("detail_url")
 
@@ -600,7 +662,7 @@ async def create_product_photo(message: types.Message, state: FSMContext):
         f"ID: <code>{product_id}</code>\n"
         f"Тип: <b>{'Корзинка' if product_type == 'basket' else 'Курс'}</b>\n"
         f"Название: <b>{name}</b>\n"
-        f"Цена: <b>{price} ₽</b>"
+        f"Цена: <b>{format_price(price)}</b>"
     )
 
 

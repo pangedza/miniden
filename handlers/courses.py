@@ -5,44 +5,21 @@ from aiogram.types import (
     InlineKeyboardButton,
 )
 
-from services.products import get_courses, get_course_by_id
+from services.products import (
+    get_courses,
+    get_course_by_id,
+    get_free_courses,
+    get_paid_courses,
+)
 from services.cart import add_to_cart
 from services import orders as orders_service
 from keyboards.catalog_keyboards import catalog_product_actions_kb
 from config import get_settings
+from utils.texts import format_course_card
 
 router = Router()
 
-# сколько курсов показываем на одной странице
 USER_COURSES_PER_PAGE = 5
-
-
-def _split_courses_by_payment_type() -> tuple[list[dict], list[dict]]:
-    """
-    Делим список курсов на бесплатные и платные.
-    Бесплатный курс — цена <= 0.
-    """
-    all_courses = get_courses()
-    free: list[dict] = []
-    paid: list[dict] = []
-
-    for c in all_courses:
-        price = int(c.get("price", 0) or 0)
-        if price <= 0:
-            free.append(c)
-        else:
-            paid.append(c)
-
-    return free, paid
-
-
-def _get_courses_for_type(payment_type: str) -> list[dict]:
-    free, paid = _split_courses_by_payment_type()
-    if payment_type == "free":
-        return free
-    if payment_type == "paid":
-        return paid
-    return free + paid
 
 
 async def _send_courses_page(
@@ -58,7 +35,12 @@ async def _send_courses_page(
         - "paid"  — только платные
     """
     user_id = message.from_user.id
-    courses = _get_courses_for_type(payment_type)
+    if payment_type == "free":
+        courses = get_free_courses()
+    elif payment_type == "paid":
+        courses = get_paid_courses()
+    else:
+        courses = get_courses()
     courses_with_access = orders_service.get_user_courses_with_access(user_id)
     access_ids = {c["id"] for c in courses_with_access}
 
@@ -84,7 +66,7 @@ async def _send_courses_page(
     page_items = courses[start:end]
 
     title_map = {
-        "free": "🆓 Бесплатные курсы",
+        "free": "💸 Бесплатные курсы",
         "paid": "💰 Платные курсы",
     }
     title = title_map.get(payment_type, "🎓 Курсы")
@@ -93,30 +75,23 @@ async def _send_courses_page(
 
     for item in page_items:
         item_id = item["id"]
-        name = item.get("name", "Курс")
-        price = int(item.get("price", 0))
-        desc = item.get("description") or ""
+        price = int(item.get("price", 0) or 0)
         photo = item.get("image_file_id")
         url = item.get("detail_url") if item_id in access_ids else None
 
-        if price <= 0:
-            price_text = "💰 Цена: <b>БЕСПЛАТНО</b>"
-        else:
-            price_text = f"💰 Цена: <b>{price} ₽</b>"
-
-        caption = f"<b>{name}</b>\n{price_text}"
-        if desc:
-            caption += f"\n\n{desc}"
+        is_free = price == 0
+        has_access = item_id in access_ids
+        card_text = format_course_card(item, has_access=has_access, is_free=is_free)
 
         if photo:
             await message.answer_photo(
                 photo=photo,
-                caption=caption,
+                caption=card_text,
                 reply_markup=catalog_product_actions_kb("course", item_id, url),
             )
         else:
             await message.answer(
-                caption,
+                card_text,
                 reply_markup=catalog_product_actions_kb("course", item_id, url),
             )
 
@@ -160,7 +135,7 @@ async def courses_entry(message: types.Message) -> None:
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="🆓 Бесплатные курсы",
+                    text="💸 Бесплатные курсы",
                     callback_data="courses:list:free:1",
                 )
             ],
@@ -176,7 +151,7 @@ async def courses_entry(message: types.Message) -> None:
     text = (
         "🎓 <b>Курсы MiniDeN</b>\n\n"
         "Выберите, какие курсы показать:\n"
-        "• 🆓 бесплатные — с нулевой ценой;\n"
+        "• 💸 бесплатные — с нулевой ценой;\n"
         "• 💰 платные — с ценой больше 0.\n\n"
         "Добавляйте нужные курсы в корзину и оформляйте заказ — "
         "после этого менеджер выдаст вам доступ."

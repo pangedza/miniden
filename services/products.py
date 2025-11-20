@@ -140,7 +140,7 @@ def _fetch_products_by_type(product_type: str) -> list[dict[str, Any]]:
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT id, name, price, description, detail_url, image_file_id, is_active
+        SELECT id, name, price, description, detail_url, image_file_id, is_active, type
         FROM products
         WHERE type = ?
         ORDER BY id ASC
@@ -161,6 +161,7 @@ def _fetch_products_by_type(product_type: str) -> list[dict[str, Any]]:
                 "detail_url": row["detail_url"],
                 "image_file_id": row["image_file_id"],
                 "is_active": int(row["is_active"] or 0),
+                "type": row["type"],
             }
         )
     return result
@@ -173,7 +174,7 @@ def _fetch_product_by_id(product_type: str, item_id: int) -> dict[str, Any] | No
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT id, name, price, description, detail_url, image_file_id, is_active
+        SELECT id, name, price, description, detail_url, image_file_id, is_active, type
         FROM products
         WHERE type = ? AND id = ?
         LIMIT 1
@@ -194,6 +195,7 @@ def _fetch_product_by_id(product_type: str, item_id: int) -> dict[str, Any] | No
         "detail_url": row["detail_url"],
         "image_file_id": row["image_file_id"],
         "is_active": int(row["is_active"] or 0),
+        "type": row["type"],
     }
 
 
@@ -206,8 +208,24 @@ def get_baskets() -> list[dict[str, Any]]:
 
 
 def get_courses() -> list[dict[str, Any]]:
-    """Список курсов (из БД). Показываем только активные."""
+    """Список всех курсов (из БД). Показываем только активные."""
     return [p for p in _fetch_products_by_type("course") if p["is_active"] == 1]
+
+
+def get_free_courses() -> list[dict[str, Any]]:
+    """Список бесплатных курсов (price = 0)."""
+
+    return [
+        p for p in get_courses() if int(p.get("price", 0) or 0) == 0
+    ]
+
+
+def get_paid_courses() -> list[dict[str, Any]]:
+    """Список платных курсов (price > 0)."""
+
+    return [
+        p for p in get_courses() if int(p.get("price", 0) or 0) > 0
+    ]
 
 
 def get_basket_by_id(item_id: int) -> dict[str, Any] | None:
