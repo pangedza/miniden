@@ -332,3 +332,38 @@ def get_user_courses_with_access(user_id: int) -> list[dict[str, Any]]:
         )
 
     return courses
+
+
+def get_course_users(course_id: int) -> list[dict[str, Any]]:
+    """Список пользователей с активным доступом к курсу."""
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT uc.user_id, uc.source_order_id, uc.granted_by, uc.granted_at, uc.comment
+        FROM user_courses uc
+        JOIN products p ON p.id = uc.course_id
+        WHERE uc.course_id = ?
+          AND uc.status = 'active'
+          AND p.type = 'course'
+        ORDER BY uc.granted_at ASC, uc.user_id ASC
+        """,
+        (course_id,),
+    )
+
+    rows = cur.fetchall()
+    conn.close()
+
+    users: list[dict[str, Any]] = []
+    for row in rows:
+        users.append(
+            {
+                "user_id": row["user_id"],
+                "source_order_id": row["source_order_id"],
+                "granted_by": row["granted_by"],
+                "granted_at": row["granted_at"],
+                "comment": row["comment"],
+            }
+        )
+
+    return users

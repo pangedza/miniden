@@ -4,7 +4,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 from keyboards.main_menu import PROFILE_BUTTON_TEXT
 from services import orders as orders_service
-from utils.texts import format_orders_list_text
+from utils.texts import format_orders_list_text, format_user_courses_list
 
 router = Router()
 
@@ -108,22 +108,12 @@ async def profile_courses(callback: types.CallbackQuery) -> None:
     courses = orders_service.get_user_courses_with_access(user_id)
 
     if not courses:
-        await callback.message.answer("Пока нет доступных курсов. Оплатите заказ с курсом, чтобы открыть доступ.")
+        await callback.message.answer(
+            "У вас пока нет курсов с открытым доступом. Оформите заказ и дождитесь, пока администратор откроет доступ."
+        )
         await callback.answer()
         return
 
-    lines: list[str] = ["🎓 <b>Мои курсы</b>:\n"]
-    for idx, course in enumerate(courses, start=1):
-        name = course.get("name", "Курс")
-        desc = (course.get("description") or "").strip()
-        url = course.get("detail_url")
-
-        lines.append(f"{idx}. <b>{name}</b>")
-        if desc:
-            lines.append(desc)
-        if url:
-            lines.append(f"Ссылка: {url}")
-        lines.append("")
-
-    await callback.message.answer("\n".join(lines).strip())
+    text = format_user_courses_list(courses)
+    await callback.message.answer(text)
     await callback.answer()

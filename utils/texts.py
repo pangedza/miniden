@@ -122,6 +122,25 @@ def format_orders_list_text(order_list: list[dict]) -> str:
     return "\n".join(lines).strip()
 
 
+def format_user_courses_list(courses: list[dict]) -> str:
+    """Форматированный список курсов пользователя."""
+    lines: list[str] = ["🎓 <b>Мои курсы</b>:\n"]
+
+    for idx, course in enumerate(courses, start=1):
+        name = course.get("name", "Курс")
+        desc = (course.get("description") or "").strip()
+        url = course.get("detail_url")
+
+        lines.append(f"{idx}. <b>{name}</b>")
+        if desc:
+            lines.append(desc)
+        if url:
+            lines.append(f"Ссылка: {url}")
+        lines.append("")
+
+    return "\n".join(lines).strip()
+
+
 def format_order_detail_text(order: dict) -> str:
     """
     Форматирование одного заказа для команды /order <id>.

@@ -6,8 +6,14 @@ from aiogram.fsm.context import FSMContext
 from config import ADMIN_IDS
 from services import products as products_service
 from services import orders as orders_service
-from keyboards.admin_inline import products_list_kb, admin_product_actions_kb
+from keyboards.admin_inline import (
+    products_list_kb,
+    admin_product_actions_kb,
+    course_access_list_kb,
+    course_access_actions_kb,
+)
 from keyboards.main_menu import get_main_menu
+from utils.texts import format_orders_list_text
 
 router = Router()
 
@@ -38,6 +44,11 @@ class EditState(StatesGroup):
     waiting_photo = State()
 
 
+class CourseAccessState(StatesGroup):
+    waiting_grant_user_id = State()
+    waiting_revoke_user_id = State()
+
+
 # ---------------- ВХОД В АДМИНКУ ----------------
 
 
@@ -53,6 +64,7 @@ async def open_admin_panel(message: types.Message, state: FSMContext):
         keyboard=[
             [types.KeyboardButton(text="📋 Товары: корзинки")],
             [types.KeyboardButton(text="📋 Товары: курсы")],
+            [types.KeyboardButton(text="🎓 Доступ к курсам")],
             [types.KeyboardButton(text="📦 Заказы")],
             [types.KeyboardButton(text="⬅️ В главное меню")],
         ],
@@ -218,6 +230,7 @@ async def admin_back_panel(callback: types.CallbackQuery, state: FSMContext):
         keyboard=[
             [types.KeyboardButton(text="📋 Товары: корзинки")],
             [types.KeyboardButton(text="📋 Товары: курсы")],
+            [types.KeyboardButton(text="🎓 Доступ к курсам")],
             [types.KeyboardButton(text="📦 Заказы")],
             [types.KeyboardButton(text="⬅️ В главное меню")],
         ],
@@ -654,6 +667,231 @@ async def admin_delete_disabled(callback: types.CallbackQuery):
 
 
 # =====================================================================
+#                 УПРАВЛЕНИЕ ДОСТУПОМ К КУРСАМ (АДМИН)
+# =====================================================================
+
+
+async def _send_course_access_list(target_message: types.Message) -> None:
+    courses = products_service.get_courses()
+    text = "🎓 Выберите курс для управления доступом:" if courses else "Пока нет курсов для управления доступом."
+
+    await target_message.answer(
+        text,
+        reply_markup=course_access_list_kb(courses),
+    )
+
+
+async def _send_course_access_info(target_message: types.Message, course_id: int) -> None:
+    course = products_service.get_product_by_id(course_id)
+    if not course or course.get("type") != "course":
+        await target_message.answer("Курс не найден или недоступен.")
+        return
+
+    users = orders_service.get_course_users(course_id)
+
+    lines: list[str] = [
+        f"🎓 <b>{course['name']}</b> (ID: <code>{course_id}</code>)",
+        f"Пользователей с доступом: <b>{len(users)}</b>",
+    ]
+
+    if users:
+        lines.append("\nСписок (первые 10):")
+        for u in users[:10]:
+            base = f"• {u['user_id']}"
+            extra_parts: list[str] = []
+            if u.get("granted_at"):
+                extra_parts.append(u["granted_at"])
+            if u.get("comment"):
+                extra_parts.append(u["comment"])
+
+            if extra_parts:
+                base += " — " + "; ".join(extra_parts)
+
+            lines.append(base)
+
+        if len(users) > 10:
+            lines.append(f"… и ещё {len(users) - 10} пользователей")
+
+    await target_message.answer(
+        "\n".join(lines).strip(),
+        reply_markup=course_access_actions_kb(course_id),
+    )
+
+
+@router.message(F.text == "🎓 Доступ к курсам")
+async def admin_course_access_entry(message: types.Message, state: FSMContext):
+    if not _is_admin(message.from_user.id):
+        return
+
+    await state.clear()
+    await _send_course_access_list(message)
+
+
+@router.callback_query(F.data == "admin:course_access:list")
+async def admin_course_access_list(callback: types.CallbackQuery, state: FSMContext):
+    if not _is_admin(callback.from_user.id):
+        return
+
+    await state.clear()
+    await _send_course_access_list(callback.message)
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("admin:course_access:grant:"))
+async def admin_course_access_grant(callback: types.CallbackQuery, state: FSMContext):
+    if not _is_admin(callback.from_user.id):
+        return
+
+    parts = (callback.data or "").split(":")
+    if len(parts) != 4:
+        await callback.answer("Некорректный запрос", show_alert=True)
+        return
+
+    try:
+        course_id = int(parts[3])
+    except ValueError:
+        await callback.answer("Некорректный ID курса", show_alert=True)
+        return
+
+    course = products_service.get_product_by_id(course_id)
+    if not course or course.get("type") != "course":
+        await callback.answer("Курс не найден", show_alert=True)
+        return
+
+    await state.clear()
+    await state.update_data(course_id=course_id)
+    await state.set_state(CourseAccessState.waiting_grant_user_id)
+
+    await callback.message.answer(
+        f"Введите user_id для выдачи доступа к курсу <b>{course['name']}</b> (ID: <code>{course_id}</code>):"
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("admin:course_access:revoke:"))
+async def admin_course_access_revoke(callback: types.CallbackQuery, state: FSMContext):
+    if not _is_admin(callback.from_user.id):
+        return
+
+    parts = (callback.data or "").split(":")
+    if len(parts) != 4:
+        await callback.answer("Некорректный запрос", show_alert=True)
+        return
+
+    try:
+        course_id = int(parts[3])
+    except ValueError:
+        await callback.answer("Некорректный ID курса", show_alert=True)
+        return
+
+    course = products_service.get_product_by_id(course_id)
+    if not course or course.get("type") != "course":
+        await callback.answer("Курс не найден", show_alert=True)
+        return
+
+    await state.clear()
+    await state.update_data(course_id=course_id)
+    await state.set_state(CourseAccessState.waiting_revoke_user_id)
+
+    await callback.message.answer(
+        f"Введите user_id для отзыва доступа к курсу <b>{course['name']}</b> (ID: <code>{course_id}</code>):"
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("admin:course_access:"))
+async def admin_course_access_choose(callback: types.CallbackQuery):
+    if not _is_admin(callback.from_user.id):
+        return
+
+    parts = (callback.data or "").split(":")
+    if len(parts) != 3:
+        return
+
+    raw_course_id = parts[2]
+    if not raw_course_id.isdigit():
+        await callback.answer()
+        return
+
+    course_id = int(raw_course_id)
+
+    await _send_course_access_info(callback.message, course_id)
+    await callback.answer()
+
+
+@router.message(CourseAccessState.waiting_grant_user_id)
+async def admin_course_access_grant_user(message: types.Message, state: FSMContext):
+    if not _is_admin(message.from_user.id):
+        await state.clear()
+        return
+
+    data = await state.get_data()
+    course_id = data.get("course_id")
+
+    if not course_id:
+        await state.clear()
+        await message.answer("Курс не найден в состоянии. Попробуйте снова.")
+        return
+
+    try:
+        user_id = int((message.text or "").strip())
+    except ValueError:
+        await message.answer("Нужно ввести числовой user_id. Попробуйте ещё раз:")
+        return
+
+    success = orders_service.grant_course_access(
+        user_id=user_id,
+        course_id=course_id,
+        granted_by=message.from_user.id,
+        source_order_id=None,
+        comment=None,
+    )
+
+    await state.clear()
+
+    if success:
+        await message.answer(
+            f"Доступ к курсу ID {course_id} выдан пользователю <code>{user_id}</code>."
+        )
+        await _send_course_access_info(message, course_id)
+    else:
+        await message.answer("Не удалось выдать доступ. Попробуйте позже.")
+
+
+@router.message(CourseAccessState.waiting_revoke_user_id)
+async def admin_course_access_revoke_user(message: types.Message, state: FSMContext):
+    if not _is_admin(message.from_user.id):
+        await state.clear()
+        return
+
+    data = await state.get_data()
+    course_id = data.get("course_id")
+
+    if not course_id:
+        await state.clear()
+        await message.answer("Курс не найден в состоянии. Попробуйте снова.")
+        return
+
+    try:
+        user_id = int((message.text or "").strip())
+    except ValueError:
+        await message.answer("Нужно ввести числовой user_id. Попробуйте ещё раз:")
+        return
+
+    success = orders_service.revoke_course_access(user_id=user_id, course_id=course_id)
+
+    await state.clear()
+
+    if success:
+        await message.answer(
+            f"Доступ к курсу ID {course_id} отозван у пользователя <code>{user_id}</code>."
+        )
+        await _send_course_access_info(message, course_id)
+    else:
+        await message.answer("Не удалось отозвать доступ. Возможно, его и так не было.")
+
+
+# =====================================================================
 #                           СПИСОК ЗАКАЗОВ
 # =====================================================================
 
@@ -668,22 +906,8 @@ async def admin_list_orders(message: types.Message):
         return
 
     orders = orders_service.get_last_orders(20)
-    if not orders:
-        await message.answer("Пока заказов нет.")
-        return
-
-    lines = ["📦 <b>Последние заказы:</b>\n"]
-
-    for o in orders:
-        lines.append(
-            f"Заказ <b>#{o['id']}</b>\n"
-            f"👤 {o['customer_name']}\n"
-            f"📞 {o['contact']}\n"
-            f"💰 {o['total']} ₽\n"
-            f"🕒 {o['created_at']}\n"
-        )
-
-    await message.answer("\n".join(lines))
+    text = format_orders_list_text(orders)
+    await message.answer(text)
 
 
 # ---------------- ВЫХОД В ГЛАВНОЕ МЕНЮ ----------------
