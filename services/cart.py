@@ -1,6 +1,7 @@
 from typing import Any, List
 
 from database import get_connection
+
 from . import products as products_service
 
 
