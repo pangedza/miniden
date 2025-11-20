@@ -247,22 +247,74 @@ def set_order_status(order_id: int, new_status: str) -> bool:
     return updated
 
 
-def get_user_courses_with_access(user_id: int) -> list[dict[str, Any]]:
-    """Курсы, к которым у пользователя открыт доступ (заказы со статусом paid)."""
+def grant_course_access(
+    user_id: int,
+    course_id: int,
+    granted_by: int | None,
+    source_order_id: int | None,
+    comment: str | None = None,
+) -> bool:
+    """Выдать пользователю доступ к курсу (или обновить существующий)."""
+
+    granted_at = datetime.now().isoformat(timespec="seconds")
+
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT DISTINCT p.id, p.name, p.description, p.detail_url, p.image_file_id
-        FROM orders o
-        JOIN order_items oi ON oi.order_id = o.id
-        JOIN products p ON p.id = oi.product_id
-        WHERE o.user_id = ?
-          AND o.status = ?
+        INSERT INTO user_courses (
+            user_id, course_id, source_order_id, granted_by, granted_at, status, comment
+        )
+        VALUES (?, ?, ?, ?, ?, 'active', ?)
+        ON CONFLICT(user_id, course_id) DO UPDATE SET
+            status = 'active',
+            source_order_id = excluded.source_order_id,
+            granted_by = excluded.granted_by,
+            granted_at = excluded.granted_at,
+            comment = excluded.comment
+        """,
+        (user_id, course_id, source_order_id, granted_by, granted_at, comment),
+    )
+    conn.commit()
+    success = cur.rowcount > 0
+    conn.close()
+    return success
+
+
+def revoke_course_access(user_id: int, course_id: int) -> bool:
+    """Забрать доступ к курсу (пометить как revoked)."""
+
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        UPDATE user_courses
+        SET status = 'revoked', granted_at = ?
+        WHERE user_id = ? AND course_id = ?
+        """,
+        (datetime.now().isoformat(timespec="seconds"), user_id, course_id),
+    )
+    conn.commit()
+    success = cur.rowcount > 0
+    conn.close()
+    return success
+
+
+def get_user_courses_with_access(user_id: int) -> list[dict[str, Any]]:
+    """Курсы с активным доступом для пользователя."""
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT p.id, p.name, p.description, p.detail_url, p.image_file_id
+        FROM user_courses uc
+        JOIN products p ON p.id = uc.course_id
+        WHERE uc.user_id = ?
+          AND uc.status = 'active'
           AND p.type = 'course'
         ORDER BY p.id ASC
         """,
-        (user_id, STATUS_PAID),
+        (user_id,),
     )
     rows = cur.fetchall()
     conn.close()

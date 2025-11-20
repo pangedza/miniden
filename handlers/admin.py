@@ -53,7 +53,7 @@ async def open_admin_panel(message: types.Message, state: FSMContext):
         keyboard=[
             [types.KeyboardButton(text="📋 Товары: корзинки")],
             [types.KeyboardButton(text="📋 Товары: курсы")],
-            [types.KeyboardButton(text="/orders")],
+            [types.KeyboardButton(text="📦 Заказы")],
             [types.KeyboardButton(text="⬅️ В главное меню")],
         ],
     )
@@ -183,6 +183,9 @@ async def admin_product_selected(callback: types.CallbackQuery, state: FSMContex
 
 @router.callback_query(F.data == "admin:back_to_list")
 async def admin_back_list(callback: types.CallbackQuery, state: FSMContext):
+    if not _is_admin(callback.from_user.id):
+        return
+
     data = await state.get_data()
     category = data.get("category", "basket")
     status = data.get("status", "all")
@@ -200,6 +203,9 @@ async def admin_back_list(callback: types.CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data == "admin:back")
 async def admin_back_panel(callback: types.CallbackQuery, state: FSMContext):
+    if not _is_admin(callback.from_user.id):
+        return
+
     await state.clear()
 
     try:
@@ -212,7 +218,7 @@ async def admin_back_panel(callback: types.CallbackQuery, state: FSMContext):
         keyboard=[
             [types.KeyboardButton(text="📋 Товары: корзинки")],
             [types.KeyboardButton(text="📋 Товары: курсы")],
-            [types.KeyboardButton(text="/orders")],
+            [types.KeyboardButton(text="📦 Заказы")],
             [types.KeyboardButton(text="⬅️ В главное меню")],
         ],
     )
@@ -225,6 +231,9 @@ async def admin_back_panel(callback: types.CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data == "admin:home")
 async def admin_home_cb(callback: types.CallbackQuery, state: FSMContext):
+    if not _is_admin(callback.from_user.id):
+        return
+
     await state.clear()
 
     try:
@@ -638,6 +647,9 @@ async def admin_delete_disabled(callback: types.CallbackQuery):
     """
     Временная заглушка — реального удаления нет, используем «Скрыть».
     """
+    if not _is_admin(callback.from_user.id):
+        return
+
     await callback.answer("Удаление товара пока не настроено 🛠", show_alert=True)
 
 
@@ -647,6 +659,7 @@ async def admin_delete_disabled(callback: types.CallbackQuery):
 
 
 @router.message(Command("orders"))
+@router.message(F.text == "📦 Заказы")
 async def admin_list_orders(message: types.Message):
     """
     Показывает последние заказы для администратора.
@@ -678,6 +691,9 @@ async def admin_list_orders(message: types.Message):
 
 @router.message(F.text == "⬅️ В главное меню")
 async def admin_go_main(message: types.Message, state: FSMContext):
+    if not _is_admin(message.from_user.id):
+        return
+
     await state.clear()
     await message.answer(
         "Главное меню:",
@@ -735,4 +751,7 @@ async def admin_noop(callback: types.CallbackQuery):
     """
     Ничего не делаем, просто закрываем «кружочек» загрузки.
     """
+    if not _is_admin(callback.from_user.id):
+        return
+
     await callback.answer()
