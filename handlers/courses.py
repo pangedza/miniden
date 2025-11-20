@@ -14,7 +14,8 @@ from services.products import (
 from services.cart import add_to_cart
 from services import orders as orders_service
 from keyboards.catalog_keyboards import catalog_product_actions_kb
-from config import get_settings
+from config import ADMIN_IDS, get_settings
+from services.subscription import ensure_subscribed
 from utils.texts import format_course_card
 
 router = Router()
@@ -127,6 +128,12 @@ async def courses_entry(message: types.Message) -> None:
     При нажатии на кнопку в главном меню
     показываем выбор: платные или бесплатные курсы.
     """
+    user_id = message.from_user.id
+    is_admin = user_id in ADMIN_IDS
+
+    if not await ensure_subscribed(message, message.bot, is_admin=is_admin):
+        return
+
     banner = get_settings().banner_courses
     if banner:
         await message.answer_photo(photo=banner, caption="🎓 Наши курсы")
@@ -171,6 +178,12 @@ async def courses_list_callback(callback: CallbackQuery) -> None:
 
     payment_type: free | paid
     """
+    user_id = callback.from_user.id
+    is_admin = user_id in ADMIN_IDS
+
+    if not await ensure_subscribed(callback, callback.message.bot, is_admin=is_admin):
+        return
+
     data = callback.data or ""
     try:
         _, _, payment_type, raw_page = data.split(":")
@@ -194,6 +207,12 @@ async def courses_list_callback(callback: CallbackQuery) -> None:
 @router.callback_query(F.data.startswith("cart:add:course:"))
 async def add_course_to_cart(callback: CallbackQuery) -> None:
     """Добавить курс в корзину пользователя."""
+    user_id = callback.from_user.id
+    is_admin = user_id in ADMIN_IDS
+
+    if not await ensure_subscribed(callback, callback.message.bot, is_admin=is_admin):
+        return
+
     data = callback.data or ""
     # ожидаем формат: cart:add:course:<id>
     try:
