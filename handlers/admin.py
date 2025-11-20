@@ -947,13 +947,17 @@ async def admin_ban_user(message: types.Message) -> None:
 
     parts = (message.text or "").split(maxsplit=2)
     if len(parts) < 2:
-        await message.answer("Использование: /ban <user_id> [причина]")
+        await message.answer(
+            "Использование: <code>/ban &lt;user_id&gt; [причина]</code>"
+        )
         return
 
     try:
         target_user_id = int(parts[1])
     except ValueError:
-        await message.answer("Использование: /ban <user_id> [причина]")
+        await message.answer(
+            "Использование: <code>/ban &lt;user_id&gt; [причина]</code>"
+        )
         return
 
     reason = parts[2].strip() if len(parts) == 3 else None
@@ -976,13 +980,13 @@ async def admin_unban_user(message: types.Message) -> None:
 
     parts = (message.text or "").split(maxsplit=1)
     if len(parts) < 2:
-        await message.answer("Использование: /unban <user_id>")
+        await message.answer("Использование: <code>/unban &lt;user_id&gt;</code>")
         return
 
     try:
         target_user_id = int(parts[1])
     except ValueError:
-        await message.answer("Использование: /unban <user_id>")
+        await message.answer("Использование: <code>/unban &lt;user_id&gt;</code>")
         return
 
     user_admin_service.set_user_ban_status(
@@ -999,13 +1003,17 @@ async def admin_add_note(message: types.Message) -> None:
 
     parts = (message.text or "").split(maxsplit=2)
     if len(parts) < 3:
-        await message.answer("Использование: /note <user_id> <текст заметки>")
+        await message.answer(
+            "Использование: <code>/note &lt;user_id&gt; &lt;текст заметки&gt;</code>"
+        )
         return
 
     try:
         target_user_id = int(parts[1])
     except ValueError:
-        await message.answer("Использование: /note <user_id> <текст заметки>")
+        await message.answer(
+            "Использование: <code>/note &lt;user_id&gt; &lt;текст заметки&gt;</code>"
+        )
         return
 
     note_text = parts[2].strip()
@@ -1027,13 +1035,13 @@ async def admin_show_notes(message: types.Message) -> None:
 
     parts = (message.text or "").split(maxsplit=1)
     if len(parts) < 2:
-        await message.answer("Использование: /notes <user_id>")
+        await message.answer("Использование: <code>/notes &lt;user_id&gt;</code>")
         return
 
     try:
         target_user_id = int(parts[1])
     except ValueError:
-        await message.answer("Использование: /notes <user_id>")
+        await message.answer("Использование: <code>/notes &lt;user_id&gt;</code>")
         return
 
     notes = user_admin_service.get_user_notes(target_user_id)
@@ -1061,7 +1069,7 @@ async def admin_client_profile(message: types.Message) -> None:
     if not _is_admin(message.from_user.id):
         return
 
-    usage_text = "Использование: /client <telegram_id_пользователя>"
+    usage_text = "Использование: <code>/client &lt;telegram_id_пользователя&gt;</code>"
     parts = (message.text or "").split(maxsplit=1)
     if len(parts) < 2:
         await message.answer(usage_text)

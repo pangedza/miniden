@@ -142,7 +142,8 @@ def format_orders_list_text(order_list: list[dict], show_client_hint: bool = Fal
 
     if show_client_hint:
         lines.append(
-            "\nЧтобы открыть профиль клиента, отправьте: /client <telegram_id>"
+            "\nЧтобы открыть профиль клиента, отправьте:"
+            " <code>/client &lt;telegram_id&gt;</code>"
         )
 
     return "\n".join(lines).strip()
