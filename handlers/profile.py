@@ -2,10 +2,11 @@ from aiogram import Router, types, F
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-from config import get_settings
+from config import ADMIN_IDS, get_settings
 from keyboards.main_menu import PROFILE_BUTTON_TEXT
 from services import orders as orders_service
 from utils.texts import format_orders_list_text, format_user_courses_list
+from services.subscription import ensure_subscribed
 
 router = Router()
 
@@ -67,6 +68,11 @@ def _format_profile_text(user: types.User, orders: list[dict], courses_cnt: int)
 @router.message(F.text == PROFILE_BUTTON_TEXT)
 async def show_profile(message: types.Message) -> None:
     user = message.from_user
+    is_admin = user.id in ADMIN_IDS
+
+    if not await ensure_subscribed(message, message.bot, is_admin=is_admin):
+        return
+
     orders = orders_service.get_orders_by_user(user.id, limit=50)
     courses = orders_service.get_user_courses_with_access(user.id)
 
@@ -88,6 +94,11 @@ async def show_profile(message: types.Message) -> None:
 @router.callback_query(F.data == "profile:orders:active")
 async def profile_orders_active(callback: types.CallbackQuery) -> None:
     user_id = callback.from_user.id
+    is_admin = user_id in ADMIN_IDS
+
+    if not await ensure_subscribed(callback, callback.message.bot, is_admin=is_admin):
+        return
+
     orders = orders_service.get_orders_by_user(user_id, limit=50)
     active_orders = [o for o in orders if o.get("status") in ACTIVE_STATUSES]
 
@@ -99,6 +110,11 @@ async def profile_orders_active(callback: types.CallbackQuery) -> None:
 @router.callback_query(F.data == "profile:orders:finished")
 async def profile_orders_finished(callback: types.CallbackQuery) -> None:
     user_id = callback.from_user.id
+    is_admin = user_id in ADMIN_IDS
+
+    if not await ensure_subscribed(callback, callback.message.bot, is_admin=is_admin):
+        return
+
     orders = orders_service.get_orders_by_user(user_id, limit=50)
     finished_orders = [o for o in orders if o.get("status") in FINISHED_STATUSES]
 
@@ -110,6 +126,11 @@ async def profile_orders_finished(callback: types.CallbackQuery) -> None:
 @router.callback_query(F.data == "profile:courses")
 async def profile_courses(callback: types.CallbackQuery) -> None:
     user_id = callback.from_user.id
+    is_admin = user_id in ADMIN_IDS
+
+    if not await ensure_subscribed(callback, callback.message.bot, is_admin=is_admin):
+        return
+
     courses = orders_service.get_user_courses_with_access(user_id)
 
     if not courses:

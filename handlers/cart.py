@@ -13,6 +13,8 @@ from services.cart import (
 from utils.texts import format_cart
 from keyboards.cart_keyboards import cart_kb
 from .checkout import CheckoutState  # из checkout.py
+from config import ADMIN_IDS
+from services.subscription import ensure_subscribed
 
 router = Router()
 
@@ -38,6 +40,11 @@ async def _update_cart_message(callback: CallbackQuery) -> None:
 @router.message(F.text == "🛒 Корзина")
 async def show_cart(message: types.Message) -> None:
     user_id = message.from_user.id
+    is_admin = user_id in ADMIN_IDS
+
+    if not await ensure_subscribed(message, message.bot, is_admin=is_admin):
+        return
+
     items = get_cart_items(user_id)
     text = format_cart(items)
 
@@ -51,6 +58,11 @@ async def show_cart(message: types.Message) -> None:
 @router.message(Command("clear_cart"))
 async def clear_user_cart(message: types.Message) -> None:
     user_id = message.from_user.id
+    is_admin = user_id in ADMIN_IDS
+
+    if not await ensure_subscribed(message, message.bot, is_admin=is_admin):
+        return
+
     clear_cart(user_id)
     await message.answer("🧹 Ваша корзина очищена.")
 
@@ -71,6 +83,11 @@ async def cart_clear_cb(callback: CallbackQuery):
     Очистить корзину по кнопке.
     """
     user_id = callback.from_user.id
+    is_admin = user_id in ADMIN_IDS
+
+    if not await ensure_subscribed(callback, callback.message.bot, is_admin=is_admin):
+        return
+
     clear_cart(user_id)
     await callback.answer("Корзина очищена 🧹")
     await callback.message.edit_text("🛒 Ваша корзина пока пуста.")
@@ -92,6 +109,11 @@ async def cart_inc_cb(callback: CallbackQuery):
         return
 
     user_id = callback.from_user.id
+    is_admin = user_id in ADMIN_IDS
+
+    if not await ensure_subscribed(callback, callback.message.bot, is_admin=is_admin):
+        return
+
     change_qty(user_id, product_id, delta=+1)
     await callback.answer("Добавлено")
     await _update_cart_message(callback)
@@ -113,6 +135,11 @@ async def cart_dec_cb(callback: CallbackQuery):
         return
 
     user_id = callback.from_user.id
+    is_admin = user_id in ADMIN_IDS
+
+    if not await ensure_subscribed(callback, callback.message.bot, is_admin=is_admin):
+        return
+
     change_qty(user_id, product_id, delta=-1)
     await callback.answer("Убрано")
     await _update_cart_message(callback)
@@ -134,6 +161,11 @@ async def cart_remove_cb(callback: CallbackQuery):
         return
 
     user_id = callback.from_user.id
+    is_admin = user_id in ADMIN_IDS
+
+    if not await ensure_subscribed(callback, callback.message.bot, is_admin=is_admin):
+        return
+
     remove_from_cart(user_id, product_id)
     await callback.answer("Удалено")
     await _update_cart_message(callback)
@@ -144,6 +176,11 @@ async def cart_remove_cb(callback: CallbackQuery):
 @router.callback_query(F.data == "cart:checkout")
 async def cart_checkout_cb(callback: CallbackQuery, state: FSMContext):
     user_id = callback.from_user.id
+    is_admin = user_id in ADMIN_IDS
+
+    if not await ensure_subscribed(callback, callback.message.bot, is_admin=is_admin):
+        return
+
     items = get_cart_items(user_id)
 
     if not items:

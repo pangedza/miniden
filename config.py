@@ -7,6 +7,24 @@ from dotenv import load_dotenv
 # Загружаем .env один раз при импорте модуля
 load_dotenv()
 
+# 🔹 Канал для проверки обязательной подписки
+# Укажите username канала (с @) или установите в None, чтобы отключить проверку.
+REQUIRED_CHANNEL_USERNAME: str | None = (
+    os.getenv("REQUIRED_CHANNEL_USERNAME", "@miniden_channel").strip() or None
+)
+
+# Если известен числовой ID канала (начинается с -100...), укажите его здесь.
+raw_required_channel_id = os.getenv("REQUIRED_CHANNEL_ID", "").strip()
+REQUIRED_CHANNEL_ID: int | None = None
+
+if raw_required_channel_id:
+    try:
+        REQUIRED_CHANNEL_ID = int(raw_required_channel_id)
+    except ValueError:
+        # Если передали username через REQUIRED_CHANNEL_ID, используем его как username.
+        if not REQUIRED_CHANNEL_USERNAME:
+            REQUIRED_CHANNEL_USERNAME = raw_required_channel_id
+
 
 @dataclass
 class Settings:
@@ -89,8 +107,17 @@ def get_settings() -> Settings:
         break
 
     # 🔹 Канал, на который нужно быть подписанным
-    channel_id = os.getenv("REQUIRED_CHANNEL_ID", "").strip() or None
+    raw_channel_id = os.getenv("REQUIRED_CHANNEL_ID", "").strip()
     channel_link = os.getenv("REQUIRED_CHANNEL_LINK", "").strip() or None
+
+    channel_id: str | None = None
+    if raw_channel_id:
+        channel_id = raw_channel_id
+    elif REQUIRED_CHANNEL_USERNAME:
+        channel_id = REQUIRED_CHANNEL_USERNAME
+
+    if not channel_link and REQUIRED_CHANNEL_USERNAME:
+        channel_link = f"https://t.me/{REQUIRED_CHANNEL_USERNAME.lstrip('@')}"
 
     # 🔹 Баннеры (file_id или URL)
     start_banner_id = os.getenv("START_BANNER_ID") or None

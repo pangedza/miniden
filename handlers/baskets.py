@@ -4,7 +4,8 @@ from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardBut
 from services.products import get_baskets, get_basket_by_id
 from services.cart import add_to_cart
 from keyboards.catalog_keyboards import catalog_product_actions_kb
-from config import get_settings
+from config import ADMIN_IDS, get_settings
+from services.subscription import ensure_subscribed
 from utils.texts import format_basket_card
 
 router = Router()
@@ -89,12 +90,24 @@ async def _send_baskets_page(
 @router.message(F.text == "🧺 Корзинки")
 async def show_baskets(message: types.Message) -> None:
     """Показать список корзинок с пагинацией."""
+    user_id = message.from_user.id
+    is_admin = user_id in ADMIN_IDS
+
+    if not await ensure_subscribed(message, message.bot, is_admin=is_admin):
+        return
+
     await _send_baskets_page(message, page=1, with_banner=True)
 
 
 @router.callback_query(F.data.startswith("baskets:page:"))
 async def baskets_page_callback(callback: CallbackQuery) -> None:
     """Перелистывание страниц каталога корзинок."""
+    user_id = callback.from_user.id
+    is_admin = user_id in ADMIN_IDS
+
+    if not await ensure_subscribed(callback, callback.message.bot, is_admin=is_admin):
+        return
+
     data = callback.data or ""
     try:
         _, _, raw_page = data.split(":")
@@ -120,6 +133,12 @@ async def baskets_page_callback(callback: CallbackQuery) -> None:
 @router.callback_query(F.data.startswith("cart:add:basket:"))
 async def add_basket_to_cart(callback: CallbackQuery) -> None:
     """Добавить корзинку в корзину пользователя."""
+    user_id = callback.from_user.id
+    is_admin = user_id in ADMIN_IDS
+
+    if not await ensure_subscribed(callback, callback.message.bot, is_admin=is_admin):
+        return
+
     data = callback.data or ""
     # ожидаем формат: cart:add:basket:<id>
     try:
