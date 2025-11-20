@@ -1,5 +1,5 @@
-from typing import Any, Optional
 from datetime import datetime
+from typing import Any, Optional
 
 from database import get_connection
 
