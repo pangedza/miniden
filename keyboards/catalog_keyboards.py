@@ -17,15 +17,13 @@ def catalog_product_actions_kb(
 
     # Кнопка с внешней ссылкой (если URL есть)
     if url:
-        rows.append(
-            [InlineKeyboardButton(text="Подробнее", url=url)]
-        )
+        rows.append([InlineKeyboardButton(text="🔗 Подробнее", url=url)])
 
     # Кнопка добавления в корзину (всегда)
     rows.append(
         [
             InlineKeyboardButton(
-                text="Добавить в корзину 🛒",
+                text="➕ В корзину",
                 callback_data=f"cart:add:{product_type}:{product_id}",
             )
         ]

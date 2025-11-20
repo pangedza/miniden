@@ -5,6 +5,7 @@ from services.products import get_baskets, get_basket_by_id
 from services.cart import add_to_cart
 from keyboards.catalog_keyboards import catalog_product_actions_kb
 from config import get_settings
+from utils.texts import format_basket_card
 
 router = Router()
 
@@ -46,25 +47,20 @@ async def _send_baskets_page(
     # Карточки товаров
     for item in page_items:
         item_id = item["id"]
-        name = item.get("name", "Корзинка")
-        price = int(item.get("price", 0))
-        desc = item.get("description") or ""
         photo = item.get("image_file_id")
         url = item.get("detail_url")
 
-        caption = f"<b>{name}</b>\n💰 Цена: <b>{price} ₽</b>"
-        if desc:
-            caption += f"\n\n{desc}"
+        card_text = format_basket_card(item)
 
         if photo:
             await message.answer_photo(
                 photo=photo,
-                caption=caption,
+                caption=card_text,
                 reply_markup=catalog_product_actions_kb("basket", item_id, url),
             )
         else:
             await message.answer(
-                caption,
+                card_text,
                 reply_markup=catalog_product_actions_kb("basket", item_id, url),
             )
 

@@ -2,6 +2,37 @@ from typing import Iterable
 from services import orders as orders_service
 
 
+# ------------------------------------------------------------
+# Общие хелперы
+# ------------------------------------------------------------
+
+
+def format_price(price: int | float) -> str:
+    """Вернуть цену для вывода пользователю/админу."""
+
+    try:
+        value = float(price)
+    except Exception:
+        return "—"
+
+    if value <= 0:
+        return "Бесплатно"
+    return f"{int(value)} ₽"
+
+
+def _shorten_description(text: str, limit: int = 300) -> str:
+    """Обрезать описание до разумной длины."""
+
+    cleaned = (text or "").strip()
+    if not cleaned:
+        return ""
+
+    if len(cleaned) <= limit:
+        return cleaned
+
+    return cleaned[: limit - 1].rstrip() + "…"
+
+
 def format_start_text() -> str:
     return (
         "👋 <b>Добро пожаловать в MiniDeN!</b>\n\n"
@@ -91,7 +122,7 @@ def format_basket_list(baskets: Iterable[dict]) -> str:
     lines: list[str] = ["🧺 <b>Наши корзинки</b>:\n"]
     for item in baskets:
         lines.append(
-            f"• <b>{item.get('name')}</b> — {item.get('price')} ₽\n"
+            f"• <b>{item.get('name')}</b> — {format_price(item.get('price'))}\n"
             f"{item.get('description', '').strip()}"
         )
         url = item.get("detail_url")
@@ -106,7 +137,7 @@ def format_course_list(courses: Iterable[dict]) -> str:
     lines: list[str] = ["🎓 <b>Наши онлайн-курсы</b>:\n"]
     for item in courses:
         lines.append(
-            f"• <b>{item.get('name')}</b> — {item.get('price')} ₽\n"
+            f"• <b>{item.get('name')}</b> — {format_price(item.get('price'))}\n"
             f"{item.get('description', '').strip()}"
         )
         url = item.get("detail_url")
@@ -133,12 +164,16 @@ def format_cart(items: Iterable[dict]) -> str:
         subtotal = price * qty
         total += subtotal
 
+        price_text = format_price(price)
+        subtotal_text = format_price(subtotal)
+
         lines.append(
-            f"• <b>{name}</b> — {price} ₽ x {qty} = {subtotal} ₽"
+            f"• <b>{name}</b> — {price_text} x {qty} = {subtotal_text}"
         )
 
     lines.append("")
-    lines.append(f"Итого: <b>{total} ₽</b>")
+    total_text = format_price(total)
+    lines.append(f"Итого: <b>{total_text}</b>")
     return "\n".join(lines).strip()
 
 
@@ -173,10 +208,13 @@ def format_order_for_admin(
         qty = int(item.get("qty", 0))
         subtotal = price * qty
         total_check += subtotal
-        lines.append(f"• {name} — {price} ₽ x {qty} = {subtotal} ₽")
+        price_text = format_price(price)
+        subtotal_text = format_price(subtotal)
+        lines.append(f"• {name} — {price_text} x {qty} = {subtotal_text}")
 
     lines.append("")
-    lines.append(f"Итого к оплате: <b>{total} ₽</b>")
+    total_text = format_price(total)
+    lines.append(f"Итого к оплате: <b>{total_text}</b>")
     if total_check != total:
         lines.append(f"(пересчёт по позициям: {total_check} ₽)")
 
@@ -204,7 +242,7 @@ def format_orders_list_text(order_list: list[dict], show_client_hint: bool = Fal
             f"\n👤 Клиент: {order['customer_name']}"
             f"\n🧑‍💻 Telegram: id=<code>{user_id}</code>, имя={user_name}"
             f"\n📞 Контакт: {order['contact']}"
-            f"\n💰 Сумма: <b>{order['total']} ₽</b>"
+            f"\n💰 Сумма: <b>{format_price(order['total'])}</b>"
             f"\n🕒 Время: {order.get('created_at', '—')}"
         )
 
@@ -270,10 +308,13 @@ def format_order_detail_text(order: dict) -> str:
             price = int(item.get("price", 0))
             qty = int(item.get("qty", 0))
             subtotal = price * qty
-            lines.append(f"• {name} — {qty} x {price} ₽ = {subtotal} ₽")
+            price_text = format_price(price)
+            subtotal_text = format_price(subtotal)
+            lines.append(f"• {name} — {qty} x {price_text} = {subtotal_text}")
 
     total = order.get("total", 0)
-    lines.append(f"\n💰 <b>Итого: {total} ₽</b>")
+    total_text = format_price(total)
+    lines.append(f"\n💰 <b>Итого: {total_text}</b>")
 
     return "\n".join(lines).strip()
 
@@ -397,6 +438,44 @@ def format_order_status_changed_for_user(order_id: int, new_status: str) -> str:
         "",
         f"Новый статус: <b>{status_title}</b>.",
     ]
+
+    return "\n".join(lines).strip()
+
+
+def format_basket_card(product: dict) -> str:
+    """Формат «карточки» корзинки для каталога."""
+
+    name = product.get("name", "Корзинка")
+    description = _shorten_description(product.get("description", ""))
+    price_text = format_price(product.get("price", 0))
+
+    lines: list[str] = ["🧺 <b>{}</b>".format(name), ""]
+
+    if description:
+        lines.append(description)
+        lines.append("")
+
+    lines.append(f"💰 Цена: <b>{price_text}</b>")
+    return "\n".join(lines).strip()
+
+
+def format_course_card(product: dict, has_access: bool, is_free: bool) -> str:
+    """Формат «карточки» курса для каталога."""
+
+    name = product.get("name", "Курс")
+    description = _shorten_description(product.get("description", ""))
+    price_text = "💸 <b>Бесплатный курс</b>" if is_free else f"💰 Цена: <b>{format_price(product.get('price'))}</b>"
+    access_text = "✅ Доступ открыт" if has_access else "🔒 Доступ пока закрыт"
+
+    lines: list[str] = ["🎓 <b>{}</b>".format(name), ""]
+
+    if description:
+        lines.append(description)
+        lines.append("")
+
+    lines.append(price_text)
+    lines.append("")
+    lines.append(access_text)
 
     return "\n".join(lines).strip()
 
