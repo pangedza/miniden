@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta
+
 from aiogram import Router, types, F
 from aiogram.filters import Command
 from aiogram.fsm.state import StatesGroup, State
@@ -5,6 +7,7 @@ from aiogram.fsm.context import FSMContext
 
 from config import ADMIN_IDS
 from services import products as products_service
+from services import stats as stats_service
 from services import orders as orders_service
 from services import user_admin as user_admin_service
 from services import user_stats as user_stats_service
@@ -20,6 +23,9 @@ from utils.texts import (
     format_admin_client_profile,
     format_order_detail_text,
     format_orders_list_text,
+    format_stats_by_day,
+    format_stats_summary,
+    format_top_products,
     format_user_notes,
 )
 
@@ -84,10 +90,41 @@ def _build_orders_menu_kb() -> types.InlineKeyboardMarkup:
     )
 
 
+def _build_stats_period_kb() -> types.InlineKeyboardMarkup:
+    return types.InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                types.InlineKeyboardButton(
+                    text="📅 Сегодня", callback_data="admin:stats:today"
+                )
+            ],
+            [
+                types.InlineKeyboardButton(
+                    text="7 дней", callback_data="admin:stats:7d"
+                ),
+                types.InlineKeyboardButton(
+                    text="30 дней", callback_data="admin:stats:30d"
+                ),
+            ],
+            [
+                types.InlineKeyboardButton(
+                    text="Все время", callback_data="admin:stats:all"
+                )
+            ],
+        ]
+    )
+
+
 async def _send_orders_menu(message: types.Message) -> None:
     await message.answer(
         "📦 <b>Раздел заказов</b>\nВыберите, какие заказы показать:",
         reply_markup=_build_orders_menu_kb(),
+    )
+
+
+async def _send_stats_menu(target_message: types.Message) -> None:
+    await target_message.answer(
+        "Выберите период для статистики:", reply_markup=_build_stats_period_kb()
     )
 
 
@@ -154,6 +191,87 @@ async def admin_ban_menu_hint(message: types.Message):
         "• <code>/ban &lt;user_id&gt; [причина]</code>\n"
         "• <code>/unban &lt;user_id&gt;</code>"
     )
+
+
+@router.message(Command("stats"))
+async def admin_stats_command(message: types.Message):
+    if not _is_admin(message.from_user.id):
+        return
+
+    await _send_stats_menu(message)
+
+
+@router.message(F.text == "📊 Статистика")
+async def admin_stats_button(message: types.Message):
+    if not _is_admin(message.from_user.id):
+        return
+
+    await _send_stats_menu(message)
+
+
+@router.callback_query(F.data.startswith("admin:stats:"))
+async def admin_stats_callback(callback: types.CallbackQuery):
+    if not _is_admin(callback.from_user.id):
+        return
+
+    parts = (callback.data or "").split(":")
+    if len(parts) != 3:
+        await callback.answer("Некорректный запрос", show_alert=True)
+        return
+
+    period = parts[-1]
+    today = datetime.now().date()
+    date_from: str | None = None
+    date_to: str | None = None
+    days_limit: int | None = None
+    title = "Статистика"
+
+    if period == "today":
+        date_iso = today.isoformat()
+        date_from = f"{date_iso}T00:00:00"
+        date_to = f"{date_iso}T23:59:59"
+        days_limit = 1
+        title = "Статистика за сегодня"
+    elif period == "7d":
+        start_date = today - timedelta(days=6)
+        date_from = f"{start_date.isoformat()}T00:00:00"
+        date_to = f"{today.isoformat()}T23:59:59"
+        days_limit = 7
+        title = "Статистика за 7 дней"
+    elif period == "30d":
+        start_date = today - timedelta(days=29)
+        date_from = f"{start_date.isoformat()}T00:00:00"
+        date_to = f"{today.isoformat()}T23:59:59"
+        days_limit = 30
+        title = "Статистика за 30 дней"
+    elif period == "all":
+        title = "Статистика за все время"
+    else:
+        await callback.answer("Неизвестный период", show_alert=True)
+        return
+
+    summary = stats_service.get_orders_stats_summary(date_from, date_to)
+    by_day: list[dict] = []
+    if days_limit:
+        by_day = stats_service.get_orders_stats_by_day(days_limit)
+
+    top_products = stats_service.get_top_products(5)
+    top_courses = stats_service.get_top_courses(5)
+
+    text_parts = [format_stats_summary(title, summary)]
+    if days_limit:
+        text_parts.append(format_stats_by_day(by_day))
+    text_parts.append(format_top_products("Топ товаров", top_products))
+    text_parts.append(format_top_products("Топ курсов", top_courses))
+
+    text = "\n\n".join(text_parts).strip()
+
+    try:
+        await callback.message.edit_text(text, reply_markup=_build_stats_period_kb())
+    except Exception:
+        await callback.message.answer(text, reply_markup=_build_stats_period_kb())
+
+    await callback.answer()
 
 
 @router.message(F.text == "📝 Заметки")

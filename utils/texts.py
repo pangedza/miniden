@@ -2,6 +2,64 @@ from typing import Iterable
 from services import orders as orders_service
 
 
+def format_stats_summary(title: str, summary: dict) -> str:
+    lines: list[str] = [f"📊 <b>{title}</b>", ""]
+
+    total_orders = int(summary.get("total_orders", 0) or 0)
+    total_amount = int(summary.get("total_amount", 0) or 0)
+    lines.append(f"Всего заказов: <b>{total_orders}</b>")
+    lines.append(f"Общая сумма: <b>{total_amount} ₽</b>")
+
+    status_order = [
+        (orders_service.STATUS_NEW, "🆕 Новые"),
+        (orders_service.STATUS_IN_PROGRESS, "🕒 В работе"),
+        (orders_service.STATUS_PAID, "✅ Оплаченные"),
+        (orders_service.STATUS_SENT, "📤 Отправленные"),
+        (orders_service.STATUS_ARCHIVED, "📁 Архив"),
+    ]
+
+    by_status = summary.get("by_status", {}) or {}
+    lines.append("")
+    lines.append("По статусам:")
+    for status, title_text in status_order:
+        count = int(by_status.get(status, 0) or 0)
+        lines.append(f"{title_text}: {count}")
+
+    return "\n".join(lines).strip()
+
+
+def format_stats_by_day(items: list[dict]) -> str:
+    lines: list[str] = ["📅 <b>Статистика по дням</b>", ""]
+
+    if not items:
+        lines.append("Нет заказов за выбранный период.")
+        return "\n".join(lines).strip()
+
+    for item in items:
+        date = item.get("date", "—")
+        orders_count = int(item.get("orders_count", 0) or 0)
+        total_amount = int(item.get("total_amount", 0) or 0)
+        lines.append(f"{date} — заказы: {orders_count}, сумма: {total_amount} ₽")
+
+    return "\n".join(lines).strip()
+
+
+def format_top_products(title: str, items: list[dict]) -> str:
+    lines: list[str] = [f"🏆 <b>{title}</b>", ""]
+
+    if not items:
+        lines.append("Нет данных по топу.")
+        return "\n".join(lines).strip()
+
+    for idx, item in enumerate(items, start=1):
+        name = item.get("name") or "—"
+        total_qty = int(item.get("total_qty", 0) or 0)
+        total_amount = int(item.get("total_amount", 0) or 0)
+        lines.append(f"{idx}) {name} — {total_qty} шт, {total_amount} ₽")
+
+    return "\n".join(lines).strip()
+
+
 def format_user_notes(notes: list[dict], empty_placeholder: str = "Заметок пока нет.") -> str:
     """Форматировать список заметок по клиенту для админов."""
 
