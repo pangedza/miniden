@@ -9,6 +9,7 @@ from services.cart import (
     get_cart_total,
     clear_cart,
 )
+from services.user_admin import get_user_ban_status
 from services.orders import add_order
 from utils.texts import format_cart, format_order_for_admin
 
@@ -83,6 +84,15 @@ async def process_comment(message: types.Message, state: FSMContext) -> None:
 
     customer_name = data.get("customer_name", "")
     contact = data.get("contact", "")
+
+    ban_status = get_user_ban_status(user_id)
+    if ban_status.get("is_banned"):
+        await message.answer(
+            "К сожалению, ваш аккаунт заблокирован. По вопросам обращайтесь к администратору."
+        )
+        clear_cart(user_id)
+        await state.clear()
+        return
 
     # Формируем текст заказа (без номера)
     base_order_text = format_order_for_admin(
