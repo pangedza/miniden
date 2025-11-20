@@ -111,12 +111,16 @@ def format_orders_list_text(order_list: list[dict]) -> str:
     for order in order_list:
         status = order.get("status", orders_service.STATUS_NEW)
         status_title = orders_service.STATUS_TITLES.get(status, status)
+        user_name = order.get("user_name") or "—"
+        user_id = order.get("user_id") or "—"
 
         lines.append(
-            f"\n<b>Заказ №{order['id']}</b> — {status_title}"
-            f"\n👤 {order['customer_name']}"
-            f"\n📞 {order['contact']}"
+            f"\nЗаказ №{order['id']} — {status_title}"
+            f"\n👤 Клиент: {order['customer_name']}"
+            f"\n🧑‍💻 Telegram: id=<code>{user_id}</code>, имя={user_name}"
+            f"\n📞 Контакт: {order['contact']}"
             f"\n💰 Сумма: <b>{order['total']} ₽</b>"
+            f"\n🕒 Время: {order.get('created_at', '—')}"
         )
 
     return "\n".join(lines).strip()
@@ -148,10 +152,13 @@ def format_order_detail_text(order: dict) -> str:
     """
     status = order.get("status", orders_service.STATUS_NEW)
     status_title = orders_service.STATUS_TITLES.get(status, status)
+    user_name = order.get("user_name") or "—"
+    user_id = order.get("user_id") or "—"
 
     lines: list[str] = [
         f"📦 <b>Заказ №{order['id']}</b>",
         f"Статус: <b>{status_title}</b>",
+        f"🧑‍💻 Telegram: id=<code>{user_id}</code>, имя={user_name}",
         "",
         f"👤 Имя: {order['customer_name']}",
         f"📞 Контакт: {order['contact']}",

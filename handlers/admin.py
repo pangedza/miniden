@@ -22,6 +22,44 @@ def _is_admin(user_id: int | None) -> bool:
     return bool(user_id) and user_id in ADMIN_IDS
 
 
+def _build_orders_menu_kb() -> types.InlineKeyboardMarkup:
+    return types.InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                types.InlineKeyboardButton(
+                    text="🆕 Новые", callback_data="admin:orders:status:new"
+                ),
+                types.InlineKeyboardButton(
+                    text="🕒 В работе", callback_data="admin:orders:status:in_progress"
+                ),
+            ],
+            [
+                types.InlineKeyboardButton(
+                    text="✅ Оплаченные", callback_data="admin:orders:status:paid"
+                ),
+                types.InlineKeyboardButton(
+                    text="📤 Отправленные", callback_data="admin:orders:status:sent"
+                ),
+            ],
+            [
+                types.InlineKeyboardButton(
+                    text="📁 Архив", callback_data="admin:orders:status:archived"
+                ),
+                types.InlineKeyboardButton(
+                    text="📦 Все", callback_data="admin:orders:status:all"
+                ),
+            ],
+        ]
+    )
+
+
+async def _send_orders_menu(message: types.Message) -> None:
+    await message.answer(
+        "📦 <b>Раздел заказов</b>\nВыберите, какие заказы показать:",
+        reply_markup=_build_orders_menu_kb(),
+    )
+
+
 # --------- FSM для добавления товара ---------
 
 
@@ -898,16 +936,53 @@ async def admin_course_access_revoke_user(message: types.Message, state: FSMCont
 
 @router.message(Command("orders"))
 @router.message(F.text == "📦 Заказы")
-async def admin_list_orders(message: types.Message):
+async def admin_orders_menu(message: types.Message):
     """
-    Показывает последние заказы для администратора.
+    Открытие меню заказов в админке.
     """
     if not _is_admin(message.from_user.id):
         return
 
-    orders = orders_service.get_last_orders(20)
-    text = format_orders_list_text(orders)
-    await message.answer(text)
+    await _send_orders_menu(message)
+
+
+@router.callback_query(F.data.startswith("admin:orders:status:"))
+async def admin_orders_filter(callback: types.CallbackQuery):
+    if not _is_admin(callback.from_user.id):
+        return
+
+    parts = (callback.data or "").split(":")
+    if len(parts) != 4:
+        await callback.answer("Некорректный запрос", show_alert=True)
+        return
+
+    status = parts[-1]
+    orders = orders_service.get_orders_for_admin(status, limit=30)
+
+    if status == orders_service.STATUS_NEW:
+        title = "🆕 Новые заказы"
+    elif status == orders_service.STATUS_IN_PROGRESS:
+        title = "🕒 Заказы в работе"
+    elif status == orders_service.STATUS_PAID:
+        title = "✅ Оплаченные заказы"
+    elif status == orders_service.STATUS_SENT:
+        title = "📤 Отправленные заказы"
+    elif status == orders_service.STATUS_ARCHIVED:
+        title = "📁 Заказы в архиве"
+    else:
+        title = "📦 Все заказы"
+
+    if not orders:
+        text = "Заказов с таким статусом пока нет."
+    else:
+        text = f"{title}\n\n{format_orders_list_text(orders)}"
+
+    try:
+        await callback.message.edit_text(text, reply_markup=_build_orders_menu_kb())
+    except Exception:
+        await callback.message.answer(text, reply_markup=_build_orders_menu_kb())
+
+    await callback.answer()
 
 
 # ---------------- ВЫХОД В ГЛАВНОЕ МЕНЮ ----------------
