@@ -347,3 +347,45 @@ def format_admin_client_profile(
     lines.append(format_user_notes(limited_notes))
 
     return "\n".join(lines).strip()
+
+
+def format_user_courses_access_granted(order_id: int, courses: list[dict]) -> str:
+    """Сообщение пользователю о выданном доступе к курсам."""
+
+    lines: list[str] = [
+        "🎓 <b>Доступ к курсам открыт!</b>",
+        "",
+        f"Ваш заказ №{order_id} оплачен, и вам открыт доступ к следующим курсам:",
+        "",
+    ]
+
+    if not courses:
+        return "\n".join(lines).strip()
+
+    for idx, course in enumerate(courses, start=1):
+        name = course.get("name", "Курс")
+        desc = (course.get("description") or "").strip()
+        url = course.get("detail_url")
+
+        lines.append(f"{idx}) <b>{name}</b>")
+        if desc:
+            lines.append(desc)
+        if url:
+            lines.append(f"🔗 {url}")
+        lines.append("")
+
+    return "\n".join(lines).strip()
+
+
+def format_order_status_changed_for_user(order_id: int, new_status: str) -> str:
+    """Сообщение пользователю об изменении статуса заказа."""
+
+    status_title = orders_service.STATUS_TITLES.get(new_status, new_status)
+
+    lines = [
+        f"📦 <b>Статус вашего заказа №{order_id} изменён</b>",
+        "",
+        f"Новый статус: <b>{status_title}</b>.",
+    ]
+
+    return "\n".join(lines).strip()

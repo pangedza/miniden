@@ -23,9 +23,11 @@ from utils.texts import (
     format_admin_client_profile,
     format_order_detail_text,
     format_orders_list_text,
+    format_order_status_changed_for_user,
     format_stats_by_day,
     format_stats_summary,
     format_top_products,
+    format_user_courses_access_granted,
     format_user_notes,
 )
 
@@ -1438,10 +1440,47 @@ async def admin_order_paid(callback: types.CallbackQuery) -> None:
         return
 
     success = orders_service.set_order_status(order_id, orders_service.STATUS_PAID)
+    granted_count = 0
+    order = orders_service.get_order_by_id(order_id)
+
     if success:
-        await callback.message.answer(
-            f"Заказ №{order_id} переведён в статус: Оплачен"
+        granted_count = orders_service.grant_courses_from_order(
+            order_id, admin_id=callback.from_user.id
         )
+
+        admin_text = f"Заказ №{order_id} переведён в статус: Оплачен"
+        if granted_count > 0:
+            admin_text += f"\nОткрыт доступ к {granted_count} курсам пользователю."
+
+        await callback.message.answer(admin_text)
+
+        # Уведомляем пользователя о статусе/доступе
+        try:
+            user_id = int(order.get("user_id")) if order else None
+        except Exception:
+            user_id = None
+
+        if user_id:
+            user_text: str | None = None
+            if granted_count > 0:
+                courses = orders_service.get_courses_from_order(order_id)
+                if courses:
+                    user_text = format_user_courses_access_granted(order_id, courses)
+
+            if not user_text:
+                user_text = format_order_status_changed_for_user(
+                    order_id, orders_service.STATUS_PAID
+                )
+
+            if user_text:
+                try:
+                    await callback.message.bot.send_message(
+                        chat_id=user_id, text=user_text
+                    )
+                except Exception as e:
+                    print(
+                        f"Failed to notify user {user_id} about order {order_id}: {e}"
+                    )
     else:
         await callback.message.answer("Не удалось изменить статус заказа.")
 
@@ -1469,6 +1508,25 @@ async def admin_order_archive(callback: types.CallbackQuery) -> None:
     )
     if success:
         await callback.message.answer(f"Заказ №{order_id} отправлен в архив.")
+
+        order = orders_service.get_order_by_id(order_id)
+        try:
+            user_id = int(order.get("user_id")) if order else None
+        except Exception:
+            user_id = None
+
+        if user_id:
+            try:
+                await callback.message.bot.send_message(
+                    chat_id=user_id,
+                    text=format_order_status_changed_for_user(
+                        order_id, orders_service.STATUS_ARCHIVED
+                    ),
+                )
+            except Exception as e:
+                print(
+                    f"Failed to notify user {user_id} about order {order_id}: {e}"
+                )
     else:
         await callback.message.answer("Не удалось изменить статус заказа.")
 
