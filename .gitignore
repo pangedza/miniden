@@ -1,10 +1,18 @@
-# python мусор
-__pycache__/
-*.pyc
-
 # виртуальное окружение
 venv/
 .venv/
 
 # env
+.env.exemple
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+*.db
+*.sqlite
+*.sqlite3
+
+# заодно полезно
 .env
+*.log
