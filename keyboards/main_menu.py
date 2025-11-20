@@ -24,15 +24,13 @@ def get_start_keyboard() -> ReplyKeyboardMarkup:
 def get_main_menu(is_admin: bool = False) -> ReplyKeyboardMarkup:
     """
     Главное меню после прохождения проверки подписки.
-    Кнопка «🔵 Старт» остаётся, чтобы всегда можно было
-    перепроверять подписку.
     """
 
     user_commands = get_user_commands()
+    admin_commands = get_admin_commands()
 
     keyboard: list[list[KeyboardButton]] = [
-        [KeyboardButton(text="🔵 Старт")],
-        [KeyboardButton(text="🧺 Корзинки"), KeyboardButton(text="🎓 Онлайн-курсы")],
+        [KeyboardButton(text="🧺 Корзинки"), KeyboardButton(text="🎓 Курсы")],
     ]
 
     row: list[KeyboardButton] = [KeyboardButton(text="🛒 Корзина")]
@@ -44,7 +42,10 @@ def get_main_menu(is_admin: bool = False) -> ReplyKeyboardMarkup:
         keyboard.append([KeyboardButton(text="❓ Помощь")])
 
     if is_admin:
-        keyboard.append([KeyboardButton(text="⚙️ Админка")])
+        admin_row: list[KeyboardButton] = [KeyboardButton(text="⚙️ Админка")]
+        if "stats" in admin_commands:
+            admin_row.append(KeyboardButton(text="📊 Статистика"))
+        keyboard.append(admin_row)
 
     return ReplyKeyboardMarkup(
         keyboard=keyboard,
@@ -63,7 +64,8 @@ def get_admin_menu() -> ReplyKeyboardMarkup:
     if "orders" in admin_commands:
         keyboard.append([KeyboardButton(text="📦 Заказы")])
 
-    keyboard.append([KeyboardButton(text="📊 Статистика")])
+    if "stats" in admin_commands:
+        keyboard.append([KeyboardButton(text="📊 Статистика")])
 
     keyboard.append(
         [

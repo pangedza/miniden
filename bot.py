@@ -13,6 +13,7 @@ from handlers import (
     start,
     baskets,
     courses,
+    help,
     cart,
     checkout,
     payments,
@@ -48,6 +49,7 @@ async def main() -> None:
     dp.include_router(start.router)
     dp.include_router(baskets.router)
     dp.include_router(courses.router)
+    dp.include_router(help.router)
     dp.include_router(cart.router)
     dp.include_router(checkout.router)
     dp.include_router(payments.router)

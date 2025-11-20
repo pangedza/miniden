@@ -4,6 +4,7 @@ from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardBut
 from services.products import get_baskets, get_basket_by_id
 from services.cart import add_to_cart
 from keyboards.catalog_keyboards import catalog_product_actions_kb
+from config import get_settings
 
 router = Router()
 
@@ -11,10 +12,17 @@ router = Router()
 USER_BASKETS_PER_PAGE = 5
 
 
-async def _send_baskets_page(message: types.Message, page: int = 1) -> None:
+async def _send_baskets_page(
+    message: types.Message, page: int = 1, with_banner: bool = False
+) -> None:
     """
     Показать одну страницу корзинок пользователю.
     """
+    if with_banner:
+        banner = get_settings().banner_baskets
+        if banner:
+            await message.answer_photo(photo=banner, caption="🧺 Наши корзинки")
+
     baskets = get_baskets()
     if not baskets:
         await message.answer("Список корзинок пока пуст. Попробуйте позже 🙈")
@@ -85,7 +93,7 @@ async def _send_baskets_page(message: types.Message, page: int = 1) -> None:
 @router.message(F.text == "🧺 Корзинки")
 async def show_baskets(message: types.Message) -> None:
     """Показать список корзинок с пагинацией."""
-    await _send_baskets_page(message, page=1)
+    await _send_baskets_page(message, page=1, with_banner=True)
 
 
 @router.callback_query(F.data.startswith("baskets:page:"))

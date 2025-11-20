@@ -20,6 +20,13 @@ class Settings:
     required_channel_id: str | None = None       # @username или -1001234567890
     required_channel_link: str | None = None     # https://t.me/username
 
+    # 🔹 Баннеры
+    start_banner_id: str | None = None  # file_id или URL
+    banner_start: str | None = None
+    banner_courses: str | None = None
+    banner_baskets: str | None = None
+    banner_profile: str | None = None
+
 
 def _load_admin_ids() -> Set[int]:
     """
@@ -85,6 +92,13 @@ def get_settings() -> Settings:
     channel_id = os.getenv("REQUIRED_CHANNEL_ID", "").strip() or None
     channel_link = os.getenv("REQUIRED_CHANNEL_LINK", "").strip() or None
 
+    # 🔹 Баннеры (file_id или URL)
+    start_banner_id = os.getenv("START_BANNER_ID") or None
+    banner_start = os.getenv("BANNER_START") or start_banner_id
+    banner_courses = os.getenv("BANNER_COURSES") or None
+    banner_baskets = os.getenv("BANNER_BASKETS") or None
+    banner_profile = os.getenv("BANNER_PROFILE") or None
+
     return Settings(
         bot_token=token,
         admin_ids=admin_ids,
@@ -92,4 +106,9 @@ def get_settings() -> Settings:
         payments_provider_token=payments_token,
         required_channel_id=channel_id,
         required_channel_link=channel_link,
+        start_banner_id=start_banner_id,
+        banner_start=banner_start,
+        banner_courses=banner_courses,
+        banner_baskets=banner_baskets,
+        banner_profile=banner_profile,
     )

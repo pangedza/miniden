@@ -8,6 +8,7 @@ USER_COMMANDS: dict[str, str] = {
     "checkout": "Начать оформление заказа",
     "order": "Оформить заказ через корзину",
     "clear_cart": "Очистить корзину",
+    "help": "FAQ и поддержка",
 }
 
 ADMIN_COMMANDS: dict[str, str] = {
@@ -18,6 +19,7 @@ ADMIN_COMMANDS: dict[str, str] = {
     "note": "Добавить заметку по клиенту",
     "notes": "Список заметок по клиенту",
     "debug_commands": "Показать все команды бота",
+    "stats": "Статистика",
 }
 
 

@@ -9,6 +9,7 @@ from services.products import get_courses, get_course_by_id
 from services.cart import add_to_cart
 from services import orders as orders_service
 from keyboards.catalog_keyboards import catalog_product_actions_kb
+from config import get_settings
 
 router = Router()
 
@@ -145,12 +146,16 @@ async def _send_courses_page(
 # ===================== ВХОД В РАЗДЕЛ КУРСОВ =====================
 
 
-@router.message(F.text == "🎓 Онлайн-курсы")
+@router.message(F.text == "🎓 Курсы")
 async def courses_entry(message: types.Message) -> None:
     """
     При нажатии на кнопку в главном меню
     показываем выбор: платные или бесплатные курсы.
     """
+    banner = get_settings().banner_courses
+    if banner:
+        await message.answer_photo(photo=banner, caption="🎓 Наши курсы")
+
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -169,7 +174,7 @@ async def courses_entry(message: types.Message) -> None:
     )
 
     text = (
-        "🎓 <b>Онлайн-курсы</b>\n\n"
+        "🎓 <b>Курсы MiniDeN</b>\n\n"
         "Выберите, какие курсы показать:\n"
         "• 🆓 бесплатные — с нулевой ценой;\n"
         "• 💰 платные — с ценой больше 0.\n\n"
