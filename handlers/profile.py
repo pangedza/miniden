@@ -2,6 +2,7 @@ from aiogram import Router, types, F
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
+from config import get_settings
 from keyboards.main_menu import PROFILE_BUTTON_TEXT
 from services import orders as orders_service
 from utils.texts import format_orders_list_text, format_user_courses_list
@@ -72,6 +73,10 @@ async def show_profile(message: types.Message) -> None:
     active_cnt = len([o for o in orders if o.get("status") in ACTIVE_STATUSES])
     finished_cnt = len([o for o in orders if o.get("status") in FINISHED_STATUSES])
     courses_cnt = len(courses)
+
+    banner = get_settings().banner_profile
+    if banner:
+        await message.answer_photo(photo=banner, caption="👤 Ваш профиль")
 
     text = _format_profile_text(user, orders, courses_cnt)
     await message.answer(

@@ -7,22 +7,10 @@ from aiogram.types import (
 )
 
 from config import ADMIN_IDS, get_settings
-from keyboards.main_menu import get_main_menu, get_start_keyboard
+from keyboards.main_menu import get_main_menu
+from utils.texts import format_start_text
 
 router = Router()
-
-
-def _welcome_text() -> str:
-    """
-    Текст приветствия, когда пользователь допущен в бот.
-    """
-    return (
-        "Привет! 👋\n\n"
-        "Это бот-магазин MiniDeN:\n"
-        "— корзинки ручной работы\n"
-        "— онлайн-курсы по вязанию\n\n"
-        "Выберите нужный раздел ниже 👇"
-    )
 
 
 def _subscription_text() -> str:
@@ -33,7 +21,7 @@ def _subscription_text() -> str:
         "Чтобы пользоваться ботом и оформлять заказы, нужно быть подписанным "
         "на наш канал 📣\n\n"
         "1️⃣ Подпишитесь на канал по кнопке ниже.\n"
-        "2️⃣ После этого нажмите «✅ Я подписался» или снова «🔵 Старт».\n\n"
+        "2️⃣ После этого нажмите «✅ Я подписался» или отправьте /start ещё раз.\n\n"
         "Без подписки продолжить работу с ботом нельзя."
     )
 
@@ -114,24 +102,23 @@ def _get_channel_link() -> str:
 
 
 # -------------------------------------------------------------------
-#   /start — всегда показывает только кнопку «🔵 Старт», без меню
+#   Экран приветствия /start
 # -------------------------------------------------------------------
 
 
 @router.message(CommandStart())
 async def cmd_start(message: types.Message):
-    """
-    /start:
-    - показываем приветствие
-    - даём только клавиатуру с кнопкой «🔵 Старт»
-    - проверка подписки будет выполняться по нажатию на «Старт»
-    """
-    await message.answer(
-        "Привет! 👋\n\n"
-        "Нажмите кнопку <b>«🔵 Старт»</b> ниже, чтобы бот проверил подписку "
-        "и открыл меню.",
-        reply_markup=get_start_keyboard(),
-    )
+    user_id = message.from_user.id
+    is_admin = user_id in ADMIN_IDS
+
+    if await _is_user_subscribed(message.bot, user_id):
+        await _send_start_screen(message, is_admin=is_admin)
+    else:
+        channel_link = _get_channel_link()
+        await message.answer(
+            _subscription_text(),
+            reply_markup=_subscription_keyboard(channel_link),
+        )
 
 
 # -------------------------------------------------------------------
@@ -152,11 +139,7 @@ async def start_button(message: types.Message):
     is_admin = user_id in ADMIN_IDS
 
     if await _is_user_subscribed(message.bot, user_id):
-        # Пользователь подписан — показываем полноценное меню
-        await message.answer(
-            _welcome_text(),
-            reply_markup=get_main_menu(is_admin=is_admin),
-        )
+        await _send_start_screen(message, is_admin=is_admin)
     else:
         # Пользователь НЕ подписан — просим подписаться.
         channel_link = _get_channel_link()
@@ -184,20 +167,34 @@ async def cb_check_subscription(callback: CallbackQuery):
     is_admin = user_id in ADMIN_IDS
 
     if await _is_user_subscribed(callback.message.bot, user_id):
-        # Подписка подтверждена
         try:
             await callback.message.delete()
         except Exception:
             pass
 
-        await callback.message.answer(
-            _welcome_text(),
-            reply_markup=get_main_menu(is_admin=is_admin),
-        )
+        await _send_start_screen(callback.message, is_admin=is_admin)
         await callback.answer("Подписка подтверждена ✅")
     else:
         await callback.answer(
             "Похоже, вы ещё не подписаны на канал 🙈\n"
             "Подпишитесь и затем снова нажмите «🔵 Старт» или «✅ Я подписался».",
             show_alert=True,
+        )
+
+
+async def _send_start_screen(message: types.Message, is_admin: bool) -> None:
+    settings = get_settings()
+    main_menu = get_main_menu(is_admin=is_admin)
+    banner = settings.banner_start or settings.start_banner_id
+
+    if banner:
+        await message.answer_photo(
+            photo=banner,
+            caption=format_start_text(),
+            reply_markup=main_menu,
+        )
+    else:
+        await message.answer(
+            format_start_text(),
+            reply_markup=main_menu,
         )
