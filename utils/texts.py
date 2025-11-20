@@ -98,7 +98,7 @@ def format_order_for_admin(
     return "\n".join(lines).strip()
 
 
-def format_orders_list_text(order_list: list[dict]) -> str:
+def format_orders_list_text(order_list: list[dict], show_client_hint: bool = False) -> str:
     """
     Форматирование списка заказов для команды /orders.
     Показываем: №, статус, сумма, имя, контакт.
@@ -121,6 +121,11 @@ def format_orders_list_text(order_list: list[dict]) -> str:
             f"\n📞 Контакт: {order['contact']}"
             f"\n💰 Сумма: <b>{order['total']} ₽</b>"
             f"\n🕒 Время: {order.get('created_at', '—')}"
+        )
+
+    if show_client_hint:
+        lines.append(
+            "\nЧтобы открыть профиль клиента, отправьте: /client <telegram_id>"
         )
 
     return "\n".join(lines).strip()
@@ -183,5 +188,62 @@ def format_order_detail_text(order: dict) -> str:
 
     total = order.get("total", 0)
     lines.append(f"\n💰 <b>Итого: {total} ₽</b>")
+
+    return "\n".join(lines).strip()
+
+
+def format_admin_client_profile(
+    user_id: int, user_stats: dict, courses_summary: dict
+) -> str:
+    """Сформировать HTML-профиль клиента для администратора."""
+
+    lines: list[str] = []
+
+    lines.append("👤 <b>Профиль клиента</b>")
+    lines.append("")
+    lines.append(f"🧑‍💻 Telegram: id=<code>{user_id}</code>")
+
+    lines.append("")
+    lines.append("📊 <b>Статистика заказов</b>")
+    total_orders = user_stats.get("total_orders", 0)
+    total_amount = user_stats.get("total_amount", 0)
+    orders_by_status = user_stats.get("orders_by_status", {}) or {}
+
+    lines.append(f"Всего заказов: <b>{total_orders}</b>")
+    lines.append(f"Сумма всех заказов: <b>{total_amount} ₽</b>")
+
+    status_lines = {
+        orders_service.STATUS_NEW: "🆕 Новые",
+        orders_service.STATUS_IN_PROGRESS: "🕒 В работе",
+        orders_service.STATUS_PAID: "✅ Оплаченные",
+        orders_service.STATUS_SENT: "📤 Отправленные",
+        orders_service.STATUS_ARCHIVED: "📁 Архив",
+    }
+
+    for status, title in status_lines.items():
+        count = int(orders_by_status.get(status, 0) or 0)
+        if count > 0:
+            lines.append(f"{title}: {count}")
+
+    last_order_id = user_stats.get("last_order_id")
+    last_order_created_at = user_stats.get("last_order_created_at")
+    if last_order_id and last_order_created_at:
+        lines.append(f"Последний заказ: №{last_order_id} от {last_order_created_at}")
+
+    lines.append("")
+    lines.append("🎓 <b>Курсы с доступом</b>")
+    courses_count = courses_summary.get("count", 0)
+    courses = courses_summary.get("courses") or []
+    lines.append(f"Всего: <b>{courses_count}</b>")
+
+    if courses:
+        lines.append("")
+        for idx, course in enumerate(courses, start=1):
+            name = course.get("name", "Курс")
+            detail_url = course.get("detail_url")
+
+            lines.append(f"{idx}. <b>{name}</b>")
+            if detail_url:
+                lines.append(str(detail_url))
 
     return "\n".join(lines).strip()

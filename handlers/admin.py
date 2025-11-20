@@ -6,6 +6,7 @@ from aiogram.fsm.context import FSMContext
 from config import ADMIN_IDS
 from services import products as products_service
 from services import orders as orders_service
+from services import user_stats as user_stats_service
 from keyboards.admin_inline import (
     products_list_kb,
     admin_product_actions_kb,
@@ -13,7 +14,7 @@ from keyboards.admin_inline import (
     course_access_actions_kb,
 )
 from keyboards.main_menu import get_main_menu
-from utils.texts import format_orders_list_text
+from utils.texts import format_admin_client_profile, format_orders_list_text
 
 router = Router()
 
@@ -930,6 +931,45 @@ async def admin_course_access_revoke_user(message: types.Message, state: FSMCont
 
 
 # =====================================================================
+#                           ПРОФИЛЬ КЛИЕНТА (CRM)
+# =====================================================================
+
+
+@router.message(Command("client"))
+async def admin_client_profile(message: types.Message) -> None:
+    """Показать CRM-профиль клиента по Telegram ID."""
+
+    if not _is_admin(message.from_user.id):
+        return
+
+    usage_text = "Использование: /client <telegram_id_пользователя>"
+    parts = (message.text or "").split(maxsplit=1)
+    if len(parts) < 2:
+        await message.answer(usage_text)
+        return
+
+    try:
+        target_user_id = int(parts[1].strip())
+    except ValueError:
+        await message.answer(usage_text)
+        return
+
+    user_stats = user_stats_service.get_user_order_stats(target_user_id)
+    courses_summary = user_stats_service.get_user_courses_summary(target_user_id)
+
+    if user_stats.get("total_orders", 0) == 0 and courses_summary.get("count", 0) == 0:
+        await message.answer(
+            "По этому пользователю пока нет данных (заказов и курсов не найдено)."
+        )
+        return
+
+    text = format_admin_client_profile(
+        target_user_id, user_stats=user_stats, courses_summary=courses_summary
+    )
+    await message.answer(text)
+
+
+# =====================================================================
 #                           СПИСОК ЗАКАЗОВ
 # =====================================================================
 
@@ -975,7 +1015,7 @@ async def admin_orders_filter(callback: types.CallbackQuery):
     if not orders:
         text = "Заказов с таким статусом пока нет."
     else:
-        text = f"{title}\n\n{format_orders_list_text(orders)}"
+        text = f"{title}\n\n{format_orders_list_text(orders, show_client_hint=True)}"
 
     try:
         await callback.message.edit_text(text, reply_markup=_build_orders_menu_kb())
