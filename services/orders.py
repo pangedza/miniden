@@ -8,14 +8,16 @@ from database import get_connection
 # Статусы заказов
 STATUS_NEW = "new"
 STATUS_IN_PROGRESS = "in_progress"
-STATUS_SENT = "sent"
 STATUS_PAID = "paid"
+STATUS_SENT = "sent"
+STATUS_ARCHIVED = "archived"
 
 STATUS_TITLES = {
     STATUS_NEW: "новый",
     STATUS_IN_PROGRESS: "в работе",
+    STATUS_PAID: "оплачен",
     STATUS_SENT: "отправлен",
-    STATUS_PAID: "оплачен, доступ к курсам открыт",
+    STATUS_ARCHIVED: "архив",
 }
 
 
@@ -88,6 +90,8 @@ def add_order(
 def _make_order_row(row: Any) -> dict[str, Any]:
     return {
         "id": row["id"],
+        "user_id": row["user_id"],
+        "user_name": row["user_name"],
         "customer_name": row["customer_name"],
         "contact": row["contact"],
         "total": row["total"],
@@ -105,7 +109,7 @@ def get_last_orders(limit: int = 10) -> list[dict[str, Any]]:
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT id, customer_name, contact, total, status, created_at
+        SELECT id, user_id, user_name, customer_name, contact, total, status, created_at
         FROM orders
         ORDER BY id DESC
         LIMIT ?
@@ -127,7 +131,7 @@ def get_last_course_orders(limit: int = 20) -> list[dict[str, Any]]:
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT DISTINCT o.id, o.customer_name, o.contact, o.total, o.status, o.created_at
+        SELECT DISTINCT o.id, o.user_id, o.user_name, o.customer_name, o.contact, o.total, o.status, o.created_at
         FROM orders o
         JOIN order_items oi ON oi.order_id = o.id
         JOIN products p ON p.id = oi.product_id
@@ -152,7 +156,7 @@ def get_orders_by_user(user_id: int, limit: int = 20) -> list[dict[str, Any]]:
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT id, customer_name, contact, total, status, created_at
+        SELECT id, user_id, user_name, customer_name, contact, total, status, created_at
         FROM orders
         WHERE user_id = ?
         ORDER BY id DESC
@@ -245,6 +249,43 @@ def set_order_status(order_id: int, new_status: str) -> bool:
     updated = cur.rowcount > 0
     conn.close()
     return updated
+
+
+def get_orders_for_admin(status_filter: str = "all", limit: int = 30) -> list[dict[str, Any]]:
+    """Вернуть заказы для админки с фильтром по статусу."""
+    if limit <= 0:
+        return []
+
+    status_filter = (status_filter or "all").lower()
+    valid_statuses = set(STATUS_TITLES.keys())
+
+    where_clause = ""
+    params: list[Any] = []
+
+    if status_filter == "all":
+        where_clause = ""
+    elif status_filter in valid_statuses:
+        where_clause = "WHERE status = ?"
+        params.append(status_filter)
+    else:
+        return []
+
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        f"""
+        SELECT id, user_id, user_name, customer_name, contact, total, status, created_at
+        FROM orders
+        {where_clause}
+        ORDER BY id DESC
+        LIMIT ?
+        """,
+        (*params, limit),
+    )
+    rows = cur.fetchall()
+    conn.close()
+
+    return [_make_order_row(row) for row in rows]
 
 
 def grant_course_access(
