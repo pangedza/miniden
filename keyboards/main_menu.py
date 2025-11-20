@@ -63,6 +63,8 @@ def get_admin_menu() -> ReplyKeyboardMarkup:
     if "orders" in admin_commands:
         keyboard.append([KeyboardButton(text="📦 Заказы")])
 
+    keyboard.append([KeyboardButton(text="📊 Статистика")])
+
     keyboard.append(
         [
             KeyboardButton(text="📋 Товары: корзинки"),
