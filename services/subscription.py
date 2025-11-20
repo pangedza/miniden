@@ -13,7 +13,10 @@ def _get_channel_identifier() -> Any:
 
     if REQUIRED_CHANNEL_ID is not None:
         return REQUIRED_CHANNEL_ID
-    return REQUIRED_CHANNEL_USERNAME
+    if REQUIRED_CHANNEL_USERNAME:
+        return REQUIRED_CHANNEL_USERNAME
+
+    return None
 
 
 def _get_channel_link() -> str | None:
@@ -51,7 +54,7 @@ def get_subscription_keyboard(
 async def is_user_subscribed(bot: Bot, user_id: int) -> bool:
     """Проверка статуса участника канала."""
 
-    if REQUIRED_CHANNEL_USERNAME is None and REQUIRED_CHANNEL_ID is None:
+    if not REQUIRED_CHANNEL_USERNAME and REQUIRED_CHANNEL_ID is None:
         return True
 
     chat_id = _get_channel_identifier()
@@ -61,8 +64,8 @@ async def is_user_subscribed(bot: Bot, user_id: int) -> bool:
 
     try:
         member = await bot.get_chat_member(chat_id=chat_id, user_id=user_id)
-    except Exception as exc:  # noqa: BLE001
-        logging.exception("Не удалось проверить подписку пользователя", exc_info=exc)
+    except Exception:  # noqa: BLE001
+        logging.exception("Не удалось проверить подписку")
         return False
 
     status = getattr(member, "status", None)

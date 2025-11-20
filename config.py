@@ -9,21 +9,20 @@ load_dotenv()
 
 # 🔹 Канал для проверки обязательной подписки
 # Укажите username канала (с @) или установите в None, чтобы отключить проверку.
-REQUIRED_CHANNEL_USERNAME: str | None = (
-    os.getenv("REQUIRED_CHANNEL_USERNAME", "@miniden_channel").strip() or None
-)
+REQUIRED_CHANNEL_USERNAME = os.getenv("REQUIRED_CHANNEL_USERNAME")
+REQUIRED_CHANNEL_ID = os.getenv("REQUIRED_CHANNEL_ID")
 
-# Если известен числовой ID канала (начинается с -100...), укажите его здесь.
-raw_required_channel_id = os.getenv("REQUIRED_CHANNEL_ID", "").strip()
-REQUIRED_CHANNEL_ID: int | None = None
+if REQUIRED_CHANNEL_USERNAME:
+    REQUIRED_CHANNEL_USERNAME = REQUIRED_CHANNEL_USERNAME.strip() or None
 
-if raw_required_channel_id:
+if REQUIRED_CHANNEL_ID:
+    REQUIRED_CHANNEL_ID = REQUIRED_CHANNEL_ID.strip() or None
+
+if REQUIRED_CHANNEL_ID:
     try:
-        REQUIRED_CHANNEL_ID = int(raw_required_channel_id)
+        REQUIRED_CHANNEL_ID = int(REQUIRED_CHANNEL_ID)
     except ValueError:
-        # Если передали username через REQUIRED_CHANNEL_ID, используем его как username.
-        if not REQUIRED_CHANNEL_USERNAME:
-            REQUIRED_CHANNEL_USERNAME = raw_required_channel_id
+        REQUIRED_CHANNEL_ID = None
 
 
 @dataclass
@@ -107,12 +106,11 @@ def get_settings() -> Settings:
         break
 
     # 🔹 Канал, на который нужно быть подписанным
-    raw_channel_id = os.getenv("REQUIRED_CHANNEL_ID", "").strip()
     channel_link = os.getenv("REQUIRED_CHANNEL_LINK", "").strip() or None
 
     channel_id: str | None = None
-    if raw_channel_id:
-        channel_id = raw_channel_id
+    if REQUIRED_CHANNEL_ID is not None:
+        channel_id = str(REQUIRED_CHANNEL_ID)
     elif REQUIRED_CHANNEL_USERNAME:
         channel_id = REQUIRED_CHANNEL_USERNAME
 
