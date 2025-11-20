@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import datetime
 from typing import Any, Optional
 
@@ -7,11 +9,13 @@ from database import get_connection
 STATUS_NEW = "new"
 STATUS_IN_PROGRESS = "in_progress"
 STATUS_SENT = "sent"
+STATUS_PAID = "paid"
 
 STATUS_TITLES = {
     STATUS_NEW: "новый",
     STATUS_IN_PROGRESS: "в работе",
     STATUS_SENT: "отправлен",
+    STATUS_PAID: "оплачен, доступ к курсам открыт",
 }
 
 
@@ -25,25 +29,13 @@ def add_order(
     comment: str,
     order_text: str,
 ) -> int:
-    """
-    Сохранить заказ в БД и вернуть его ID.
+    """Сохранить заказ в БД и вернуть его ID."""
 
-    items — список словарей, пришедший из корзины:
-        {
-            "product_id": "1" (строка с int),
-            "name": "Название",
-            "price": 1000,
-            "qty": 2,
-        }
-
-    Теперь мы дополнительно сохраняем product_id в таблицу order_items.
-    """
     conn = get_connection()
     cur = conn.cursor()
 
     created_at = datetime.now().isoformat(timespec="seconds")
 
-    # Вставляем сам заказ
     cur.execute(
         """
         INSERT INTO orders (
@@ -60,7 +52,7 @@ def add_order(
             contact,
             comment,
             total,
-            STATUS_NEW,  # новый заказ
+            STATUS_NEW,
             order_text,
             created_at,
         ),
@@ -68,7 +60,6 @@ def add_order(
 
     order_id = cur.lastrowid
 
-    # Вставляем позиции заказа
     for item in items:
         name = item.get("name", "Товар")
         price = int(item.get("price", 0))
@@ -94,11 +85,19 @@ def add_order(
     return int(order_id)
 
 
+def _make_order_row(row: Any) -> dict[str, Any]:
+    return {
+        "id": row["id"],
+        "customer_name": row["customer_name"],
+        "contact": row["contact"],
+        "total": row["total"],
+        "status": row["status"],
+        "created_at": row["created_at"],
+    }
+
+
 def get_last_orders(limit: int = 10) -> list[dict[str, Any]]:
-    """
-    Вернуть последние заказы (без позиций, только заголовки).
-    Используется для /orders.
-    """
+    """Вернуть последние заказы (без позиций)."""
     if limit <= 0:
         return []
 
@@ -106,13 +105,7 @@ def get_last_orders(limit: int = 10) -> list[dict[str, Any]]:
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT
-            id,
-            customer_name,
-            contact,
-            total,
-            status,
-            created_at
+        SELECT id, customer_name, contact, total, status, created_at
         FROM orders
         ORDER BY id DESC
         LIMIT ?
@@ -122,28 +115,11 @@ def get_last_orders(limit: int = 10) -> list[dict[str, Any]]:
     rows = cur.fetchall()
     conn.close()
 
-    result: list[dict[str, Any]] = []
-    for row in rows:
-        result.append(
-            {
-                "id": row["id"],
-                "customer_name": row["customer_name"],
-                "contact": row["contact"],
-                "total": row["total"],
-                "status": row["status"],
-                "created_at": row["created_at"],
-            }
-        )
-
-    return result
+    return [_make_order_row(row) for row in rows]
 
 
-def get_orders_by_user(user_id: int, limit: int = 20) -> list[dict[str, Any]]:
-    """
-    Список заказов конкретного пользователя (для профиля).
-
-    Возвращаем только "заголовки" заказов без позиций.
-    """
+def get_last_course_orders(limit: int = 20) -> list[dict[str, Any]]:
+    """Последние заказы, в которых есть курсы."""
     if limit <= 0:
         return []
 
@@ -151,13 +127,32 @@ def get_orders_by_user(user_id: int, limit: int = 20) -> list[dict[str, Any]]:
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT
-            id,
-            customer_name,
-            contact,
-            total,
-            status,
-            created_at
+        SELECT DISTINCT o.id, o.customer_name, o.contact, o.total, o.status, o.created_at
+        FROM orders o
+        JOIN order_items oi ON oi.order_id = o.id
+        JOIN products p ON p.id = oi.product_id
+        WHERE p.type = 'course'
+        ORDER BY o.id DESC
+        LIMIT ?
+        """,
+        (limit,),
+    )
+    rows = cur.fetchall()
+    conn.close()
+
+    return [_make_order_row(row) for row in rows]
+
+
+def get_orders_by_user(user_id: int, limit: int = 20) -> list[dict[str, Any]]:
+    """Список заказов конкретного пользователя."""
+    if limit <= 0:
+        return []
+
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT id, customer_name, contact, total, status, created_at
         FROM orders
         WHERE user_id = ?
         ORDER BY id DESC
@@ -168,44 +163,17 @@ def get_orders_by_user(user_id: int, limit: int = 20) -> list[dict[str, Any]]:
     rows = cur.fetchall()
     conn.close()
 
-    result: list[dict[str, Any]] = []
-    for row in rows:
-        result.append(
-            {
-                "id": row["id"],
-                "customer_name": row["customer_name"],
-                "contact": row["contact"],
-                "total": row["total"],
-                "status": row["status"],
-                "created_at": row["created_at"],
-            }
-        )
-
-    return result
+    return [_make_order_row(row) for row in rows]
 
 
 def get_order_by_id(order_id: int) -> Optional[dict[str, Any]]:
-    """
-    Найти заказ по номеру и подтянуть его позиции.
-    Используется для /order <id>.
-    """
+    """Найти заказ по номеру и подтянуть позиции."""
     conn = get_connection()
     cur = conn.cursor()
 
-    # Сам заказ
     cur.execute(
         """
-        SELECT
-            id,
-            user_id,
-            user_name,
-            customer_name,
-            contact,
-            comment,
-            total,
-            status,
-            order_text,
-            created_at
+        SELECT id, user_id, user_name, customer_name, contact, comment, total, status, order_text, created_at
         FROM orders
         WHERE id = ?
         """,
@@ -230,7 +198,6 @@ def get_order_by_id(order_id: int) -> Optional[dict[str, Any]]:
         "created_at": row["created_at"],
     }
 
-    # Позиции этого заказа
     cur.execute(
         """
         SELECT product_id, product_name, price, qty
@@ -260,10 +227,7 @@ def get_order_by_id(order_id: int) -> Optional[dict[str, Any]]:
 
 
 def set_order_status(order_id: int, new_status: str) -> bool:
-    """
-    Установить статус заказа. Возвращает True,
-    если заказ найден и статус изменён.
-    """
+    """Установить статус заказа."""
     if new_status not in STATUS_TITLES:
         return False
 
@@ -281,3 +245,38 @@ def set_order_status(order_id: int, new_status: str) -> bool:
     updated = cur.rowcount > 0
     conn.close()
     return updated
+
+
+def get_user_courses_with_access(user_id: int) -> list[dict[str, Any]]:
+    """Курсы, к которым у пользователя открыт доступ (заказы со статусом paid)."""
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT DISTINCT p.id, p.name, p.description, p.detail_url, p.image_file_id
+        FROM orders o
+        JOIN order_items oi ON oi.order_id = o.id
+        JOIN products p ON p.id = oi.product_id
+        WHERE o.user_id = ?
+          AND o.status = ?
+          AND p.type = 'course'
+        ORDER BY p.id ASC
+        """,
+        (user_id, STATUS_PAID),
+    )
+    rows = cur.fetchall()
+    conn.close()
+
+    courses: list[dict[str, Any]] = []
+    for row in rows:
+        courses.append(
+            {
+                "id": row["id"],
+                "name": row["name"],
+                "description": row["description"],
+                "detail_url": row["detail_url"],
+                "image_file_id": row["image_file_id"],
+            }
+        )
+
+    return courses

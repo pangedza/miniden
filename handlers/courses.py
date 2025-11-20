@@ -7,6 +7,7 @@ from aiogram.types import (
 
 from services.products import get_courses, get_course_by_id
 from services.cart import add_to_cart
+from services import orders as orders_service
 from keyboards.catalog_keyboards import catalog_product_actions_kb
 
 router = Router()
@@ -55,7 +56,10 @@ async def _send_courses_page(
         - "free"  — только бесплатные
         - "paid"  — только платные
     """
+    user_id = message.from_user.id
     courses = _get_courses_for_type(payment_type)
+    courses_with_access = orders_service.get_user_courses_with_access(user_id)
+    access_ids = {c["id"] for c in courses_with_access}
 
     if not courses:
         text = (
@@ -92,7 +96,7 @@ async def _send_courses_page(
         price = int(item.get("price", 0))
         desc = item.get("description") or ""
         photo = item.get("image_file_id")
-        url = item.get("detail_url")
+        url = item.get("detail_url") if item_id in access_ids else None
 
         if price <= 0:
             price_text = "💰 Цена: <b>БЕСПЛАТНО</b>"

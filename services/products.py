@@ -87,8 +87,8 @@ def _init_products_table_if_needed() -> None:
             (
                 item_id,
                 "basket",
-                price,
                 name,
+                price,
                 description,
                 detail_url,
             ),
