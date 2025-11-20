@@ -18,6 +18,7 @@ from keyboards.main_menu import get_admin_menu, get_main_menu
 from utils.commands_map import get_admin_commands, get_user_commands
 from utils.texts import (
     format_admin_client_profile,
+    format_order_detail_text,
     format_orders_list_text,
     format_user_notes,
 )
@@ -27,6 +28,29 @@ router = Router()
 
 def _is_admin(user_id: int | None) -> bool:
     return bool(user_id) and user_id in ADMIN_IDS
+
+
+def _build_order_actions_kb(order_id: int, user_id: int) -> types.InlineKeyboardMarkup:
+    return types.InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                types.InlineKeyboardButton(
+                    text="👁 Открыть", callback_data=f"admin:order:open:{order_id}"
+                ),
+                types.InlineKeyboardButton(
+                    text="✅ Оплачен", callback_data=f"admin:order:paid:{order_id}"
+                ),
+            ],
+            [
+                types.InlineKeyboardButton(
+                    text="📁 В архив", callback_data=f"admin:order:archive:{order_id}"
+                ),
+                types.InlineKeyboardButton(
+                    text="👤 CRM", callback_data=f"admin:order:client:{user_id}"
+                ),
+            ],
+        ]
+    )
 
 
 def _build_orders_menu_kb() -> types.InlineKeyboardMarkup:
@@ -1225,6 +1249,160 @@ async def admin_orders_filter(callback: types.CallbackQuery):
     except Exception:
         await callback.message.answer(text, reply_markup=_build_orders_menu_kb())
 
+    for order in orders:
+        status = order.get("status", orders_service.STATUS_NEW)
+        status_title = orders_service.STATUS_TITLES.get(status, status)
+        user_id = int(order.get("user_id") or 0)
+        order_id = int(order.get("id") or 0)
+        header_lines = [
+            f"Заказ №{order_id} — {status_title}",
+            f"user_id=<code>{user_id}</code>",
+        ]
+
+        await callback.message.answer(
+            "\n".join(header_lines),
+            reply_markup=_build_order_actions_kb(order_id, user_id),
+        )
+
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("admin:order:open:"))
+async def admin_order_open(callback: types.CallbackQuery) -> None:
+    if not _is_admin(callback.from_user.id):
+        return
+
+    parts = (callback.data or "").split(":")
+    if len(parts) != 4:
+        await callback.answer("Некорректный запрос", show_alert=True)
+        return
+
+    try:
+        order_id = int(parts[-1])
+    except ValueError:
+        await callback.answer("Некорректный номер заказа", show_alert=True)
+        return
+
+    order = orders_service.get_order_by_id(order_id)
+    if not order:
+        await callback.answer("Заказ не найден.", show_alert=True)
+        return
+
+    kb = types.InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                types.InlineKeyboardButton(
+                    text="👤 Профиль клиента",
+                    callback_data=f"admin:order:client:{order.get('user_id')}",
+                )
+            ]
+        ]
+    )
+
+    await callback.message.answer(format_order_detail_text(order), reply_markup=kb)
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("admin:order:paid:"))
+async def admin_order_paid(callback: types.CallbackQuery) -> None:
+    if not _is_admin(callback.from_user.id):
+        return
+
+    parts = (callback.data or "").split(":")
+    if len(parts) != 4:
+        await callback.answer("Некорректный запрос", show_alert=True)
+        return
+
+    try:
+        order_id = int(parts[-1])
+    except ValueError:
+        await callback.answer("Некорректный номер заказа", show_alert=True)
+        return
+
+    success = orders_service.set_order_status(order_id, orders_service.STATUS_PAID)
+    if success:
+        await callback.message.answer(
+            f"Заказ №{order_id} переведён в статус: Оплачен"
+        )
+    else:
+        await callback.message.answer("Не удалось изменить статус заказа.")
+
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("admin:order:archive:"))
+async def admin_order_archive(callback: types.CallbackQuery) -> None:
+    if not _is_admin(callback.from_user.id):
+        return
+
+    parts = (callback.data or "").split(":")
+    if len(parts) != 4:
+        await callback.answer("Некорректный запрос", show_alert=True)
+        return
+
+    try:
+        order_id = int(parts[-1])
+    except ValueError:
+        await callback.answer("Некорректный номер заказа", show_alert=True)
+        return
+
+    success = orders_service.set_order_status(
+        order_id, orders_service.STATUS_ARCHIVED
+    )
+    if success:
+        await callback.message.answer(f"Заказ №{order_id} отправлен в архив.")
+    else:
+        await callback.message.answer("Не удалось изменить статус заказа.")
+
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("admin:order:client:"))
+async def admin_order_client_profile(callback: types.CallbackQuery) -> None:
+    if not _is_admin(callback.from_user.id):
+        return
+
+    parts = (callback.data or "").split(":")
+    if len(parts) != 4:
+        await callback.answer("Некорректный запрос", show_alert=True)
+        return
+
+    try:
+        target_user_id = int(parts[-1])
+    except ValueError:
+        await callback.answer("Некорректный user_id", show_alert=True)
+        return
+
+    user_stats = user_stats_service.get_user_order_stats(target_user_id)
+    courses_summary = user_stats_service.get_user_courses_summary(target_user_id)
+    ban_status = user_admin_service.get_user_ban_status(target_user_id)
+    notes = user_admin_service.get_user_notes(target_user_id, limit=5)
+
+    has_data = any(
+        [
+            user_stats.get("total_orders", 0) > 0,
+            courses_summary.get("count", 0) > 0,
+            ban_status.get("is_banned"),
+            len(notes) > 0,
+        ]
+    )
+
+    if not has_data:
+        await callback.message.answer(
+            "По этому пользователю пока нет данных (заказов и курсов не найдено)."
+        )
+        await callback.answer()
+        return
+
+    text = format_admin_client_profile(
+        target_user_id,
+        user_stats=user_stats,
+        courses_summary=courses_summary,
+        ban_status=ban_status,
+        notes=notes,
+        notes_limit=5,
+    )
+    await callback.message.answer(text)
     await callback.answer()
 
 
