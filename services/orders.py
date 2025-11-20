@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Any, Optional
 
 from database import get_connection
+from services import products as products_service
 
 # Статусы заказов
 STATUS_NEW = "new"
@@ -408,3 +409,70 @@ def get_course_users(course_id: int) -> list[dict[str, Any]]:
         )
 
     return users
+
+
+def _extract_course_products(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """
+    Вернуть список активных курсов из позиций заказа.
+    """
+
+    courses: list[dict[str, Any]] = []
+
+    for item in items:
+        raw_product_id = item.get("product_id")
+        try:
+            product_id = int(raw_product_id) if raw_product_id is not None else None
+        except (TypeError, ValueError):
+            product_id = None
+
+        if product_id is None:
+            continue
+
+        product = products_service.get_product_by_id(product_id)
+        if not product:
+            continue
+
+        if product.get("type") == "course" and int(product.get("is_active", 0) or 0) == 1:
+            courses.append(product)
+
+    return courses
+
+
+def get_courses_from_order(order_id: int) -> list[dict[str, Any]]:
+    """Вернуть список курсов из позиций заказа (только активные)."""
+
+    order = get_order_by_id(order_id)
+    if not order:
+        return []
+
+    items = order.get("items") or []
+    return _extract_course_products(items)
+
+
+def grant_courses_from_order(order_id: int, admin_id: int | None = None) -> int:
+    """Выдать доступ ко всем курсам из заказа. Возвращает количество курсов."""
+
+    order = get_order_by_id(order_id)
+    if not order:
+        return 0
+
+    user_id = order.get("user_id")
+    if not user_id:
+        return 0
+
+    items = order.get("items") or []
+    courses = _extract_course_products(items)
+
+    granted_count = 0
+    for course in courses:
+        success = grant_course_access(
+            user_id,
+            int(course["id"]),
+            admin_id,
+            order_id,
+            comment="Выдано по оплаченному заказу",
+        )
+        if success:
+            granted_count += 1
+
+    return granted_count
