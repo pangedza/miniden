@@ -24,13 +24,22 @@ async def _update_cart_message(callback: CallbackQuery) -> None:
     Обновить сообщение с корзиной после изменения количества/удаления.
     """
     user_id = callback.from_user.id
-    items = get_cart_items(user_id)
+    items, removed = get_cart_items(user_id)
+
+    notice = None
+    if removed:
+        notice = "Некоторые товары больше недоступны и были удалены из вашей корзины."
 
     if not items:
-        await callback.message.edit_text("🛒 Ваша корзина пока пуста.")
+        if notice:
+            await callback.message.edit_text(notice)
+        else:
+            await callback.message.edit_text("🛒 Ваша корзина пока пуста.")
         return
 
     text = format_cart(items)
+    if notice:
+        text = f"{notice}\n\n{text}"
     kb = cart_kb(items)
     await callback.message.edit_text(text, reply_markup=kb)
 
@@ -45,8 +54,14 @@ async def show_cart(message: types.Message) -> None:
     if not await ensure_subscribed(message, message.bot, is_admin=is_admin):
         return
 
-    items = get_cart_items(user_id)
+    items, removed = get_cart_items(user_id)
     text = format_cart(items)
+
+    if removed:
+        text = (
+            "Некоторые товары больше недоступны и были удалены из вашей корзины.\n\n"
+            f"{text}"
+        )
 
     if items:
         kb = cart_kb(items)
@@ -179,12 +194,6 @@ async def cart_checkout_cb(callback: CallbackQuery, state: FSMContext):
     is_admin = user_id in ADMIN_IDS
 
     if not await ensure_subscribed(callback, callback.message.bot, is_admin=is_admin):
-        return
-
-    items = get_cart_items(user_id)
-
-    if not items:
-        await callback.answer("🛒 Корзина пуста.", show_alert=True)
         return
 
     await start_checkout_flow(callback.message, state)

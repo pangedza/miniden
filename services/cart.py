@@ -1,21 +1,18 @@
-from typing import Any, List
+from typing import Any, List, Tuple
 
 from database import get_connection
 
 from . import products as products_service
 
 
-def get_cart_items(user_id: int) -> List[dict[str, Any]]:
+def get_cart_items(user_id: int) -> Tuple[List[dict[str, Any]], List[dict[str, Any]]]:
     """
-    Вернуть список товаров в корзине пользователя.
+    Вернуть список товаров в корзине пользователя и список удалённых позиций.
 
-    Каждый элемент: {product_id, name, price, qty}.
-
-    ВАЖНО:
-    - Имя и цена берутся из АКТУАЛЬНЫХ данных таблицы products,
-      если товар существует и активен.
-    - Если товар скрыт, удалён или id некорректен — позиция
-      автоматически удаляется из корзины.
+    Возвращает кортеж (items, removed_items):
+    - items: валидные товары {product_id, name, price, qty};
+    - removed_items: позиции, удалённые из корзины (битый id, qty <= 0,
+      товар не существует или скрыт). Каждая запись: {product_id, name?, reason}.
     """
     conn = get_connection()
     cur = conn.cursor()
@@ -31,28 +28,50 @@ def get_cart_items(user_id: int) -> List[dict[str, Any]]:
     rows = cur.fetchall()
 
     items: list[dict[str, Any]] = []
+    removed_items: list[dict[str, Any]] = []
     to_delete: list[str] = []
 
     for row in rows:
         raw_product_id = row["product_id"]
+        raw_product_id_str = str(raw_product_id) if raw_product_id is not None else ""
         qty = int(row["qty"] or 0)
 
         # Пропускаем некорректные записи и нулевые количества
         try:
-            product_id_int = int(raw_product_id)
+            product_id_int = int(str(raw_product_id).strip())
         except (TypeError, ValueError):
-            to_delete.append(str(raw_product_id))
+            to_delete.append(raw_product_id_str)
+            removed_items.append(
+                {
+                    "product_id": raw_product_id_str,
+                    "reason": "invalid_id",
+                }
+            )
             continue
 
         if qty <= 0:
-            to_delete.append(str(raw_product_id))
+            to_delete.append(raw_product_id_str)
+            removed_items.append(
+                {
+                    "product_id": str(product_id_int),
+                    "name": row["name"],
+                    "reason": "non_positive_qty",
+                }
+            )
             continue
 
         # Берём актуальные данные товара из таблицы products
         product = products_service.get_product_by_id(product_id_int)
         if not product or product.get("is_active") != 1:
             # Товар скрыт или не существует — удаляем его из корзины
-            to_delete.append(str(raw_product_id))
+            to_delete.append(raw_product_id_str)
+            removed_items.append(
+                {
+                    "product_id": str(product_id_int),
+                    "name": (product or {}).get("name") or row["name"],
+                    "reason": "inactive_or_missing",
+                }
+            )
             continue
 
         name = product.get("name") or row["name"]
@@ -79,7 +98,7 @@ def get_cart_items(user_id: int) -> List[dict[str, Any]]:
         conn.commit()
 
     conn.close()
-    return items
+    return items, removed_items
 
 
 def get_cart_total(user_id: int) -> int:
@@ -89,7 +108,7 @@ def get_cart_total(user_id: int) -> int:
     Сумма считается по актуальным ценам из products,
     потому что get_cart_items уже обновляет price.
     """
-    items = get_cart_items(user_id)
+    items, _ = get_cart_items(user_id)
     total = 0
     for item in items:
         total += int(item["price"]) * int(item["qty"])

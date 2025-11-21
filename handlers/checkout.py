@@ -56,10 +56,17 @@ async def start_checkout_flow(target_message: types.Message, state: FSMContext) 
     """Общий старт оформления заказа с шагом ввода промокода."""
 
     user_id = target_message.from_user.id
-    items = get_cart_items(user_id)
+    items, removed = get_cart_items(user_id)
+
+    notice_text = None
+    if removed:
+        notice_text = "Некоторые товары больше недоступны и были удалены из вашей корзины."
 
     if not items:
-        await target_message.answer("🛒 Ваша корзина пуста. Сначала добавьте товары.")
+        empty_text = "🛒 Ваша корзина пуста. Сначала добавьте товары."
+        if notice_text:
+            empty_text = f"{notice_text}\n\n{empty_text}"
+        await target_message.answer(empty_text)
         await state.clear()
         return
 
@@ -73,6 +80,8 @@ async def start_checkout_flow(target_message: types.Message, state: FSMContext) 
     await state.set_state(CheckoutState.waiting_for_promocode)
 
     cart_text = format_cart(items)
+    if notice_text:
+        cart_text = f"{notice_text}\n\n{cart_text}"
 
     await target_message.answer(
         f"{cart_text}\n\n{PROMO_PROMPT}",
@@ -110,11 +119,16 @@ async def promo_skip(callback: types.CallbackQuery, state: FSMContext) -> None:
 @router.message(CheckoutState.waiting_for_promocode)
 async def process_promocode(message: types.Message, state: FSMContext) -> None:
     user_id = message.from_user.id
-    items = get_cart_items(user_id)
+    items, removed = get_cart_items(user_id)
     if not items:
         await message.answer("Похоже, корзина пуста. Попробуйте оформить заказ заново.")
         await state.clear()
         return
+
+    if removed:
+        await message.answer(
+            "Некоторые товары больше недоступны и были удалены из вашей корзины."
+        )
 
     order_total = get_cart_total(user_id)
     raw_code = normalize_code(message.text or "")
@@ -186,7 +200,7 @@ async def process_comment(message: types.Message, state: FSMContext) -> None:
     user_id = user.id
     user_name = user.full_name or ""
 
-    items = get_cart_items(user_id)
+    items, removed = get_cart_items(user_id)
 
     if not items:
         await message.answer(
@@ -194,6 +208,11 @@ async def process_comment(message: types.Message, state: FSMContext) -> None:
         )
         await state.clear()
         return
+
+    if removed:
+        await message.answer(
+            "Некоторые товары больше недоступны и были удалены из вашей корзины."
+        )
 
     order_total = get_cart_total(user_id)
     data = await state.get_data()
