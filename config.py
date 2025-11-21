@@ -13,7 +13,10 @@ REQUIRED_CHANNEL_USERNAME = os.getenv("REQUIRED_CHANNEL_USERNAME")
 REQUIRED_CHANNEL_ID = os.getenv("REQUIRED_CHANNEL_ID")
 
 if REQUIRED_CHANNEL_USERNAME:
-    REQUIRED_CHANNEL_USERNAME = REQUIRED_CHANNEL_USERNAME.strip() or None
+    normalized_username = REQUIRED_CHANNEL_USERNAME.strip()
+    if normalized_username.startswith("@"):
+        normalized_username = normalized_username[1:]
+    REQUIRED_CHANNEL_USERNAME = normalized_username or None
 
 if REQUIRED_CHANNEL_ID:
     REQUIRED_CHANNEL_ID = REQUIRED_CHANNEL_ID.strip() or None
@@ -34,7 +37,7 @@ class Settings:
     payments_provider_token: str | None = None
 
     # 🔹 Новые поля для проверки подписки на канал
-    required_channel_id: str | None = None       # @username или -1001234567890
+    required_channel_id: int | str | None = None  # username без @ или -1001234567890
     required_channel_link: str | None = None     # https://t.me/username
 
     # 🔹 Баннеры
@@ -110,14 +113,14 @@ def get_settings() -> Settings:
     # 🔹 Канал, на который нужно быть подписанным
     channel_link = os.getenv("REQUIRED_CHANNEL_LINK", "").strip() or None
 
-    channel_id: str | None = None
+    channel_id: int | str | None = None
     if REQUIRED_CHANNEL_ID is not None:
-        channel_id = str(REQUIRED_CHANNEL_ID)
+        channel_id = REQUIRED_CHANNEL_ID
     elif REQUIRED_CHANNEL_USERNAME:
         channel_id = REQUIRED_CHANNEL_USERNAME
 
     if not channel_link and REQUIRED_CHANNEL_USERNAME:
-        channel_link = f"https://t.me/{REQUIRED_CHANNEL_USERNAME.lstrip('@')}"
+        channel_link = f"https://t.me/{REQUIRED_CHANNEL_USERNAME}"
 
     # 🔹 Баннеры (file_id или URL)
     start_banner_id = os.getenv("START_BANNER_ID") or None

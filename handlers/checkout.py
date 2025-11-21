@@ -18,6 +18,7 @@ from services.promocodes import (
 )
 from services.user_admin import get_user_ban_status
 from services.orders import add_order
+from services.subscription import ensure_subscribed
 from utils.texts import format_cart, format_order_for_admin, format_price
 
 router = Router()
@@ -82,6 +83,12 @@ async def start_checkout_flow(target_message: types.Message, state: FSMContext) 
 @router.message(Command(commands=["checkout", "order"]))
 async def start_checkout(message: types.Message, state: FSMContext) -> None:
     """Старт оформления заказа."""
+    user_id = message.from_user.id
+    is_admin = user_id in get_settings().admin_ids
+
+    if not await ensure_subscribed(message, message.bot, is_admin=is_admin):
+        return
+
     await start_checkout_flow(message, state)
 
 
