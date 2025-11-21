@@ -14,7 +14,7 @@ from services.products import (
 from services.cart import add_to_cart
 from services import orders as orders_service
 from services.favorites import is_favorite
-from keyboards.catalog_keyboards import catalog_product_actions_kb
+from keyboards.catalog_keyboards import build_pagination_kb, build_product_card_kb
 from config import ADMIN_IDS, get_settings
 from services.subscription import ensure_subscribed
 from utils.texts import format_course_card
@@ -77,52 +77,35 @@ async def _send_courses_page(
 
     for item in page_items:
         item_id = item["id"]
-        price = int(item.get("price", 0) or 0)
         photo = item.get("image_file_id")
-        url = item.get("detail_url") if item_id in access_ids else None
         is_fav = is_favorite(user_id, item_id)
 
-        is_free = price == 0
         has_access = item_id in access_ids
-        card_text = format_course_card(item, has_access=has_access, is_free=is_free)
+        card_text = format_course_card(item, has_access=has_access)
+        keyboard = build_product_card_kb(
+            product=item, has_access=has_access, is_favorite=is_fav
+        )
 
         if photo:
             await message.answer_photo(
-                photo=photo,
-                caption=card_text,
-                reply_markup=catalog_product_actions_kb(
-                    "course", item_id, is_favorite=is_fav, url=url
-                ),
+                photo=photo, caption=card_text, reply_markup=keyboard
             )
         else:
-            await message.answer(
-                card_text,
-                reply_markup=catalog_product_actions_kb(
-                    "course", item_id, is_favorite=is_fav, url=url
-                ),
-            )
+            await message.answer(card_text, reply_markup=keyboard)
 
-    # навигация по страницам
-    buttons: list[InlineKeyboardButton] = []
+    has_prev = page > 1
+    has_next = page < max_page
 
-    if page > 1:
-        buttons.append(
-            InlineKeyboardButton(
-                text="⬅ Назад",
-                callback_data=f"courses:list:{payment_type}:{page - 1}",
-            )
+    if has_prev or has_next:
+        pagination_kb = build_pagination_kb(
+            section=f"courses:{payment_type}",
+            page=page,
+            has_prev=has_prev,
+            has_next=has_next,
         )
-    if page < max_page:
-        buttons.append(
-            InlineKeyboardButton(
-                text="Вперёд ➡",
-                callback_data=f"courses:list:{payment_type}:{page + 1}",
-            )
+        await message.answer(
+            f"{title} — страница {page}/{max_page}", reply_markup=pagination_kb
         )
-
-    if buttons:
-        kb = InlineKeyboardMarkup(inline_keyboard=[buttons])
-        await message.answer("Листайте страницы каталога:", reply_markup=kb)
 
 
 # ===================== ВХОД В РАЗДЕЛ КУРСОВ =====================
@@ -193,6 +176,48 @@ async def courses_list_callback(callback: CallbackQuery) -> None:
     data = callback.data or ""
     try:
         _, _, payment_type, raw_page = data.split(":")
+        page = int(raw_page)
+    except Exception:
+        await callback.answer("Некорректные данные запроса 😕", show_alert=True)
+        return
+
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+
+    await _send_courses_page(
+        callback.message, user_id=user_id, payment_type=payment_type, page=page
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("catalog:"))
+async def courses_catalog_callback(callback: CallbackQuery) -> None:
+    """Перелистывание страниц каталога курсов."""
+
+    user_id = callback.from_user.id
+    is_admin = user_id in ADMIN_IDS
+
+    if not await ensure_subscribed(callback, callback.message.bot, is_admin=is_admin):
+        return
+
+    data = callback.data or ""
+    try:
+        parts = data.split(":")
+        if len(parts) < 4:
+            raise ValueError
+        _, _action, section, *tail = parts
+        if section != "courses":
+            return
+        if not tail:
+            raise ValueError
+        if len(tail) == 1:
+            payment_type = "all"
+            raw_page = tail[0]
+        else:
+            payment_type = tail[0]
+            raw_page = tail[-1]
         page = int(raw_page)
     except Exception:
         await callback.answer("Некорректные данные запроса 😕", show_alert=True)

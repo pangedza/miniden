@@ -1,10 +1,11 @@
 from aiogram import Router, types, F
-from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import CallbackQuery
 
 from services.products import get_baskets, get_basket_by_id, get_product_by_id
+from services import orders as orders_service
 from services.cart import add_to_cart
 from services.favorites import add_favorite, is_favorite, remove_favorite
-from keyboards.catalog_keyboards import catalog_product_actions_kb
+from keyboards.catalog_keyboards import build_pagination_kb, build_product_card_kb
 from config import ADMIN_IDS, get_settings
 from services.subscription import ensure_subscribed
 from utils.texts import format_basket_card
@@ -43,55 +44,36 @@ async def _send_baskets_page(
     end = start + USER_BASKETS_PER_PAGE
     page_items = baskets[start:end]
 
-    # Заголовок страницы
-    await message.answer(f"🧺 Корзинки\nСтраница {page}/{max_page}\n")
-
     # Карточки товаров
     for item in page_items:
         item_id = item["id"]
         photo = item.get("image_file_id")
-        url = item.get("detail_url")
 
         is_fav = is_favorite(user_id, item_id)
 
         card_text = format_basket_card(item)
+        keyboard = build_product_card_kb(
+            product=item, has_access=False, is_favorite=is_fav
+        )
 
         if photo:
             await message.answer_photo(
-                photo=photo,
-                caption=card_text,
-                reply_markup=catalog_product_actions_kb(
-                    "basket", item_id, is_favorite=is_fav, url=url
-                ),
+                photo=photo, caption=card_text, reply_markup=keyboard
             )
         else:
-            await message.answer(
-                card_text,
-                reply_markup=catalog_product_actions_kb(
-                    "basket", item_id, is_favorite=is_fav, url=url
-                ),
-            )
+            await message.answer(card_text, reply_markup=keyboard)
 
-    # Навигация по страницам
-    buttons = []
-    if page > 1:
-        buttons.append(
-            InlineKeyboardButton(
-                text="⬅ Назад",
-                callback_data=f"baskets:page:{page - 1}",
-            )
-        )
-    if page < max_page:
-        buttons.append(
-            InlineKeyboardButton(
-                text="Вперёд ➡",
-                callback_data=f"baskets:page:{page + 1}",
-            )
-        )
+    has_prev = page > 1
+    has_next = page < max_page
 
-    if buttons:
-        nav_kb = InlineKeyboardMarkup(inline_keyboard=[buttons])
-        await message.answer("Листайте страницы каталога:", reply_markup=nav_kb)
+    if has_prev or has_next:
+        pagination_kb = build_pagination_kb(
+            section="baskets", page=page, has_prev=has_prev, has_next=has_next
+        )
+        await message.answer(
+            f"🧺 Корзинки — страница {page}/{max_page}",
+            reply_markup=pagination_kb,
+        )
 
 
 @router.message(F.text == "🧺 Корзинки")
@@ -106,7 +88,7 @@ async def show_baskets(message: types.Message) -> None:
     await _send_baskets_page(message, user_id=user_id, page=1, with_banner=True)
 
 
-@router.callback_query(F.data.startswith("baskets:page:"))
+@router.callback_query(F.data.startswith("catalog:"))
 async def baskets_page_callback(callback: CallbackQuery) -> None:
     """Перелистывание страниц каталога корзинок."""
     user_id = callback.from_user.id
@@ -117,14 +99,17 @@ async def baskets_page_callback(callback: CallbackQuery) -> None:
 
     data = callback.data or ""
     try:
-        _, _, raw_page = data.split(":")
+        parts = data.split(":")
+        if len(parts) < 4:
+            raise ValueError
+        _, _action, section, raw_page = parts[:4]
+        if section != "baskets":
+            return
         page = int(raw_page)
     except Exception:
         await callback.answer("Некорректный номер страницы", show_alert=True)
         return
 
-    # Удаляем старое сообщение с навигацией,
-    # чтобы не плодить много "Листайте страницы каталога:"
     try:
         await callback.message.delete()
     except Exception:
@@ -203,12 +188,13 @@ async def add_to_favorites(callback: CallbackQuery) -> None:
     await callback.answer("Добавлено в избранное ❤️")
 
     try:
+        access_ids = {
+            c["id"] for c in orders_service.get_user_courses_with_access(user_id)
+        }
+        has_access = product.get("type") == "course" and product_id in access_ids
         await callback.message.edit_reply_markup(
-            reply_markup=catalog_product_actions_kb(
-                product.get("type", "basket"),
-                product_id,
-                is_favorite=True,
-                url=product.get("detail_url"),
+            reply_markup=build_product_card_kb(
+                product=product, has_access=has_access, is_favorite=True
             )
         )
     except Exception:
@@ -243,12 +229,13 @@ async def remove_from_favorites(callback: CallbackQuery) -> None:
     await callback.answer("Удалено из избранного 💔")
 
     try:
+        access_ids = {
+            c["id"] for c in orders_service.get_user_courses_with_access(user_id)
+        }
+        has_access = product.get("type") == "course" and product_id in access_ids
         await callback.message.edit_reply_markup(
-            reply_markup=catalog_product_actions_kb(
-                product.get("type", "basket"),
-                product_id,
-                is_favorite=False,
-                url=product.get("detail_url"),
+            reply_markup=build_product_card_kb(
+                product=product, has_access=has_access, is_favorite=False
             )
         )
     except Exception:
