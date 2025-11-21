@@ -4,7 +4,7 @@ from typing import Any
 from aiogram import Bot
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
-from config import ADMIN_IDS, REQUIRED_CHANNEL_ID, REQUIRED_CHANNEL_USERNAME, get_settings
+from config import ADMIN_IDS, get_settings
 from utils.texts import format_subscription_required_text
 
 
@@ -15,10 +15,6 @@ def _get_channel_identifier() -> Any:
 
     if settings.required_channel_id is not None:
         return settings.required_channel_id
-    if REQUIRED_CHANNEL_ID is not None:
-        return REQUIRED_CHANNEL_ID
-    if REQUIRED_CHANNEL_USERNAME:
-        return REQUIRED_CHANNEL_USERNAME
 
     return None
 
@@ -32,8 +28,6 @@ def _get_channel_link() -> str | None:
     channel_identifier = settings.required_channel_id
     if isinstance(channel_identifier, str) and channel_identifier:
         return f"https://t.me/{channel_identifier}"
-    if REQUIRED_CHANNEL_USERNAME:
-        return f"https://t.me/{REQUIRED_CHANNEL_USERNAME}"
 
     return None
 
@@ -60,9 +54,6 @@ def get_subscription_keyboard(
 
 async def is_user_subscribed(bot: Bot, user_id: int) -> bool:
     """Проверка статуса участника канала."""
-
-    if not REQUIRED_CHANNEL_USERNAME and REQUIRED_CHANNEL_ID is None:
-        return True
 
     chat_id = _get_channel_identifier()
 
