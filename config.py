@@ -45,7 +45,7 @@ class Settings:
     banner_profile: str | None = None
 
 
-def _load_admin_ids() -> Set[int]:
+def _load_admin_ids() -> list[int]:
     """
     Считывает админов из переменных окружения:
     - ADMIN_CHAT_ID=123
@@ -74,11 +74,13 @@ def _load_admin_ids() -> Set[int]:
             except ValueError:
                 continue
 
-    return ids
+    return list(ids)
 
 
-# Глобальный набор админов — удобно использовать в хендлерах
-ADMIN_IDS: Set[int] = _load_admin_ids()
+# Глобальный список админов — удобно использовать в хендлерах
+ADMIN_IDS: list[int] = _load_admin_ids()
+# Для быстрого поиска оставляем и множество
+ADMIN_IDS_SET: Set[int] = set(ADMIN_IDS)
 
 
 def get_settings() -> Settings:
@@ -97,7 +99,7 @@ def get_settings() -> Settings:
 
     payments_token = os.getenv("PAYMENTS_PROVIDER_TOKEN") or None
 
-    admin_ids = ADMIN_IDS or _load_admin_ids()
+    admin_ids = set(ADMIN_IDS) or set(_load_admin_ids())
 
     # Для обратной совместимости: берём первого админа из множества
     admin_chat_id: int | None = None

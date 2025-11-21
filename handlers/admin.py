@@ -5,7 +5,7 @@ from aiogram.filters import Command
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 
-from config import ADMIN_IDS
+from config import ADMIN_IDS, ADMIN_IDS_SET
 from services import products as products_service
 from services import stats as stats_service
 from services import orders as orders_service
@@ -37,7 +37,7 @@ router = Router()
 
 
 def _is_admin(user_id: int | None) -> bool:
-    return bool(user_id) and user_id in ADMIN_IDS
+    return bool(user_id) and user_id in ADMIN_IDS_SET
 
 
 def _build_order_actions_kb(order_id: int, user_id: int) -> types.InlineKeyboardMarkup:

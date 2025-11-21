@@ -12,7 +12,7 @@ from services.cart import (
 )
 from utils.texts import format_cart
 from keyboards.cart_keyboards import cart_kb
-from .checkout import CheckoutState  # из checkout.py
+from .checkout import CheckoutState, start_checkout_flow  # из checkout.py
 from config import ADMIN_IDS
 from services.subscription import ensure_subscribed
 
@@ -187,13 +187,5 @@ async def cart_checkout_cb(callback: CallbackQuery, state: FSMContext):
         await callback.answer("🛒 Корзина пуста.", show_alert=True)
         return
 
-    total = get_cart_total(user_id)
-    text = format_cart(items)
-
-    await callback.message.answer(
-        text
-        + "\n\nДавайте оформим заказ. Как вас зовут? 🙂"
-    )
-
-    await state.set_state(CheckoutState.waiting_for_name)
+    await start_checkout_flow(callback.message, state)
     await callback.answer()
