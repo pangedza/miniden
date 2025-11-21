@@ -1,8 +1,9 @@
 from aiogram import Router, types, F
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 
-from services.products import get_baskets, get_basket_by_id
+from services.products import get_baskets, get_basket_by_id, get_product_by_id
 from services.cart import add_to_cart
+from services.favorites import add_favorite, is_favorite, remove_favorite
 from keyboards.catalog_keyboards import catalog_product_actions_kb
 from config import ADMIN_IDS, get_settings
 from services.subscription import ensure_subscribed
@@ -15,7 +16,7 @@ USER_BASKETS_PER_PAGE = 5
 
 
 async def _send_baskets_page(
-    message: types.Message, page: int = 1, with_banner: bool = False
+    message: types.Message, user_id: int, page: int = 1, with_banner: bool = False
 ) -> None:
     """
     Показать одну страницу корзинок пользователю.
@@ -51,18 +52,24 @@ async def _send_baskets_page(
         photo = item.get("image_file_id")
         url = item.get("detail_url")
 
+        is_fav = is_favorite(user_id, item_id)
+
         card_text = format_basket_card(item)
 
         if photo:
             await message.answer_photo(
                 photo=photo,
                 caption=card_text,
-                reply_markup=catalog_product_actions_kb("basket", item_id, url),
+                reply_markup=catalog_product_actions_kb(
+                    "basket", item_id, is_favorite=is_fav, url=url
+                ),
             )
         else:
             await message.answer(
                 card_text,
-                reply_markup=catalog_product_actions_kb("basket", item_id, url),
+                reply_markup=catalog_product_actions_kb(
+                    "basket", item_id, is_favorite=is_fav, url=url
+                ),
             )
 
     # Навигация по страницам
@@ -96,7 +103,7 @@ async def show_baskets(message: types.Message) -> None:
     if not await ensure_subscribed(message, message.bot, is_admin=is_admin):
         return
 
-    await _send_baskets_page(message, page=1, with_banner=True)
+    await _send_baskets_page(message, user_id=user_id, page=1, with_banner=True)
 
 
 @router.callback_query(F.data.startswith("baskets:page:"))
@@ -123,7 +130,7 @@ async def baskets_page_callback(callback: CallbackQuery) -> None:
     except Exception:
         pass
 
-    await _send_baskets_page(callback.message, page=page)
+    await _send_baskets_page(callback.message, user_id=user_id, page=page)
     await callback.answer()
 
 
@@ -166,3 +173,83 @@ async def add_basket_to_cart(callback: CallbackQuery) -> None:
     )
 
     await callback.answer("Добавлено в корзину 🛒")
+
+
+@router.callback_query(F.data.startswith("fav:add:"))
+async def add_to_favorites(callback: CallbackQuery) -> None:
+    """Добавить товар или курс в избранное."""
+
+    user_id = callback.from_user.id
+    is_admin = user_id in ADMIN_IDS
+
+    if not await ensure_subscribed(callback, callback.message.bot, is_admin=is_admin):
+        return
+
+    data = callback.data or ""
+    try:
+        _, _, raw_id = data.split(":")
+        product_id = int(raw_id)
+    except Exception:
+        await callback.answer("Не удалось понять товар 🤔", show_alert=True)
+        return
+
+    product = get_product_by_id(product_id)
+    if product is None:
+        await callback.answer("Товар не найден 😢", show_alert=True)
+        return
+
+    add_favorite(user_id, product_id)
+
+    await callback.answer("Добавлено в избранное ❤️")
+
+    try:
+        await callback.message.edit_reply_markup(
+            reply_markup=catalog_product_actions_kb(
+                product.get("type", "basket"),
+                product_id,
+                is_favorite=True,
+                url=product.get("detail_url"),
+            )
+        )
+    except Exception:
+        pass
+
+
+@router.callback_query(F.data.startswith("fav:remove:"))
+async def remove_from_favorites(callback: CallbackQuery) -> None:
+    """Убрать товар или курс из избранного."""
+
+    user_id = callback.from_user.id
+    is_admin = user_id in ADMIN_IDS
+
+    if not await ensure_subscribed(callback, callback.message.bot, is_admin=is_admin):
+        return
+
+    data = callback.data or ""
+    try:
+        _, _, raw_id = data.split(":")
+        product_id = int(raw_id)
+    except Exception:
+        await callback.answer("Не удалось понять товар 🤔", show_alert=True)
+        return
+
+    product = get_product_by_id(product_id)
+    if product is None:
+        await callback.answer("Товар не найден 😢", show_alert=True)
+        return
+
+    remove_favorite(user_id, product_id)
+
+    await callback.answer("Удалено из избранного 💔")
+
+    try:
+        await callback.message.edit_reply_markup(
+            reply_markup=catalog_product_actions_kb(
+                product.get("type", "basket"),
+                product_id,
+                is_favorite=False,
+                url=product.get("detail_url"),
+            )
+        )
+    except Exception:
+        pass

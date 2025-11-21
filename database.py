@@ -105,6 +105,18 @@ def init_db() -> None:
         """
     )
 
+    # Таблица избранного
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS favorites (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            product_id INTEGER NOT NULL,
+            created_at TEXT NOT NULL
+        );
+        """
+    )
+
     # Таблица ручного управления доступом к курсам
     cur.execute(
         """
@@ -195,6 +207,20 @@ def init_db() -> None:
         """
         CREATE INDEX IF NOT EXISTS idx_user_notes_user
         ON user_notes(user_id);
+        """
+    )
+
+    # Индексы для избранного
+    cur.execute(
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_favorites_user_product
+        ON favorites (user_id, product_id);
+        """
+    )
+    cur.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_favorites_user
+        ON favorites (user_id);
         """
     )
 
