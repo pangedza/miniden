@@ -1,3 +1,4 @@
+from html import escape
 from typing import Iterable
 from services import orders as orders_service
 
@@ -20,17 +21,19 @@ def format_price(price: int | float) -> str:
     return f"{int(value)} ₽"
 
 
-def _shorten_description(text: str, limit: int = 300) -> str:
-    """Обрезать описание до разумной длины."""
+def shorten_description(text: str, max_len: int = 160) -> str:
+    """Обрезать описание по границе слова и добавить троеточие."""
 
     cleaned = (text or "").strip()
     if not cleaned:
         return ""
 
-    if len(cleaned) <= limit:
-        return cleaned
+    if len(cleaned) <= max_len:
+        return escape(cleaned)
 
-    return cleaned[: limit - 1].rstrip() + "…"
+    cutoff = cleaned[:max_len]
+    cutoff = cutoff.rsplit(" ", 1)[0] or cutoff
+    return escape(cutoff.rstrip()) + "..."
 
 
 def format_start_text() -> str:
@@ -476,11 +479,11 @@ def format_order_status_changed_for_user(order_id: int, new_status: str) -> str:
 def format_basket_card(product: dict) -> str:
     """Формат «карточки» корзинки для каталога."""
 
-    name = product.get("name", "Корзинка")
-    description = _shorten_description(product.get("description", ""))
+    name = escape(product.get("name", "Корзинка"))
+    description = shorten_description(product.get("description", ""))
     price_text = format_price(product.get("price", 0))
 
-    lines: list[str] = ["🧺 <b>{}</b>".format(name), ""]
+    lines: list[str] = [f"🧺 <b>{name}</b>", ""]
 
     if description:
         lines.append(description)
@@ -490,23 +493,27 @@ def format_basket_card(product: dict) -> str:
     return "\n".join(lines).strip()
 
 
-def format_course_card(product: dict, has_access: bool, is_free: bool) -> str:
+def format_course_card(product: dict, has_access: bool) -> str:
     """Формат «карточки» курса для каталога."""
 
-    name = product.get("name", "Курс")
-    description = _shorten_description(product.get("description", ""))
-    price_text = "💸 <b>Бесплатный курс</b>" if is_free else f"💰 Цена: <b>{format_price(product.get('price'))}</b>"
-    access_text = "✅ Доступ открыт" if has_access else "🔒 Доступ пока закрыт"
+    price = int(product.get("price", 0) or 0)
+    name = escape(product.get("name", "Курс"))
+    description = shorten_description(product.get("description", ""))
+    is_free = price == 0
 
-    lines: list[str] = ["🎓 <b>{}</b>".format(name), ""]
+    lines: list[str] = [f"🎓 <b>{name}</b>", ""]
 
     if description:
         lines.append(description)
         lines.append("")
 
-    lines.append(price_text)
+    if is_free:
+        lines.append("💸 <b>Бесплатный курс</b>")
+    else:
+        lines.append(f"💰 Цена: <b>{format_price(price)}</b>")
+
     lines.append("")
-    lines.append(access_text)
+    lines.append("✅ Доступ открыт" if has_access else "🔒 Доступ пока закрыт")
 
     return "\n".join(lines).strip()
 
