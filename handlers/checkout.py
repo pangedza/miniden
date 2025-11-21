@@ -1,4 +1,4 @@
-from aiogram import Router, types
+from aiogram import Router, types, F
 from aiogram.filters import Command
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
@@ -9,42 +9,120 @@ from services.cart import (
     get_cart_total,
     clear_cart,
 )
+from services.promocodes import (
+    calculate_discount_amount,
+    get_promocode_by_code,
+    increment_promocode_usage,
+    normalize_code,
+    validate_promocode_for_order,
+)
 from services.user_admin import get_user_ban_status
 from services.orders import add_order
-from utils.texts import format_cart, format_order_for_admin
+from utils.texts import format_cart, format_order_for_admin, format_price
 
 router = Router()
 
 
+def _promo_skip_kb() -> types.InlineKeyboardMarkup:
+    return types.InlineKeyboardMarkup(
+        inline_keyboard=[
+            [types.InlineKeyboardButton(text="Пропустить", callback_data="checkout:promo_skip")]
+        ]
+    )
+
+
 class CheckoutState(StatesGroup):
+    waiting_for_promocode = State()
     waiting_for_name = State()
     waiting_for_contact = State()
     waiting_for_comment = State()
+
+
+async def _ask_for_name(message: types.Message, state: FSMContext) -> None:
+    await message.answer(
+        "Давайте оформим заказ. Как вас зовут? 🙂",
+    )
+    await state.set_state(CheckoutState.waiting_for_name)
 
 
 @router.message(Command(commands=["checkout", "order"]))
 async def start_checkout(message: types.Message, state: FSMContext) -> None:
     """Старт оформления заказа."""
     user_id = message.from_user.id
-    items = get_cart_items(user_id)   # NEW
+    items = get_cart_items(user_id)
 
     if not items:
         await message.answer("🛒 Ваша корзина пуста. Сначала добавьте товары.")
         return
 
+    total = get_cart_total(user_id)
+    await state.set_state(CheckoutState.waiting_for_promocode)
+    await state.update_data(order_total=total, promo_code=None, discount_amount=0, final_total=total)
+
     cart_text = format_cart(items)
 
     await message.answer(
         cart_text
-        + "\n\nДавайте оформим заказ. Как вас зовут? 🙂"
+        + "\n\nЕсли у вас есть промокод, введите его сейчас или нажмите «Пропустить».",
+        reply_markup=_promo_skip_kb(),
     )
 
+
+@router.callback_query(F.data == "checkout:promo_skip")
+async def promo_skip(callback: types.CallbackQuery, state: FSMContext) -> None:
+    if callback.message:
+        await state.update_data(promo_code=None, discount_amount=0, final_total=None)
+        await callback.answer()
+        await _ask_for_name(callback.message, state)
+
+
+@router.message(CheckoutState.waiting_for_promocode)
+async def process_promocode(message: types.Message, state: FSMContext) -> None:
+    user_id = message.from_user.id
+    items = get_cart_items(user_id)
+    if not items:
+        await message.answer("Похоже, корзина пуста. Попробуйте оформить заказ заново.")
+        await state.clear()
+        return
+
+    order_total = get_cart_total(user_id)
+    raw_code = normalize_code(message.text or "")
+
+    promo = get_promocode_by_code(raw_code)
+    if not promo:
+        await message.answer("Промокод не найден.", reply_markup=_promo_skip_kb())
+        return
+
+    is_valid, reason = validate_promocode_for_order(promo, order_total)
+    if not is_valid:
+        await message.answer(reason or "Промокод не подходит.", reply_markup=_promo_skip_kb())
+        return
+
+    discount_amount = calculate_discount_amount(promo, order_total)
+    final_total = order_total - discount_amount
+    if final_total < 0:
+        final_total = 0
+
+    await state.update_data(
+        promo_code=promo.get("code"),
+        discount_amount=discount_amount,
+        final_total=final_total,
+        order_total=order_total,
+    )
+
+    await message.answer(
+        "Промокод применён ✅\n"
+        f"Сумма без скидки: {format_price(order_total)}\n"
+        f"Скидка: -{format_price(discount_amount)}\n"
+        f"Итого к оплате: {format_price(final_total)}\n\n"
+        "Как вас зовут? 🙂",
+    )
     await state.set_state(CheckoutState.waiting_for_name)
 
 
 @router.message(CheckoutState.waiting_for_name)
 async def process_name(message: types.Message, state: FSMContext) -> None:
-    await state.update_data(customer_name=message.text.strip())
+    await state.update_data(customer_name=(message.text or "").strip())
     await message.answer(
         "Спасибо! Как с вами лучше связаться? Напишите телефон, @username или другой контакт."
     )
@@ -53,7 +131,7 @@ async def process_name(message: types.Message, state: FSMContext) -> None:
 
 @router.message(CheckoutState.waiting_for_contact)
 async def process_contact(message: types.Message, state: FSMContext) -> None:
-    await state.update_data(contact=message.text.strip())
+    await state.update_data(contact=(message.text or "").strip())
     await message.answer(
         "Если хотите, можете оставить комментарий к заказу "
         "(или напишите «-», если без комментария)."
@@ -63,14 +141,14 @@ async def process_contact(message: types.Message, state: FSMContext) -> None:
 
 @router.message(CheckoutState.waiting_for_comment)
 async def process_comment(message: types.Message, state: FSMContext) -> None:
-    comment_raw = message.text.strip()
+    comment_raw = (message.text or "").strip()
     comment = "" if comment_raw == "-" else comment_raw
 
     user = message.from_user
     user_id = user.id
     user_name = user.full_name or ""
 
-    items = get_cart_items(user_id)   # NEW
+    items = get_cart_items(user_id)
 
     if not items:
         await message.answer(
@@ -79,11 +157,13 @@ async def process_comment(message: types.Message, state: FSMContext) -> None:
         await state.clear()
         return
 
-    total = get_cart_total(user_id)   # NEW
+    order_total = get_cart_total(user_id)
     data = await state.get_data()
 
     customer_name = data.get("customer_name", "")
     contact = data.get("contact", "")
+    promo_code = data.get("promo_code")
+    discount_amount = int(data.get("discount_amount", 0) or 0)
 
     ban_status = get_user_ban_status(user_id)
     if ban_status.get("is_banned"):
@@ -94,15 +174,37 @@ async def process_comment(message: types.Message, state: FSMContext) -> None:
         await state.clear()
         return
 
+    final_total = order_total
+    if promo_code:
+        promo = get_promocode_by_code(promo_code)
+        if promo:
+            is_valid, reason = validate_promocode_for_order(promo, order_total)
+            if is_valid:
+                discount_amount = calculate_discount_amount(promo, order_total)
+                final_total = order_total - discount_amount
+                if final_total < 0:
+                    final_total = 0
+            else:
+                await message.answer(
+                    f"Промокод больше не действует: {reason}. Заказ оформлен без скидки."
+                )
+                promo_code = None
+                discount_amount = 0
+        else:
+            promo_code = None
+            discount_amount = 0
+
     # Формируем текст заказа (без номера)
     base_order_text = format_order_for_admin(
         user_id=user_id,
         user_name=user_name,
         items=items,
-        total=total,
+        total=final_total,
         customer_name=customer_name,
         contact=contact,
         comment=comment,
+        discount_amount=discount_amount,
+        original_total=order_total,
     )
 
     # Сохраняем заказ в БД
@@ -110,11 +212,13 @@ async def process_comment(message: types.Message, state: FSMContext) -> None:
         user_id=user_id,
         user_name=user_name,
         items=items,
-        total=total,
+        total=final_total,
         customer_name=customer_name,
         contact=contact,
         comment=comment,
         order_text=base_order_text,
+        promocode_code=promo_code,
+        discount_amount=discount_amount,
     )
 
     # Добавляем номер заказа
@@ -134,6 +238,9 @@ async def process_comment(message: types.Message, state: FSMContext) -> None:
         "Мы свяжемся с вами для подтверждения. Спасибо! ❤️"
     )
 
+    if promo_code:
+        increment_promocode_usage(promo_code)
+
     # Очищаем корзину после оформления заказа
-    clear_cart(user_id)    # NEW
+    clear_cart(user_id)
     await state.clear()

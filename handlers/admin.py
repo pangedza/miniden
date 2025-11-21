@@ -9,6 +9,7 @@ from config import ADMIN_IDS
 from services import products as products_service
 from services import stats as stats_service
 from services import orders as orders_service
+from services import promocodes as promocodes_service
 from services import user_admin as user_admin_service
 from services import user_stats as user_stats_service
 from keyboards.admin_inline import (
@@ -118,6 +119,53 @@ def _build_stats_period_kb() -> types.InlineKeyboardMarkup:
     )
 
 
+def _build_promocodes_menu_kb() -> types.InlineKeyboardMarkup:
+    return types.InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                types.InlineKeyboardButton(
+                    text="➕ Создать промокод", callback_data="admin:promo:create"
+                )
+            ],
+            [
+                types.InlineKeyboardButton(
+                    text="📋 Список промокодов", callback_data="admin:promo:list"
+                )
+            ],
+        ]
+    )
+
+
+def _build_promocode_type_kb() -> types.InlineKeyboardMarkup:
+    return types.InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                types.InlineKeyboardButton(
+                    text="Процент", callback_data="admin:promo:type:percent"
+                ),
+                types.InlineKeyboardButton(
+                    text="Фиксированная", callback_data="admin:promo:type:fixed"
+                ),
+            ]
+        ]
+    )
+
+
+def _format_promocode_line(promo: dict) -> str:
+    code = promo.get("code") or "—"
+    discount_type = promo.get("discount_type")
+    discount_value = int(promo.get("discount_value", 0) or 0)
+    is_active = int(promo.get("is_active", 0) or 0) == 1
+
+    if discount_type == "percent":
+        discount_text = f"{discount_value}%"
+    else:
+        discount_text = f"{format_price(discount_value)}"
+
+    status_text = "активен" if is_active else "выключен"
+    return f"{code} — {discount_text} [{status_text}]"
+
+
 async def _send_orders_menu(message: types.Message) -> None:
     await message.answer(
         "📦 <b>Раздел заказов</b>\nВыберите, какие заказы показать:",
@@ -157,6 +205,14 @@ class EditState(StatesGroup):
 class CourseAccessState(StatesGroup):
     waiting_grant_user_id = State()
     waiting_revoke_user_id = State()
+
+
+class PromoCreateState(StatesGroup):
+    waiting_code = State()
+    waiting_type = State()
+    waiting_value = State()
+    waiting_min_total = State()
+    waiting_max_uses = State()
 
 
 # ---------------- ВХОД В АДМИНКУ ----------------
@@ -205,12 +261,48 @@ async def admin_stats_command(message: types.Message):
     await _send_stats_menu(message)
 
 
+@router.message(Command("promo_stats"))
+async def admin_promo_stats_command(message: types.Message):
+    if not _is_admin(message.from_user.id):
+        return
+
+    promos = promocodes_service.get_promocodes_usage_summary()
+    lines: list[str] = ["🎟 <b>Статистика промокодов</b>", ""]
+
+    if not promos:
+        lines.append("Промокоды ещё не созданы.")
+    else:
+        for promo in promos:
+            code = promo.get("code") or "—"
+            discount_type = promo.get("discount_type")
+            value = int(promo.get("discount_value", 0) or 0)
+            used = int(promo.get("used_count", 0) or 0)
+            max_uses = int(promo.get("max_uses", 0) or 0)
+            limit_text = "∞" if max_uses == 0 else str(max_uses)
+            discount_text = f"{value}%" if discount_type == "percent" else f"{format_price(value)}"
+            lines.append(
+                f"{code} — {discount_text}, использований: {used} / {limit_text}"
+            )
+
+    await message.answer("\n".join(lines).strip())
+
+
 @router.message(F.text == "📊 Статистика")
 async def admin_stats_button(message: types.Message):
     if not _is_admin(message.from_user.id):
         return
 
     await _send_stats_menu(message)
+
+
+@router.message(F.text == "🎟 Промокоды")
+async def admin_promocodes_menu(message: types.Message):
+    if not _is_admin(message.from_user.id):
+        return
+
+    await message.answer(
+        "🎟 <b>Управление промокодами</b>", reply_markup=_build_promocodes_menu_kb()
+    )
 
 
 @router.callback_query(F.data.startswith("admin:stats:"))
@@ -276,6 +368,201 @@ async def admin_stats_callback(callback: types.CallbackQuery):
         await callback.message.answer(text, reply_markup=_build_stats_period_kb())
 
     await callback.answer()
+
+
+@router.callback_query(F.data == "admin:promo:list")
+async def admin_promocode_list(callback: types.CallbackQuery):
+    if not _is_admin(callback.from_user.id):
+        return
+
+    promos = promocodes_service.list_promocodes(limit=30)
+    lines: list[str] = ["🎟 <b>Промокоды</b>", ""]
+
+    if not promos:
+        lines.append("Промокоды ещё не созданы.")
+    else:
+        for promo in promos:
+            lines.append(_format_promocode_line(promo))
+
+    keyboard_rows: list[list[types.InlineKeyboardButton]] = []
+    for promo in promos:
+        code = promo.get("code")
+        if not code:
+            continue
+        is_active = int(promo.get("is_active", 0) or 0) == 1
+        toggle_text = "ON" if not is_active else "OFF"
+        keyboard_rows.append(
+            [
+                types.InlineKeyboardButton(
+                    text=f"{code}: {toggle_text}",
+                    callback_data=f"admin:promo:toggle:{code}",
+                )
+            ]
+        )
+
+    reply_markup = (
+        types.InlineKeyboardMarkup(inline_keyboard=keyboard_rows)
+        if keyboard_rows
+        else None
+    )
+    if callback.message:
+        await callback.message.edit_text(
+            "\n".join(lines).strip(), reply_markup=reply_markup
+        )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("admin:promo:toggle:"))
+async def admin_promocode_toggle(callback: types.CallbackQuery):
+    if not _is_admin(callback.from_user.id):
+        return
+
+    parts = (callback.data or "").split(":", 3)
+    if len(parts) < 3:
+        await callback.answer("Некорректный запрос", show_alert=True)
+        return
+
+    code = parts[-1]
+    promo = promocodes_service.get_promocode_by_code(code)
+    if not promo:
+        await callback.answer("Промокод не найден", show_alert=True)
+        return
+
+    current_status = int(promo.get("is_active", 0) or 0) == 1
+    promocodes_service.set_promocode_active(code, not current_status)
+    new_status = "активен" if not current_status else "отключён"
+    await callback.answer(f"Промокод {code} теперь {new_status}")
+    await admin_promocode_list(callback)
+
+
+@router.callback_query(F.data == "admin:promo:create")
+async def admin_promocode_create_start(callback: types.CallbackQuery, state: FSMContext):
+    if not _is_admin(callback.from_user.id):
+        return
+
+    await state.set_state(PromoCreateState.waiting_code)
+    await callback.message.edit_text(
+        "Введите код промокода (можно с пробелами, мы его нормализуем):"
+    )
+    await callback.answer()
+
+
+@router.message(PromoCreateState.waiting_code)
+async def admin_promocode_enter_code(message: types.Message, state: FSMContext):
+    if not _is_admin(message.from_user.id):
+        return
+
+    await state.update_data(promo_code=(message.text or "").strip())
+    await message.answer(
+        "Выберите тип скидки:", reply_markup=_build_promocode_type_kb()
+    )
+    await state.set_state(PromoCreateState.waiting_type)
+
+
+@router.callback_query(F.data.startswith("admin:promo:type:"))
+async def admin_promocode_choose_type(callback: types.CallbackQuery, state: FSMContext):
+    if not _is_admin(callback.from_user.id):
+        return
+
+    parts = (callback.data or "").split(":")
+    if len(parts) != 4:
+        await callback.answer("Некорректный запрос", show_alert=True)
+        return
+
+    promo_type = parts[-1]
+    if promo_type not in {"percent", "fixed"}:
+        await callback.answer("Неизвестный тип", show_alert=True)
+        return
+
+    await state.update_data(promo_type=promo_type)
+    await callback.message.edit_text(
+        "Введите значение скидки (число). Например: 10 или 500"
+    )
+    await state.set_state(PromoCreateState.waiting_value)
+    await callback.answer()
+
+
+@router.message(PromoCreateState.waiting_value)
+async def admin_promocode_enter_value(message: types.Message, state: FSMContext):
+    if not _is_admin(message.from_user.id):
+        return
+
+    try:
+        value = int((message.text or "").strip())
+        if value <= 0:
+            raise ValueError
+    except Exception:
+        await message.answer("Введите положительное число для скидки")
+        return
+
+    await state.update_data(promo_value=value)
+    await message.answer("Минимальная сумма заказа для применения (0 — без ограничений):")
+    await state.set_state(PromoCreateState.waiting_min_total)
+
+
+@router.message(PromoCreateState.waiting_min_total)
+async def admin_promocode_enter_min_total(message: types.Message, state: FSMContext):
+    if not _is_admin(message.from_user.id):
+        return
+
+    try:
+        min_total = int((message.text or "").strip() or 0)
+    except Exception:
+        await message.answer("Введите число (0 — без ограничения)")
+        return
+
+    await state.update_data(min_total=min_total)
+    await message.answer("Максимальное количество использований (0 — без лимита):")
+    await state.set_state(PromoCreateState.waiting_max_uses)
+
+
+@router.message(PromoCreateState.waiting_max_uses)
+async def admin_promocode_enter_max_uses(message: types.Message, state: FSMContext):
+    if not _is_admin(message.from_user.id):
+        return
+
+    try:
+        max_uses = int((message.text or "").strip() or 0)
+        if max_uses < 0:
+            max_uses = 0
+    except Exception:
+        await message.answer("Введите число (0 — без ограничения)")
+        return
+
+    data = await state.get_data()
+    code = data.get("promo_code", "")
+    promo_type = data.get("promo_type", "")
+    value = int(data.get("promo_value", 0) or 0)
+    min_total = int(data.get("min_total", 0) or 0)
+
+    try:
+        new_id = promocodes_service.create_promocode(
+            code=code,
+            discount_type=promo_type,
+            discount_value=value,
+            min_order_total=min_total,
+            max_uses=max_uses,
+        )
+    except Exception as exc:  # noqa: BLE001
+        await message.answer(f"Не удалось создать промокод: {exc}")
+        await state.clear()
+        return
+
+    if new_id == -1:
+        await message.answer("Такой промокод уже существует. Попробуйте другой код.")
+        await state.clear()
+        return
+
+    code_normalized = promocodes_service.normalize_code(code)
+    limit_text = "без лимита" if max_uses == 0 else f"{max_uses} раз"
+    min_total_text = "без ограничений" if min_total == 0 else f"от {min_total} ₽"
+    discount_text = f"{value}%" if promo_type == "percent" else f"{format_price(value)}"
+
+    await message.answer(
+        "Создан промокод: \n"
+        f"{code_normalized} — {discount_text}, {min_total_text}, {limit_text}"
+    )
+    await state.clear()
 
 
 @router.message(F.text == "📝 Заметки")
