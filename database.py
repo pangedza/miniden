@@ -43,6 +43,8 @@ def init_db() -> None:
             contact TEXT,
             comment TEXT,
             total INTEGER,
+            promocode_code TEXT,
+            discount_amount INTEGER,
             status TEXT,
             order_text TEXT,
             created_at TEXT
@@ -73,6 +75,24 @@ def init_db() -> None:
             """
             ALTER TABLE order_items
             ADD COLUMN product_id INTEGER;
+            """
+        )
+
+    # 🔹 Добавляем новые колонки в orders, если их ещё нет
+    cur.execute("PRAGMA table_info(orders);")
+    orders_columns = [row["name"] for row in cur.fetchall()]
+    if "promocode_code" not in orders_columns:
+        cur.execute(
+            """
+            ALTER TABLE orders
+            ADD COLUMN promocode_code TEXT;
+            """
+        )
+    if "discount_amount" not in orders_columns:
+        cur.execute(
+            """
+            ALTER TABLE orders
+            ADD COLUMN discount_amount INTEGER;
             """
         )
 
@@ -172,6 +192,25 @@ def init_db() -> None:
         """
     )
 
+    # Таблица промокодов
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS promocodes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            code TEXT NOT NULL UNIQUE,
+            discount_type TEXT NOT NULL,
+            discount_value INTEGER NOT NULL,
+            min_order_total INTEGER DEFAULT 0,
+            max_uses INTEGER DEFAULT 0,
+            used_count INTEGER NOT NULL DEFAULT 0,
+            is_active INTEGER NOT NULL DEFAULT 1,
+            valid_from TEXT,
+            valid_to TEXT,
+            description TEXT
+        );
+        """
+    )
+
     # Индексы для ускорения запросов
     cur.execute(
         """
@@ -221,6 +260,14 @@ def init_db() -> None:
         """
         CREATE INDEX IF NOT EXISTS idx_favorites_user
         ON favorites (user_id);
+        """
+    )
+
+    # Индексы для промокодов
+    cur.execute(
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_promocodes_code
+        ON promocodes(code);
         """
     )
 

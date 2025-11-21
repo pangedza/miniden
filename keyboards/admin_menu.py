@@ -10,6 +10,7 @@ def get_admin_menu() -> ReplyKeyboardMarkup:
         [KeyboardButton(text="/id")],
         [KeyboardButton(text="📋 Товары: корзинки")],
         [KeyboardButton(text="📋 Товары: курсы")],
+        [KeyboardButton(text="🎟 Промокоды")],
         [KeyboardButton(text="⬅️ В главное меню")],
     ]
 

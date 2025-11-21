@@ -160,7 +160,7 @@ def format_course_list(courses: Iterable[dict]) -> str:
     return "\n".join(lines).strip()
 
 
-def format_cart(items: Iterable[dict]) -> str:
+def format_cart(items: Iterable[dict], discount_amount: int = 0) -> str:
     """Форматирование корзины для вывода пользователю."""
     items = list(items)
     if not items:
@@ -184,8 +184,17 @@ def format_cart(items: Iterable[dict]) -> str:
         )
 
     lines.append("")
-    total_text = format_price(total)
-    lines.append(f"Итого: <b>{total_text}</b>")
+    discount_amount = max(int(discount_amount or 0), 0)
+    if discount_amount > 0:
+        final_total = total - discount_amount
+        if final_total < 0:
+            final_total = 0
+        lines.append(f"Сумма без скидки: <b>{format_price(total)}</b>")
+        lines.append(f"Скидка по промокоду: -{format_price(discount_amount)}")
+        lines.append(f"Итого к оплате: <b>{format_price(final_total)}</b>")
+    else:
+        total_text = format_price(total)
+        lines.append(f"Итого: <b>{total_text}</b>")
     return "\n".join(lines).strip()
 
 
@@ -219,6 +228,8 @@ def format_order_for_admin(
     customer_name: str,
     contact: str,
     comment: str,
+    discount_amount: int = 0,
+    original_total: int | None = None,
 ) -> str:
     """Сформировать текст заказа для администратора."""
     lines: list[str] = []
@@ -247,8 +258,18 @@ def format_order_for_admin(
         lines.append(f"• {name} — {price_text} x {qty} = {subtotal_text}")
 
     lines.append("")
-    total_text = format_price(total)
-    lines.append(f"Итого к оплате: <b>{total_text}</b>")
+    discount_amount = max(int(discount_amount or 0), 0)
+    if discount_amount > 0:
+        base_total = original_total if original_total is not None else total + discount_amount
+        final_total = total
+        if final_total < 0:
+            final_total = 0
+        lines.append(f"Сумма без скидки: <b>{format_price(base_total)}</b>")
+        lines.append(f"Скидка по промокоду: -{format_price(discount_amount)}")
+        lines.append(f"Итого к оплате: <b>{format_price(final_total)}</b>")
+    else:
+        total_text = format_price(total)
+        lines.append(f"Итого к оплате: <b>{total_text}</b>")
     if total_check != total:
         lines.append(f"(пересчёт по позициям: {total_check} ₽)")
 
@@ -347,8 +368,19 @@ def format_order_detail_text(order: dict) -> str:
             lines.append(f"• {name} — {qty} x {price_text} = {subtotal_text}")
 
     total = order.get("total", 0)
-    total_text = format_price(total)
-    lines.append(f"\n💰 <b>Итого: {total_text}</b>")
+    discount_amount = max(int(order.get("discount_amount", 0) or 0), 0)
+    promo_code = order.get("promocode_code")
+
+    if discount_amount > 0:
+        base_total = total + discount_amount
+        lines.append(f"\n💰 Сумма без скидки: <b>{format_price(base_total)}</b>")
+        lines.append(f"Скидка по промокоду: -{format_price(discount_amount)}")
+        lines.append(f"Итого: <b>{format_price(total)}</b>")
+        if promo_code:
+            lines.append(f"Промокод: {promo_code}")
+    else:
+        total_text = format_price(total)
+        lines.append(f"\n💰 <b>Итого: {total_text}</b>")
 
     return "\n".join(lines).strip()
 

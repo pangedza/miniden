@@ -31,6 +31,8 @@ def add_order(
     contact: str,
     comment: str,
     order_text: str,
+    promocode_code: str | None = None,
+    discount_amount: int | None = None,
 ) -> int:
     """Сохранить заказ в БД и вернуть его ID."""
 
@@ -44,9 +46,10 @@ def add_order(
         INSERT INTO orders (
             user_id, user_name,
             customer_name, contact, comment,
-            total, status, order_text, created_at
+            total, promocode_code, discount_amount,
+            status, order_text, created_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             user_id,
@@ -55,6 +58,8 @@ def add_order(
             contact,
             comment,
             total,
+            promocode_code,
+            discount_amount,
             STATUS_NEW,
             order_text,
             created_at,
@@ -95,6 +100,8 @@ def _make_order_row(row: Any) -> dict[str, Any]:
         "user_name": row["user_name"],
         "customer_name": row["customer_name"],
         "contact": row["contact"],
+        "promocode_code": row["promocode_code"] if "promocode_code" in row.keys() else None,
+        "discount_amount": row["discount_amount"] if "discount_amount" in row.keys() else None,
         "total": row["total"],
         "status": row["status"],
         "created_at": row["created_at"],
@@ -178,7 +185,7 @@ def get_order_by_id(order_id: int) -> Optional[dict[str, Any]]:
 
     cur.execute(
         """
-        SELECT id, user_id, user_name, customer_name, contact, comment, total, status, order_text, created_at
+        SELECT id, user_id, user_name, customer_name, contact, comment, total, promocode_code, discount_amount, status, order_text, created_at
         FROM orders
         WHERE id = ?
         """,
@@ -198,6 +205,8 @@ def get_order_by_id(order_id: int) -> Optional[dict[str, Any]]:
         "contact": row["contact"],
         "comment": row["comment"],
         "total": row["total"],
+        "promocode_code": row["promocode_code"],
+        "discount_amount": row["discount_amount"],
         "status": row["status"],
         "order_text": row["order_text"],
         "created_at": row["created_at"],
