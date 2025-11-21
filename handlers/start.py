@@ -5,6 +5,7 @@ from aiogram.types import CallbackQuery
 from config import ADMIN_IDS, get_settings
 from keyboards.main_menu import get_main_menu
 from services.subscription import (
+    ensure_subscribed,
     get_subscription_keyboard,
     is_user_subscribed,
 )
@@ -30,10 +31,8 @@ async def cmd_start(message: types.Message):
     user_id = message.from_user.id
     is_admin = user_id in ADMIN_IDS
 
-    if is_admin or await is_user_subscribed(message.bot, user_id):
+    if await ensure_subscribed(message, message.bot, is_admin=is_admin):
         await _send_start_screen(message, is_admin=is_admin)
-    else:
-        await _send_subscription_invite(message)
 
 
 # -------------------------------------------------------------------
@@ -53,11 +52,8 @@ async def start_button(message: types.Message):
     user_id = message.from_user.id
     is_admin = user_id in ADMIN_IDS
 
-    if is_admin or await is_user_subscribed(message.bot, user_id):
+    if await ensure_subscribed(message, message.bot, is_admin=is_admin):
         await _send_start_screen(message, is_admin=is_admin)
-    else:
-        # Пользователь НЕ подписан — просим подписаться.
-        await _send_subscription_invite(message)
 
 
 # -------------------------------------------------------------------

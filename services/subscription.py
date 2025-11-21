@@ -11,6 +11,10 @@ from utils.texts import format_subscription_required_text
 def _get_channel_identifier() -> Any:
     """Вернёт chat_id/username для проверки подписки."""
 
+    settings = get_settings()
+
+    if settings.required_channel_id is not None:
+        return settings.required_channel_id
     if REQUIRED_CHANNEL_ID is not None:
         return REQUIRED_CHANNEL_ID
     if REQUIRED_CHANNEL_USERNAME:
@@ -25,8 +29,11 @@ def _get_channel_link() -> str | None:
     if settings.required_channel_link:
         return settings.required_channel_link
 
+    channel_identifier = settings.required_channel_id
+    if isinstance(channel_identifier, str) and channel_identifier:
+        return f"https://t.me/{channel_identifier}"
     if REQUIRED_CHANNEL_USERNAME:
-        return f"https://t.me/{REQUIRED_CHANNEL_USERNAME.lstrip('@')}"
+        return f"https://t.me/{REQUIRED_CHANNEL_USERNAME}"
 
     return None
 
@@ -65,7 +72,7 @@ async def is_user_subscribed(bot: Bot, user_id: int) -> bool:
     try:
         member = await bot.get_chat_member(chat_id=chat_id, user_id=user_id)
     except Exception:  # noqa: BLE001
-        logging.exception("Не удалось проверить подписку")
+        logging.exception("Не удалось проверить подписку для chat_id=%s", chat_id)
         return False
 
     status = getattr(member, "status", None)
