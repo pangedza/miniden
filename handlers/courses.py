@@ -13,6 +13,7 @@ from services.products import (
 )
 from services.cart import add_to_cart
 from services import orders as orders_service
+from services.favorites import is_favorite
 from keyboards.catalog_keyboards import catalog_product_actions_kb
 from config import ADMIN_IDS, get_settings
 from services.subscription import ensure_subscribed
@@ -25,6 +26,7 @@ USER_COURSES_PER_PAGE = 5
 
 async def _send_courses_page(
     message: types.Message,
+    user_id: int,
     payment_type: str,
     page: int = 1,
 ) -> None:
@@ -35,7 +37,6 @@ async def _send_courses_page(
         - "free"  — только бесплатные
         - "paid"  — только платные
     """
-    user_id = message.from_user.id
     if payment_type == "free":
         courses = get_free_courses()
     elif payment_type == "paid":
@@ -79,6 +80,7 @@ async def _send_courses_page(
         price = int(item.get("price", 0) or 0)
         photo = item.get("image_file_id")
         url = item.get("detail_url") if item_id in access_ids else None
+        is_fav = is_favorite(user_id, item_id)
 
         is_free = price == 0
         has_access = item_id in access_ids
@@ -88,12 +90,16 @@ async def _send_courses_page(
             await message.answer_photo(
                 photo=photo,
                 caption=card_text,
-                reply_markup=catalog_product_actions_kb("course", item_id, url),
+                reply_markup=catalog_product_actions_kb(
+                    "course", item_id, is_favorite=is_fav, url=url
+                ),
             )
         else:
             await message.answer(
                 card_text,
-                reply_markup=catalog_product_actions_kb("course", item_id, url),
+                reply_markup=catalog_product_actions_kb(
+                    "course", item_id, is_favorite=is_fav, url=url
+                ),
             )
 
     # навигация по страницам
@@ -197,7 +203,9 @@ async def courses_list_callback(callback: CallbackQuery) -> None:
     except Exception:
         pass
 
-    await _send_courses_page(callback.message, payment_type=payment_type, page=page)
+    await _send_courses_page(
+        callback.message, user_id=user_id, payment_type=payment_type, page=page
+    )
     await callback.answer()
 
 

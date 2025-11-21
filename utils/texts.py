@@ -186,6 +186,28 @@ def format_cart(items: Iterable[dict]) -> str:
     return "\n".join(lines).strip()
 
 
+def format_favorites_list(products: list[dict]) -> str:
+    """Сформировать список избранных товаров пользователя."""
+
+    if not products:
+        return (
+            "У вас пока нет избранных товаров.\n\n"
+            "Добавьте корзинки или курсы в избранное из каталога."
+        )
+
+    lines: list[str] = ["❤️ <b>Избранное</b>", ""]
+
+    for idx, product in enumerate(products, start=1):
+        product_type = product.get("type")
+        prefix = "🧺" if product_type == "basket" else "🎓"
+
+        name = product.get("name") or "Товар"
+        price = format_price(product.get("price", 0))
+        lines.append(f"{idx}) {prefix} {name} — {price}")
+
+    return "\n".join(lines).strip()
+
+
 def format_order_for_admin(
     user_id: int,
     user_name: str,

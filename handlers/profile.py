@@ -5,7 +5,12 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from config import ADMIN_IDS, get_settings
 from keyboards.main_menu import PROFILE_BUTTON_TEXT
 from services import orders as orders_service
-from utils.texts import format_orders_list_text, format_user_courses_list
+from services.favorites import get_user_favorites
+from utils.texts import (
+    format_favorites_list,
+    format_orders_list_text,
+    format_user_courses_list,
+)
 from services.subscription import ensure_subscribed
 
 router = Router()
@@ -89,6 +94,22 @@ async def show_profile(message: types.Message) -> None:
         text,
         reply_markup=_build_profile_keyboard(active_cnt, finished_cnt, courses_cnt),
     )
+
+
+@router.message(F.text == "❤️ Избранное")
+async def show_favorites(message: types.Message) -> None:
+    """Показать список избранных товаров пользователя."""
+
+    user_id = message.from_user.id
+    is_admin = user_id in ADMIN_IDS
+
+    if not await ensure_subscribed(message, message.bot, is_admin=is_admin):
+        return
+
+    products = get_user_favorites(user_id)
+    text = format_favorites_list(products)
+
+    await message.answer(text)
 
 
 @router.callback_query(F.data == "profile:orders:active")

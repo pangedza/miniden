@@ -6,6 +6,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 def catalog_product_actions_kb(
     product_type: str,
     product_id: int,
+    is_favorite: bool = False,
     url: Optional[str] = None,
 ) -> InlineKeyboardMarkup:
     """
@@ -20,6 +21,15 @@ def catalog_product_actions_kb(
         rows.append([InlineKeyboardButton(text="🔗 Подробнее", url=url)])
 
     # Кнопка добавления в корзину (всегда)
+    favorite_button = InlineKeyboardButton(
+        text="💔 Убрать из избранного" if is_favorite else "❤️ В избранное",
+        callback_data=(
+            f"fav:remove:{product_id}" if is_favorite else f"fav:add:{product_id}"
+        ),
+    )
+
+    rows.append([favorite_button])
+
     rows.append(
         [
             InlineKeyboardButton(

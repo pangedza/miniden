@@ -34,6 +34,7 @@ def get_main_menu(is_admin: bool = False) -> ReplyKeyboardMarkup:
     ]
 
     row: list[KeyboardButton] = [KeyboardButton(text="🛒 Корзина")]
+    row.append(KeyboardButton(text="❤️ Избранное"))
     if "profile" in user_commands:
         row.append(KeyboardButton(text=PROFILE_BUTTON_TEXT))
     keyboard.append(row)
