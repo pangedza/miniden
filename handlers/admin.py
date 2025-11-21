@@ -729,18 +729,9 @@ async def admin_back_panel(callback: types.CallbackQuery, state: FSMContext):
     except Exception:
         pass
 
-    kb = types.ReplyKeyboardMarkup(
-        resize_keyboard=True,
-        keyboard=[
-            [types.KeyboardButton(text="📋 Товары: корзинки")],
-            [types.KeyboardButton(text="📋 Товары: курсы")],
-            [types.KeyboardButton(text="🎓 Доступ к курсам")],
-            [types.KeyboardButton(text="📦 Заказы")],
-            [types.KeyboardButton(text="⬅️ В главное меню")],
-        ],
+    await callback.message.answer(
+        "⚙️ Админ-панель.\nВыберите категорию:", reply_markup=get_admin_menu()
     )
-
-    await callback.message.answer("⚙️ Админ-панель.\nВыберите категорию:", reply_markup=kb)
 
 
 # ---------------- ДОМОЙ (в обычное главное меню) ----------------
