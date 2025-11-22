@@ -37,8 +37,11 @@ class Settings:
     payments_provider_token: str | None = None
 
     # 🔹 WebApp
-    webapp_baskets_url: str | None = None
-    webapp_courses_url: str | None = None
+    webapp_index_url: str | None = None
+    webapp_products_url: str | None = None
+    webapp_masterclasses_url: str | None = None
+    webapp_cart_url: str | None = None
+    webapp_profile_url: str | None = None
 
     # 🔹 Новые поля для проверки подписки на канал
     required_channel_id: int | str | None = None  # username без @ или -1001234567890
@@ -133,8 +136,11 @@ def get_settings() -> Settings:
     banner_baskets = os.getenv("BANNER_BASKETS") or None
     banner_profile = os.getenv("BANNER_PROFILE") or None
 
-    webapp_baskets_url = os.getenv("WEBAPP_BASKETS_URL") or None
-    webapp_courses_url = os.getenv("WEBAPP_COURSES_URL") or None
+    webapp_index_url = os.getenv("WEBAPP_INDEX_URL") or None
+    webapp_products_url = os.getenv("WEBAPP_PRODUCTS_URL") or None
+    webapp_masterclasses_url = os.getenv("WEBAPP_MASTERCLASSES_URL") or None
+    webapp_cart_url = os.getenv("WEBAPP_CART_URL") or None
+    webapp_profile_url = os.getenv("WEBAPP_PROFILE_URL") or None
 
     return Settings(
         bot_token=token,
@@ -148,6 +154,9 @@ def get_settings() -> Settings:
         banner_courses=banner_courses,
         banner_baskets=banner_baskets,
         banner_profile=banner_profile,
-        webapp_baskets_url=webapp_baskets_url,
-        webapp_courses_url=webapp_courses_url,
+        webapp_index_url=webapp_index_url,
+        webapp_products_url=webapp_products_url,
+        webapp_masterclasses_url=webapp_masterclasses_url,
+        webapp_cart_url=webapp_cart_url,
+        webapp_profile_url=webapp_profile_url,
     )
