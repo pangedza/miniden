@@ -12,9 +12,9 @@ def _normalize_product_id(raw_product_id: Any) -> str:
 
 def get_cart_items(user_id: int) -> Tuple[List[dict[str, Any]], List[dict[str, Any]]]:
     """
-    Вернуть список товаров в корзине пользователя и список удалённых позиций.
+    Вернуть содержимое корзины пользователя и список удалённых позиций.
 
-    Возвращает кортеж (items, removed_items):
+    Всегда возвращает кортеж (items, removed_items):
     - items: валидные товары {product_id, name, price, qty};
     - removed_items: позиции, удалённые из корзины (битый id, qty <= 0).
       Каждая запись: {product_id, name?, reason}.

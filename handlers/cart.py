@@ -55,6 +55,7 @@ async def show_cart(message: types.Message) -> None:
         return
 
     items, removed = get_cart_items(user_id)
+    print(f"[DEBUG] show_cart items={len(items)} user={user_id}")
     text = format_cart(items)
 
     if removed:
@@ -196,5 +197,5 @@ async def cart_checkout_cb(callback: CallbackQuery, state: FSMContext):
     if not await ensure_subscribed(callback, callback.message.bot, is_admin=is_admin):
         return
 
-    await start_checkout_flow(callback.message, state)
+    await start_checkout_flow(callback.message, state, user_id)
     await callback.answer()
