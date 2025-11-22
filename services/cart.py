@@ -5,6 +5,19 @@ from database import get_connection
 from . import products as products_service
 
 
+def _normalize_product_id(raw_product_id: Any) -> tuple[str, int | None]:
+    """Привести product_id из БД к строке и безопасно получить int-значение."""
+
+    raw_product_id_str = "" if raw_product_id is None else str(raw_product_id).strip()
+
+    try:
+        product_id_int = int(raw_product_id_str)
+    except (TypeError, ValueError):
+        product_id_int = None
+
+    return raw_product_id_str, product_id_int
+
+
 def get_cart_items(user_id: int) -> Tuple[List[dict[str, Any]], List[dict[str, Any]]]:
     """
     Вернуть список товаров в корзине пользователя и список удалённых позиций.
@@ -32,14 +45,11 @@ def get_cart_items(user_id: int) -> Tuple[List[dict[str, Any]], List[dict[str, A
     to_delete: list[str] = []
 
     for row in rows:
-        raw_product_id = row["product_id"]
-        raw_product_id_str = str(raw_product_id) if raw_product_id is not None else ""
+        raw_product_id_str, product_id_int = _normalize_product_id(row["product_id"])
         qty = int(row["qty"] or 0)
 
         # Пропускаем некорректные записи и нулевые количества
-        try:
-            product_id_int = int(str(raw_product_id).strip())
-        except (TypeError, ValueError):
+        if product_id_int is None:
             to_delete.append(raw_product_id_str)
             removed_items.append(
                 {
@@ -53,7 +63,7 @@ def get_cart_items(user_id: int) -> Tuple[List[dict[str, Any]], List[dict[str, A
             to_delete.append(raw_product_id_str)
             removed_items.append(
                 {
-                    "product_id": str(product_id_int),
+                    "product_id": raw_product_id_str,
                     "name": row["name"],
                     "reason": "non_positive_qty",
                 }
@@ -67,7 +77,7 @@ def get_cart_items(user_id: int) -> Tuple[List[dict[str, Any]], List[dict[str, A
             to_delete.append(raw_product_id_str)
             removed_items.append(
                 {
-                    "product_id": str(product_id_int),
+                    "product_id": raw_product_id_str,
                     "name": (product or {}).get("name") or row["name"],
                     "reason": "inactive_or_missing",
                 }
@@ -79,7 +89,7 @@ def get_cart_items(user_id: int) -> Tuple[List[dict[str, Any]], List[dict[str, A
 
         items.append(
             {
-                "product_id": str(product_id_int),
+                "product_id": raw_product_id_str,
                 "name": name,
                 "price": price,
                 "qty": qty,
