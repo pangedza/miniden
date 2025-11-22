@@ -52,11 +52,13 @@ async def _ask_for_name(message: types.Message, state: FSMContext) -> None:
     await state.set_state(CheckoutState.waiting_for_name)
 
 
-async def start_checkout_flow(target_message: types.Message, state: FSMContext) -> None:
-    """Общий старт оформления заказа с шагом ввода промокода."""
+async def start_checkout_flow(
+    target_message: types.Message, state: FSMContext, user_id: int
+) -> None:
+    """Общий старт оформления заказа с шагом ввода промокода для user_id."""
 
-    user_id = target_message.from_user.id
     items, removed = get_cart_items(user_id)
+    print(f"[DEBUG] checkout items={len(items)} user={user_id}")
 
     notice_text = None
     if removed:
@@ -98,7 +100,7 @@ async def start_checkout(message: types.Message, state: FSMContext) -> None:
     if not await ensure_subscribed(message, message.bot, is_admin=is_admin):
         return
 
-    await start_checkout_flow(message, state)
+    await start_checkout_flow(message, state, user_id)
 
 
 @router.callback_query(F.data == "checkout:promo_skip")
