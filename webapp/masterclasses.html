@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MiniDeN — Мастер-классы</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #0b0c10;
+      --card: rgba(255, 255, 255, 0.06);
+      --text: #f6f7fb;
+      --muted: #c7c9d3;
+      --accent: #ffb800;
+      --accent-2: #7bd8ff;
+      --shadow: 0 14px 50px rgba(0, 0, 0, 0.35);
+      --nav: rgba(17, 17, 19, 0.82);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Inter", system-ui, -apple-system, sans-serif;
+      background: radial-gradient(circle at 10% 20%, rgba(255, 184, 0, 0.06), transparent 35%),
+        radial-gradient(circle at 80% 10%, rgba(123, 216, 255, 0.08), transparent 30%),
+        radial-gradient(circle at 60% 80%, rgba(255, 184, 0, 0.05), transparent 32%),
+        #0b0c10;
+      color: var(--text);
+      min-height: 100vh;
+      padding: 0 18px 48px;
+    }
+
+    .top-nav { position: sticky; top: 0; z-index: 20; background: var(--nav); backdrop-filter: blur(10px); border-bottom: 1px solid rgba(255, 255, 255, 0.06); display: flex; align-items: center; justify-content: space-between; padding: 14px 12px; margin: 0 -18px; }
+    .brand { display: flex; flex-direction: column; gap: 2px; font-weight: 800; letter-spacing: -0.02em; }
+    .brand span { color: var(--muted); font-size: 13px; font-weight: 600; letter-spacing: normal; }
+    .nav-links { display: flex; gap: 12px; align-items: center; }
+    .nav-links a { color: var(--muted); text-decoration: none; font-weight: 600; padding: 10px 12px; border-radius: 12px; transition: background 0.15s ease, color 0.15s ease; }
+    .nav-links a:hover { color: var(--text); background: rgba(255, 255, 255, 0.06); }
+    .nav-links a.active { color: var(--text); background: linear-gradient(135deg, rgba(255, 184, 0, 0.18), rgba(123, 216, 255, 0.14)); }
+    .menu-toggle { display: none; background: transparent; border: 1px solid rgba(255, 255, 255, 0.12); color: var(--text); border-radius: 12px; padding: 10px 12px; cursor: pointer; }
+
+    main { max-width: 1100px; margin: 0 auto; padding-top: 28px; }
+    h1 { margin: 12px 0 8px; letter-spacing: -0.02em; }
+    p { color: var(--muted); }
+
+    .tabs { display: flex; gap: 10px; flex-wrap: wrap; margin: 16px 0; }
+    .tab { padding: 10px 14px; border-radius: 12px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.08); color: var(--muted); cursor: pointer; font-weight: 700; transition: background 0.15s ease, color 0.15s ease, border 0.15s ease; }
+    .tab.active { background: linear-gradient(135deg, #7bd8ff, #4dc3ff); color: #0b0c10; border-color: transparent; }
+
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+    .card { background: var(--card); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 16px; padding: 14px; box-shadow: var(--shadow); backdrop-filter: blur(6px); display: flex; flex-direction: column; gap: 10px; }
+    .cover { position: relative; overflow: hidden; border-radius: 12px; height: 140px; background: linear-gradient(135deg, rgba(123, 216, 255, 0.16), rgba(255, 184, 0, 0.12)); display: grid; place-items: center; color: #0b0c10; font-weight: 800; letter-spacing: -0.01em; }
+    .card h3 { margin: 0; letter-spacing: -0.01em; }
+    .card p { margin: 0; color: var(--muted); line-height: 1.5; flex: 1; }
+    .meta { font-size: 13px; color: var(--muted); }
+    .footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .price { font-weight: 800; color: #c1e9ff; }
+    .btn { cursor: pointer; border: none; border-radius: 12px; padding: 12px 14px; background: linear-gradient(135deg, #7bd8ff, #4dc3ff); color: #0b0c10; font-weight: 700; font-size: 15px; width: 100%; box-shadow: 0 10px 30px rgba(123, 216, 255, 0.25); transition: transform 0.1s ease, box-shadow 0.1s ease; }
+    .btn.secondary { background: rgba(255, 255, 255, 0.08); color: var(--text); box-shadow: none; border: 1px solid rgba(255, 255, 255, 0.12); }
+    .btn:hover { transform: translateY(-1px); box-shadow: 0 12px 32px rgba(123, 216, 255, 0.35); }
+
+    .link-row { margin: 12px 0; }
+    .link-row a { color: var(--accent-2); text-decoration: none; font-weight: 700; }
+
+    .note { margin: 18px 0 8px; font-size: 14px; color: var(--muted); }
+
+    @media (max-width: 780px) {
+      .nav-links { display: none; }
+      .nav-links.open { display: flex; flex-direction: column; align-items: flex-start; width: 100%; margin-top: 10px; }
+      .top-nav { flex-wrap: wrap; }
+      .menu-toggle { display: inline-flex; }
+    }
+  </style>
+</head>
+<body>
+  <header class="top-nav">
+    <div class="brand">MiniDeN<span>уютные корзинки и мастер-классы</span></div>
+    <button class="menu-toggle" aria-label="Открыть меню">☰</button>
+    <nav class="nav-links open">
+      <a href="index.html">Главная</a>
+      <a href="products.html">Товары</a>
+      <a href="masterclasses.html" class="active">Мастер-классы</a>
+      <a href="cart.html">Корзина</a>
+      <a href="profile.html">Профиль</a>
+    </nav>
+  </header>
+
+  <main>
+    <h1>Мастер-классы</h1>
+    <p>Выберите формат: платные или бесплатные уроки. Пока карточки демо — подключение к API и фильтрации по категориям сделаем в следующей задаче.</p>
+
+    <div class="tabs" id="tabs"></div>
+    <div class="cards" id="cards"></div>
+    <div class="link-row"><a href="courses.html">Открыть старый каталог курсов →</a></div>
+    <div class="note">TODO: API-фильтр курсов по категориям (free/paid) и детальные карточки.</div>
+  </main>
+
+  <script>
+    const toggle = document.querySelector('.menu-toggle');
+    const nav = document.querySelector('.nav-links');
+    toggle?.addEventListener('click', () => nav?.classList.toggle('open'));
+
+    const categories = [
+      {
+        slug: 'paid',
+        name: 'Платные',
+        meta: 'Доступ навсегда + материалы',
+        items: [
+          { title: 'Корзинка с крышкой', description: 'Учимся вязать корзину с крышкой и ручками за 4 урока.', price: '1 490 ₽' },
+          { title: 'Вязаная сумка-шоппер', description: 'Детальный разбор плотных стенок, дна и крепления фурнитуры.', price: '1 990 ₽' },
+          { title: 'Фото для маркетплейсов', description: 'Мини-курс по съёмке готовых корзинок для карточек товаров.', price: '1 150 ₽' }
+        ]
+      },
+      {
+        slug: 'free',
+        name: 'Бесплатные',
+        meta: 'Пробные уроки и мини-гайды',
+        items: [
+          { title: 'Базовое кольцо амигуруми', description: 'Видео с базовым узлом и схемой, чтобы начать вязание.', price: 'Бесплатно' },
+          { title: 'Компактная корзинка', description: 'Шаг за шагом: связать небольшую корзинку за 40 минут.', price: 'Бесплатно' },
+          { title: 'Чек-лист по материалам', description: 'PDF с рекомендациями по пряже, крючкам и наполнителям.', price: 'Бесплатно' }
+        ]
+      }
+    ];
+
+    const tabsEl = document.getElementById('tabs');
+    const cardsEl = document.getElementById('cards');
+    let active = categories[0]?.slug;
+
+    function renderTabs() {
+      tabsEl.innerHTML = '';
+      categories.forEach((cat) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `tab${active === cat.slug ? ' active' : ''}`;
+        btn.textContent = cat.name;
+        btn.addEventListener('click', () => {
+          active = cat.slug;
+          renderTabs();
+          renderCards();
+        });
+        tabsEl.appendChild(btn);
+      });
+    }
+
+    function renderCards() {
+      const category = categories.find((c) => c.slug === active) || categories[0];
+      cardsEl.innerHTML = '';
+
+      category.items.forEach((item) => {
+        const card = document.createElement('article');
+        card.className = 'card';
+
+        const cover = document.createElement('div');
+        cover.className = 'cover';
+        cover.textContent = category.name;
+
+        const title = document.createElement('h3');
+        title.textContent = item.title;
+
+        const meta = document.createElement('div');
+        meta.className = 'meta';
+        meta.textContent = category.meta;
+
+        const desc = document.createElement('p');
+        desc.textContent = item.description;
+
+        const footer = document.createElement('div');
+        footer.className = 'footer';
+
+        const price = document.createElement('div');
+        price.className = 'price';
+        price.textContent = item.price;
+
+        const btn = document.createElement('button');
+        btn.className = 'btn';
+        btn.textContent = 'В корзину';
+        btn.addEventListener('click', () => alert('Демо: позже привяжем к API и корзине'));
+
+        const more = document.createElement('button');
+        more.className = 'btn secondary';
+        more.textContent = 'Подробнее';
+        more.addEventListener('click', () => alert('Демо: отдельная страница курса появится после API'));
+
+        footer.append(price, btn);
+        card.append(cover, title, meta, desc, footer, more);
+        cardsEl.appendChild(card);
+      });
+    }
+
+    renderTabs();
+    renderCards();
+  </script>
+</body>
+</html>

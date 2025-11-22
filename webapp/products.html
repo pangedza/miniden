@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MiniDeN — Товары</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #0b0c10;
+      --card: rgba(255, 255, 255, 0.06);
+      --text: #f6f7fb;
+      --muted: #c7c9d3;
+      --accent: #ffb800;
+      --accent-2: #7bd8ff;
+      --shadow: 0 14px 50px rgba(0, 0, 0, 0.35);
+      --nav: rgba(17, 17, 19, 0.82);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Inter", system-ui, -apple-system, sans-serif;
+      background: radial-gradient(circle at 10% 20%, rgba(255, 184, 0, 0.06), transparent 35%),
+        radial-gradient(circle at 80% 10%, rgba(123, 216, 255, 0.08), transparent 30%),
+        radial-gradient(circle at 60% 80%, rgba(255, 184, 0, 0.05), transparent 32%),
+        #0b0c10;
+      color: var(--text);
+      min-height: 100vh;
+      padding: 0 18px 48px;
+    }
+
+    .top-nav {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: var(--nav);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 12px;
+      margin: 0 -18px;
+    }
+
+    .brand { display: flex; flex-direction: column; gap: 2px; font-weight: 800; letter-spacing: -0.02em; }
+    .brand span { color: var(--muted); font-size: 13px; font-weight: 600; letter-spacing: normal; }
+
+    .nav-links { display: flex; gap: 12px; align-items: center; }
+    .nav-links a { color: var(--muted); text-decoration: none; font-weight: 600; padding: 10px 12px; border-radius: 12px; transition: background 0.15s ease, color 0.15s ease; }
+    .nav-links a:hover { color: var(--text); background: rgba(255, 255, 255, 0.06); }
+    .nav-links a.active { color: var(--text); background: linear-gradient(135deg, rgba(255, 184, 0, 0.18), rgba(123, 216, 255, 0.14)); }
+
+    .menu-toggle { display: none; background: transparent; border: 1px solid rgba(255, 255, 255, 0.12); color: var(--text); border-radius: 12px; padding: 10px 12px; cursor: pointer; }
+
+    main { max-width: 1100px; margin: 0 auto; padding-top: 28px; }
+
+    h1 { margin: 12px 0 8px; letter-spacing: -0.02em; }
+    p { color: var(--muted); }
+
+    .tabs { display: flex; gap: 10px; flex-wrap: wrap; margin: 16px 0; }
+    .tab {
+      padding: 10px 14px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--muted);
+      cursor: pointer;
+      font-weight: 700;
+      transition: background 0.15s ease, color 0.15s ease, border 0.15s ease;
+    }
+    .tab.active { background: linear-gradient(135deg, #ffb800, #ff8f3f); color: #0b0c10; border-color: transparent; }
+
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+    .card { background: var(--card); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 16px; padding: 14px; box-shadow: var(--shadow); backdrop-filter: blur(6px); display: flex; flex-direction: column; gap: 10px; }
+    .cover { position: relative; overflow: hidden; border-radius: 12px; height: 140px; background: linear-gradient(135deg, rgba(255, 184, 0, 0.16), rgba(123, 216, 255, 0.16)); display: grid; place-items: center; }
+    .cover span { font-weight: 800; letter-spacing: -0.01em; color: #0b0c10; }
+    .card h3 { margin: 0; letter-spacing: -0.01em; }
+    .card p { margin: 0; color: var(--muted); line-height: 1.5; flex: 1; }
+    .footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .price { font-weight: 800; color: #ffdf80; }
+    .btn { cursor: pointer; border: none; border-radius: 12px; padding: 12px 14px; background: linear-gradient(135deg, #ffb800, #ff8f3f); color: #0b0c10; font-weight: 700; font-size: 15px; width: 100%; box-shadow: 0 10px 30px rgba(255, 184, 0, 0.25); transition: transform 0.1s ease, box-shadow 0.1s ease; }
+    .btn:hover { transform: translateY(-1px); box-shadow: 0 12px 32px rgba(255, 184, 0, 0.35); }
+
+    .note { margin: 18px 0 8px; font-size: 14px; color: var(--muted); }
+
+    @media (max-width: 780px) {
+      .nav-links { display: none; }
+      .nav-links.open { display: flex; flex-direction: column; align-items: flex-start; width: 100%; margin-top: 10px; }
+      .top-nav { flex-wrap: wrap; }
+      .menu-toggle { display: inline-flex; }
+    }
+  </style>
+</head>
+<body>
+  <header class="top-nav">
+    <div class="brand">MiniDeN<span>уютные корзинки и мастер-классы</span></div>
+    <button class="menu-toggle" aria-label="Открыть меню">☰</button>
+    <nav class="nav-links open">
+      <a href="index.html">Главная</a>
+      <a href="products.html" class="active">Товары</a>
+      <a href="masterclasses.html">Мастер-классы</a>
+      <a href="cart.html">Корзина</a>
+      <a href="profile.html">Профиль</a>
+    </nav>
+  </header>
+
+  <main>
+    <h1>Товары</h1>
+    <p>Демо-витрина MiniDeN. Категории фильтруют карточки локально — позже сюда подключим API и реальные товары по категориям.</p>
+
+    <div class="tabs" id="tabs"></div>
+    <div class="cards" id="cards"></div>
+    <div class="note">TODO: подключить API и фильтрацию товаров по категориям из БД.</div>
+  </main>
+
+  <script>
+    const toggle = document.querySelector('.menu-toggle');
+    const nav = document.querySelector('.nav-links');
+    toggle?.addEventListener('click', () => nav?.classList.toggle('open'));
+
+    const categories = [
+      {
+        slug: 'baskets',
+        name: 'Корзинки',
+        items: [
+          { title: 'Домашний уют', price: '2 100 ₽', description: 'Корзинка + свеча + плед. Собрано вручную.', badge: 'Хит' },
+          { title: 'Чайный вечер', price: '1 790 ₽', description: 'Чай улун, конфитюр и печенье в фактурной корзинке.', badge: 'Новинка' }
+        ]
+      },
+      {
+        slug: 'cradles',
+        name: 'Люльки',
+        items: [
+          { title: 'Кокон «Сонный мишка»', price: '4 500 ₽', description: 'Мягкая люлька для новорождённого с ручками и бортиками.' },
+          { title: 'Плед + кокон', price: '5 200 ₽', description: 'Набор из пледа и кокона в едином стиле, тёплый и безопасный.' }
+        ]
+      },
+      {
+        slug: 'bags',
+        name: 'Сумки',
+        items: [
+          { title: 'Шоппер «Ваниль»', price: '2 300 ₽', description: 'Вязаный шоппер с жёстким дном и объёмными стенками.' },
+          { title: 'Кросс-боди «Город»', price: '2 750 ₽', description: 'Компактная сумка через плечо, внутри подкладка и карман.' }
+        ]
+      },
+      {
+        slug: 'other',
+        name: 'Другое',
+        items: [
+          { title: 'Набор пряжи', price: '1 100 ₽', description: '3 мотка премиальной пряжи для самостоятельного вязания.' },
+          { title: 'Подарочная упаковка', price: '350 ₽', description: 'Ленты, открытка и крафт: соберём упаковку под ваш заказ.' }
+        ]
+      }
+    ];
+
+    const tabsEl = document.getElementById('tabs');
+    const cardsEl = document.getElementById('cards');
+    let active = categories[0]?.slug;
+
+    function renderTabs() {
+      tabsEl.innerHTML = '';
+      categories.forEach((cat) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `tab${active === cat.slug ? ' active' : ''}`;
+        btn.textContent = cat.name;
+        btn.addEventListener('click', () => {
+          active = cat.slug;
+          renderTabs();
+          renderCards();
+        });
+        tabsEl.appendChild(btn);
+      });
+    }
+
+    function renderCards() {
+      const category = categories.find((c) => c.slug === active) || categories[0];
+      cardsEl.innerHTML = '';
+
+      category.items.forEach((item) => {
+        const card = document.createElement('article');
+        card.className = 'card';
+
+        const cover = document.createElement('div');
+        cover.className = 'cover';
+        cover.innerHTML = `<span>${item.badge ? '⭐️ ' : ''}${category.name}</span>`;
+
+        const title = document.createElement('h3');
+        title.textContent = item.title;
+
+        const desc = document.createElement('p');
+        desc.textContent = item.description;
+
+        const footer = document.createElement('div');
+        footer.className = 'footer';
+
+        const price = document.createElement('div');
+        price.className = 'price';
+        price.textContent = item.price;
+
+        const btn = document.createElement('button');
+        btn.className = 'btn';
+        btn.textContent = 'В корзину';
+        btn.addEventListener('click', () => alert('Демо: позже привяжем к API и корзине'));
+
+        footer.append(price, btn);
+        card.append(cover, title, desc, footer);
+        cardsEl.appendChild(card);
+      });
+    }
+
+    renderTabs();
+    renderCards();
+  </script>
+</body>
+</html>
