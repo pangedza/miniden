@@ -375,6 +375,96 @@ def list_products_by_category(product_type: str, category_slug: str | None = Non
     return products
 
 
+def list_products(product_type: str, category_slug: str | None = None) -> list[dict[str, Any]]:
+    """
+    Возвращает активные товары по типу и опциональной категории.
+
+    Используется API-слоем для выдачи каталога.
+    """
+
+    _init_products_table_if_needed()
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    query = [
+        "SELECT p.id, p.name, p.price, p.description, p.detail_url, p.image_file_id,",
+        "p.is_active, p.type, p.category_id, c.slug AS category_slug, c.name AS category_name",
+        "FROM products p",
+        "LEFT JOIN categories c ON c.id = p.category_id",
+        "WHERE p.type = ? AND p.is_active = 1",
+    ]
+    params: list[Any] = [product_type]
+
+    if category_slug:
+        query.append("AND c.slug = ?")
+        params.append(category_slug)
+
+    query.append("ORDER BY c.sort_order, p.id ASC")
+
+    cur.execute("\n".join(query), tuple(params))
+    rows = cur.fetchall()
+    conn.close()
+
+    products: list[dict[str, Any]] = []
+    for row in rows:
+        products.append(
+            {
+                "id": row["id"],
+                "name": row["name"],
+                "price": row["price"],
+                "description": row["description"] or "",
+                "detail_url": row["detail_url"],
+                "image_file_id": row["image_file_id"],
+                "is_active": int(row["is_active"] or 0),
+                "type": row["type"],
+                "category_id": row["category_id"],
+                "category_slug": row["category_slug"],
+                "category_name": row["category_name"],
+            }
+        )
+    return products
+
+
+def get_product_with_category(product_id: int) -> dict[str, Any] | None:
+    """Получить активный товар по ID вместе с категорией."""
+
+    _init_products_table_if_needed()
+
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT p.id, p.name, p.price, p.description, p.detail_url, p.image_file_id, p.is_active, p.type,
+               p.category_id, c.slug AS category_slug, c.name AS category_name
+        FROM products p
+        LEFT JOIN categories c ON c.id = p.category_id
+        WHERE p.id = ? AND p.is_active = 1
+        LIMIT 1
+        """,
+        (product_id,),
+    )
+    row = cur.fetchone()
+    conn.close()
+
+    if row is None:
+        return None
+
+    return {
+        "id": row["id"],
+        "name": row["name"],
+        "price": row["price"],
+        "description": row["description"] or "",
+        "detail_url": row["detail_url"],
+        "image_file_id": row["image_file_id"],
+        "is_active": int(row["is_active"] or 0),
+        "type": row["type"],
+        "category_id": row["category_id"],
+        "category_slug": row["category_slug"],
+        "category_name": row["category_name"],
+    }
+
+
 def get_free_courses() -> list[dict[str, Any]]:
     """Список бесплатных курсов (price = 0)."""
 
