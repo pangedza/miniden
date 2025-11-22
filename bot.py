@@ -19,6 +19,7 @@ from handlers import (
     payments,
     admin,
     profile,
+    webapp,
 )
 
 
@@ -55,6 +56,7 @@ async def main() -> None:
     dp.include_router(payments.router)
     dp.include_router(admin.router)
     dp.include_router(profile.router)
+    dp.include_router(webapp.router)
 
     # Старт поллинга
     await bot.delete_webhook(drop_pending_updates=True)
