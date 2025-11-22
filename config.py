@@ -36,6 +36,10 @@ class Settings:
     admin_chat_id: int | None = None
     payments_provider_token: str | None = None
 
+    # 🔹 WebApp
+    webapp_baskets_url: str | None = None
+    webapp_courses_url: str | None = None
+
     # 🔹 Новые поля для проверки подписки на канал
     required_channel_id: int | str | None = None  # username без @ или -1001234567890
     required_channel_link: str | None = None     # https://t.me/username
@@ -129,6 +133,9 @@ def get_settings() -> Settings:
     banner_baskets = os.getenv("BANNER_BASKETS") or None
     banner_profile = os.getenv("BANNER_PROFILE") or None
 
+    webapp_baskets_url = os.getenv("WEBAPP_BASKETS_URL") or None
+    webapp_courses_url = os.getenv("WEBAPP_COURSES_URL") or None
+
     return Settings(
         bot_token=token,
         admin_ids=admin_ids,
@@ -141,4 +148,6 @@ def get_settings() -> Settings:
         banner_courses=banner_courses,
         banner_baskets=banner_baskets,
         banner_profile=banner_profile,
+        webapp_baskets_url=webapp_baskets_url,
+        webapp_courses_url=webapp_courses_url,
     )

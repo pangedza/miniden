@@ -1,6 +1,7 @@
-from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
+from aiogram.types import KeyboardButton, ReplyKeyboardMarkup, WebAppInfo
 
 from utils.commands_map import get_admin_commands, get_user_commands
+from config import get_settings
 
 PROFILE_BUTTON_TEXT = "👤 Профиль"
 
@@ -26,6 +27,7 @@ def get_main_menu(is_admin: bool = False) -> ReplyKeyboardMarkup:
     Главное меню после прохождения проверки подписки.
     """
 
+    settings = get_settings()
     user_commands = get_user_commands()
     admin_commands = get_admin_commands()
 
@@ -38,6 +40,22 @@ def get_main_menu(is_admin: bool = False) -> ReplyKeyboardMarkup:
     if "profile" in user_commands:
         row.append(KeyboardButton(text=PROFILE_BUTTON_TEXT))
     keyboard.append(row)
+
+    webapp_row: list[KeyboardButton] = []
+    if settings.webapp_baskets_url:
+        webapp_row.append(
+            KeyboardButton(
+                text="🧺 Корзинки (WebApp)", web_app=WebAppInfo(url=settings.webapp_baskets_url)
+            )
+        )
+    if settings.webapp_courses_url:
+        webapp_row.append(
+            KeyboardButton(
+                text="🎓 Курсы (WebApp)", web_app=WebAppInfo(url=settings.webapp_courses_url)
+            )
+        )
+    if webapp_row:
+        keyboard.append(webapp_row)
 
     if "help" in user_commands:
         keyboard.append([KeyboardButton(text="❓ Помощь")])
