@@ -112,11 +112,11 @@
 
   <main>
     <h1>Товары</h1>
-    <p>Демо-витрина MiniDeN. Категории фильтруют карточки локально — позже сюда подключим API и реальные товары по категориям.</p>
+    <p>Категории и товары подгружаются из общего API MiniDeN: здесь же работает корзина Telegram-бота.</p>
 
     <div class="tabs" id="tabs"></div>
     <div class="cards" id="cards"></div>
-    <div class="note">TODO: подключить API и фильтрацию товаров по категориям из БД.</div>
+    <div class="note" id="note"></div>
   </main>
 
   <script>
@@ -124,47 +124,46 @@
     const nav = document.querySelector('.nav-links');
     toggle?.addEventListener('click', () => nav?.classList.toggle('open'));
 
-    const categories = [
-      {
-        slug: 'baskets',
-        name: 'Корзинки',
-        items: [
-          { title: 'Домашний уют', price: '2 100 ₽', description: 'Корзинка + свеча + плед. Собрано вручную.', badge: 'Хит' },
-          { title: 'Чайный вечер', price: '1 790 ₽', description: 'Чай улун, конфитюр и печенье в фактурной корзинке.', badge: 'Новинка' }
-        ]
-      },
-      {
-        slug: 'cradles',
-        name: 'Люльки',
-        items: [
-          { title: 'Кокон «Сонный мишка»', price: '4 500 ₽', description: 'Мягкая люлька для новорождённого с ручками и бортиками.' },
-          { title: 'Плед + кокон', price: '5 200 ₽', description: 'Набор из пледа и кокона в едином стиле, тёплый и безопасный.' }
-        ]
-      },
-      {
-        slug: 'bags',
-        name: 'Сумки',
-        items: [
-          { title: 'Шоппер «Ваниль»', price: '2 300 ₽', description: 'Вязаный шоппер с жёстким дном и объёмными стенками.' },
-          { title: 'Кросс-боди «Город»', price: '2 750 ₽', description: 'Компактная сумка через плечо, внутри подкладка и карман.' }
-        ]
-      },
-      {
-        slug: 'other',
-        name: 'Другое',
-        items: [
-          { title: 'Набор пряжи', price: '1 100 ₽', description: '3 мотка премиальной пряжи для самостоятельного вязания.' },
-          { title: 'Подарочная упаковка', price: '350 ₽', description: 'Ленты, открытка и крафт: соберём упаковку под ваш заказ.' }
-        ]
-      }
-    ];
+    const tg = window.Telegram?.WebApp;
+    const userId = tg?.initDataUnsafe?.user?.id ?? null;
+    const API_BASE = "https://YOUR-API-DOMAIN/api";
 
     const tabsEl = document.getElementById('tabs');
     const cardsEl = document.getElementById('cards');
-    let active = categories[0]?.slug;
+    const noteEl = document.getElementById('note');
+
+    let categories = [];
+    let products = [];
+    let active = null;
+
+    function formatPrice(value) {
+      const num = Number(value) || 0;
+      if (num === 0) return 'Бесплатно';
+      return `${num.toLocaleString('ru-RU')} ₽`;
+    }
+
+    async function fetchJson(url, options) {
+      const res = await fetch(url, options);
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || 'Ошибка API');
+      }
+      return res.json();
+    }
 
     function renderTabs() {
       tabsEl.innerHTML = '';
+
+      const allBtn = document.createElement('button');
+      allBtn.type = 'button';
+      allBtn.className = `tab${active === null ? ' active' : ''}`;
+      allBtn.textContent = 'Все';
+      allBtn.addEventListener('click', () => {
+        active = null;
+        loadProducts();
+      });
+      tabsEl.appendChild(allBtn);
+
       categories.forEach((cat) => {
         const btn = document.createElement('button');
         btn.type = 'button';
@@ -172,42 +171,47 @@
         btn.textContent = cat.name;
         btn.addEventListener('click', () => {
           active = cat.slug;
-          renderTabs();
-          renderCards();
+          loadProducts();
         });
         tabsEl.appendChild(btn);
       });
     }
 
     function renderCards() {
-      const category = categories.find((c) => c.slug === active) || categories[0];
       cardsEl.innerHTML = '';
 
-      category.items.forEach((item) => {
+      if (!products.length) {
+        noteEl.textContent = 'Нет товаров для выбранной категории.';
+        return;
+      }
+
+      noteEl.textContent = '';
+
+      products.forEach((item) => {
         const card = document.createElement('article');
         card.className = 'card';
 
         const cover = document.createElement('div');
         cover.className = 'cover';
-        cover.innerHTML = `<span>${item.badge ? '⭐️ ' : ''}${category.name}</span>`;
+        cover.innerHTML = `<span>${item.category_name || 'Товары'}</span>`;
 
         const title = document.createElement('h3');
-        title.textContent = item.title;
+        title.textContent = item.name;
 
         const desc = document.createElement('p');
-        desc.textContent = item.description;
+        desc.textContent = item.description || 'Описание появится позже.';
 
         const footer = document.createElement('div');
         footer.className = 'footer';
 
         const price = document.createElement('div');
         price.className = 'price';
-        price.textContent = item.price;
+        price.textContent = formatPrice(item.price);
 
         const btn = document.createElement('button');
         btn.className = 'btn';
         btn.textContent = 'В корзину';
-        btn.addEventListener('click', () => alert('Демо: позже привяжем к API и корзине'));
+        btn.addEventListener('click', () => handleAddToCart(item));
 
         footer.append(price, btn);
         card.append(cover, title, desc, footer);
@@ -215,8 +219,48 @@
       });
     }
 
-    renderTabs();
-    renderCards();
+    async function loadCategories() {
+      try {
+        categories = await fetchJson(`${API_BASE}/categories?type=basket`);
+        active = categories[0]?.slug ?? null;
+        renderTabs();
+      } catch (e) {
+        noteEl.textContent = 'Не удалось загрузить категории. Попробуйте обновить страницу.';
+      }
+    }
+
+    async function loadProducts() {
+      try {
+        const params = new URLSearchParams({ type: 'basket' });
+        if (active) params.set('category_slug', active);
+        products = await fetchJson(`${API_BASE}/products?${params.toString()}`);
+        renderTabs();
+        renderCards();
+      } catch (e) {
+        noteEl.textContent = 'Не удалось загрузить товары. Попробуйте обновить страницу.';
+      }
+    }
+
+    async function handleAddToCart(product) {
+      if (!userId) {
+        alert('Для добавления в корзину откройте сайт из Telegram-бота.');
+        return;
+      }
+
+      try {
+        await fetchJson(`${API_BASE}/cart/add`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: userId, product_id: product.id, qty: 1 }),
+        });
+        tg?.HapticFeedback?.impactOccurred('light');
+        alert('Товар добавлен в корзину');
+      } catch (e) {
+        alert('Не удалось добавить товар в корзину. Попробуйте ещё раз.');
+      }
+    }
+
+    loadCategories().then(loadProducts);
   </script>
 </body>
 </html>

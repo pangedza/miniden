@@ -91,12 +91,12 @@
 
   <main>
     <h1>Мастер-классы</h1>
-    <p>Выберите формат: платные или бесплатные уроки. Пока карточки демо — подключение к API и фильтрации по категориям сделаем в следующей задаче.</p>
+    <p>Выберите формат: платные или бесплатные уроки. Карточки и корзина работают через общий API MiniDeN.</p>
 
     <div class="tabs" id="tabs"></div>
     <div class="cards" id="cards"></div>
     <div class="link-row"><a href="courses.html">Открыть старый каталог курсов →</a></div>
-    <div class="note">TODO: API-фильтр курсов по категориям (free/paid) и детальные карточки.</div>
+    <div class="note" id="note"></div>
   </main>
 
   <script>
@@ -104,35 +104,41 @@
     const nav = document.querySelector('.nav-links');
     toggle?.addEventListener('click', () => nav?.classList.toggle('open'));
 
-    const categories = [
-      {
-        slug: 'paid',
-        name: 'Платные',
-        meta: 'Доступ навсегда + материалы',
-        items: [
-          { title: 'Корзинка с крышкой', description: 'Учимся вязать корзину с крышкой и ручками за 4 урока.', price: '1 490 ₽' },
-          { title: 'Вязаная сумка-шоппер', description: 'Детальный разбор плотных стенок, дна и крепления фурнитуры.', price: '1 990 ₽' },
-          { title: 'Фото для маркетплейсов', description: 'Мини-курс по съёмке готовых корзинок для карточек товаров.', price: '1 150 ₽' }
-        ]
-      },
-      {
-        slug: 'free',
-        name: 'Бесплатные',
-        meta: 'Пробные уроки и мини-гайды',
-        items: [
-          { title: 'Базовое кольцо амигуруми', description: 'Видео с базовым узлом и схемой, чтобы начать вязание.', price: 'Бесплатно' },
-          { title: 'Компактная корзинка', description: 'Шаг за шагом: связать небольшую корзинку за 40 минут.', price: 'Бесплатно' },
-          { title: 'Чек-лист по материалам', description: 'PDF с рекомендациями по пряже, крючкам и наполнителям.', price: 'Бесплатно' }
-        ]
-      }
-    ];
+    const tg = window.Telegram?.WebApp;
+    const userId = tg?.initDataUnsafe?.user?.id ?? null;
+    const API_BASE = "https://YOUR-API-DOMAIN/api";
 
     const tabsEl = document.getElementById('tabs');
     const cardsEl = document.getElementById('cards');
-    let active = categories[0]?.slug;
+    const noteEl = document.getElementById('note');
+
+    let categories = [];
+    let courses = [];
+    let active = null;
+
+    const metaBySlug = {
+      paid: 'Доступ навсегда + материалы',
+      free: 'Пробные уроки и мини-гайды',
+    };
+
+    function formatPrice(value) {
+      const num = Number(value) || 0;
+      if (num === 0) return 'Бесплатно';
+      return `${num.toLocaleString('ru-RU')} ₽`;
+    }
+
+    async function fetchJson(url, options) {
+      const res = await fetch(url, options);
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || 'Ошибка API');
+      }
+      return res.json();
+    }
 
     function renderTabs() {
       tabsEl.innerHTML = '';
+
       categories.forEach((cat) => {
         const btn = document.createElement('button');
         btn.type = 'button';
@@ -140,51 +146,56 @@
         btn.textContent = cat.name;
         btn.addEventListener('click', () => {
           active = cat.slug;
-          renderTabs();
-          renderCards();
+          loadCourses();
         });
         tabsEl.appendChild(btn);
       });
     }
 
     function renderCards() {
-      const category = categories.find((c) => c.slug === active) || categories[0];
       cardsEl.innerHTML = '';
 
-      category.items.forEach((item) => {
+      if (!courses.length) {
+        noteEl.textContent = 'Нет курсов для выбранной категории.';
+        return;
+      }
+
+      noteEl.textContent = '';
+
+      courses.forEach((item) => {
         const card = document.createElement('article');
         card.className = 'card';
 
         const cover = document.createElement('div');
         cover.className = 'cover';
-        cover.textContent = category.name;
+        cover.textContent = item.category_name || 'Мастер-классы';
 
         const title = document.createElement('h3');
-        title.textContent = item.title;
+        title.textContent = item.name;
 
         const meta = document.createElement('div');
         meta.className = 'meta';
-        meta.textContent = category.meta;
+        meta.textContent = metaBySlug[item.category_slug] || '';
 
         const desc = document.createElement('p');
-        desc.textContent = item.description;
+        desc.textContent = item.description || 'Описание появится позже.';
 
         const footer = document.createElement('div');
         footer.className = 'footer';
 
         const price = document.createElement('div');
         price.className = 'price';
-        price.textContent = item.price;
+        price.textContent = formatPrice(item.price);
 
         const btn = document.createElement('button');
         btn.className = 'btn';
         btn.textContent = 'В корзину';
-        btn.addEventListener('click', () => alert('Демо: позже привяжем к API и корзине'));
+        btn.addEventListener('click', () => handleAddToCart(item));
 
         const more = document.createElement('button');
         more.className = 'btn secondary';
         more.textContent = 'Подробнее';
-        more.addEventListener('click', () => alert('Демо: отдельная страница курса появится после API'));
+        more.addEventListener('click', () => alert('Подробнее появится в отдельной карточке курса.'));
 
         footer.append(price, btn);
         card.append(cover, title, meta, desc, footer, more);
@@ -192,8 +203,52 @@
       });
     }
 
-    renderTabs();
-    renderCards();
+    async function loadCategories() {
+      try {
+        categories = await fetchJson(`${API_BASE}/categories?type=course`);
+        active = categories[0]?.slug ?? null;
+        renderTabs();
+      } catch (e) {
+        noteEl.textContent = 'Не удалось загрузить категории. Попробуйте обновить страницу.';
+      }
+    }
+
+    async function loadCourses() {
+      if (!active) {
+        courses = [];
+        renderCards();
+        return;
+      }
+
+      try {
+        const params = new URLSearchParams({ type: 'course', category_slug: active });
+        courses = await fetchJson(`${API_BASE}/products?${params.toString()}`);
+        renderCards();
+      } catch (e) {
+        noteEl.textContent = 'Не удалось загрузить курсы. Попробуйте обновить страницу.';
+      }
+    }
+
+    async function handleAddToCart(course) {
+      if (!userId) {
+        alert('Для добавления в корзину откройте сайт из Telegram-бота.');
+        return;
+      }
+
+      try {
+        await fetchJson(`${API_BASE}/cart/add`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: userId, product_id: course.id, qty: 1 }),
+        });
+        tg?.HapticFeedback?.impactOccurred('light');
+        alert('Курс добавлен в корзину');
+      } catch (e) {
+        alert('Не удалось добавить курс. Попробуйте ещё раз.');
+      }
+    }
+
+    loadCategories().then(loadCourses);
   </script>
 </body>
 </html>

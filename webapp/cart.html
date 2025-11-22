@@ -53,6 +53,9 @@
     .cart-table td { border-bottom: 1px solid rgba(255, 255, 255, 0.04); color: var(--text); }
 
     .badge { padding: 6px 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.06); color: var(--muted); font-size: 13px; }
+    .qty-controls { display: inline-flex; gap: 6px; align-items: center; }
+    .qty-btn { padding: 4px 10px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.12); background: rgba(255, 255, 255, 0.08); color: var(--text); cursor: pointer; }
+
     .total-card { background: var(--card); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 16px; box-shadow: var(--shadow); margin-top: 18px; display: grid; gap: 10px; }
     .total-row { display: flex; justify-content: space-between; font-weight: 800; font-size: 18px; }
     .input-row { display: flex; gap: 10px; flex-wrap: wrap; }
@@ -84,9 +87,11 @@
 
   <main>
     <h1>Корзина</h1>
-    <p>Демо-макет: позже корзина будет заполняться из API и Telegram-бота. Сейчас показаны примерные позиции.</p>
+    <p>Здесь отображаются товары и мастер-классы из вашего Telegram-аккаунта.</p>
 
-    <table class="cart-table">
+    <div class="note" id="note"></div>
+
+    <table class="cart-table" aria-label="Корзина">
       <thead>
         <tr>
           <th>Товар</th>
@@ -96,38 +101,19 @@
           <th>Сумма</th>
         </tr>
       </thead>
-      <tbody>
-        <tr>
-          <td>Домашний уют</td>
-          <td><span class="badge">Корзинки</span></td>
-          <td>2 100 ₽</td>
-          <td>1</td>
-          <td>2 100 ₽</td>
-        </tr>
-        <tr>
-          <td>Вязаная сумка-шоппер</td>
-          <td><span class="badge">Сумки</span></td>
-          <td>2 300 ₽</td>
-          <td>1</td>
-          <td>2 300 ₽</td>
-        </tr>
-        <tr>
-          <td>Компактная корзинка (мастер-класс)</td>
-          <td><span class="badge">Бесплатные МК</span></td>
-          <td>0 ₽</td>
-          <td>1</td>
-          <td>0 ₽</td>
-        </tr>
-      </tbody>
+      <tbody id="cart-body"></tbody>
     </table>
 
     <div class="total-card">
-      <div class="total-row"><span>Итого</span><span>4 400 ₽</span></div>
+      <div class="total-row"><span>Итого</span><span id="cart-total">0 ₽</span></div>
       <div class="input-row">
-        <input type="text" placeholder="Промокод" />
-        <button class="btn secondary" type="button">Применить</button>
+        <input type="text" placeholder="Промокод" disabled />
+        <button class="btn secondary" type="button" disabled>Применить</button>
       </div>
-      <button class="btn" type="button">Перейти к оформлению в Telegram</button>
+      <div class="input-row">
+        <button class="btn secondary" type="button" id="clear-cart">Очистить корзину</button>
+        <button class="btn" type="button" id="checkout">Перейти к оформлению в Telegram</button>
+      </div>
     </div>
   </main>
 
@@ -135,6 +121,151 @@
     const toggle = document.querySelector('.menu-toggle');
     const nav = document.querySelector('.nav-links');
     toggle?.addEventListener('click', () => nav?.classList.toggle('open'));
+
+    const tg = window.Telegram?.WebApp;
+    const userId = tg?.initDataUnsafe?.user?.id ?? null;
+    const API_BASE = "https://YOUR-API-DOMAIN/api";
+
+    const noteEl = document.getElementById('note');
+    const tbody = document.getElementById('cart-body');
+    const totalEl = document.getElementById('cart-total');
+    const clearBtn = document.getElementById('clear-cart');
+    const checkoutBtn = document.getElementById('checkout');
+
+    function formatPrice(value) {
+      const num = Number(value) || 0;
+      return `${num.toLocaleString('ru-RU')} ₽`;
+    }
+
+    async function fetchJson(url, options) {
+      const res = await fetch(url, options);
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || 'Ошибка API');
+      }
+      return res.json();
+    }
+
+    function renderEmpty(message) {
+      tbody.innerHTML = '';
+      const row = document.createElement('tr');
+      const cell = document.createElement('td');
+      cell.colSpan = 5;
+      cell.textContent = message;
+      cell.style.color = 'var(--muted)';
+      row.appendChild(cell);
+      tbody.appendChild(row);
+      totalEl.textContent = '0 ₽';
+    }
+
+    function renderCart(cart) {
+      tbody.innerHTML = '';
+
+      if (!cart.items?.length) {
+        renderEmpty('Корзина пуста');
+        return;
+      }
+
+      cart.items.forEach((item) => {
+        const row = document.createElement('tr');
+
+        const nameCell = document.createElement('td');
+        nameCell.textContent = item.name;
+
+        const categoryCell = document.createElement('td');
+        const badge = document.createElement('span');
+        badge.className = 'badge';
+        badge.textContent = item.category_name || 'Каталог';
+        categoryCell.appendChild(badge);
+
+        const priceCell = document.createElement('td');
+        priceCell.textContent = formatPrice(item.price);
+
+        const qtyCell = document.createElement('td');
+        const controls = document.createElement('div');
+        controls.className = 'qty-controls';
+        const minus = document.createElement('button');
+        minus.className = 'qty-btn';
+        minus.textContent = '−';
+        minus.addEventListener('click', () => updateQty(item.product_id, item.qty - 1));
+        const qty = document.createElement('span');
+        qty.textContent = item.qty;
+        const plus = document.createElement('button');
+        plus.className = 'qty-btn';
+        plus.textContent = '+';
+        plus.addEventListener('click', () => updateQty(item.product_id, item.qty + 1));
+        controls.append(minus, qty, plus);
+        qtyCell.appendChild(controls);
+
+        const sumCell = document.createElement('td');
+        sumCell.textContent = formatPrice(item.price * item.qty);
+
+        row.append(nameCell, categoryCell, priceCell, qtyCell, sumCell);
+        tbody.appendChild(row);
+      });
+
+      totalEl.textContent = formatPrice(cart.total || 0);
+    }
+
+    async function loadCart() {
+      if (!userId) {
+        noteEl.textContent = 'Чтобы видеть свою корзину, откройте сайт через Telegram-бота.';
+        renderEmpty('Нет данных — нет Telegram user_id');
+        return;
+      }
+
+      try {
+        noteEl.textContent = '';
+        const params = new URLSearchParams({ user_id: userId });
+        const cart = await fetchJson(`${API_BASE}/cart?${params.toString()}`);
+        renderCart(cart);
+      } catch (e) {
+        noteEl.textContent = 'Не удалось загрузить корзину. Попробуйте обновить страницу.';
+        renderEmpty('Ошибка загрузки корзины');
+      }
+    }
+
+    async function updateQty(productId, qty) {
+      if (!userId) return;
+
+      try {
+        await fetchJson(`${API_BASE}/cart/update`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: userId, product_id: productId, qty }),
+        });
+        await loadCart();
+      } catch (e) {
+        alert('Не удалось обновить количество. Попробуйте ещё раз.');
+      }
+    }
+
+    async function clearCart() {
+      if (!userId) return;
+      try {
+        await fetchJson(`${API_BASE}/cart/clear`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: userId }),
+        });
+        await loadCart();
+      } catch (e) {
+        alert('Не удалось очистить корзину. Попробуйте ещё раз.');
+      }
+    }
+
+    function checkout() {
+      if (tg) {
+        tg.close();
+      } else {
+        alert('Вернитесь в Telegram-бот для оформления заказа.');
+      }
+    }
+
+    clearBtn.addEventListener('click', clearCart);
+    checkoutBtn.addEventListener('click', checkout);
+
+    loadCart();
   </script>
 </body>
 </html>
