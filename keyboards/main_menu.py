@@ -42,16 +42,31 @@ def get_main_menu(is_admin: bool = False) -> ReplyKeyboardMarkup:
     keyboard.append(row)
 
     webapp_row: list[KeyboardButton] = []
-    if settings.webapp_baskets_url:
+    if settings.webapp_index_url:
+        webapp_row.append(
+            KeyboardButton(text="🏠 Главная (WebApp)", web_app=WebAppInfo(url=settings.webapp_index_url))
+        )
+    if settings.webapp_products_url:
         webapp_row.append(
             KeyboardButton(
-                text="🧺 Корзинки (WebApp)", web_app=WebAppInfo(url=settings.webapp_baskets_url)
+                text="🛍 Товары (WebApp)", web_app=WebAppInfo(url=settings.webapp_products_url)
             )
         )
-    if settings.webapp_courses_url:
+    if settings.webapp_masterclasses_url:
         webapp_row.append(
             KeyboardButton(
-                text="🎓 Курсы (WebApp)", web_app=WebAppInfo(url=settings.webapp_courses_url)
+                text="🎓 Мастер-классы (WebApp)",
+                web_app=WebAppInfo(url=settings.webapp_masterclasses_url),
+            )
+        )
+    if settings.webapp_cart_url:
+        webapp_row.append(
+            KeyboardButton(text="🛒 Корзина (WebApp)", web_app=WebAppInfo(url=settings.webapp_cart_url))
+        )
+    if settings.webapp_profile_url:
+        webapp_row.append(
+            KeyboardButton(
+                text="👤 Профиль (WebApp)", web_app=WebAppInfo(url=settings.webapp_profile_url)
             )
         )
     if webapp_row:
