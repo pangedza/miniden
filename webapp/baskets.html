@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MiniDeN — Корзинки</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #0f1115;
+      --card: rgba(255, 255, 255, 0.06);
+      --text: #f6f7fb;
+      --muted: #c7c9d3;
+      --accent: #ffb800;
+      --accent-2: #7bd8ff;
+      --shadow: 0 14px 50px rgba(0, 0, 0, 0.35);
+      --nav: rgba(17, 17, 19, 0.82);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Inter", system-ui, -apple-system, sans-serif;
+      background: radial-gradient(circle at 10% 20%, rgba(255, 184, 0, 0.06), transparent 35%),
+        radial-gradient(circle at 80% 10%, rgba(123, 216, 255, 0.08), transparent 30%),
+        radial-gradient(circle at 60% 80%, rgba(255, 184, 0, 0.05), transparent 32%),
+        #0b0c10;
+      color: var(--text);
+      min-height: 100vh;
+      padding: 0 18px 32px;
+    }
+
+    .top-nav { position: sticky; top: 0; z-index: 20; background: var(--nav); backdrop-filter: blur(10px); border-bottom: 1px solid rgba(255, 255, 255, 0.06); display: flex; align-items: center; justify-content: space-between; padding: 14px 12px; margin: 0 -18px 16px; }
+    .brand { display: flex; flex-direction: column; gap: 2px; font-weight: 800; letter-spacing: -0.02em; }
+    .brand span { color: var(--muted); font-size: 13px; font-weight: 600; letter-spacing: normal; }
+    .nav-links { display: flex; gap: 12px; align-items: center; }
+    .nav-links a { color: var(--muted); text-decoration: none; font-weight: 600; padding: 10px 12px; border-radius: 12px; transition: background 0.15s ease, color 0.15s ease; }
+    .nav-links a:hover { color: var(--text); background: rgba(255, 255, 255, 0.06); }
+    .nav-links a.active { color: var(--text); background: linear-gradient(135deg, rgba(255, 184, 0, 0.18), rgba(123, 216, 255, 0.14)); }
+    .menu-toggle { display: none; background: transparent; border: 1px solid rgba(255, 255, 255, 0.12); color: var(--text); border-radius: 12px; padding: 10px 12px; cursor: pointer; }
+
+    header.page-header { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 12px; }
+
+    .title { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; display: flex; align-items: center; gap: 10px; }
+
+    .chip { padding: 8px 12px; border-radius: 12px; background: linear-gradient(135deg, rgba(255, 184, 0, 0.2), rgba(255, 184, 0, 0.05)); color: #ffdf80; font-weight: 600; font-size: 14px; }
+
+    .subtitle { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
+
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; margin-top: 12px; }
+
+    .card { background: var(--card); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 16px; padding: 14px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 12px; backdrop-filter: blur(6px); }
+
+    .cover { position: relative; overflow: hidden; border-radius: 12px; height: 160px; background: linear-gradient(135deg, rgba(255, 184, 0, 0.16), rgba(123, 216, 255, 0.16)); display: grid; place-items: center; }
+
+    .cover img { width: 100%; height: 100%; object-fit: cover; filter: saturate(1.05); }
+
+    .badge { position: absolute; top: 10px; left: 10px; background: rgba(0, 0, 0, 0.55); color: #fff; font-weight: 700; padding: 6px 10px; border-radius: 10px; letter-spacing: 0.01em; font-size: 13px; }
+
+    .card h3 { margin: 0; font-size: 18px; letter-spacing: -0.01em; }
+
+    .description { color: var(--muted); font-size: 14px; line-height: 1.5; margin: 0; flex: 1; }
+
+    .footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+
+    .price { font-size: 17px; font-weight: 700; color: #ffdf80; }
+
+    button { cursor: pointer; border: none; border-radius: 12px; padding: 12px 14px; background: linear-gradient(135deg, #ffb800, #ff8f3f); color: #0b0c10; font-weight: 700; font-size: 15px; width: 100%; box-shadow: 0 10px 30px rgba(255, 184, 0, 0.25); transition: transform 0.1s ease, box-shadow 0.1s ease; }
+
+    button:hover { transform: translateY(-1px); box-shadow: 0 12px 32px rgba(255, 184, 0, 0.35); }
+
+    .pill-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+
+    .pill { padding: 8px 12px; border-radius: 999px; background: rgba(255, 255, 255, 0.06); color: var(--muted); font-size: 13px; border: 1px solid rgba(255, 255, 255, 0.08); }
+
+    @media (max-width: 780px) {
+      .nav-links { display: none; }
+      .nav-links.open { display: flex; flex-direction: column; align-items: flex-start; width: 100%; margin-top: 10px; }
+      .top-nav { flex-wrap: wrap; }
+      .menu-toggle { display: inline-flex; }
+    }
+  </style>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+  <div class="top-nav">
+    <div class="brand">MiniDeN<span>уютные корзинки и мастер-классы</span></div>
+    <button class="menu-toggle" aria-label="Открыть меню">☰</button>
+    <nav class="nav-links open">
+      <a href="index.html">Главная</a>
+      <a href="products.html" class="active">Товары</a>
+      <a href="masterclasses.html">Мастер-классы</a>
+      <a href="cart.html">Корзина</a>
+      <a href="profile.html">Профиль</a>
+    </nav>
+  </div>
+
+  <header class="page-header">
+    <div>
+      <div class="title">🧺 Корзинки WebApp</div>
+      <p class="subtitle">Мини-лендинг с избранными наборами. Тапните на карточку, чтобы добавить в корзину.</p>
+    </div>
+    <div class="chip">Демо</div>
+  </header>
+
+  <div class="pill-row">
+    <span class="pill">Ручная работа</span>
+    <span class="pill">Готовые наборы</span>
+    <span class="pill">С заботой о деталях</span>
+  </div>
+
+  <div class="cards" id="cards"></div>
+
+  <script>
+    const toggle = document.querySelector('.menu-toggle');
+    const nav = document.querySelector('.nav-links');
+    toggle?.addEventListener('click', () => nav?.classList.toggle('open'));
+
+    const tg = window.Telegram?.WebApp;
+
+    const baskets = [
+      {
+        id: 1,
+        title: "Утренний плед",
+        price: "2 100 ₽",
+        badge: "Хит",
+        description: "Плед, свеча и домашнее печенье в крафтовой корзинке.",
+        image: "https://images.unsplash.com/photo-1489515217757-5fd1be406fef?auto=format&fit=crop&w=900&q=80",
+      },
+      {
+        id: 2,
+        title: "Чайный вечер",
+        price: "1 790 ₽",
+        badge: "Новинка",
+        description: "Чай улун, варенье из сосновых шишек и миндальное печенье.",
+        image: "https://images.unsplash.com/photo-1452251889946-8ff5ea7b27ab?auto=format&fit=crop&w=900&q=80",
+      },
+      {
+        id: 3,
+        title: "Спа-день",
+        price: "2 490 ₽",
+        badge: "Relax",
+        description: "Ароматическая свеча, бомбочки для ванны и мягкое полотенце.",
+        image: "https://images.unsplash.com/photo-1506617420156-8e4536971650?auto=format&fit=crop&w=900&q=80",
+      },
+      {
+        id: 4,
+        title: "Сырная радость",
+        price: "2 900 ₽",
+        badge: "Гастро",
+        description: "Пармезан, камамбер, грецкие орехи и соус песто в корзинке.",
+        image: "https://images.unsplash.com/photo-1481391032119-d89fee407e44?auto=format&fit=crop&w=900&q=80",
+      },
+    ];
+
+    function renderCards(list) {
+      const wrapper = document.getElementById("cards");
+      wrapper.innerHTML = "";
+
+      list.forEach((item) => {
+        const card = document.createElement("article");
+        card.className = "card";
+
+        const cover = document.createElement("div");
+        cover.className = "cover";
+
+        if (item.image) {
+          const img = document.createElement("img");
+          img.src = item.image;
+          img.alt = item.title;
+          cover.appendChild(img);
+        }
+
+        if (item.badge) {
+          const badge = document.createElement("span");
+          badge.className = "badge";
+          badge.textContent = item.badge;
+          cover.appendChild(badge);
+        }
+
+        const name = document.createElement("h3");
+        name.textContent = item.title;
+
+        const desc = document.createElement("p");
+        desc.className = "description";
+        desc.textContent = item.description;
+
+        const footer = document.createElement("div");
+        footer.className = "footer";
+
+        const price = document.createElement("div");
+        price.className = "price";
+        price.textContent = item.price;
+
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.textContent = "В корзину";
+        btn.addEventListener("click", () => handleAdd(item));
+
+        footer.append(price, btn);
+        card.append(cover, name, desc, footer);
+        wrapper.appendChild(card);
+      });
+    }
+
+    function handleAdd(item) {
+      if (tg?.sendData) {
+        tg.sendData(
+          JSON.stringify({
+            action: "add_to_cart",
+            source: "baskets",
+            product_id: item.id,
+          })
+        );
+      }
+
+      if (tg?.showPopup) {
+        tg.showPopup({
+          title: "В корзину",
+          message: `«${item.title}» добавлена в корзину. Это демо, но кнопка в боте будет работать так же!`,
+          buttons: [{ id: "ok", type: "close", text: "Понятно" }],
+        });
+      } else {
+        alert(`${item.title} добавлена в корзину (демо).`);
+      }
+    }
+
+    if (tg) {
+      tg.expand();
+      tg.MainButton.hide();
+    }
+
+    renderCards(baskets);
+  </script>
+</body>
+</html>

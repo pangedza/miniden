@@ -1,0 +1,614 @@
+from html import escape
+from typing import Iterable
+from services import orders as orders_service
+
+
+# ------------------------------------------------------------
+# Общие хелперы
+# ------------------------------------------------------------
+
+
+def format_price(price: int | float) -> str:
+    """Вернуть цену для вывода пользователю/админу."""
+
+    try:
+        value = float(price)
+    except Exception:
+        return "—"
+
+    if value <= 0:
+        return "Бесплатно"
+    return f"{int(value)} ₽"
+
+
+def shorten_description(text: str, max_len: int = 160) -> str:
+    """Обрезать описание по границе слова и добавить троеточие."""
+
+    cleaned = (text or "").strip()
+    if not cleaned:
+        return ""
+
+    if len(cleaned) <= max_len:
+        return escape(cleaned)
+
+    cutoff = cleaned[:max_len]
+    cutoff = cutoff.rsplit(" ", 1)[0] or cutoff
+    return escape(cutoff.rstrip()) + "..."
+
+
+def format_start_text() -> str:
+    return (
+        "👋 <b>Добро пожаловать в MiniDeN!</b>\n\n"
+        "🧺 Подарочные корзины\n"
+        "🎓 Онлайн-курсы\n"
+        "💬 Поддержка — всегда рядом\n\n"
+        "Выберите раздел ниже 👇"
+    )
+
+
+def format_subscription_required_text() -> str:
+    return (
+        "👋 <b>Добро пожаловать в MiniDeN!</b>\n\n"
+        "Чтобы пользоваться ботом (каталог, корзина, курсы, профиль),\n"
+        "сначала подпишитесь на наш канал 📢\n\n"
+        "После подписки нажмите «✅ Я подписался», чтобы открыть доступ."
+    )
+
+
+def format_stats_summary(title: str, summary: dict) -> str:
+    lines: list[str] = [f"📊 <b>{title}</b>", ""]
+
+    total_orders = int(summary.get("total_orders", 0) or 0)
+    total_amount = int(summary.get("total_amount", 0) or 0)
+    lines.append(f"Всего заказов: <b>{total_orders}</b>")
+    lines.append(f"Общая сумма: <b>{total_amount} ₽</b>")
+
+    status_order = [
+        (orders_service.STATUS_NEW, "🆕 Новые"),
+        (orders_service.STATUS_IN_PROGRESS, "🕒 В работе"),
+        (orders_service.STATUS_PAID, "✅ Оплаченные"),
+        (orders_service.STATUS_SENT, "📤 Отправленные"),
+        (orders_service.STATUS_ARCHIVED, "📁 Архив"),
+    ]
+
+    by_status = summary.get("by_status", {}) or {}
+    lines.append("")
+    lines.append("По статусам:")
+    for status, title_text in status_order:
+        count = int(by_status.get(status, 0) or 0)
+        lines.append(f"{title_text}: {count}")
+
+    return "\n".join(lines).strip()
+
+
+def format_stats_by_day(items: list[dict]) -> str:
+    lines: list[str] = ["📅 <b>Статистика по дням</b>", ""]
+
+    if not items:
+        lines.append("Нет заказов за выбранный период.")
+        return "\n".join(lines).strip()
+
+    for item in items:
+        date = item.get("date", "—")
+        orders_count = int(item.get("orders_count", 0) or 0)
+        total_amount = int(item.get("total_amount", 0) or 0)
+        lines.append(f"{date} — заказы: {orders_count}, сумма: {total_amount} ₽")
+
+    return "\n".join(lines).strip()
+
+
+def format_top_products(title: str, items: list[dict]) -> str:
+    lines: list[str] = [f"🏆 <b>{title}</b>", ""]
+
+    if not items:
+        lines.append("Нет данных по топу.")
+        return "\n".join(lines).strip()
+
+    for idx, item in enumerate(items, start=1):
+        name = item.get("name") or "—"
+        total_qty = int(item.get("total_qty", 0) or 0)
+        total_amount = int(item.get("total_amount", 0) or 0)
+        lines.append(f"{idx}) {name} — {total_qty} шт, {total_amount} ₽")
+
+    return "\n".join(lines).strip()
+
+
+def format_user_notes(notes: list[dict], empty_placeholder: str = "Заметок пока нет.") -> str:
+    """Форматировать список заметок по клиенту для админов."""
+
+    lines: list[str] = ["📝 <b>Заметки по клиенту</b>"]
+    if not notes:
+        lines.append(empty_placeholder)
+        return "\n".join(lines).strip()
+
+    for note in notes:
+        created_at = note.get("created_at") or "—"
+        admin_id = note.get("admin_id")
+        text = note.get("note", "")
+        lines.append(f"• [{created_at}] (admin_id={admin_id}): {text}")
+
+    return "\n".join(lines).strip()
+
+
+def format_basket_list(baskets: Iterable[dict]) -> str:
+    lines: list[str] = ["🧺 <b>Наши корзинки</b>:\n"]
+    for item in baskets:
+        lines.append(
+            f"• <b>{item.get('name')}</b> — {format_price(item.get('price'))}\n"
+            f"{item.get('description', '').strip()}"
+        )
+        url = item.get("detail_url")
+        if url:
+            lines.append(f"Подробнее: {url}")
+        lines.append("")
+
+    return "\n".join(lines).strip()
+
+
+def format_course_list(courses: Iterable[dict]) -> str:
+    lines: list[str] = ["🎓 <b>Наши онлайн-курсы</b>:\n"]
+    for item in courses:
+        lines.append(
+            f"• <b>{item.get('name')}</b> — {format_price(item.get('price'))}\n"
+            f"{item.get('description', '').strip()}"
+        )
+        url = item.get("detail_url")
+        if url:
+            lines.append(f"Подробнее: {url}")
+        lines.append("")
+
+    return "\n".join(lines).strip()
+
+
+def format_cart(items: Iterable[dict], discount_amount: int = 0) -> str:
+    """Форматирование корзины для вывода пользователю."""
+    items = list(items)
+    if not items:
+        return "🛒 Ваша корзина пока пуста."
+
+    lines: list[str] = ["🛒 <b>Ваша корзина</b>:\n"]
+    total = 0
+
+    for item in items:
+        name = item.get("name", "Товар")
+        price = int(item.get("price", 0))
+        qty = int(item.get("qty", 0))
+        subtotal = price * qty
+        total += subtotal
+
+        price_text = format_price(price)
+        subtotal_text = format_price(subtotal)
+
+        lines.append(
+            f"• <b>{name}</b> — {price_text} x {qty} = {subtotal_text}"
+        )
+
+    lines.append("")
+    discount_amount = max(int(discount_amount or 0), 0)
+    if discount_amount > 0:
+        final_total = total - discount_amount
+        if final_total < 0:
+            final_total = 0
+        lines.append(f"Сумма без скидки: <b>{format_price(total)}</b>")
+        lines.append(f"Скидка по промокоду: -{format_price(discount_amount)}")
+        lines.append(f"Итого к оплате: <b>{format_price(final_total)}</b>")
+    else:
+        total_text = format_price(total)
+        lines.append(f"Итого: <b>{total_text}</b>")
+    return "\n".join(lines).strip()
+
+
+def format_favorites_list(products: list[dict]) -> str:
+    """Сформировать список избранных товаров пользователя."""
+
+    if not products:
+        return (
+            "У вас пока нет избранных товаров.\n\n"
+            "Добавьте корзинки или курсы в избранное из каталога."
+        )
+
+    lines: list[str] = ["❤️ <b>Избранное</b>", ""]
+
+    for idx, product in enumerate(products, start=1):
+        product_type = product.get("type")
+        prefix = "🧺" if product_type == "basket" else "🎓"
+
+        name = product.get("name") or "Товар"
+        price = format_price(product.get("price", 0))
+        lines.append(f"{idx}) {prefix} {name} — {price}")
+
+    return "\n".join(lines).strip()
+
+
+def format_order_for_admin(
+    user_id: int,
+    user_name: str,
+    items: Iterable[dict],
+    total: int,
+    customer_name: str,
+    contact: str,
+    comment: str,
+    discount_amount: int = 0,
+    original_total: int | None = None,
+) -> str:
+    """Сформировать текст заказа для администратора."""
+    lines: list[str] = []
+
+    lines.append("🆕 <b>Новый заказ</b>")
+    lines.append("")
+    lines.append(f"👤 Клиент: {customer_name}")
+    lines.append(f"📞 Контакт: {contact}")
+    if comment:
+        lines.append(f"💬 Комментарий: {comment}")
+    lines.append("")
+    lines.append(f"🧑‍💻 Telegram: id={user_id}, имя={user_name}")
+    lines.append("")
+
+    # Корзина
+    lines.append("🛒 <b>Корзина:</b>")
+    total_check = 0
+    for item in items:
+        name = item.get("name", "Товар")
+        price = int(item.get("price", 0))
+        qty = int(item.get("qty", 0))
+        subtotal = price * qty
+        total_check += subtotal
+        price_text = format_price(price)
+        subtotal_text = format_price(subtotal)
+        lines.append(f"• {name} — {price_text} x {qty} = {subtotal_text}")
+
+    lines.append("")
+    discount_amount = max(int(discount_amount or 0), 0)
+    if discount_amount > 0:
+        base_total = original_total if original_total is not None else total + discount_amount
+        final_total = total
+        if final_total < 0:
+            final_total = 0
+        lines.append(f"Сумма без скидки: <b>{format_price(base_total)}</b>")
+        lines.append(f"Скидка по промокоду: -{format_price(discount_amount)}")
+        lines.append(f"Итого к оплате: <b>{format_price(final_total)}</b>")
+    else:
+        total_text = format_price(total)
+        lines.append(f"Итого к оплате: <b>{total_text}</b>")
+    if total_check != total:
+        lines.append(f"(пересчёт по позициям: {total_check} ₽)")
+
+    return "\n".join(lines).strip()
+
+
+def format_orders_list_text(order_list: list[dict], show_client_hint: bool = False) -> str:
+    """
+    Форматирование списка заказов для команды /orders.
+    Показываем: №, статус, сумма, имя, контакт.
+    """
+    if not order_list:
+        return "Пока нет заказов."
+
+    lines: list[str] = ["📦 <b>Последние заказы:</b>"]
+
+    for order in order_list:
+        status = order.get("status", orders_service.STATUS_NEW)
+        status_title = orders_service.STATUS_TITLES.get(status, status)
+        user_name = order.get("user_name") or "—"
+        user_id = order.get("user_id") or "—"
+
+        lines.append(
+            f"\nЗаказ №{order['id']} — {status_title}"
+            f"\n👤 Клиент: {order['customer_name']}"
+            f"\n🧑‍💻 Telegram: id=<code>{user_id}</code>, имя={user_name}"
+            f"\n📞 Контакт: {order['contact']}"
+            f"\n💰 Сумма: <b>{format_price(order['total'])}</b>"
+            f"\n🕒 Время: {order.get('created_at', '—')}"
+        )
+
+    if show_client_hint:
+        lines.append(
+            "\nЧтобы открыть профиль клиента, отправьте:"
+            " <code>/client &lt;telegram_id&gt;</code>"
+        )
+
+    return "\n".join(lines).strip()
+
+
+def format_user_courses_list(courses: list[dict]) -> str:
+    """Форматированный список курсов пользователя."""
+    lines: list[str] = ["🎓 <b>Мои курсы</b>:\n"]
+
+    for idx, course in enumerate(courses, start=1):
+        name = course.get("name", "Курс")
+        desc = (course.get("description") or "").strip()
+        url = course.get("detail_url")
+
+        lines.append(f"{idx}. <b>{name}</b>")
+        if desc:
+            lines.append(desc)
+        if url:
+            lines.append(f"Ссылка: {url}")
+        lines.append("")
+
+    return "\n".join(lines).strip()
+
+
+def format_order_detail_text(order: dict) -> str:
+    """
+    Форматирование одного заказа для команды /order <id>.
+    Показываем все позиции.
+    """
+    status = order.get("status", orders_service.STATUS_NEW)
+    status_title = orders_service.STATUS_TITLES.get(status, status)
+    user_name = order.get("user_name") or "—"
+    user_id = order.get("user_id") or "—"
+
+    lines: list[str] = [
+        f"📦 <b>Заказ №{order['id']}</b>",
+        f"Статус: <b>{status_title}</b>",
+        f"🧑‍💻 Telegram: id=<code>{user_id}</code>, имя={user_name}",
+        "",
+        f"👤 Имя: {order['customer_name']}",
+        f"📞 Контакт: {order['contact']}",
+    ]
+
+    comment = order.get("comment")
+    if comment:
+        lines.append(f"💬 Комментарий: {comment}")
+
+    lines.append("\n🧺 <b>Состав заказа:</b>")
+
+    items = order.get("items") or []
+    if not items:
+        lines.append("— (пусто, похоже что-то пошло не так)")
+    else:
+        for item in items:
+            name = item.get("name", "Товар")
+            price = int(item.get("price", 0))
+            qty = int(item.get("qty", 0))
+            subtotal = price * qty
+            price_text = format_price(price)
+            subtotal_text = format_price(subtotal)
+            lines.append(f"• {name} — {qty} x {price_text} = {subtotal_text}")
+
+    total = order.get("total", 0)
+    discount_amount = max(int(order.get("discount_amount", 0) or 0), 0)
+    promo_code = order.get("promocode_code")
+
+    if discount_amount > 0:
+        base_total = total + discount_amount
+        lines.append(f"\n💰 Сумма без скидки: <b>{format_price(base_total)}</b>")
+        lines.append(f"Скидка по промокоду: -{format_price(discount_amount)}")
+        lines.append(f"Итого: <b>{format_price(total)}</b>")
+        if promo_code:
+            lines.append(f"Промокод: {promo_code}")
+    else:
+        total_text = format_price(total)
+        lines.append(f"\n💰 <b>Итого: {total_text}</b>")
+
+    return "\n".join(lines).strip()
+
+
+def format_admin_client_profile(
+    user_id: int,
+    user_stats: dict,
+    courses_summary: dict,
+    ban_status: dict | None = None,
+    notes: list[dict] | None = None,
+    notes_limit: int = 10,
+) -> str:
+    """Сформировать HTML-профиль клиента для администратора."""
+
+    lines: list[str] = []
+
+    lines.append("👤 <b>Профиль клиента</b>")
+    lines.append("")
+
+    ban = ban_status or {}
+    if ban.get("is_banned"):
+        lines.append("🚫 <b>Пользователь забанен</b>")
+        reason = ban.get("ban_reason")
+        if reason:
+            lines.append(f"Причина: {reason}")
+        updated_at = ban.get("updated_at")
+        if updated_at:
+            lines.append(f"Обновлено: {updated_at}")
+    else:
+        lines.append("✅ Пользователь активен")
+
+    lines.append("")
+    lines.append(f"🧑‍💻 Telegram: id=<code>{user_id}</code>")
+
+    lines.append("")
+    lines.append("📊 <b>Статистика заказов</b>")
+    total_orders = user_stats.get("total_orders", 0)
+    total_amount = user_stats.get("total_amount", 0)
+    orders_by_status = user_stats.get("orders_by_status", {}) or {}
+
+    lines.append(f"Всего заказов: <b>{total_orders}</b>")
+    lines.append(f"Сумма всех заказов: <b>{total_amount} ₽</b>")
+
+    status_lines = {
+        orders_service.STATUS_NEW: "🆕 Новые",
+        orders_service.STATUS_IN_PROGRESS: "🕒 В работе",
+        orders_service.STATUS_PAID: "✅ Оплаченные",
+        orders_service.STATUS_SENT: "📤 Отправленные",
+        orders_service.STATUS_ARCHIVED: "📁 Архив",
+    }
+
+    for status, title in status_lines.items():
+        count = int(orders_by_status.get(status, 0) or 0)
+        if count > 0:
+            lines.append(f"{title}: {count}")
+
+    last_order_id = user_stats.get("last_order_id")
+    last_order_created_at = user_stats.get("last_order_created_at")
+    if last_order_id and last_order_created_at:
+        lines.append(f"Последний заказ: №{last_order_id} от {last_order_created_at}")
+
+    lines.append("")
+    lines.append("🎓 <b>Курсы с доступом</b>")
+    courses_count = courses_summary.get("count", 0)
+    courses = courses_summary.get("courses") or []
+    lines.append(f"Всего: <b>{courses_count}</b>")
+
+    if courses:
+        lines.append("")
+        for idx, course in enumerate(courses, start=1):
+            name = course.get("name", "Курс")
+            detail_url = course.get("detail_url")
+
+            lines.append(f"{idx}. <b>{name}</b>")
+            if detail_url:
+                lines.append(str(detail_url))
+
+    lines.append("")
+
+    limited_notes = (notes or [])[:notes_limit]
+    lines.append(format_user_notes(limited_notes))
+
+    return "\n".join(lines).strip()
+
+
+def format_user_courses_access_granted(order_id: int, courses: list[dict]) -> str:
+    """Сообщение пользователю о выданном доступе к курсам."""
+
+    lines: list[str] = [
+        "🎓 <b>Доступ к курсам открыт!</b>",
+        "",
+        f"Ваш заказ №{order_id} оплачен, и вам открыт доступ к следующим курсам:",
+        "",
+    ]
+
+    if not courses:
+        return "\n".join(lines).strip()
+
+    for idx, course in enumerate(courses, start=1):
+        name = course.get("name", "Курс")
+        desc = (course.get("description") or "").strip()
+        url = course.get("detail_url")
+
+        lines.append(f"{idx}) <b>{name}</b>")
+        if desc:
+            lines.append(desc)
+        if url:
+            lines.append(f"🔗 {url}")
+        lines.append("")
+
+    return "\n".join(lines).strip()
+
+
+def format_order_status_changed_for_user(order_id: int, new_status: str) -> str:
+    """Сообщение пользователю об изменении статуса заказа."""
+
+    status_title = orders_service.STATUS_TITLES.get(new_status, new_status)
+
+    lines = [
+        f"📦 <b>Статус вашего заказа №{order_id} изменён</b>",
+        "",
+        f"Новый статус: <b>{status_title}</b>.",
+    ]
+
+    return "\n".join(lines).strip()
+
+
+def format_basket_card(product: dict) -> str:
+    """Формат «карточки» корзинки для каталога."""
+
+    name = escape(product.get("name", "Корзинка"))
+    description = shorten_description(product.get("description", ""))
+    price_text = format_price(product.get("price", 0))
+
+    lines: list[str] = [f"🧺 <b>{name}</b>", ""]
+
+    if description:
+        lines.append(description)
+        lines.append("")
+
+    lines.append(f"💰 Цена: <b>{price_text}</b>")
+    return "\n".join(lines).strip()
+
+
+def format_course_card(product: dict, has_access: bool) -> str:
+    """Формат «карточки» курса для каталога."""
+
+    price = int(product.get("price", 0) or 0)
+    name = escape(product.get("name", "Курс"))
+    description = shorten_description(product.get("description", ""))
+    is_free = price == 0
+
+    lines: list[str] = [f"🎓 <b>{name}</b>", ""]
+
+    if description:
+        lines.append(description)
+        lines.append("")
+
+    if is_free:
+        lines.append("💸 <b>Бесплатный курс</b>")
+    else:
+        lines.append(f"💰 Цена: <b>{format_price(price)}</b>")
+
+    lines.append("")
+    lines.append("✅ Доступ открыт" if has_access else "🔒 Доступ пока закрыт")
+
+    return "\n".join(lines).strip()
+
+
+def format_help_main() -> str:
+    lines = [
+        "❓ <b>Частые вопросы</b>",
+        "",
+        "• Как оформить заказ?",
+        "• Как оплатить?",
+        "• Как получить курс?",
+        "• Что делать, если появились вопросы?",
+        "",
+        "Выберите пункт ниже, чтобы открыть подробную инструкцию.",
+    ]
+
+    return "\n".join(lines).strip()
+
+
+def guide_make_order() -> str:
+    lines = [
+        "🧺 <b>Как оформить заказ</b>",
+        "",
+        "1) Откройте каталог корзинок или курсов в главном меню.",
+        "2) Выберите понравившийся товар.",
+        "3) Добавьте его в корзину.",
+        "4) Перейдите в корзину, чтобы проверить позиции.",
+        "5) Нажмите оформить заказ и следуйте подсказкам.",
+    ]
+
+    return "\n".join(lines).strip()
+
+
+def guide_payment() -> str:
+    lines = [
+        "💳 <b>Оплата заказа</b>",
+        "",
+        "• Оплатите заказ по инструкции, которую пришлёт администратор.",
+        "• Если нужна помощь — напишите администратору, он подскажет реквизиты.",
+        "• После оплаты отправьте скриншот или квитанцию, чтобы мы быстрее подтвердили заказ.",
+    ]
+
+    return "\n".join(lines).strip()
+
+
+def guide_course_access() -> str:
+    lines = [
+        "🎓 <b>Доступ к курсам</b>",
+        "",
+        "Когда заказ будет подтверждён, администратор откроет вам доступ к купленным курсам.",
+        "Их можно найти в разделе «Профиль» → «Мои курсы».",
+    ]
+
+    return "\n".join(lines).strip()
+
+
+def format_help_order() -> str:
+    return guide_make_order()
+
+
+def format_help_payment() -> str:
+    return guide_payment()
+
+
+def format_help_courses() -> str:
+    return guide_course_access()

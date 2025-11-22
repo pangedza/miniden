@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MiniDeN — уютные корзинки и мастер-классы</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #0b0c10;
+      --card: rgba(255, 255, 255, 0.06);
+      --text: #f6f7fb;
+      --muted: #c7c9d3;
+      --accent: #ffb800;
+      --accent-2: #7bd8ff;
+      --shadow: 0 14px 50px rgba(0, 0, 0, 0.35);
+      --nav: rgba(17, 17, 19, 0.82);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Inter", system-ui, -apple-system, sans-serif;
+      background: radial-gradient(circle at 10% 20%, rgba(255, 184, 0, 0.06), transparent 35%),
+        radial-gradient(circle at 80% 10%, rgba(123, 216, 255, 0.08), transparent 30%),
+        radial-gradient(circle at 60% 80%, rgba(255, 184, 0, 0.05), transparent 32%),
+        #0b0c10;
+      color: var(--text);
+      min-height: 100vh;
+      padding: 0 18px 48px;
+    }
+
+    .top-nav {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: var(--nav);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 12px;
+      margin: 0 -18px;
+    }
+
+    .brand {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .brand span {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: normal;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .nav-links a {
+      color: var(--muted);
+      text-decoration: none;
+      font-weight: 600;
+      padding: 10px 12px;
+      border-radius: 12px;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+
+    .nav-links a:hover { color: var(--text); background: rgba(255, 255, 255, 0.06); }
+    .nav-links a.active { color: var(--text); background: linear-gradient(135deg, rgba(255, 184, 0, 0.18), rgba(123, 216, 255, 0.14)); }
+
+    .menu-toggle {
+      display: none;
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: var(--text);
+      border-radius: 12px;
+      padding: 10px 12px;
+      cursor: pointer;
+    }
+
+    main { max-width: 1100px; margin: 0 auto; padding-top: 28px; }
+
+    .hero {
+      background: var(--card);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 20px;
+      padding: 26px 22px;
+      box-shadow: var(--shadow);
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 18px;
+      align-items: center;
+    }
+
+    .hero h1 {
+      margin: 0 0 12px;
+      font-size: clamp(26px, 4vw, 34px);
+      letter-spacing: -0.02em;
+    }
+
+    .hero p { margin: 0 0 16px; color: var(--muted); line-height: 1.6; }
+
+    .hero-cta { display: flex; gap: 10px; flex-wrap: wrap; }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 16px;
+      border-radius: 12px;
+      font-weight: 700;
+      border: none;
+      cursor: pointer;
+      text-decoration: none;
+      transition: transform 0.1s ease, box-shadow 0.1s ease, background 0.2s ease;
+      color: #0b0c10;
+      background: linear-gradient(135deg, #ffb800, #ff8f3f);
+      box-shadow: 0 10px 30px rgba(255, 184, 0, 0.25);
+    }
+
+    .btn.secondary {
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: none;
+    }
+
+    .btn:hover { transform: translateY(-1px); }
+
+    .pill-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 6px;
+    }
+
+    .pill {
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--muted);
+      font-size: 13px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    h2 { margin: 28px 0 12px; letter-spacing: -0.01em; }
+
+    .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+
+    .card {
+      background: var(--card);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 16px;
+      padding: 14px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(6px);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .card .label { color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .card h3 { margin: 0; font-size: 18px; letter-spacing: -0.01em; }
+    .card p { margin: 0; color: var(--muted); line-height: 1.5; }
+
+    .category-cover {
+      border-radius: 12px;
+      height: 140px;
+      background: linear-gradient(135deg, rgba(255, 184, 0, 0.16), rgba(123, 216, 255, 0.16));
+      display: grid;
+      place-items: center;
+      color: #0b0c10;
+      font-weight: 800;
+      font-size: 18px;
+      letter-spacing: -0.01em;
+    }
+
+    .benefits { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+    .benefit { padding: 12px; border-radius: 14px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.06); }
+
+    .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+    .step { padding: 14px; border-radius: 14px; background: rgba(255, 255, 255, 0.04); border: 1px dashed rgba(255, 255, 255, 0.12); }
+    .step strong { display: block; margin-bottom: 8px; }
+
+    footer {
+      margin-top: 32px;
+      padding: 18px 14px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    footer a { color: var(--accent-2); text-decoration: none; }
+
+    @media (max-width: 780px) {
+      .nav-links { display: none; }
+      .nav-links.open { display: flex; flex-direction: column; align-items: flex-start; width: 100%; margin-top: 10px; }
+      .top-nav { flex-wrap: wrap; }
+      .menu-toggle { display: inline-flex; }
+    }
+  </style>
+</head>
+<body>
+  <header class="top-nav">
+    <div class="brand">MiniDeN<span>уютные корзинки и мастер-классы</span></div>
+    <button class="menu-toggle" aria-label="Открыть меню">☰</button>
+    <nav class="nav-links open">
+      <a href="index.html" class="active">Главная</a>
+      <a href="products.html">Товары</a>
+      <a href="masterclasses.html">Мастер-классы</a>
+      <a href="cart.html">Корзина</a>
+      <a href="profile.html">Профиль</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div>
+        <h1>MiniDeN — уютные корзинки и мастер-классы по вязанию</h1>
+        <p>Авторские наборы для дома и подарков, а также онлайн-уроки, которые помогут связать свои первые корзинки и сумки. Всё в одном тёплом каталоге MiniDeN.</p>
+        <div class="hero-cta">
+          <a class="btn" href="products.html">Перейти к товарам</a>
+          <a class="btn secondary" href="masterclasses.html">Мастер-классы</a>
+        </div>
+        <div class="pill-row">
+          <span class="pill">Handmade</span>
+          <span class="pill">Тёмная тема</span>
+          <span class="pill">Доставка и забота</span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="label">Популярный набор</div>
+        <div class="category-cover">🧺 «Домашний уют»</div>
+        <h3>Корзинка + свеча + плед</h3>
+        <p>Тёплый подарок с фактурной корзинкой, ароматной свечой и мягким пледом. Собираем вручную.</p>
+        <a class="btn" href="products.html">Смотреть в каталоге</a>
+      </div>
+    </section>
+
+    <h2>Популярные категории</h2>
+    <div class="grid">
+      <div class="card">
+        <div class="category-cover">🧺 Корзинки</div>
+        <h3>Корзинки</h3>
+        <p>Фактурные органайзеры и подарочные наборы. Подойдут для дома и уютных сюрпризов.</p>
+        <a class="btn" href="products.html">Смотреть</a>
+      </div>
+      <div class="card">
+        <div class="category-cover">👶 Люльки</div>
+        <h3>Люльки</h3>
+        <p>Мягкие коконы и люльки для малышей, созданные с заботой и безопасными материалами.</p>
+        <a class="btn" href="products.html">Смотреть</a>
+      </div>
+      <div class="card">
+        <div class="category-cover">👜 Сумки</div>
+        <h3>Сумки</h3>
+        <p>Трендовые вязаные сумки и шопперы, которые собирают комплименты и носятся каждый день.</p>
+        <a class="btn" href="products.html">Смотреть</a>
+      </div>
+      <div class="card">
+        <div class="category-cover">🎓 Мастер-классы</div>
+        <h3>Мастер-классы</h3>
+        <p>Онлайн-уроки MiniDeN: платные и бесплатные форматы с поддержкой и подробными материалами.</p>
+        <a class="btn secondary" href="masterclasses.html">К каталогу курсов</a>
+      </div>
+    </div>
+
+    <h2>Почему MiniDeN</h2>
+    <div class="benefits">
+      <div class="benefit"><strong>✨ Ручная работа</strong><p>Каждая корзинка собирается вручную: плотные стенки, аккуратные швы и приятные материалы.</p></div>
+      <div class="benefit"><strong>🎁 Готовые подарки</strong><p>Наборы укомплектованы и готовы к вручению: остаётся только выбрать стиль и добавить открытку.</p></div>
+      <div class="benefit"><strong>🧶 Учимся вместе</strong><p>Платные и бесплатные мастер-классы помогут освоить вязание и упаковку с нуля.</p></div>
+      <div class="benefit"><strong>🤝 Поддержка в Telegram</strong><p>Поможем подобрать корзинку, расскажем о доставке и ответим на вопросы прямо в чате.</p></div>
+    </div>
+
+    <h2>Как это работает</h2>
+    <div class="steps">
+      <div class="step"><strong>1) Выберите товар или курс</strong><p>Откройте раздел «Товары» или «Мастер-классы» и найдите то, что подходит именно вам.</p></div>
+      <div class="step"><strong>2) Добавьте в корзину</strong><p>Нажмите «В корзину» на карточке. В демо пока заглушка, позже привяжем API и Telegram-бота.</p></div>
+      <div class="step"><strong>3) Оформите заказ</strong><p>В финальной версии заказ будет уходить в Telegram: бот уточнит детали и поможет оплатить.</p></div>
+    </div>
+  </main>
+
+  <footer>
+    <div>Готовы помочь в Telegram: <a href="https://t.me" target="_blank" rel="noopener">бот MiniDeN</a></div>
+    <div>Новости и вдохновение: <a href="https://t.me" target="_blank" rel="noopener">Telegram-канал</a></div>
+    <div>Мы в соцсетях: <a href="#">Instagram*</a> • <a href="#">VK</a></div>
+  </footer>
+
+  <script>
+    const toggle = document.querySelector('.menu-toggle');
+    const nav = document.querySelector('.nav-links');
+
+    toggle?.addEventListener('click', () => {
+      nav?.classList.toggle('open');
+    });
+  </script>
+</body>
+</html>
