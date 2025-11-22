@@ -31,10 +31,10 @@ async def _update_cart_message(callback: CallbackQuery) -> None:
         notice = "Некоторые товары больше недоступны и были удалены из вашей корзины."
 
     if not items:
+        empty_text = "🛒 Ваша корзина пока пуста."
         if notice:
-            await callback.message.edit_text(notice)
-        else:
-            await callback.message.edit_text("🛒 Ваша корзина пока пуста.")
+            empty_text = f"{notice}\n\n{empty_text}"
+        await callback.message.edit_text(empty_text)
         return
 
     text = format_cart(items)
