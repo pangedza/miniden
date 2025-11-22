@@ -125,6 +125,20 @@ def init_db() -> None:
         """
     )
 
+    # Таблица категорий для товаров и курсов
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS categories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            type TEXT NOT NULL,       -- 'basket' или 'course'
+            slug TEXT NOT NULL,
+            name TEXT NOT NULL,
+            sort_order INTEGER DEFAULT 0,
+            is_active INTEGER NOT NULL DEFAULT 1
+        );
+        """
+    )
+
     # Таблица избранного
     cur.execute(
         """
@@ -155,16 +169,28 @@ def init_db() -> None:
         """
     )
 
-    # 🔹 Добавляем колонку image_file_id, если её ещё нет
+    # 🔹 Добавляем колонку category_id и image_file_id, если их ещё нет
     cur.execute("PRAGMA table_info(products);")
     p_columns = [row["name"] for row in cur.fetchall()]
+    if "category_id" not in p_columns:
+        cur.execute(
+            """
+            ALTER TABLE products
+            ADD COLUMN category_id INTEGER;
+            """
+        )
+
+    # Обновляем список колонок, чтобы последующие проверки были актуальны
+    cur.execute("PRAGMA table_info(products);")
+    p_columns = [row["name"] for row in cur.fetchall()]
+
     if "image_file_id" not in p_columns:
         cur.execute(
             """
             ALTER TABLE products
             ADD COLUMN image_file_id TEXT;
             """
-    )
+        )
 
     # Таблица статуса пользователя (бан/разбан)
     cur.execute(
@@ -238,6 +264,18 @@ def init_db() -> None:
     )
     cur.execute(
         """
+        CREATE INDEX IF NOT EXISTS idx_categories_type
+        ON categories(type);
+        """
+    )
+    cur.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_products_category
+        ON products(category_id);
+        """
+    )
+    cur.execute(
+        """
         CREATE UNIQUE INDEX IF NOT EXISTS idx_user_courses_unique
         ON user_courses (user_id, course_id);
         """
@@ -270,6 +308,57 @@ def init_db() -> None:
         ON promocodes(code);
         """
     )
+
+    # Стартовые категории, если таблица пуста
+    cur.execute("SELECT COUNT(*) AS cnt FROM categories;")
+    cat_count = int(cur.fetchone()["cnt"])
+    if cat_count == 0:
+        start_categories = [
+            ("basket", "baskets", "Корзинки", 1),
+            ("basket", "cradles", "Люльки", 2),
+            ("basket", "bags", "Сумки", 3),
+            ("basket", "other", "Другое", 100),
+            ("course", "free", "Бесплатные", 1),
+            ("course", "paid", "Платные", 2),
+        ]
+        cur.executemany(
+            """
+            INSERT INTO categories (type, slug, name, sort_order)
+            VALUES (?, ?, ?, ?);
+            """,
+            start_categories,
+        )
+
+    # Привязка существующих товаров к категориям, если category_id пустой
+    cur.execute("SELECT id, type, price, category_id FROM products;")
+    products_rows = cur.fetchall()
+    cur.execute("SELECT id, type, slug FROM categories;")
+    categories_map = {(row["type"], row["slug"]): row["id"] for row in cur.fetchall()}
+
+    for row in products_rows:
+        if row["category_id"]:
+            continue
+
+        slug = None
+        if row["type"] == "basket":
+            slug = "baskets"
+        elif row["type"] == "course":
+            price = int(row["price"] or 0)
+            slug = "free" if price == 0 else "paid"
+
+        if slug is None:
+            continue
+
+        cat_id = categories_map.get((row["type"], slug))
+        if cat_id:
+            cur.execute(
+                """
+                UPDATE products
+                SET category_id = ?
+                WHERE id = ? AND category_id IS NULL;
+                """,
+                (cat_id, row["id"]),
+            )
 
     conn.commit()
     conn.close()

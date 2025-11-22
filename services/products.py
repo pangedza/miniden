@@ -11,6 +11,81 @@ BASKETS_JSON = DATA_DIR / "products_baskets.json"
 COURSES_JSON = DATA_DIR / "products_courses.json"
 
 
+def _ensure_category_support() -> dict[tuple[str, str], int]:
+    """
+    Создаём таблицу категорий при необходимости и возвращаем карту {(type, slug): id}.
+
+    Используется в сервисе, чтобы гарантировать наличие категорий даже
+    если init_db() не был вызван ранее (например, при тестовом запуске).
+    """
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS categories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            type TEXT NOT NULL,
+            slug TEXT NOT NULL,
+            name TEXT NOT NULL,
+            sort_order INTEGER DEFAULT 0,
+            is_active INTEGER NOT NULL DEFAULT 1
+        );
+        """
+    )
+
+    # Добавляем колонку category_id в products, если её нет
+    cur.execute("PRAGMA table_info(products);")
+    columns = [row["name"] for row in cur.fetchall()]
+    if "category_id" not in columns:
+        cur.execute(
+            """
+            ALTER TABLE products
+            ADD COLUMN category_id INTEGER;
+            """
+        )
+
+    cur.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_categories_type
+        ON categories(type);
+        """
+    )
+    cur.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_products_category
+        ON products(category_id);
+        """
+    )
+
+    cur.execute("SELECT COUNT(*) AS cnt FROM categories;")
+    total = int(cur.fetchone()["cnt"])
+    if total == 0:
+        cur.executemany(
+            """
+            INSERT INTO categories (type, slug, name, sort_order)
+            VALUES (?, ?, ?, ?)
+            """,
+            [
+                ("basket", "baskets", "Корзинки", 1),
+                ("basket", "cradles", "Люльки", 2),
+                ("basket", "bags", "Сумки", 3),
+                ("basket", "other", "Другое", 100),
+                ("course", "free", "Бесплатные", 1),
+                ("course", "paid", "Платные", 2),
+            ],
+        )
+
+    cur.execute("SELECT id, type, slug FROM categories WHERE is_active = 1;")
+    categories_map: dict[tuple[str, str], int] = {}
+    for row in cur.fetchall():
+        categories_map[(row["type"], row["slug"])] = row["id"]
+
+    conn.commit()
+    conn.close()
+    return categories_map
+
+
 def _load_json(path: Path) -> list[dict[str, Any]]:
     """
     Загрузить JSON-файл со списком товаров.
@@ -46,6 +121,8 @@ def _init_products_table_if_needed() -> None:
     - При каждом вызове делаем быстрый SELECT COUNT(*).
       Если товаров уже > 0 — просто выходим.
     """
+    categories_map = _ensure_category_support()
+
     conn = get_connection()
     cur = conn.cursor()
 
@@ -80,9 +157,9 @@ def _init_products_table_if_needed() -> None:
         cur.execute(
             """
             INSERT OR REPLACE INTO products (
-                id, type, name, price, description, detail_url, is_active, image_file_id
+                id, type, name, price, description, detail_url, is_active, image_file_id, category_id
             )
-            VALUES (?, ?, ?, ?, ?, ?, 1, NULL)
+            VALUES (?, ?, ?, ?, ?, ?, 1, NULL, ?)
             """,
             (
                 item_id,
@@ -91,6 +168,7 @@ def _init_products_table_if_needed() -> None:
                 price,
                 description,
                 detail_url,
+                categories_map.get(("basket", "baskets")),
             ),
         )
 
@@ -112,9 +190,9 @@ def _init_products_table_if_needed() -> None:
         cur.execute(
             """
             INSERT OR REPLACE INTO products (
-                id, type, name, price, description, detail_url, is_active, image_file_id
+                id, type, name, price, description, detail_url, is_active, image_file_id, category_id
             )
-            VALUES (?, ?, ?, ?, ?, ?, 1, NULL)
+            VALUES (?, ?, ?, ?, ?, ?, 1, NULL, ?)
             """,
             (
                 item_id,
@@ -123,6 +201,7 @@ def _init_products_table_if_needed() -> None:
                 price,
                 description,
                 detail_url,
+                categories_map.get(("course", "free" if price == 0 else "paid")),
             ),
         )
 
@@ -140,7 +219,7 @@ def _fetch_products_by_type(product_type: str) -> list[dict[str, Any]]:
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT id, name, price, description, detail_url, image_file_id, is_active, type
+        SELECT id, name, price, description, detail_url, image_file_id, is_active, type, category_id
         FROM products
         WHERE type = ?
         ORDER BY id ASC
@@ -162,6 +241,7 @@ def _fetch_products_by_type(product_type: str) -> list[dict[str, Any]]:
                 "image_file_id": row["image_file_id"],
                 "is_active": int(row["is_active"] or 0),
                 "type": row["type"],
+                "category_id": row["category_id"],
             }
         )
     return result
@@ -174,7 +254,7 @@ def _fetch_product_by_id(product_type: str, item_id: int) -> dict[str, Any] | No
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT id, name, price, description, detail_url, image_file_id, is_active, type
+        SELECT id, name, price, description, detail_url, image_file_id, is_active, type, category_id
         FROM products
         WHERE type = ? AND id = ?
         LIMIT 1
@@ -196,6 +276,7 @@ def _fetch_product_by_id(product_type: str, item_id: int) -> dict[str, Any] | No
         "image_file_id": row["image_file_id"],
         "is_active": int(row["is_active"] or 0),
         "type": row["type"],
+        "category_id": row["category_id"],
     }
 
 
@@ -210,6 +291,88 @@ def get_baskets() -> list[dict[str, Any]]:
 def get_courses() -> list[dict[str, Any]]:
     """Список всех курсов (из БД). Показываем только активные."""
     return [p for p in _fetch_products_by_type("course") if p["is_active"] == 1]
+
+
+def list_categories(product_type: str) -> list[dict[str, Any]]:
+    """Активные категории для заданного типа товара."""
+
+    _ensure_category_support()
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT id, type, slug, name, sort_order
+        FROM categories
+        WHERE type = ? AND is_active = 1
+        ORDER BY sort_order, name
+        """,
+        (product_type,),
+    )
+    rows = cur.fetchall()
+    conn.close()
+
+    result: list[dict[str, Any]] = []
+    for row in rows:
+        result.append(
+            {
+                "id": row["id"],
+                "type": row["type"],
+                "slug": row["slug"],
+                "name": row["name"],
+                "sort_order": row["sort_order"],
+            }
+        )
+    return result
+
+
+def list_products_by_category(product_type: str, category_slug: str | None = None) -> list[dict[str, Any]]:
+    """
+    Возвращает активные товары по типу и категории.
+
+    TODO: использовать в API фильтры каталога.
+    """
+
+    _init_products_table_if_needed()
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    query = [
+        "SELECT p.id, p.name, p.price, p.description, p.detail_url, p.image_file_id,",
+        "p.is_active, p.type, p.category_id, c.slug",
+        "FROM products p",
+        "LEFT JOIN categories c ON c.id = p.category_id",
+        "WHERE p.type = ? AND p.is_active = 1",
+    ]
+    params: list[Any] = [product_type]
+
+    if category_slug:
+        query.append("AND c.slug = ?")
+        params.append(category_slug)
+
+    query.append("ORDER BY p.id ASC")
+
+    cur.execute("\n".join(query), tuple(params))
+    rows = cur.fetchall()
+    conn.close()
+
+    products: list[dict[str, Any]] = []
+    for row in rows:
+        products.append(
+            {
+                "id": row["id"],
+                "name": row["name"],
+                "price": row["price"],
+                "description": row["description"] or "",
+                "detail_url": row["detail_url"],
+                "image_file_id": row["image_file_id"],
+                "is_active": int(row["is_active"] or 0),
+                "type": row["type"],
+                "category_id": row["category_id"],
+                "category_slug": row["slug"],
+            }
+        )
+    return products
 
 
 def get_free_courses() -> list[dict[str, Any]]:
@@ -293,6 +456,7 @@ def create_product(
     description: str = "",
     detail_url: str | None = None,
     image_file_id: str | None = None,
+    category_id: int | None = None,
 ) -> int:
     """
     Добавить новый товар в БД (корзинка или курс).
@@ -306,11 +470,11 @@ def create_product(
     cur.execute(
         """
         INSERT INTO products (
-            type, name, price, description, detail_url, image_file_id, is_active
+            type, name, price, description, detail_url, image_file_id, is_active, category_id
         )
-        VALUES (?, ?, ?, ?, ?, ?, 1)
+        VALUES (?, ?, ?, ?, ?, ?, 1, ?)
         """,
-        (product_type, name, price, description, detail_url, image_file_id),
+        (product_type, name, price, description, detail_url, image_file_id, category_id),
     )
     product_id = cur.lastrowid
     conn.commit()
