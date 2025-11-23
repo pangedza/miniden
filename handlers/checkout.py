@@ -273,6 +273,14 @@ async def process_comment(message: types.Message, state: FSMContext) -> None:
     )
 
     # Сохраняем заказ в БД
+    telegram_user = message.from_user
+    user_payload = {
+        "id": user_id,
+        "username": getattr(telegram_user, "username", None),
+        "first_name": getattr(telegram_user, "first_name", None),
+        "last_name": getattr(telegram_user, "last_name", None),
+    }
+
     order_id = add_order(
         user_id=user_id,
         user_name=user_name,
@@ -284,6 +292,7 @@ async def process_comment(message: types.Message, state: FSMContext) -> None:
         order_text=base_order_text,
         promocode_code=promo_code,
         discount_amount=discount_amount,
+        user_data=user_payload,
     )
 
     # Добавляем номер заказа

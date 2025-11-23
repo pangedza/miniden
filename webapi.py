@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from config import get_settings
+from database import init_db
 from services import cart as cart_service
 from services import orders as orders_service
 from services import products as products_service
@@ -30,6 +31,11 @@ ALLOWED_TYPES = {"basket", "course"}
 
 SETTINGS = get_settings()
 BOT_TOKEN = SETTINGS.bot_token
+
+
+@app.on_event("startup")
+def _startup() -> None:
+    init_db()
 
 
 def _validate_type(product_type: str) -> str:
@@ -398,9 +404,9 @@ def admin_toggle_product(product_id: int, payload: AdminTogglePayload):
 
 
 @app.get("/api/admin/orders")
-def admin_orders(user_id: int, status: str | None = None):
+def admin_orders(user_id: int, status: str | None = None, limit: int = 100):
     _ensure_admin(user_id)
-    orders = orders_service.list_orders(status=status)
+    orders = orders_service.list_orders(status=status, limit=limit)
     return {"items": orders}
 
 

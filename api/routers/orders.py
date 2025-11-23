@@ -98,6 +98,11 @@ def api_checkout(payload: CheckoutPayload):
         contact=payload.contact,
         comment=payload.comment or "",
         order_text=order_text,
+        user_data={
+            "id": payload.user_id,
+            "username": payload.user_name,
+            "first_name": payload.customer_name,
+        },
     )
 
     cart_service.clear_cart(payload.user_id)
