@@ -6,251 +6,209 @@ from typing import Any
 from sqlalchemy import select
 
 from database import get_session, init_db
-from models import Promocode
+from models import PromoCode
 
 
-def normalize_code(code: str) -> str:
-    """Привести код к единообразному виду: обрезать и сделать верхний регистр."""
-
-    normalized = " ".join((code or "").strip().split())
-    return normalized.upper()
+def _normalize_code(code: str) -> str:
+    return (code or "").strip().upper()
 
 
-def _serialize(promo: Promocode | None) -> dict[str, Any]:
-    if not promo:
-        return {}
+def _serialize(promo: PromoCode) -> dict[str, Any]:
     return {
         "id": promo.id,
         "code": promo.code,
         "discount_type": promo.discount_type,
-        "discount_value": int(promo.discount_value or 0),
-        "min_order_total": int(promo.min_order_total or 0),
-        "max_uses": int(promo.max_uses or 0),
-        "used_count": int(promo.used_count or 0),
-        "is_active": int(promo.is_active or 0),
-        "valid_from": promo.valid_from,
-        "valid_to": promo.valid_to,
-        "description": promo.description,
+        "value": promo.value,
+        "min_order_total": promo.min_order_total,
+        "max_uses": promo.max_uses,
+        "used_count": promo.used_count,
+        "active": bool(promo.active),
+        "expires_at": promo.expires_at.isoformat() if promo.expires_at else None,
+        "created_at": promo.created_at.isoformat() if promo.created_at else None,
     }
 
 
-def create_promocode(
-    code: str,
-    discount_type: str,
-    discount_value: int,
-    min_order_total: int = 0,
-    max_uses: int = 0,
-    valid_from: str | None = None,
-    valid_to: str | None = None,
-    description: str | None = None,
-) -> int:
-    """Создать промокод и вернуть его id. Возвращает -1 при дублировании кода."""
+def _apply_updates(promo: PromoCode, data: dict[str, Any]) -> PromoCode:
+    if "code" in data:
+        promo.code = _normalize_code(str(data["code"]))
+    if "discount_type" in data and data["discount_type"]:
+        promo.discount_type = str(data["discount_type"]).lower()
+    if "value" in data and data["value"] is not None:
+        promo.value = int(data["value"])
+    if "min_order_total" in data:
+        promo.min_order_total = (
+            int(data["min_order_total"]) if data["min_order_total"] is not None else None
+        )
+    if "max_uses" in data:
+        promo.max_uses = int(data["max_uses"]) if data["max_uses"] is not None else None
+    if "active" in data and data["active"] is not None:
+        promo.active = bool(data["active"])
+    if "expires_at" in data:
+        promo.expires_at = data["expires_at"]
+    return promo
 
-    discount_type = (discount_type or "").strip().lower()
+
+def _validate_payload(data: dict[str, Any]) -> dict[str, Any]:
+    discount_type = str(data.get("discount_type", "")).lower()
     if discount_type not in {"percent", "fixed"}:
-        raise ValueError("discount_type должен быть 'percent' или 'fixed'")
+        raise ValueError("discount_type must be 'percent' or 'fixed'")
 
-    if discount_value is None or int(discount_value) <= 0:
-        raise ValueError("discount_value должен быть больше 0")
+    try:
+        value = int(data.get("value"))
+    except (TypeError, ValueError):
+        raise ValueError("value must be a positive integer")
+    if value <= 0:
+        raise ValueError("value must be a positive integer")
 
-    code_norm = normalize_code(code)
+    payload: dict[str, Any] = {
+        "code": _normalize_code(data.get("code", "")),
+        "discount_type": discount_type,
+        "value": value,
+        "min_order_total": (
+            int(data.get("min_order_total")) if data.get("min_order_total") is not None else None
+        ),
+        "max_uses": int(data.get("max_uses")) if data.get("max_uses") is not None else None,
+        "active": bool(data.get("active", True)),
+        "expires_at": data.get("expires_at"),
+    }
 
+    if not payload["code"]:
+        raise ValueError("code is required")
+
+    return payload
+
+
+def create_promocode(data: dict[str, Any]) -> dict:
+    payload = _validate_payload(data)
     init_db()
     with get_session() as session:
-        existing = session.scalar(select(Promocode).where(Promocode.code == code_norm))
+        existing = session.scalar(select(PromoCode).where(PromoCode.code == payload["code"]))
         if existing:
-            return -1
+            raise ValueError("Duplicate promocode")
 
-        promo = Promocode(
-            code=code_norm,
-            discount_type=discount_type,
-            discount_value=int(discount_value),
-            min_order_total=int(min_order_total or 0),
-            max_uses=int(max_uses or 0),
-            valid_from=valid_from,
-            valid_to=valid_to,
-            description=description,
-        )
+        promo = PromoCode(**payload)
         session.add(promo)
         session.flush()
-        return int(promo.id)
+        session.refresh(promo)
+        return _serialize(promo)
 
 
-def update_promocode(
-    promo_id: int,
-    *,
-    discount_type: str | None = None,
-    discount_value: int | None = None,
-    min_order_total: int | None = None,
-    max_uses: int | None = None,
-    valid_from: str | None = None,
-    valid_to: str | None = None,
-    description: str | None = None,
-    is_active: int | None = None,
-) -> bool:
+def update_promocode(promo_id: int, data: dict[str, Any]) -> dict | None:
     init_db()
     with get_session() as session:
-        promo = session.get(Promocode, promo_id)
+        promo = session.get(PromoCode, promo_id)
         if not promo:
-            return False
+            return None
 
-        if discount_type:
-            promo.discount_type = discount_type
-        if discount_value is not None:
-            promo.discount_value = int(discount_value)
-        if min_order_total is not None:
-            promo.min_order_total = int(min_order_total)
-        if max_uses is not None:
-            promo.max_uses = int(max_uses)
-        if valid_from is not None:
-            promo.valid_from = valid_from
-        if valid_to is not None:
-            promo.valid_to = valid_to
-        if description is not None:
-            promo.description = description
-        if is_active is not None:
-            promo.is_active = 1 if is_active else 0
-        return True
+        updates = data.copy()
+        if any(key in updates for key in {"discount_type", "value", "code", "min_order_total", "max_uses", "active"}):
+            validated = _validate_payload({**_serialize(promo), **updates})
+            updates.update(validated)
+        _apply_updates(promo, updates)
+        session.flush()
+        session.refresh(promo)
+        return _serialize(promo)
 
 
-def get_promocode_by_code(code: str) -> dict | None:
-    code_norm = normalize_code(code)
-    if not code_norm:
+def get_promocode(code: str) -> dict | None:
+    normalized = _normalize_code(code)
+    if not normalized:
         return None
 
     init_db()
     with get_session() as session:
-        promo = session.scalar(select(Promocode).where(Promocode.code == code_norm))
+        promo = session.scalar(select(PromoCode).where(PromoCode.code == normalized))
         return _serialize(promo) if promo else None
 
 
-def get_promocode_by_id(promo_id: int) -> dict | None:
+def list_promocodes() -> list[dict]:
     init_db()
     with get_session() as session:
-        promo = session.get(Promocode, promo_id)
-        return _serialize(promo) if promo else None
+        promos = session.scalars(select(PromoCode).order_by(PromoCode.id.desc())).all()
+        return [_serialize(promo) for promo in promos]
 
 
-def list_promocodes(limit: int = 50) -> list[dict]:
-    if limit <= 0:
-        return []
-
-    init_db()
-    with get_session() as session:
-        rows = session.scalars(select(Promocode).order_by(Promocode.id.desc()).limit(limit)).all()
-        return [_serialize(row) for row in rows]
-
-
-def set_promocode_active(code: str, is_active: bool) -> bool:
-    code_norm = normalize_code(code)
-    init_db()
-    with get_session() as session:
-        promo = session.scalar(select(Promocode).where(Promocode.code == code_norm))
-        if not promo:
-            return False
-        promo.is_active = 1 if is_active else 0
-        return True
-
-
-def increment_promocode_usage(code: str) -> None:
-    code_norm = normalize_code(code)
-    init_db()
-    with get_session() as session:
-        promo = session.scalar(select(Promocode).where(Promocode.code == code_norm))
-        if promo:
-            promo.used_count = int(promo.used_count or 0) + 1
-
-
-def validate_promocode_for_order(
-    promo: dict, order_total: int, now: datetime | None = None
-) -> tuple[bool, str | None]:
-    now = now or datetime.now()
-
-    if not promo:
-        return False, "Промокод не найден"
-
-    if int(promo.get("is_active", 0)) != 1:
-        return False, "Промокод неактивен"
-
-    valid_from = promo.get("valid_from")
-    if valid_from:
-        try:
-            starts_at = datetime.fromisoformat(valid_from)
-            if now < starts_at:
-                return False, "Промокод ещё не активен"
-        except ValueError:
-            pass
-
-    valid_to = promo.get("valid_to")
-    if valid_to:
-        try:
-            ends_at = datetime.fromisoformat(valid_to)
-            if now > ends_at:
-                return False, "Промокод истёк"
-        except ValueError:
-            pass
-
-    max_uses = int(promo.get("max_uses", 0) or 0)
-    used_count = int(promo.get("used_count", 0) or 0)
-    if max_uses > 0 and used_count >= max_uses:
-        return False, "Лимит использований исчерпан"
-
-    min_order_total = int(promo.get("min_order_total", 0) or 0)
-    if min_order_total > 0 and order_total < min_order_total:
-        return False, f"Минимальная сумма заказа {min_order_total} ₽"
-
-    return True, None
-
-
-def calculate_discount_amount(promo: dict, order_total: int) -> int:
-    if not promo:
-        return 0
-
+def _calculate_discount(promo: dict[str, Any], cart_total: int) -> int:
     discount_type = promo.get("discount_type")
-    discount_value = int(promo.get("discount_value", 0) or 0)
-    amount = 0
+    value = int(promo.get("value", 0) or 0)
 
+    amount = 0
     if discount_type == "percent":
-        amount = order_total * discount_value // 100
+        amount = cart_total * value // 100
     elif discount_type == "fixed":
-        amount = discount_value
+        amount = value
 
     if amount < 0:
-        amount = 0
-
-    if amount > order_total:
-        amount = order_total
-
+        return 0
+    if amount > cart_total:
+        return cart_total
     return amount
 
 
-def get_promocodes_usage_summary(limit: int = 50) -> list[dict]:
-    if limit <= 0:
-        return []
+def validate_promocode(code: str, user_id: int, cart_total: int) -> dict | None:
+    promo = get_promocode(code)
+    if not promo:
+        return None
+
+    if not promo.get("active"):
+        return None
+
+    expires_at = promo.get("expires_at")
+    if expires_at:
+        try:
+            expires_dt = datetime.fromisoformat(expires_at)
+            if datetime.utcnow() > expires_dt:
+                return None
+        except ValueError:
+            return None
+
+    max_uses = promo.get("max_uses")
+    if max_uses is not None and max_uses > 0:
+        if int(promo.get("used_count") or 0) >= max_uses:
+            return None
+
+    min_total = promo.get("min_order_total") or 0
+    if min_total and cart_total < min_total:
+        return None
+
+    discount_amount = _calculate_discount(promo, cart_total)
+    final_total = max(cart_total - discount_amount, 0)
+
+    return {
+        "code": promo.get("code"),
+        "discount_type": promo.get("discount_type"),
+        "value": promo.get("value"),
+        "discount_amount": discount_amount,
+        "final_total": final_total,
+    }
+
+
+def increment_usage(code: str) -> None:
+    normalized = _normalize_code(code)
+    if not normalized:
+        return
+    init_db()
+    with get_session() as session:
+        promo = session.scalar(select(PromoCode).where(PromoCode.code == normalized))
+        if promo:
+            promo.used_count = (promo.used_count or 0) + 1
+
+
+def set_promocode_active(code: str, is_active: bool) -> bool:
+    normalized = _normalize_code(code)
+    if not normalized:
+        return False
 
     init_db()
     with get_session() as session:
-        result = session.execute(
-            select(
-                Promocode.code,
-                Promocode.discount_type,
-                Promocode.discount_value,
-                Promocode.used_count,
-                Promocode.max_uses,
-                Promocode.is_active,
-            ).order_by(Promocode.id.desc()).limit(limit)
-        )
+        promo = session.scalar(select(PromoCode).where(PromoCode.code == normalized))
+        if not promo:
+            return False
+        promo.active = bool(is_active)
+        return True
 
-        summary: list[dict[str, Any]] = []
-        for row in result.all():
-            summary.append(
-                {
-                    "code": row[0],
-                    "discount_type": row[1],
-                    "discount_value": int(row[2] or 0),
-                    "used_count": int(row[3] or 0),
-                    "max_uses": int(row[4] or 0),
-                    "is_active": int(row[5] or 0),
-                }
-            )
-        return summary
+
+def get_promocodes_usage_summary(limit: int = 50) -> list[dict[str, Any]]:
+    promos = list_promocodes()
+    return promos[:limit]
+

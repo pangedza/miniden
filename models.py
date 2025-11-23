@@ -1,7 +1,17 @@
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, BigInteger, Column, DateTime, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import (
+    Boolean,
+    BigInteger,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    Text,
+)
 from sqlalchemy.orm import relationship
 
 from database import Base
@@ -103,20 +113,19 @@ class OrderItem(Base):
     order = relationship("Order", back_populates="items")
 
 
-class Promocode(Base):
+class PromoCode(Base):
     __tablename__ = "promocodes"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    code = Column(String, nullable=False, unique=True)
+    code = Column(String, nullable=False, unique=True, index=True)
     discount_type = Column(String, nullable=False)
-    discount_value = Column(Integer, nullable=False)
-    min_order_total = Column(Integer, default=0, nullable=False)
-    max_uses = Column(Integer, default=0, nullable=False)
+    value = Column(Integer, nullable=False)
+    min_order_total = Column(Integer, nullable=True)
+    max_uses = Column(Integer, nullable=True)
     used_count = Column(Integer, default=0, nullable=False)
-    is_active = Column(Integer, default=1, nullable=False)
-    valid_from = Column(String, nullable=True)
-    valid_to = Column(String, nullable=True)
-    description = Column(Text, nullable=True)
+    active = Column(Boolean, default=True, nullable=False)
+    expires_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 
 __all__ = [
@@ -124,7 +133,7 @@ __all__ = [
     "CartItem",
     "Order",
     "OrderItem",
-    "Promocode",
+    "PromoCode",
     "ProductBasket",
     "ProductCourse",
     "User",

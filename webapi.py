@@ -131,25 +131,27 @@ class AdminPromocodeCreatePayload(BaseModel):
     user_id: int
     code: str
     discount_type: str
-    discount_value: int
-    min_order_total: int | None = 0
-    max_uses: int | None = 0
-    valid_from: str | None = None
-    valid_to: str | None = None
-    description: str | None = None
-    is_active: bool | None = None
+    value: int
+    min_order_total: int | None = None
+    max_uses: int | None = None
+    expires_at: str | None = None
+    active: bool | None = None
 
 
 class AdminPromocodeUpdatePayload(BaseModel):
     user_id: int
     discount_type: str | None = None
-    discount_value: int | None = None
+    value: int | None = None
     min_order_total: int | None = None
     max_uses: int | None = None
-    valid_from: str | None = None
-    valid_to: str | None = None
-    description: str | None = None
-    is_active: bool | None = None
+    expires_at: str | None = None
+    active: bool | None = None
+
+
+class PromocodeValidatePayload(BaseModel):
+    telegram_id: int
+    code: str
+    total: int
 
 
 @app.post("/api/auth/telegram")
@@ -341,6 +343,23 @@ def api_me_contact(payload: ContactPayload):
     return {"ok": True, "phone": user.phone}
 
 
+@app.post("/api/promocode/validate")
+def api_promocode_validate(payload: PromocodeValidatePayload):
+    result = promocodes_service.validate_promocode(
+        payload.code, payload.telegram_id, payload.total
+    )
+    if not result:
+        raise HTTPException(status_code=400, detail="Invalid promocode")
+
+    return {
+        "code": result["code"],
+        "discount_type": result["discount_type"],
+        "value": result["value"],
+        "discount_amount": result["discount_amount"],
+        "final_total": result["final_total"],
+    }
+
+
 @app.get("/")
 def healthcheck():
     return {"ok": True}
@@ -429,38 +448,22 @@ def admin_promocodes(user_id: int):
 @app.post("/api/admin/promocodes")
 def admin_create_promocode(payload: AdminPromocodeCreatePayload):
     _ensure_admin(payload.user_id)
-    new_id = promocodes_service.create_promocode(
-        payload.code,
-        payload.discount_type,
-        payload.discount_value,
-        payload.min_order_total or 0,
-        payload.max_uses or 0,
-        payload.valid_from,
-        payload.valid_to,
-        payload.description,
-    )
-    if payload.is_active is not None and new_id > 0:
-        promocodes_service.update_promocode(new_id, is_active=1 if payload.is_active else 0)
-    if new_id < 0:
-        raise HTTPException(status_code=400, detail="Duplicate code")
-    return {"id": new_id}
+    try:
+        promo_data = payload.dict()
+        promo_data.pop("user_id", None)
+        promo = promocodes_service.create_promocode(promo_data)
+    except ValueError as exc:  # noqa: WPS440
+        raise HTTPException(status_code=400, detail=str(exc))
+    return promo
 
 
 @app.put("/api/admin/promocodes/{promocode_id}")
 def admin_update_promocode(promocode_id: int, payload: AdminPromocodeUpdatePayload):
     _ensure_admin(payload.user_id)
-    updated = promocodes_service.update_promocode(
-        promocode_id,
-        discount_type=payload.discount_type,
-        discount_value=payload.discount_value,
-        min_order_total=payload.min_order_total,
-        max_uses=payload.max_uses,
-        valid_from=payload.valid_from,
-        valid_to=payload.valid_to,
-        description=payload.description,
-        is_active=1 if payload.is_active is True else 0 if payload.is_active is False else None,
-    )
+    update_data = payload.dict()
+    update_data.pop("user_id", None)
+    updated = promocodes_service.update_promocode(promocode_id, update_data)
     if not updated:
         raise HTTPException(status_code=404, detail="Promocode not found")
-    return {"ok": True}
+    return updated
 
