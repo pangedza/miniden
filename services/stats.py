@@ -6,7 +6,7 @@ from typing import List
 from sqlalchemy import func, select
 
 from database import get_session, init_db
-from models import Order, OrderItem
+from models import Favorite, Order, OrderItem, User, UserStats
 from services import products as products_service
 
 
@@ -138,3 +138,102 @@ def get_top_courses(limit: int = 5) -> list[dict]:
             .limit(limit)
         ).all()
     return [_serialize_top_item(row, "course") for row in rows]
+
+
+def _get_or_create_user_stats(session, user_id: int) -> UserStats:
+    stats = session.scalar(select(UserStats).where(UserStats.user_id == user_id))
+    if stats:
+        return stats
+    stats = UserStats(user_id=user_id, orders_count=0, total_spent=0)
+    session.add(stats)
+    session.flush()
+    return stats
+
+
+def recalc_user_stats(user_id: int) -> dict:
+    with get_session() as session:
+        orders_count = session.scalar(
+            select(func.count(Order.id)).where(Order.user_id == user_id)
+        )
+        total_spent = session.scalar(
+            select(func.coalesce(func.sum(Order.total_amount), 0)).where(
+                Order.user_id == user_id
+            )
+        )
+        last_order = session.scalar(
+            select(Order.created_at)
+            .where(Order.user_id == user_id)
+            .order_by(Order.created_at.desc(), Order.id.desc())
+            .limit(1)
+        )
+
+        stats = _get_or_create_user_stats(session, user_id)
+        stats.orders_count = int(orders_count or 0)
+        stats.total_spent = int(total_spent or 0)
+        stats.last_order_at = last_order
+        session.flush()
+        session.refresh(stats)
+
+        return {
+            "orders_count": stats.orders_count,
+            "total_spent": stats.total_spent,
+            "last_order_at": stats.last_order_at.isoformat() if stats.last_order_at else None,
+        }
+
+
+def update_user_stats(user_id: int, order_total: int, last_order_at: datetime | None = None) -> None:
+    with get_session() as session:
+        stats = _get_or_create_user_stats(session, user_id)
+        stats.orders_count = int(stats.orders_count or 0) + 1
+        stats.total_spent = int(stats.total_spent or 0) + int(order_total or 0)
+        stats.last_order_at = last_order_at or datetime.utcnow()
+
+
+def get_user_stats(user_id: int) -> dict:
+    with get_session() as session:
+        stats = _get_or_create_user_stats(session, user_id)
+        return {
+            "orders_count": int(stats.orders_count or 0),
+            "total_spent": int(stats.total_spent or 0),
+            "last_order_at": stats.last_order_at.isoformat() if stats.last_order_at else None,
+        }
+
+
+def get_admin_dashboard_stats(limit_new_users: int = 5) -> dict:
+    with get_session() as session:
+        total_users = session.scalar(select(func.count(User.id))) or 0
+        total_orders = session.scalar(select(func.count(Order.id))) or 0
+        total_amount = session.scalar(
+            select(func.coalesce(func.sum(Order.total_amount), 0))
+        ) or 0
+        favorites_count = session.scalar(select(func.count(Favorite.id))) or 0
+
+        new_users = session.scalars(
+            select(User)
+            .order_by(User.created_at.desc())
+            .limit(limit_new_users)
+        ).all()
+
+    top_products = get_top_products(limit=5)
+    top_courses = get_top_courses(limit=5)
+
+    return {
+        "totals": {
+            "users": int(total_users),
+            "orders": int(total_orders),
+            "amount": int(total_amount),
+            "favorites": int(favorites_count),
+        },
+        "top_products": top_products,
+        "top_courses": top_courses,
+        "new_users": [
+            {
+                "telegram_id": user.telegram_id,
+                "username": user.username,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "created_at": user.created_at.isoformat() if user.created_at else None,
+            }
+            for user in new_users
+        ],
+    }

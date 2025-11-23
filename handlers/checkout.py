@@ -10,7 +10,7 @@ from services.cart import (
     clear_cart,
 )
 from services.promocodes import increment_usage, validate_promocode
-from services.user_admin import get_user_ban_status
+from services.bans import is_banned
 from services.orders import add_order
 from services.subscription import ensure_subscribed
 from utils.texts import format_cart, format_order_for_admin, format_price
@@ -206,7 +206,7 @@ async def process_comment(message: types.Message, state: FSMContext) -> None:
     discount_amount = int(data.get("discount_amount", 0) or 0)
     final_total = int(data.get("final_total", order_total) or order_total)
 
-    ban_status = get_user_ban_status(user_id)
+    ban_status = is_banned(user_id)
     if ban_status.get("is_banned"):
         await message.answer(
             "К сожалению, ваш аккаунт заблокирован. По вопросам обращайтесь к администратору."

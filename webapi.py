@@ -9,11 +9,14 @@ from pydantic import BaseModel
 
 from config import get_settings
 from database import init_db
+from services import admin_notes as admin_notes_service
+from services import bans as bans_service
 from services import cart as cart_service
 from services import favorites as favorites_service
 from services import orders as orders_service
 from services import products as products_service
 from services import promocodes as promocodes_service
+from services import stats as stats_service
 from services import users as users_service
 
 
@@ -327,6 +330,11 @@ def api_me(telegram_id: int):
 
     user_orders = orders_service.get_orders_by_user(telegram_id)
     user_favorites = favorites_service.list_favorites(telegram_id)
+    user_stats = stats_service.get_user_stats(telegram_id)
+    ban_status = bans_service.is_banned(telegram_id)
+    notes = []
+    if user.is_admin:
+        notes = admin_notes_service.list_notes(telegram_id)
 
     return {
         "telegram_id": user.telegram_id,
@@ -338,6 +346,9 @@ def api_me(telegram_id: int):
         "created_at": user.created_at.isoformat() if user.created_at else None,
         "orders": user_orders,
         "favorites": user_favorites,
+        "stats": user_stats,
+        "ban": ban_status,
+        "notes": notes,
     }
 
 
@@ -463,6 +474,46 @@ def admin_orders(user_id: int, status: str | None = None, limit: int = 100):
     _ensure_admin(user_id)
     orders = orders_service.list_orders(status=status, limit=limit)
     return {"items": orders}
+
+
+@app.get("/api/admin/stats")
+def admin_stats(user_id: int):
+    _ensure_admin(user_id)
+    return stats_service.get_admin_dashboard_stats()
+
+
+@app.get("/api/admin/notes")
+def admin_notes(user_id: int, target_id: int):
+    _ensure_admin(user_id)
+    return {"items": admin_notes_service.list_notes(target_id)}
+
+
+class AdminNotePayload(BaseModel):
+    user_id: int
+    target_id: int
+    note: str
+
+
+@app.post("/api/admin/notes")
+def admin_add_note(payload: AdminNotePayload):
+    _ensure_admin(payload.user_id)
+    record = admin_notes_service.add_note(payload.target_id, payload.note, admin_id=payload.user_id)
+    return {
+        "id": record.id,
+        "user_id": record.user_id,
+        "admin_id": record.admin_id,
+        "note": record.note,
+        "created_at": record.created_at.isoformat() if record.created_at else None,
+    }
+
+
+@app.delete("/api/admin/notes/{note_id}")
+def admin_delete_note(note_id: int, user_id: int):
+    _ensure_admin(user_id)
+    deleted = admin_notes_service.delete_note(note_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Note not found")
+    return {"ok": True}
 
 
 @app.get("/api/admin/orders/{order_id}")

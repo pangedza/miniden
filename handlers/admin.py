@@ -6,11 +6,12 @@ from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 
 from config import ADMIN_IDS, ADMIN_IDS_SET
-from services import products as products_service
-from services import stats as stats_service
+from services import admin_notes as admin_notes_service
+from services import bans as bans_service
 from services import orders as orders_service
+from services import products as products_service
 from services import promocodes as promocodes_service
-from services import user_admin as user_admin_service
+from services import stats as stats_service
 from services import user_stats as user_stats_service
 from keyboards.admin_inline import (
     products_list_kb,
@@ -1507,9 +1508,7 @@ async def admin_ban_user(message: types.Message) -> None:
 
     reason = parts[2].strip() if len(parts) == 3 else None
 
-    user_admin_service.set_user_ban_status(
-        target_user_id, True, admin_id=message.from_user.id, reason=reason
-    )
+    bans_service.ban_user(target_user_id, reason=reason)
 
     response = f"Пользователь {target_user_id} забанен."
     if reason:
@@ -1534,9 +1533,7 @@ async def admin_unban_user(message: types.Message) -> None:
         await message.answer("Использование: <code>/unban &lt;user_id&gt;</code>")
         return
 
-    user_admin_service.set_user_ban_status(
-        target_user_id, False, admin_id=message.from_user.id, reason=None
-    )
+    bans_service.unban_user(target_user_id)
 
     await message.answer(f"Пользователь {target_user_id} разбанен.")
 
@@ -1566,7 +1563,7 @@ async def admin_add_note(message: types.Message) -> None:
         await message.answer("Текст заметки не может быть пустым.")
         return
 
-    user_admin_service.add_user_note(
+    admin_notes_service.add_note(
         user_id=target_user_id, admin_id=message.from_user.id, note=note_text
     )
 
@@ -1589,7 +1586,7 @@ async def admin_show_notes(message: types.Message) -> None:
         await message.answer("Использование: <code>/notes &lt;user_id&gt;</code>")
         return
 
-    notes = user_admin_service.get_user_notes(target_user_id)
+    notes = admin_notes_service.list_notes(target_user_id)
     if not notes:
         await message.answer("Заметок для этого пользователя пока нет.")
         return
@@ -1628,8 +1625,10 @@ async def admin_client_profile(message: types.Message) -> None:
 
     user_stats = user_stats_service.get_user_order_stats(target_user_id)
     courses_summary = user_stats_service.get_user_courses_summary(target_user_id)
-    ban_status = user_admin_service.get_user_ban_status(target_user_id)
-    notes = user_admin_service.get_user_notes(target_user_id, limit=5)
+    ban_status = bans_service.is_banned(target_user_id)
+    if ban_status.get("banned_at") and not ban_status.get("updated_at"):
+        ban_status["updated_at"] = ban_status.get("banned_at")
+    notes = admin_notes_service.list_notes(target_user_id, limit=5)
 
     has_data = any(
         [
@@ -1892,8 +1891,10 @@ async def admin_order_client_profile(callback: types.CallbackQuery) -> None:
 
     user_stats = user_stats_service.get_user_order_stats(target_user_id)
     courses_summary = user_stats_service.get_user_courses_summary(target_user_id)
-    ban_status = user_admin_service.get_user_ban_status(target_user_id)
-    notes = user_admin_service.get_user_notes(target_user_id, limit=5)
+    ban_status = bans_service.is_banned(target_user_id)
+    if ban_status.get("banned_at") and not ban_status.get("updated_at"):
+        ban_status["updated_at"] = ban_status.get("banned_at")
+    notes = admin_notes_service.list_notes(target_user_id, limit=5)
 
     has_data = any(
         [

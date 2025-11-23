@@ -70,6 +70,45 @@ class User(Base):
     orders = relationship("Order", back_populates="user")
 
 
+class AdminNote(Base):
+    __tablename__ = "admin_notes"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(
+        BigInteger, ForeignKey("users.telegram_id", ondelete="CASCADE"), nullable=False
+    )
+    admin_id = Column(BigInteger, nullable=True)
+    note = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class UserBan(Base):
+    __tablename__ = "user_bans"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(
+        BigInteger, ForeignKey("users.telegram_id", ondelete="CASCADE"), nullable=False
+    )
+    reason = Column(Text, nullable=True)
+    banned_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    active = Column(Boolean, default=True, nullable=False)
+
+
+class UserStats(Base):
+    __tablename__ = "user_stats"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(
+        BigInteger,
+        ForeignKey("users.telegram_id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    )
+    orders_count = Column(Integer, default=0, nullable=False)
+    total_spent = Column(Integer, default=0, nullable=False)
+    last_order_at = Column(DateTime, nullable=True)
+
+
 class Favorite(Base):
     __tablename__ = "favorites"
 
@@ -144,6 +183,7 @@ class PromoCode(Base):
 
 __all__ = [
     "Base",
+    "AdminNote",
     "CartItem",
     "Favorite",
     "Order",
@@ -151,5 +191,7 @@ __all__ = [
     "PromoCode",
     "ProductBasket",
     "ProductCourse",
+    "UserBan",
+    "UserStats",
     "User",
 ]
