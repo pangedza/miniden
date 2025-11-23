@@ -5,14 +5,22 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from config import ADMIN_IDS, get_settings
 from keyboards.main_menu import PROFILE_BUTTON_TEXT
 from services import orders as orders_service
+from aiogram import Router, types, F
+from aiogram.filters import Command
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+from config import ADMIN_IDS, PROFILE_BUTTON_TEXT, get_settings
+from services import bans as bans_service
+from services import orders as orders_service
+from services import stats as stats_service
 from services import users as users_service
 from services.favorites import list_favorites
+from services.subscription import ensure_subscribed
 from utils.texts import (
     format_favorites_list,
     format_orders_list_text,
     format_user_courses_list,
 )
-from services.subscription import ensure_subscribed
 
 router = Router()
 
@@ -45,7 +53,7 @@ def _build_profile_keyboard(active_cnt: int, finished_cnt: int, courses_cnt: int
     )
 
 
-def _format_profile_text(user, orders: list[dict], courses_cnt: int) -> str:
+def _format_profile_text(user, orders: list[dict], courses_cnt: int, stats: dict, ban: dict) -> str:
     full_name_parts = [user.first_name, user.last_name]
     full_name = " ".join(part for part in full_name_parts if part).strip() or "—"
     username = f"@{user.username}" if user.username else "—"
@@ -62,11 +70,25 @@ def _format_profile_text(user, orders: list[dict], courses_cnt: int) -> str:
         f"Имя: <b>{full_name}</b>",
         f"Ник: <b>{username}</b>",
         "",
-        f"Всего заказов: <b>{total_orders}</b>",
-        f"Активные: <b>{active_cnt}</b>",
-        f"Завершённые: <b>{finished_cnt}</b>",
-        f"Курсов с доступом: <b>{courses_cnt}</b>",
     ]
+
+    if ban.get("is_banned"):
+        lines.append("🚫 <b>Ваш аккаунт заблокирован</b>")
+        if ban.get("ban_reason"):
+            lines.append(f"Причина: {ban.get('ban_reason')}")
+        if ban.get("banned_at"):
+            lines.append(f"Дата бана: {ban.get('banned_at')}")
+        lines.append("")
+
+    lines.extend(
+        [
+            f"Всего заказов: <b>{total_orders}</b>",
+            f"Активные: <b>{active_cnt}</b>",
+            f"Завершённые: <b>{finished_cnt}</b>",
+            f"Курсов с доступом: <b>{courses_cnt}</b>",
+            f"Потрачено: <b>{int(stats.get('total_spent', 0))} ₽</b>",
+        ]
+    )
 
     return "\n".join(lines)
 
@@ -82,6 +104,14 @@ async def show_profile(message: types.Message) -> None:
 
     orders = orders_service.get_orders_by_user(tg_user.id, limit=50)
     courses = orders_service.get_user_courses_with_access(tg_user.id)
+    stats = stats_service.get_user_stats(tg_user.id)
+    ban_status = bans_service.is_banned(tg_user.id)
+
+    if ban_status.get("is_banned"):
+        await message.answer(
+            "Ваш аккаунт заблокирован. Для уточнения обратитесь к администратору."
+        )
+        return
 
     active_cnt = len([o for o in orders if o.get("status") in ACTIVE_STATUSES])
     finished_cnt = len([o for o in orders if o.get("status") in FINISHED_STATUSES])
@@ -100,7 +130,7 @@ async def show_profile(message: types.Message) -> None:
         }
     )
 
-    text = _format_profile_text(user, orders, courses_cnt)
+    text = _format_profile_text(user, orders, courses_cnt, stats, ban_status)
     await message.answer(
         text,
         reply_markup=_build_profile_keyboard(active_cnt, finished_cnt, courses_cnt),

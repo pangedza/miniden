@@ -50,8 +50,3 @@ def init_db() -> None:
                         user.is_admin = True
                 else:
                     session.add(User(telegram_id=admin_id, is_admin=True))
-
-
-def get_connection():
-    """Legacy compatibility stub for old sqlite-style code."""
-    raise RuntimeError("Use SQLAlchemy sessions via get_session() instead of direct connections")

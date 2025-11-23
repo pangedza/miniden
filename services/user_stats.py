@@ -8,6 +8,7 @@ from sqlalchemy import func, select
 from database import get_session, init_db
 from models import Order
 from services import orders as orders_service
+from services import stats as stats_service
 
 
 def get_user_order_stats(user_id: int) -> dict[str, Any]:
@@ -54,6 +55,11 @@ def get_user_order_stats(user_id: int) -> dict[str, Any]:
             result["last_order_id"] = int(last_order.id)
             if isinstance(last_order.created_at, datetime):
                 result["last_order_created_at"] = last_order.created_at.isoformat()
+
+    stats_summary = stats_service.get_user_stats(user_id)
+    result["orders_count"] = stats_summary.get("orders_count", result["total_orders"])
+    result["total_spent"] = stats_summary.get("total_spent", result["total_amount"])
+    result["last_order_at"] = stats_summary.get("last_order_at")
 
     return result
 

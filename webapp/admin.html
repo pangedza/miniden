@@ -157,6 +157,53 @@
 
     <div id="status" class="message" style="display:none"></div>
 
+    <section class="card" id="stats-section" style="display:none">
+      <div class="section-header">
+        <h2>Статистика</h2>
+        <span class="muted">Данные по пользователям и заказам</span>
+      </div>
+      <div class="grid" id="stats-totals">
+        <div class="item-card"><div class="label">Пользователи</div><div class="value" id="stat-users">0</div></div>
+        <div class="item-card"><div class="label">Заказы</div><div class="value" id="stat-orders">0</div></div>
+        <div class="item-card"><div class="label">Сумма продаж</div><div class="value" id="stat-amount">0 ₽</div></div>
+        <div class="item-card"><div class="label">Избранное</div><div class="value" id="stat-favorites">0</div></div>
+      </div>
+      <div class="grid">
+        <div class="item-card">
+          <h3>Топ корзинок</h3>
+          <ul class="list" id="top-products"></ul>
+        </div>
+        <div class="item-card">
+          <h3>Топ курсов</h3>
+          <ul class="list" id="top-courses"></ul>
+        </div>
+        <div class="item-card">
+          <h3>Новые пользователи</h3>
+          <ul class="list" id="new-users"></ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" id="notes-section" style="display:none">
+      <div class="section-header">
+        <h2>Заметки администратора</h2>
+        <span class="muted">Быстрые заметки по пользователям</span>
+      </div>
+      <form class="form" id="note-form">
+        <label>Telegram ID пользователя
+          <input name="target_id" type="number" required />
+        </label>
+        <label style="grid-column:1 / -1">Текст заметки
+          <textarea name="note" required></textarea>
+        </label>
+        <div class="actions" style="grid-column:1 / -1">
+          <button type="submit" class="btn">Добавить</button>
+        </div>
+      </form>
+      <div class="muted" id="notes-loading" style="display:none">Загрузка заметок...</div>
+      <ul class="list" id="notes-list"></ul>
+    </section>
+
     <section class="card" id="admin-content" style="display:none">
       <div class="section-header">
         <h2>Товары</h2>
@@ -285,6 +332,18 @@
     const productsLoading = document.getElementById('products-loading');
     const productsEmpty = document.getElementById('products-empty');
     const productTabs = document.getElementById('product-tabs');
+    const statsSection = document.getElementById('stats-section');
+    const notesSection = document.getElementById('notes-section');
+    const statUsers = document.getElementById('stat-users');
+    const statOrders = document.getElementById('stat-orders');
+    const statAmount = document.getElementById('stat-amount');
+    const statFavorites = document.getElementById('stat-favorites');
+    const topProducts = document.getElementById('top-products');
+    const topCourses = document.getElementById('top-courses');
+    const newUsers = document.getElementById('new-users');
+    const notesList = document.getElementById('notes-list');
+    const notesLoading = document.getElementById('notes-loading');
+    const noteForm = document.getElementById('note-form');
     const productFormCard = document.getElementById('product-form-card');
     const productForm = document.getElementById('product-form');
     const productFormTitle = document.getElementById('product-form-title');
@@ -339,6 +398,59 @@
       } catch (e) {
         showStatus('Откройте сайт из Telegram-бота MiniDeN, чтобы продолжить', true);
         throw e;
+      }
+    }
+
+    function renderList(listEl, items, formatter) {
+      listEl.innerHTML = '';
+      if (!items || !items.length) {
+        const li = document.createElement('li');
+        li.textContent = 'Нет данных';
+        listEl.appendChild(li);
+        return;
+      }
+      items.forEach((item) => {
+        const li = document.createElement('li');
+        li.textContent = formatter(item);
+        listEl.appendChild(li);
+      });
+    }
+
+    async function loadStats() {
+      try {
+        const data = await fetchJson(`${API_BASE}/admin/stats?user_id=${userId}`);
+        statUsers.textContent = data.totals?.users ?? 0;
+        statOrders.textContent = data.totals?.orders ?? 0;
+        statFavorites.textContent = data.totals?.favorites ?? 0;
+        statAmount.textContent = `${data.totals?.amount ?? 0} ₽`;
+
+        renderList(topProducts, data.top_products || [], (item) => `${item.name} — ${item.total_qty} шт / ${item.total_amount} ₽`);
+        renderList(topCourses, data.top_courses || [], (item) => `${item.name} — ${item.total_qty} шт / ${item.total_amount} ₽`);
+        renderList(newUsers, data.new_users || [], (user) => {
+          const name = [user.first_name, user.last_name].filter(Boolean).join(' ') || user.username || user.telegram_id;
+          const created = user.created_at ? new Date(user.created_at).toLocaleString('ru-RU') : '';
+          return `${name} — ${created}`;
+        });
+
+        statsSection.style.display = 'block';
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function loadNotes(targetId) {
+      if (!targetId) return;
+      notesLoading.style.display = 'block';
+      try {
+        const data = await fetchJson(`${API_BASE}/admin/notes?user_id=${userId}&target_id=${targetId}`);
+        renderList(notesList, data.items || [], (item) => {
+          const created = item.created_at ? new Date(item.created_at).toLocaleString('ru-RU') : '';
+          return `[${created}] ${item.note}`;
+        });
+      } catch (e) {
+        notesList.innerHTML = `<li>${e.message}</li>`;
+      } finally {
+        notesLoading.style.display = 'none';
       }
     }
 
@@ -543,6 +655,23 @@
       }
     });
 
+    noteForm?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const data = Object.fromEntries(new FormData(noteForm).entries());
+      data.user_id = userId;
+      data.target_id = Number(data.target_id);
+      try {
+        await fetchJson(`${API_BASE}/admin/notes`, {
+          method: 'POST',
+          body: JSON.stringify(data),
+        });
+        await loadNotes(data.target_id);
+        noteForm.reset();
+      } catch (err) {
+        showStatus(err.message, true);
+      }
+    });
+
     async function init() {
       hideStatus();
       try {
@@ -556,9 +685,12 @@
         return;
       }
 
+      statsSection.style.display = 'block';
+      notesSection.style.display = 'block';
       adminContent.style.display = 'block';
       ordersSection.style.display = 'block';
       promosSection.style.display = 'block';
+      await loadStats();
       await loadProducts();
       await loadOrders();
       await loadPromocodes();
