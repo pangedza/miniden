@@ -130,7 +130,7 @@ async def cart_inc_cb(callback: CallbackQuery):
     if not await ensure_subscribed(callback, callback.message.bot, is_admin=is_admin):
         return
 
-    change_qty(user_id, product_id, delta=+1)
+    change_qty(user_id, int(product_id), delta=+1)
     await callback.answer("Добавлено")
     await _update_cart_message(callback)
 
@@ -156,7 +156,7 @@ async def cart_dec_cb(callback: CallbackQuery):
     if not await ensure_subscribed(callback, callback.message.bot, is_admin=is_admin):
         return
 
-    change_qty(user_id, product_id, delta=-1)
+    change_qty(user_id, int(product_id), delta=-1)
     await callback.answer("Убрано")
     await _update_cart_message(callback)
 
@@ -182,7 +182,7 @@ async def cart_remove_cb(callback: CallbackQuery):
     if not await ensure_subscribed(callback, callback.message.bot, is_admin=is_admin):
         return
 
-    remove_from_cart(user_id, product_id)
+    remove_from_cart(user_id, int(product_id))
     await callback.answer("Удалено")
     await _update_cart_message(callback)
 

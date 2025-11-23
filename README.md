@@ -93,7 +93,7 @@
 
 - Python
 - aiogram 3.x
-- SQLite (через модуль `database.py`)
+- PostgreSQL (через SQLAlchemy в `database.py`)
 
 Основные директории и файлы:
 
@@ -101,9 +101,7 @@
 - `config.py` — настройки бота (токен, админ-IDs, обязательный канал и т.п.)
 - `database.py` — создание таблиц и подключение к БД
 - `data/`
-  - `bot.db` — база данных SQLite
-  - `products_baskets.json` — стартовый список корзинок
-  - `products_courses.json` — стартовый список курсов
+  - `products_baskets.json` / `products_courses.json` — опциональные seed-файлы для первичной загрузки каталога
 - `handlers/`
   - `start.py` — обработчик `/start`, проверка подписки и показ главного меню
   - `baskets.py` — каталог корзинок с пагинацией
@@ -113,8 +111,7 @@
   - `payments.py` — заглушка под будущие платежи
   - `admin.py` — админ-панель, управление товарами и заказами
 - `services/`
-  - `products.py` — работа с товарами (корзинки + курсы) через БД
-    - однократная инициализация таблицы `products` из JSON-файлов
+  - `products.py` — работа с товарами (корзинки + курсы) через PostgreSQL и ORM
     - получение списков товаров
     - фильтры по статусу
     - создание/редактирование/скрытие товара
@@ -228,81 +225,17 @@ WantedBy=multi-user.target
 Работа с БД
 -----------
 
-Файл БД: `data/bot.db`
+Вся бизнес-логика (каталог, корзина, заказы, избранное, пользователи) хранится в PostgreSQL.
+SQLAlchemy управляет таблицами `products_baskets`, `products_courses`, `cart_items`, `orders`,
+`order_items`, `favorites`, `users`, `promocodes` и т.п. через `database.py` и `models.py`.
 
-Таблицы:
+JSON-файлы в каталоге `data/` используются только для опционального начального импорта каталога
+и не участвуют в работе бота или WebApp. Основные источники данных — таблицы PostgreSQL, общие
+для API, Telegram-бота и веб-приложения.
 
-1. `products`
-   - id INTEGER PRIMARY KEY
-   - type TEXT NOT NULL       -- 'basket' или 'course'
-   - name TEXT NOT NULL
-   - price INTEGER NOT NULL
-   - description TEXT
-   - detail_url TEXT
-   - is_active INTEGER NOT NULL DEFAULT 1
-   - image_file_id TEXT       -- file_id фото товара в Telegram
-   - category_id INTEGER      -- привязка к таблице категорий
-
-   При первом запуске, если таблица `products` пуста:
-   - из `data/products_baskets.json` и `data/products_courses.json`
-     автоматически импортируются стартовые товары.
-
-2. `categories`
-   - id INTEGER PRIMARY KEY AUTOINCREMENT
-   - type TEXT NOT NULL       -- 'basket' или 'course'
-   - slug TEXT NOT NULL
-   - name TEXT NOT NULL
-   - sort_order INTEGER DEFAULT 0
-   - is_active INTEGER NOT NULL DEFAULT 1
-
-   Стартовые категории:
-   - Товары: Корзинки (`baskets`), Люльки (`cradles`), Сумки (`bags`), Другое (`other`).
-   - Мастер-классы: Бесплатные (`free`), Платные (`paid`).
-   Для существующих записей при миграции категория назначается автоматически по типу и цене.
-   В следующих версиях админка WebApp сможет управлять категориями и связью товаров с ними через API.
-
-3. `cart_items`
-   - user_id INTEGER NOT NULL
-   - product_id TEXT NOT NULL
-   - name TEXT
-   - price INTEGER
-   - qty INTEGER
-   - PRIMARY KEY (user_id, product_id)
-
-4. `orders`
-   - id INTEGER PRIMARY KEY AUTOINCREMENT
-   - user_id INTEGER
-   - user_name TEXT
-   - customer_name TEXT
-   - contact TEXT
-   - comment TEXT
-   - total INTEGER
-   - promocode_code TEXT
-   - discount_amount INTEGER
-   - status TEXT
-   - order_text TEXT
-   - created_at TEXT
-
-5. `order_items`
-   - id INTEGER PRIMARY KEY AUTOINCREMENT
-   - order_id INTEGER NOT NULL
-   - product_name TEXT
-   - price INTEGER
-   - qty INTEGER
-   - FOREIGN KEY (order_id) REFERENCES orders (id) ON DELETE CASCADE
-
-6. `promocodes`
-   - id INTEGER PRIMARY KEY AUTOINCREMENT
-   - code TEXT NOT NULL UNIQUE
-   - discount_type TEXT NOT NULL ('percent' или 'fixed')
-   - discount_value INTEGER NOT NULL
-   - min_order_total INTEGER DEFAULT 0
-   - max_uses INTEGER DEFAULT 0
-   - used_count INTEGER NOT NULL DEFAULT 0
-   - is_active INTEGER NOT NULL DEFAULT 1
-   - valid_from TEXT
-   - valid_to TEXT
-   - description TEXT
+Подробную схему таблиц см. в `models.py`; актуальные поля для товаров, корзины, заказов,
+промокодов и избранного описаны там и управляются через SQLAlchemy. Именно эта схема используется
+и ботом, и WebApp/API. JSON-файлы и SQLite не применяются в рабочем режиме.
 
 Настройки через .env
 --------------------
@@ -338,19 +271,17 @@ WantedBy=multi-user.target
    - `ADMIN_CHAT_ID=...` или `ADMIN_CHAT_IDS=...`
    - `REQUIRED_CHANNEL_ID=@имя_канала` (если нужна проверка подписки)
    - `REQUIRED_CHANNEL_LINK=https://t.me/имя_канала` (по желанию)
+   - параметры подключения к PostgreSQL: `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT` или `DATABASE_URL`
 
-3. Убедиться, что в папке `data/` есть файлы:
-   - `products_baskets.json`
-   - `products_courses.json`
+3. При необходимости импортировать стартовый каталог через функцию `services.products.seed_products_from_json()`
+   (использует JSON в `data/` только при пустых таблицах).
 
 4. Запустить:
 
    python bot.py
 
-При первом запуске:
-- создаётся база `data/bot.db`
-- создаются таблицы
-- если таблица `products` пустая — товары подгружаются из JSON.
+При первом запуске создаются таблицы в PostgreSQL. Если таблицы продуктов пустые и вызвана
+`seed_products_from_json()`, стартовые товары будут загружены из JSON в `data/`.
 
 Примечания
 ----------

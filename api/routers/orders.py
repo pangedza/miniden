@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from services import cart as cart_service
 from services import orders as orders_service
+from services import users as users_service
 from services import products as products_service
 from utils.texts import format_order_for_admin
 
@@ -89,6 +90,14 @@ def api_checkout(payload: CheckoutPayload):
         comment=payload.comment or "",
     )
 
+    users_service.get_or_create_user_from_telegram(
+        {
+            "id": payload.user_id,
+            "username": payload.user_name,
+            "first_name": payload.customer_name,
+        }
+    )
+
     order_id = orders_service.add_order(
         user_id=payload.user_id,
         user_name=user_name,
@@ -98,11 +107,6 @@ def api_checkout(payload: CheckoutPayload):
         contact=payload.contact,
         comment=payload.comment or "",
         order_text=order_text,
-        user_data={
-            "id": payload.user_id,
-            "username": payload.user_name,
-            "first_name": payload.customer_name,
-        },
     )
 
     cart_service.clear_cart(payload.user_id)
