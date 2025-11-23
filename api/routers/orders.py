@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
@@ -8,7 +10,7 @@ from services import orders as orders_service
 from services import products as products_service
 from utils.texts import format_order_for_admin
 
-router = APIRouter(tags=["orders"])
+router = APIRouter(prefix="/order", tags=["orders"])
 
 
 class CheckoutPayload(BaseModel):
@@ -26,7 +28,7 @@ class CheckoutResponse(BaseModel):
     removed_items: list[dict[str, Any]]
 
 
-@router.post("/checkout", response_model=CheckoutResponse)
+@router.post("/create", response_model=CheckoutResponse)
 def api_checkout(payload: CheckoutPayload):
     items, removed_items = cart_service.get_cart_items(payload.user_id)
 
@@ -47,7 +49,12 @@ def api_checkout(payload: CheckoutPayload):
             removed_items.append({"product_id": item.get("product_id"), "reason": "invalid_id"})
             continue
 
-        product_info = products_service.get_product_with_category(product_id_int)
+        product_type = item.get("type") or "basket"
+        if product_type == "basket":
+            product_info = products_service.get_basket_by_id(product_id_int)
+        else:
+            product_info = products_service.get_course_by_id(product_id_int)
+
         if not product_info:
             removed_items.append({"product_id": product_id_int, "reason": "inactive"})
             continue
@@ -62,8 +69,7 @@ def api_checkout(payload: CheckoutPayload):
                 "name": product_info.get("name") or item.get("name"),
                 "price": price,
                 "qty": qty,
-                "category_slug": product_info.get("category_slug"),
-                "category_name": product_info.get("category_name"),
+                "type": product_type,
             }
         )
 
