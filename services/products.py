@@ -72,6 +72,8 @@ def _serialize_product(product: ProductBasket | ProductCourse, product_type: str
         "detail_url": getattr(product, "detail_url", None),
         "image_file_id": getattr(product, "image", None),
         "is_active": int(getattr(product, "is_active", 1) or 0),
+        "category_id": getattr(product, "category_id", None),
+        "created_at": (product.created_at.isoformat() if getattr(product, "created_at", None) else None),
     }
 
 
@@ -134,11 +136,25 @@ def _pick_model(product_type: str):
     raise ValueError("Unknown product type")
 
 
-def create_product(product_type: str, name: str, price: int, description: str = "", detail_url: str | None = None) -> int:
+def create_product(
+    product_type: str,
+    name: str,
+    price: int,
+    description: str = "",
+    detail_url: str | None = None,
+    category_id: int | None = None,
+) -> int:
     model = _pick_model(product_type)
     _seed_products()
     with get_session() as session:
-        instance = model(title=name, description=description, price=price, detail_url=detail_url, is_active=1)
+        instance = model(
+            title=name,
+            description=description,
+            price=price,
+            detail_url=detail_url,
+            is_active=1,
+            category_id=category_id,
+        )
         session.add(instance)
         session.flush()
         return int(instance.id)
@@ -189,6 +205,66 @@ def list_products_by_status(is_active: Optional[bool] = None) -> list[dict[str, 
             rows = session.scalars(query.order_by(model.id)).all()
             results.extend(_serialize_product(row, product_type) for row in rows)
     return results
+
+
+def list_products_admin(
+    product_type: str | None = None, status: str | None = None
+) -> list[dict[str, Any]]:
+    allowed_status = {"active", "hidden", "all", None}
+    if status not in allowed_status:
+        status = None
+
+    is_active: bool | None
+    if status == "active":
+        is_active = True
+    elif status == "hidden":
+        is_active = False
+    else:
+        is_active = None
+
+    _seed_products()
+    results: list[dict[str, Any]] = []
+    models = []
+    if product_type in {"basket", "course"}:
+        models.append((_pick_model(product_type), product_type))
+    else:
+        models = [(ProductBasket, "basket"), (ProductCourse, "course")]
+
+    for model, p_type in models:
+        with get_session() as session:
+            query = select(model)
+            if is_active is not None:
+                query = query.where(model.is_active == (1 if is_active else 0))
+            rows = session.scalars(query.order_by(model.id)).all()
+            results.extend(_serialize_product(row, p_type) for row in rows)
+
+    return results
+
+
+def update_product_full(
+    product_id: int,
+    product_type: str,
+    name: str,
+    price: int,
+    description: str = "",
+    detail_url: str | None = None,
+    category_id: int | None = None,
+    is_active: bool | None = None,
+) -> bool:
+    model = _pick_model(product_type)
+    with get_session() as session:
+        instance = session.get(model, product_id)
+        if not instance:
+            return False
+
+        instance.title = name
+        instance.description = description
+        instance.price = price
+        instance.detail_url = detail_url
+        instance.category_id = category_id
+        if is_active is not None:
+            instance.is_active = 1 if is_active else 0
+        return True
 
 
 def _update_field(product_id: int, field: str, value: Any) -> bool:
