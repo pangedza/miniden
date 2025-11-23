@@ -209,40 +209,11 @@ def api_products(type: str, category_slug: str | None = None):
 
 @app.get("/api/cart")
 def api_cart(user_id: int):
-    items, _ = cart_service.get_cart_items(user_id)
+    items, removed = cart_service.get_cart_items(user_id)
 
-    result_items: list[dict] = []
-    total = 0
+    total = sum(int(item.get("price", 0)) * int(item.get("qty", 0)) for item in items)
 
-    for item in items:
-        price = 0
-        qty = int(item.get("qty") or 0)
-        product_type = item.get("type") or "basket"
-        try:
-            product_id_int = int(item.get("product_id"))
-        except (TypeError, ValueError):
-            product_id_int = None
-
-        product_info = None
-        if product_id_int is not None:
-            product_info = (
-                products_service.get_basket_by_id(product_id_int)
-                if product_type == "basket"
-                else products_service.get_course_by_id(product_id_int)
-            )
-
-        result_items.append(
-            {
-                "product_id": product_id_int,
-                "name": product_info.get("name") if product_info else None,
-                "price": int(product_info.get("price") or price) if product_info else price,
-                "qty": qty,
-                "type": product_type,
-            }
-        )
-        total += (int(product_info.get("price") or price) if product_info else price) * qty
-
-    return {"items": result_items, "total": total}
+    return {"items": items, "removed_items": removed, "total": total}
 
 
 @app.post("/api/cart/add")
@@ -261,9 +232,7 @@ def api_cart_add(payload: CartItemPayload):
 
     cart_service.add_to_cart(
         user_id=payload.user_id,
-        product_id=str(payload.product_id),
-        name=product["name"],
-        price=int(product.get("price") or 0),
+        product_id=int(payload.product_id),
         qty=qty,
         product_type=payload.type,
     )
@@ -275,10 +244,8 @@ def api_cart_add(payload: CartItemPayload):
 def api_cart_update(payload: CartItemPayload):
     qty = payload.qty or 0
 
-    product_id_str = str(payload.product_id)
-
     if qty <= 0:
-        cart_service.remove_from_cart(payload.user_id, product_id_str, payload.type)
+        cart_service.remove_from_cart(payload.user_id, int(payload.product_id), payload.type)
         return {"ok": True}
 
     product = (
@@ -294,7 +261,7 @@ def api_cart_update(payload: CartItemPayload):
         (
             i
             for i in current_items
-            if i.get("product_id") == product_id_str and i.get("type") == payload.type
+            if int(i.get("product_id")) == int(payload.product_id) and i.get("type") == payload.type
         ),
         None,
     )
@@ -302,13 +269,11 @@ def api_cart_update(payload: CartItemPayload):
     if existing:
         delta = qty - int(existing.get("qty") or 0)
         if delta != 0:
-            cart_service.change_qty(payload.user_id, product_id_str, delta, payload.type)
+            cart_service.change_qty(payload.user_id, int(payload.product_id), delta, payload.type)
     else:
         cart_service.add_to_cart(
             user_id=payload.user_id,
-            product_id=product_id_str,
-            name=product["name"],
-            price=int(product.get("price") or 0),
+            product_id=int(payload.product_id),
             qty=qty,
             product_type=payload.type,
         )

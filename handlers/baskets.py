@@ -1,7 +1,7 @@
 from aiogram import Router, types, F
 from aiogram.types import CallbackQuery
 
-from services.products import get_baskets, get_basket_by_id, get_product_by_id
+from services.products import get_basket_by_id, get_product_by_id, list_products
 from services import orders as orders_service
 from services.cart import add_to_cart
 from services.favorites import add_favorite, is_favorite, remove_favorite
@@ -27,7 +27,7 @@ async def _send_baskets_page(
         if banner:
             await message.answer_photo(photo=banner, caption="🧺 Наши корзинки")
 
-    baskets = get_baskets()
+    baskets = list_products("basket", is_active=True)
     if not baskets:
         await message.answer("Список корзинок пока пуст. Попробуйте позже 🙈")
         return
@@ -46,7 +46,7 @@ async def _send_baskets_page(
 
     # Карточки товаров
     for item in page_items:
-        item_id = item["id"]
+        item_id = int(item["id"])
         photo = item.get("image_file_id")
 
         is_fav = is_favorite(user_id, item_id, "basket")
@@ -146,16 +146,7 @@ async def add_basket_to_cart(callback: CallbackQuery) -> None:
         return
 
     user_id = callback.from_user.id
-    name = item.get("name", "Корзинка")
-    price = int(item.get("price", 0))
-
-    add_to_cart(
-        user_id=user_id,
-        product_id=str(item_id),
-        name=name,
-        price=price,
-        qty=1,
-    )
+    add_to_cart(user_id=user_id, product_id=item_id, product_type="basket", qty=1)
 
     await callback.answer("Добавлено в корзину 🛒")
 

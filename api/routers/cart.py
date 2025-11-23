@@ -96,9 +96,7 @@ def api_cart_add(payload: CartItemPayload):
 
     cart_service.add_to_cart(
         user_id=payload.user_id,
-        product_id=str(payload.product_id),
-        name=product["name"],
-        price=int(product.get("price") or 0),
+        product_id=int(payload.product_id),
         qty=qty,
         product_type=payload.type,
     )
@@ -109,10 +107,9 @@ def api_cart_add(payload: CartItemPayload):
 @router.post("/update")
 def api_cart_update(payload: CartUpdatePayload):
     qty = payload.qty or 0
-    product_id_str = str(payload.product_id)
 
     if qty <= 0:
-        cart_service.remove_from_cart(payload.user_id, product_id_str, payload.type)
+        cart_service.remove_from_cart(payload.user_id, int(payload.product_id), payload.type)
         return {"ok": True}
 
     product = (
@@ -128,7 +125,7 @@ def api_cart_update(payload: CartUpdatePayload):
         (
             i
             for i in current_items
-            if i.get("product_id") == product_id_str and i.get("type") == payload.type
+            if int(i.get("product_id")) == int(payload.product_id) and i.get("type") == payload.type
         ),
         None,
     )
@@ -136,13 +133,11 @@ def api_cart_update(payload: CartUpdatePayload):
     if existing:
         delta = qty - int(existing.get("qty") or 0)
         if delta != 0:
-            cart_service.change_qty(payload.user_id, product_id_str, delta, payload.type)
+            cart_service.change_qty(payload.user_id, int(payload.product_id), delta, payload.type)
     else:
         cart_service.add_to_cart(
             user_id=payload.user_id,
-            product_id=product_id_str,
-            name=product["name"],
-            price=int(product.get("price") or 0),
+            product_id=int(payload.product_id),
             qty=qty,
             product_type=payload.type,
         )
@@ -152,7 +147,7 @@ def api_cart_update(payload: CartUpdatePayload):
 
 @router.post("/remove")
 def api_cart_remove(payload: CartRemovePayload):
-    cart_service.remove_from_cart(payload.user_id, str(payload.product_id), payload.type)
+    cart_service.remove_from_cart(payload.user_id, int(payload.product_id), payload.type)
     return {"ok": True}
 
 

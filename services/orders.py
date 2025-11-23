@@ -26,14 +26,14 @@ STATUS_TITLES = {
 }
 
 
-def _ensure_user(telegram_id: int, user_data: dict[str, Any] | None = None) -> None:
+def _ensure_user(telegram_id: int, user_name: str | None = None) -> None:
     user = users_service.get_user_by_telegram_id(telegram_id)
     if user:
         return
 
     payload: dict[str, Any] = {"id": telegram_id}
-    if user_data:
-        payload.update(user_data)
+    if user_name:
+        payload["first_name"] = user_name
     users_service.get_or_create_user_from_telegram(payload)
 
 
@@ -96,9 +96,8 @@ def add_order(
     promocode_code: str | None = None,
     discount_amount: int | None = None,
     status: str | None = STATUS_NEW,
-    user_data: dict[str, Any] | None = None,
 ) -> int:
-    _ensure_user(user_id, user_data=user_data or {"first_name": user_name})
+    _ensure_user(user_id, user_name=user_name)
 
     normalized_items, computed_total = _normalize_order_items(items)
     order_total = computed_total if normalized_items else int(total)

@@ -45,15 +45,11 @@ async def handle_webapp_data(message: Message) -> None:
         logging.warning("Товар с id=%s не найден для web_app_data", product_id_int)
         return
 
-    name = product.get("name", "Товар")
-    price = int(product.get("price", 0) or 0)
-
     try:
         add_to_cart(
             user_id=message.from_user.id,
-            product_id=str(product_id_int),
-            name=name,
-            price=price,
+            product_id=product_id_int,
+            product_type=product.get("type") or "basket",
             qty=1,
         )
     except Exception:

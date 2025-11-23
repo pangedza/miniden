@@ -12,6 +12,7 @@ from services.cart import (
 from services.promocodes import increment_usage, validate_promocode
 from services.bans import is_banned
 from services.orders import add_order
+from services import users as users_service
 from services.subscription import ensure_subscribed
 from utils.texts import format_cart, format_order_for_admin, format_price
 
@@ -255,6 +256,8 @@ async def process_comment(message: types.Message, state: FSMContext) -> None:
         "last_name": getattr(telegram_user, "last_name", None),
     }
 
+    users_service.get_or_create_user_from_telegram(user_payload)
+
     order_id = add_order(
         user_id=user_id,
         user_name=user_name,
@@ -266,7 +269,6 @@ async def process_comment(message: types.Message, state: FSMContext) -> None:
         order_text=base_order_text,
         promocode_code=promo_code,
         discount_amount=discount_amount,
-        user_data=user_payload,
     )
 
     # Добавляем номер заказа

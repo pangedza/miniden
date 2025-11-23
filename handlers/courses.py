@@ -5,12 +5,7 @@ from aiogram.types import (
     InlineKeyboardButton,
 )
 
-from services.products import (
-    get_courses,
-    get_course_by_id,
-    get_free_courses,
-    get_paid_courses,
-)
+from services.products import get_course_by_id, list_products
 from services.cart import add_to_cart
 from services import orders as orders_service
 from services.favorites import is_favorite
@@ -37,12 +32,11 @@ async def _send_courses_page(
         - "free"  — только бесплатные
         - "paid"  — только платные
     """
+    courses = list_products("course", is_active=True)
     if payment_type == "free":
-        courses = get_free_courses()
+        courses = [c for c in courses if int(c.get("price", 0)) == 0]
     elif payment_type == "paid":
-        courses = get_paid_courses()
-    else:
-        courses = get_courses()
+        courses = [c for c in courses if int(c.get("price", 0)) > 0]
     courses_with_access = orders_service.get_user_courses_with_access(user_id)
     access_ids = {c["id"] for c in courses_with_access}
 
@@ -76,7 +70,7 @@ async def _send_courses_page(
     await message.answer(f"{title}\nСтраница {page}/{max_page}\n")
 
     for item in page_items:
-        item_id = item["id"]
+        item_id = int(item["id"])
         photo = item.get("image_file_id")
         is_fav = is_favorite(user_id, item_id, "course")
 
@@ -261,15 +255,6 @@ async def add_course_to_cart(callback: CallbackQuery) -> None:
         return
 
     user_id = callback.from_user.id
-    name = item.get("name", "Курс")
-    price = int(item.get("price", 0))
-
-    add_to_cart(
-        user_id=user_id,
-        product_id=str(item_id),
-        name=name,
-        price=price,
-        qty=1,
-    )
+    add_to_cart(user_id=user_id, product_id=item_id, product_type="course", qty=1)
 
     await callback.answer("Курс добавлен в корзину 🛒")

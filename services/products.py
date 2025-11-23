@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Iterable, Optional
+from typing import Any
 
 from sqlalchemy import func, select
 
-from database import get_session, init_db
+from database import get_session
 from models import ProductBasket, ProductCourse
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -15,56 +15,9 @@ BASKETS_JSON = DATA_DIR / "products_baskets.json"
 COURSES_JSON = DATA_DIR / "products_courses.json"
 
 
-def _load_json(path: Path) -> list[dict[str, Any]]:
-    if not path.exists():
-        return []
-    try:
-        with path.open("r", encoding="utf-8") as fh:
-            data = json.load(fh)
-    except Exception:
-        return []
-    return [item for item in data if isinstance(item, dict)]
-
-
-def _seed_products() -> None:
-    init_db()
-    baskets = _load_json(BASKETS_JSON)
-    courses = _load_json(COURSES_JSON)
-
-    with get_session() as session:
-        baskets_count = session.scalar(select(func.count()).select_from(ProductBasket))
-        courses_count = session.scalar(select(func.count()).select_from(ProductCourse))
-
-        if baskets_count == 0:
-            for item in baskets:
-                session.add(
-                    ProductBasket(
-                        id=item.get("id"),
-                        title=item.get("name") or "",
-                        description=item.get("description"),
-                        price=item.get("price", 0),
-                        detail_url=item.get("detail_url"),
-                        is_active=1,
-                    )
-                )
-
-        if courses_count == 0:
-            for item in courses:
-                session.add(
-                    ProductCourse(
-                        id=item.get("id"),
-                        title=item.get("name") or "",
-                        description=item.get("description"),
-                        price=item.get("price", 0),
-                        detail_url=item.get("detail_url"),
-                        is_active=1,
-                    )
-                )
-
-
 def _serialize_product(product: ProductBasket | ProductCourse, product_type: str) -> dict[str, Any]:
     return {
-        "id": product.id,
+        "id": int(product.id),
         "type": product_type,
         "name": product.name,
         "price": int(product.price or 0),
@@ -73,59 +26,8 @@ def _serialize_product(product: ProductBasket | ProductCourse, product_type: str
         "image_file_id": getattr(product, "image", None),
         "is_active": int(getattr(product, "is_active", 1) or 0),
         "category_id": getattr(product, "category_id", None),
-        "created_at": (product.created_at.isoformat() if getattr(product, "created_at", None) else None),
+        "created_at": product.created_at.isoformat() if getattr(product, "created_at", None) else None,
     }
-
-
-def _fetch_all(model: type[ProductBasket] | type[ProductCourse], product_type: str) -> list[dict[str, Any]]:
-    _seed_products()
-    with get_session() as session:
-        rows = session.scalars(select(model).order_by(model.id)).all()
-        return [_serialize_product(row, product_type) for row in rows]
-
-
-def get_baskets() -> list[dict[str, Any]]:
-    return [p for p in _fetch_all(ProductBasket, "basket") if p["is_active"] == 1]
-
-
-def get_courses() -> list[dict[str, Any]]:
-    return [p for p in _fetch_all(ProductCourse, "course") if p["is_active"] == 1]
-
-
-def _fetch_by_id(model: type[ProductBasket] | type[ProductCourse], item_id: int) -> Optional[dict[str, Any]]:
-    _seed_products()
-    with get_session() as session:
-        item = session.get(model, item_id)
-        if not item:
-            return None
-        product_type = "basket" if model is ProductBasket else "course"
-        return _serialize_product(item, product_type)
-
-
-def get_basket_by_id(item_id: int) -> Optional[dict[str, Any]]:
-    prod = _fetch_by_id(ProductBasket, item_id)
-    if prod and prod["is_active"] == 1:
-        return prod
-    return None
-
-
-def get_course_by_id(item_id: int) -> Optional[dict[str, Any]]:
-    prod = _fetch_by_id(ProductCourse, item_id)
-    if prod and prod["is_active"] == 1:
-        return prod
-    return None
-
-
-def get_product_by_id(product_id: int) -> Optional[dict[str, Any]]:
-    return get_basket_by_id(product_id) or get_course_by_id(product_id)
-
-
-def list_products(product_type: str) -> list[dict[str, Any]]:
-    if product_type == "basket":
-        return get_baskets()
-    if product_type == "course":
-        return get_courses()
-    return []
 
 
 def _pick_model(product_type: str):
@@ -134,6 +36,64 @@ def _pick_model(product_type: str):
     if product_type == "course":
         return ProductCourse
     raise ValueError("Unknown product type")
+
+
+def list_products(
+    product_type: str | None = None,
+    *,
+    is_active: bool | None = True,
+    category_id: int | None = None,
+) -> list[dict[str, Any]]:
+    """Возвращает список товаров из БД через ORM."""
+
+    models: list[tuple[type[ProductBasket] | type[ProductCourse], str]] = []
+    if product_type in {"basket", "course"}:
+        models.append((_pick_model(product_type), product_type))
+    else:
+        models = [(ProductBasket, "basket"), (ProductCourse, "course")]
+
+    results: list[dict[str, Any]] = []
+    for model, p_type in models:
+        with get_session() as session:
+            query = select(model)
+            if is_active is not None:
+                query = query.where(model.is_active == (1 if is_active else 0))
+            if category_id is not None:
+                query = query.where(model.category_id == category_id)
+            rows = session.scalars(query.order_by(model.id)).all()
+            results.extend(_serialize_product(row, p_type) for row in rows)
+    return results
+
+
+def _get_by_id(
+    model: type[ProductBasket] | type[ProductCourse],
+    product_type: str,
+    item_id: int,
+    *,
+    include_inactive: bool = False,
+) -> dict[str, Any] | None:
+    with get_session() as session:
+        item = session.get(model, item_id)
+        if not item:
+            return None
+        serialized = _serialize_product(item, product_type)
+        if not include_inactive and serialized.get("is_active") != 1:
+            return None
+        return serialized
+
+
+def get_basket_by_id(item_id: int, *, include_inactive: bool = False) -> dict[str, Any] | None:
+    return _get_by_id(ProductBasket, "basket", item_id, include_inactive=include_inactive)
+
+
+def get_course_by_id(item_id: int, *, include_inactive: bool = False) -> dict[str, Any] | None:
+    return _get_by_id(ProductCourse, "course", item_id, include_inactive=include_inactive)
+
+
+def get_product_by_id(product_id: int, *, include_inactive: bool = False) -> dict[str, Any] | None:
+    return get_basket_by_id(product_id, include_inactive=include_inactive) or get_course_by_id(
+        product_id, include_inactive=include_inactive
+    )
 
 
 def create_product(
@@ -145,7 +105,6 @@ def create_product(
     category_id: int | None = None,
 ) -> int:
     model = _pick_model(product_type)
-    _seed_products()
     with get_session() as session:
         instance = model(
             title=name,
@@ -194,22 +153,11 @@ def soft_delete_product(product_id: int) -> bool:
     return _update_field(product_id, "is_active", 0)
 
 
-def list_products_by_status(is_active: Optional[bool] = None) -> list[dict[str, Any]]:
-    _seed_products()
-    results: list[dict[str, Any]] = []
-    for model, product_type in ((ProductBasket, "basket"), (ProductCourse, "course")):
-        with get_session() as session:
-            query = select(model)
-            if is_active is not None:
-                query = query.where(model.is_active == (1 if is_active else 0))
-            rows = session.scalars(query.order_by(model.id)).all()
-            results.extend(_serialize_product(row, product_type) for row in rows)
-    return results
+def list_products_by_status(is_active: bool | None = None) -> list[dict[str, Any]]:
+    return list_products(is_active=is_active)
 
 
-def list_products_admin(
-    product_type: str | None = None, status: str | None = None
-) -> list[dict[str, Any]]:
+def list_products_admin(product_type: str | None = None, status: str | None = None) -> list[dict[str, Any]]:
     allowed_status = {"active", "hidden", "all", None}
     if status not in allowed_status:
         status = None
@@ -222,23 +170,7 @@ def list_products_admin(
     else:
         is_active = None
 
-    _seed_products()
-    results: list[dict[str, Any]] = []
-    models = []
-    if product_type in {"basket", "course"}:
-        models.append((_pick_model(product_type), product_type))
-    else:
-        models = [(ProductBasket, "basket"), (ProductCourse, "course")]
-
-    for model, p_type in models:
-        with get_session() as session:
-            query = select(model)
-            if is_active is not None:
-                query = query.where(model.is_active == (1 if is_active else 0))
-            rows = session.scalars(query.order_by(model.id)).all()
-            results.extend(_serialize_product(row, p_type) for row in rows)
-
-    return results
+    return list_products(product_type, is_active=is_active)
 
 
 def update_product_full(
@@ -279,6 +211,15 @@ def _update_field(product_id: int, field: str, value: Any) -> bool:
 
 # Legacy helpers used by admin flows
 
+
+def get_baskets() -> list[dict[str, Any]]:
+    return list_products("basket", is_active=True)
+
+
+def get_courses() -> list[dict[str, Any]]:
+    return list_products("course", is_active=True)
+
+
 def get_free_courses() -> list[dict[str, Any]]:
     return [course for course in get_courses() if int(course.get("price", 0)) == 0]
 
@@ -287,5 +228,52 @@ def get_paid_courses() -> list[dict[str, Any]]:
     return [course for course in get_courses() if int(course.get("price", 0)) > 0]
 
 
-def get_product_with_category(product_id: int) -> Optional[dict[str, Any]]:
+def get_product_with_category(product_id: int) -> dict[str, Any] | None:
     return get_product_by_id(product_id)
+
+
+def seed_products_from_json() -> None:
+    """Импорт начальных данных из JSON при пустых таблицах (опционально)."""
+
+    def _load_json(path: Path) -> list[dict[str, Any]]:
+        if not path.exists():
+            return []
+        try:
+            with path.open("r", encoding="utf-8") as fh:
+                data = json.load(fh)
+        except Exception:
+            return []
+        return [item for item in data if isinstance(item, dict)]
+
+    baskets = _load_json(BASKETS_JSON)
+    courses = _load_json(COURSES_JSON)
+
+    with get_session() as session:
+        baskets_count = session.scalar(select(func.count()).select_from(ProductBasket))
+        courses_count = session.scalar(select(func.count()).select_from(ProductCourse))
+
+        if baskets_count == 0:
+            for item in baskets:
+                session.add(
+                    ProductBasket(
+                        id=item.get("id"),
+                        title=item.get("name") or "",
+                        description=item.get("description"),
+                        price=item.get("price", 0),
+                        detail_url=item.get("detail_url"),
+                        is_active=1,
+                    )
+                )
+
+        if courses_count == 0:
+            for item in courses:
+                session.add(
+                    ProductCourse(
+                        id=item.get("id"),
+                        title=item.get("name") or "",
+                        description=item.get("description"),
+                        price=item.get("price", 0),
+                        detail_url=item.get("detail_url"),
+                        is_active=1,
+                    )
+                )
