@@ -124,8 +124,11 @@
     toggle?.addEventListener('click', () => nav?.classList.toggle('open'));
 
     const tg = window.Telegram?.WebApp;
-    const userId = tg?.initDataUnsafe?.user?.id ?? null;
     const API_BASE = "/api";
+
+    let userId = null;
+    let username = null;
+    let isAdmin = false;
 
     const noteEl = document.getElementById('note');
     const tbody = document.getElementById('cart-body');
@@ -145,6 +148,23 @@
         throw new Error(text || 'Ошибка API');
       }
       return res.json();
+    }
+
+    async function authorize() {
+      const initData = tg?.initData || tg?.initDataUnsafe?.query_id ? tg.initData : null;
+      try {
+        const data = await fetchJson(`${API_BASE}/auth/telegram`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ initData }),
+        });
+        userId = data.telegram_id;
+        username = data.username;
+        isAdmin = Boolean(data.is_admin);
+      } catch (e) {
+        document.querySelector('#summary').textContent = 'Откройте сайт из Telegram-бота MiniDeN, чтобы продолжить';
+        throw e;
+      }
     }
 
     function renderEmpty(message) {
@@ -266,7 +286,16 @@
     clearBtn.addEventListener('click', clearCart);
     checkoutBtn.addEventListener('click', checkout);
 
-    loadCart();
+    async function initApp() {
+      try {
+        await authorize();
+        await loadCart();
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    initApp();
   </script>
 </body>
 </html>

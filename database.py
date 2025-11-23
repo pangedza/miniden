@@ -2,7 +2,7 @@ import os
 from contextlib import contextmanager
 from typing import Iterator
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 
@@ -36,9 +36,20 @@ def get_session() -> Iterator[Session]:
 
 
 def init_db() -> None:
-    from models import Base  # noqa: WPS433
+    from config import ADMIN_IDS_SET  # noqa: WPS433
+    from models import Base, User  # noqa: WPS433
 
     Base.metadata.create_all(bind=engine)
+
+    if ADMIN_IDS_SET:
+        with get_session() as session:
+            for admin_id in ADMIN_IDS_SET:
+                user = session.scalar(select(User).where(User.telegram_id == admin_id))
+                if user:
+                    if not user.is_admin:
+                        user.is_admin = True
+                else:
+                    session.add(User(telegram_id=admin_id, is_admin=True))
 
 
 def get_connection():
