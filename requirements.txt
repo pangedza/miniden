@@ -2,3 +2,5 @@ aiogram==3.*
 python-dotenv
 fastapi
 uvicorn
+SQLAlchemy
+psycopg2-binary
