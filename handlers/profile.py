@@ -1,15 +1,8 @@
-from aiogram import Router, types, F
-from aiogram.filters import Command
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-
-from config import ADMIN_IDS, get_settings
-from keyboards.main_menu import PROFILE_BUTTON_TEXT
-from services import orders as orders_service
-from aiogram import Router, types, F
+from aiogram import F, Router, types
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
-from config import ADMIN_IDS, PROFILE_BUTTON_TEXT, get_settings
+from config import ADMIN_IDS, get_settings
 from services import bans as bans_service
 from services import orders as orders_service
 from services import stats as stats_service
@@ -23,6 +16,8 @@ from utils.texts import (
 )
 
 router = Router()
+
+PROFILE_BUTTON_TEXT = "👤 Профиль"
 
 ACTIVE_STATUSES = {orders_service.STATUS_NEW, orders_service.STATUS_IN_PROGRESS}
 FINISHED_STATUSES = {orders_service.STATUS_SENT, orders_service.STATUS_PAID}
@@ -97,15 +92,27 @@ def _format_profile_text(user, orders: list[dict], courses_cnt: int, stats: dict
 @router.message(F.text == PROFILE_BUTTON_TEXT)
 async def show_profile(message: types.Message) -> None:
     tg_user = message.from_user
-    is_admin = tg_user.id in ADMIN_IDS
+    telegram_id = tg_user.id
+    is_admin = telegram_id in ADMIN_IDS
 
     if not await ensure_subscribed(message, message.bot, is_admin=is_admin):
         return
 
-    orders = orders_service.get_orders_by_user(tg_user.id, limit=50)
-    courses = orders_service.get_user_courses_with_access(tg_user.id)
-    stats = stats_service.get_user_stats(tg_user.id)
-    ban_status = bans_service.is_banned(tg_user.id)
+    user = users_service.get_user_by_telegram_id(telegram_id)
+    if not user:
+        user = users_service.get_or_create_user_from_telegram(
+            {
+                "id": telegram_id,
+                "username": tg_user.username,
+                "first_name": tg_user.first_name,
+                "last_name": tg_user.last_name,
+            }
+        )
+
+    orders = orders_service.get_orders_by_user(telegram_id, limit=50)
+    courses = orders_service.get_user_courses_with_access(telegram_id)
+    stats = stats_service.get_user_stats(telegram_id)
+    ban_status = bans_service.is_banned(telegram_id)
 
     if ban_status.get("is_banned"):
         await message.answer(
@@ -120,15 +127,6 @@ async def show_profile(message: types.Message) -> None:
     banner = get_settings().banner_profile
     if banner:
         await message.answer_photo(photo=banner, caption="👤 Ваш профиль")
-
-    user = users_service.get_or_create_user_from_telegram(
-        {
-            "id": tg_user.id,
-            "username": tg_user.username,
-            "first_name": tg_user.first_name,
-            "last_name": tg_user.last_name,
-        }
-    )
 
     text = _format_profile_text(user, orders, courses_cnt, stats, ban_status)
     await message.answer(
