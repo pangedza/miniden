@@ -78,7 +78,7 @@ async def _send_courses_page(
     for item in page_items:
         item_id = item["id"]
         photo = item.get("image_file_id")
-        is_fav = is_favorite(user_id, item_id)
+        is_fav = is_favorite(user_id, item_id, "course")
 
         has_access = item_id in access_ids
         card_text = format_course_card(item, has_access=has_access)

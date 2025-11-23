@@ -7,6 +7,7 @@ from sqlalchemy import (
     Column,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
@@ -67,6 +68,19 @@ class User(Base):
 
     cart_items = relationship("CartItem", back_populates="user", cascade="all, delete-orphan")
     orders = relationship("Order", back_populates="user")
+
+
+class Favorite(Base):
+    __tablename__ = "favorites"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(BigInteger, ForeignKey("users.telegram_id", ondelete="CASCADE"), nullable=False)
+    product_id = Column(Integer, nullable=False)
+    type = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+Index("ix_favorites_user_product_type", Favorite.user_id, Favorite.product_id, Favorite.type, unique=True)
 
 
 class CartItem(Base):
@@ -131,6 +145,7 @@ class PromoCode(Base):
 __all__ = [
     "Base",
     "CartItem",
+    "Favorite",
     "Order",
     "OrderItem",
     "PromoCode",

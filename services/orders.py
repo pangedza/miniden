@@ -11,6 +11,10 @@ from services import products as products_service
 from services import users as users_service
 
 STATUS_NEW = "new"
+STATUS_IN_PROGRESS = "in_progress"
+STATUS_PAID = "paid"
+STATUS_SENT = "sent"
+STATUS_ARCHIVED = "archived"
 
 
 def _ensure_user(telegram_id: int, user_data: dict[str, Any] | None = None) -> None:

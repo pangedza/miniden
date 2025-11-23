@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from config import get_settings
 from database import init_db
 from services import cart as cart_service
+from services import favorites as favorites_service
 from services import orders as orders_service
 from services import products as products_service
 from services import promocodes as promocodes_service
@@ -63,6 +64,12 @@ class AuthPayload(BaseModel):
 class ContactPayload(BaseModel):
     telegram_id: int
     phone: str | None = None
+
+
+class FavoriteTogglePayload(BaseModel):
+    telegram_id: int
+    product_id: int
+    type: str
 
 
 def _ensure_admin(user_id: int | None) -> int:
@@ -319,6 +326,7 @@ def api_me(telegram_id: int):
         raise HTTPException(status_code=404, detail="User not found")
 
     user_orders = orders_service.get_orders_by_user(telegram_id)
+    user_favorites = favorites_service.list_favorites(telegram_id)
 
     return {
         "telegram_id": user.telegram_id,
@@ -328,8 +336,8 @@ def api_me(telegram_id: int):
         "phone": user.phone,
         "is_admin": bool(user.is_admin),
         "created_at": user.created_at.isoformat() if user.created_at else None,
-        "orders_count": len(user_orders),
         "orders": user_orders,
+        "favorites": user_favorites,
     }
 
 
@@ -341,6 +349,34 @@ def api_me_contact(payload: ContactPayload):
         raise HTTPException(status_code=404, detail="User not found")
 
     return {"ok": True, "phone": user.phone}
+
+
+@app.get("/api/favorites")
+def api_favorites(telegram_id: int):
+    user = users_service.get_user_by_telegram_id(telegram_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return favorites_service.list_favorites(telegram_id)
+
+
+@app.post("/api/favorites/toggle")
+def api_favorites_toggle(payload: FavoriteTogglePayload):
+    product_type = _validate_type(payload.type)
+    user = users_service.get_user_by_telegram_id(payload.telegram_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    already_fav = favorites_service.is_favorite(
+        payload.telegram_id, payload.product_id, product_type
+    )
+    if already_fav:
+        favorites_service.remove_favorite(payload.telegram_id, payload.product_id, product_type)
+        is_fav = False
+    else:
+        favorites_service.add_favorite(payload.telegram_id, payload.product_id, product_type)
+        is_fav = True
+
+    return {"ok": True, "is_favorite": is_fav}
 
 
 @app.post("/api/promocode/validate")

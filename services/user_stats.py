@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
-from database import get_connection
+from sqlalchemy import func, select
+
+from database import get_session, init_db
+from models import Order
 from services import orders as orders_service
 
 
@@ -24,53 +28,32 @@ def get_user_order_stats(user_id: int) -> dict[str, Any]:
         "last_order_created_at": None,
     }
 
-    conn = get_connection()
-    cur = conn.cursor()
+    init_db()
+    with get_session() as session:
+        count_row = session.execute(
+            select(
+                func.count(Order.id),
+                func.coalesce(func.sum(Order.total_amount), 0),
+            ).where(Order.user_id == user_id)
+        ).first()
+        if count_row:
+            result["total_orders"] = int(count_row[0] or 0)
+            result["total_amount"] = int(count_row[1] or 0)
 
-    cur.execute(
-        """
-        SELECT COUNT(*) AS cnt, COALESCE(SUM(total), 0) AS total_amount
-        FROM orders
-        WHERE user_id = ?
-        """,
-        (user_id,),
-    )
-    row = cur.fetchone()
-    if row:
-        result["total_orders"] = int(row["cnt"] or 0)
-        result["total_amount"] = int(row["total_amount"] or 0)
+        status_rows = session.execute(
+            select(Order.status, func.count(Order.id)).where(Order.user_id == user_id).group_by(Order.status)
+        ).all()
+        for status, cnt in status_rows:
+            if status in result["orders_by_status"]:
+                result["orders_by_status"][status] = int(cnt or 0)
 
-    cur.execute(
-        """
-        SELECT status, COUNT(*) AS cnt
-        FROM orders
-        WHERE user_id = ?
-        GROUP BY status
-        """,
-        (user_id,),
-    )
-    for status_row in cur.fetchall():
-        status = status_row["status"]
-        count = int(status_row["cnt"] or 0)
-        if status in result["orders_by_status"]:
-            result["orders_by_status"][status] = count
-
-    cur.execute(
-        """
-        SELECT id, created_at
-        FROM orders
-        WHERE user_id = ?
-        ORDER BY created_at DESC, id DESC
-        LIMIT 1
-        """,
-        (user_id,),
-    )
-    last_order = cur.fetchone()
-    conn.close()
-
-    if last_order:
-        result["last_order_id"] = int(last_order["id"])
-        result["last_order_created_at"] = last_order["created_at"]
+        last_order = session.scalar(
+            select(Order).where(Order.user_id == user_id).order_by(Order.created_at.desc(), Order.id.desc()).limit(1)
+        )
+        if last_order:
+            result["last_order_id"] = int(last_order.id)
+            if isinstance(last_order.created_at, datetime):
+                result["last_order_created_at"] = last_order.created_at.isoformat()
 
     return result
 
