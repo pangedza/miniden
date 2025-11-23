@@ -159,18 +159,62 @@
 Web API
 -------
 
-Файл `webapi.py` поднимает HTTP API (FastAPI) над существующими сервисами и той же SQLite-БД, что использует бот.
+REST API развернут в каталоге `api/` (FastAPI) и использует те же сервисы и SQLite-БД, что и Telegram-бот.
 
-Endpoint'ы:
+Базовый запуск локально:
 
-- `GET /api/categories?type=basket|course` — список активных категорий (id, slug, name, sort_order).
-- `GET /api/products?type=basket|course&category_slug=...` — активные товары/курсы с привязкой к категории (slug и name возвращаются).
-- `GET /api/cart?user_id=123` — корзина пользователя: items (product_id, name, price, qty, category) + итоговая сумма.
-- `POST /api/cart/add` — {user_id, product_id, qty?} → добавить позицию в корзину.
+```
+uvicorn api.main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+Для корректной работы добавьте в `.env` ключи `BOT_TOKEN`, `ADMIN_CHAT_ID`, `BASE_URL="https://miniden.ru"` и `API_URL="https://miniden.ru/api"` (реальные значения подставляются на сервере).
+
+Ключевые endpoint'ы:
+
+- `GET /api/categories?type=basket|course` — список активных категорий.
+- `GET /api/products?type=basket|course&category_slug=...` — товары/курсы с привязкой к категории (slug и name возвращаются).
+- `GET /api/products/{id}` — карточка товара/курса.
+- `GET /api/baskets` и `GET /api/courses` — шорткаты для каталога.
+- `GET /api/cart?user_id=123` или `GET /api/cart/123` — корзина пользователя (items + total).
+- `POST /api/cart/add` — {user_id, product_id, qty?} → добавить позицию.
 - `POST /api/cart/update` — {user_id, product_id, qty} → выставить количество (0/отрицательное удаляет позицию).
+- `POST /api/cart/remove` — {user_id, product_id} → удалить позицию.
 - `POST /api/cart/clear` — {user_id} → очистить корзину.
+- `POST /api/checkout` — {user_id, customer_name, contact, comment?, user_name?} → оформить заказ, вернёт номер заказа и итоговую сумму.
 
-На WebApp-страницах JS-константа `API_BASE` указана как пример (`https://YOUR-API-DOMAIN/api`) — замените домен на реальный.
+На WebApp-страницах JS-константа `API_BASE` указана как `"/api"` — при развёртывании за nginx она отработает, если nginx проксирует `/api` → `http://127.0.0.1:8000`.
+
+Пример фрагмента nginx-конфигурации с HTTPS:
+
+```
+location /api/ {
+    proxy_pass http://127.0.0.1:8000/;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+Пример systemd unit для фонового запуска backend'а (`/etc/systemd/system/miniden-api.service`):
+
+```
+[Unit]
+Description=MiniDeN FastAPI backend
+After=network.target
+
+[Service]
+WorkingDirectory=/opt/miniden
+Environment="PYTHONUNBUFFERED=1"
+EnvironmentFile=/opt/miniden/.env
+ExecStart=/usr/bin/python -m uvicorn api.main:app --host 127.0.0.1 --port 8000
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+```
+
+После `systemctl enable --now miniden-api` API будет доступен по HTTPS через nginx-прокси.
 
 Промокоды и скидки
 ------------------
