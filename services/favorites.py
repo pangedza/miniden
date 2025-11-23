@@ -1,109 +1,99 @@
-import sqlite3
+from __future__ import annotations
+
 from datetime import datetime
-from typing import List
+from typing import Any, List
 
-from database import get_connection
+from sqlalchemy import delete, select
+
+from database import get_session, init_db
+from models import Favorite
+from services import products as products_service
 
 
-def add_favorite(user_id: int, product_id: int) -> bool:
-    """Добавить товар в избранное. Возвращает True, если вставка успешна."""
+ALLOWED_TYPES = {"basket", "course"}
 
-    conn = get_connection()
-    cur = conn.cursor()
-    created_at = datetime.now().isoformat()
 
-    try:
-        cur.execute(
-            """
-            INSERT INTO favorites (user_id, product_id, created_at)
-            VALUES (?, ?, ?);
-            """,
-            (user_id, product_id, created_at),
+def _validate_type(product_type: str) -> str:
+    if product_type not in ALLOWED_TYPES:
+        raise ValueError("product_type must be 'basket' or 'course'")
+    return product_type
+
+
+def add_favorite(user_id: int, product_id: int, product_type: str) -> bool:
+    init_db()
+    _validate_type(product_type)
+    with get_session() as session:
+        exists = session.scalar(
+            select(Favorite).where(
+                Favorite.user_id == user_id,
+                Favorite.product_id == product_id,
+                Favorite.type == product_type,
+            )
         )
-        conn.commit()
+        if exists:
+            return False
+
+        favorite = Favorite(
+            user_id=user_id,
+            product_id=product_id,
+            type=product_type,
+            created_at=datetime.utcnow(),
+        )
+        session.add(favorite)
         return True
-    except sqlite3.IntegrityError:
-        return False
-    finally:
-        conn.close()
 
 
-def remove_favorite(user_id: int, product_id: int) -> bool:
-    """Удалить товар из избранного. Возвращает True, если запись удалена."""
-
-    conn = get_connection()
-    cur = conn.cursor()
-    try:
-        cur.execute(
-            """
-            DELETE FROM favorites
-            WHERE user_id = ? AND product_id = ?;
-            """,
-            (user_id, product_id),
+def remove_favorite(user_id: int, product_id: int, product_type: str) -> bool:
+    _validate_type(product_type)
+    init_db()
+    with get_session() as session:
+        result = session.execute(
+            delete(Favorite).where(
+                Favorite.user_id == user_id,
+                Favorite.product_id == product_id,
+                Favorite.type == product_type,
+            )
         )
-        conn.commit()
-        return cur.rowcount > 0
-    finally:
-        conn.close()
+        return result.rowcount > 0
 
 
-def is_favorite(user_id: int, product_id: int) -> bool:
-    """Проверить, находится ли товар в избранном у пользователя."""
-
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute(
-        """
-        SELECT 1 FROM favorites
-        WHERE user_id = ? AND product_id = ?
-        LIMIT 1;
-        """,
-        (user_id, product_id),
+def _serialize_favorite(row: Favorite) -> dict[str, Any]:
+    loader = (
+        products_service.get_basket_by_id
+        if row.type == "basket"
+        else products_service.get_course_by_id
     )
-    row = cur.fetchone()
-    conn.close()
-    return row is not None
+    product = loader(int(row.product_id)) if row.product_id is not None else None
+
+    return {
+        "product_id": int(row.product_id),
+        "type": row.type,
+        "name": (product or {}).get("name"),
+        "price": int((product or {}).get("price") or 0),
+        "is_active": bool((product or {}).get("is_active", 0)),
+    }
 
 
-def get_user_favorites(user_id: int) -> List[dict]:
-    """Вернуть список избранных товаров пользователя (с данными продукта)."""
+def list_favorites(user_id: int) -> List[dict[str, Any]]:
+    init_db()
+    with get_session() as session:
+        rows = session.scalars(
+            select(Favorite)
+            .where(Favorite.user_id == user_id)
+            .order_by(Favorite.created_at.desc())
+        ).all()
+        return [_serialize_favorite(row) for row in rows]
 
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute(
-        """
-        SELECT
-            p.id,
-            p.name,
-            p.price,
-            p.description,
-            p.type,
-            p.image_file_id,
-            p.detail_url,
-            p.is_active
-        FROM favorites f
-        JOIN products p ON p.id = f.product_id
-        WHERE f.user_id = ?
-        ORDER BY f.created_at DESC;
-        """,
-        (user_id,),
-    )
-    rows = cur.fetchall()
-    conn.close()
 
-    favorites: List[dict] = []
-    for row in rows:
-        favorites.append(
-            {
-                "id": row["id"],
-                "name": row["name"],
-                "price": row["price"],
-                "description": row["description"] or "",
-                "type": row["type"],
-                "image_file_id": row["image_file_id"],
-                "detail_url": row["detail_url"],
-                "is_active": int(row["is_active"] or 0),
-            }
+def is_favorite(user_id: int, product_id: int, product_type: str) -> bool:
+    _validate_type(product_type)
+    init_db()
+    with get_session() as session:
+        row = session.scalar(
+            select(Favorite).where(
+                Favorite.user_id == user_id,
+                Favorite.product_id == product_id,
+                Favorite.type == product_type,
+            )
         )
-
-    return favorites
+        return row is not None

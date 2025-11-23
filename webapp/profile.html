@@ -112,6 +112,11 @@
         <div class="label" style="margin-top: 12px;">Всего заказов</div>
         <div class="value" id="orders-count">0</div>
       </div>
+
+      <div class="card">
+        <div class="label">Избранное</div>
+        <ul class="list" id="favorites-list"></ul>
+      </div>
     </div>
   </main>
 
@@ -131,6 +136,7 @@
     const phoneInput = document.getElementById('phone-input');
     const ordersList = document.getElementById('orders-list');
     const ordersCount = document.getElementById('orders-count');
+    const favoritesList = document.getElementById('favorites-list');
     const savePhoneBtn = document.getElementById('save-phone');
 
     let userId = null;
@@ -184,10 +190,28 @@
 
       orders.forEach((order) => {
         const li = document.createElement('li');
-        li.textContent = `Заказ #${order.id} — ${order.total} ₽ (${order.status})`;
+        const dateText = order.created_at ? new Date(order.created_at).toLocaleString('ru-RU') : '';
+        li.textContent = `Заказ #${order.id} — ${order.total} ₽ (${order.status || 'в обработке'}) ${dateText ? '• ' + dateText : ''}`;
         ordersList.appendChild(li);
       });
       ordersCount.textContent = String(orders.length);
+    }
+
+    function renderFavorites(favorites) {
+      favoritesList.innerHTML = '';
+      if (!favorites || !favorites.length) {
+        const li = document.createElement('li');
+        li.textContent = 'Избранных товаров пока нет';
+        favoritesList.appendChild(li);
+        return;
+      }
+
+      favorites.forEach((fav) => {
+        const li = document.createElement('li');
+        const prefix = fav.type === 'course' ? '🎓' : '🧺';
+        li.textContent = `${prefix} ${fav.name || 'Товар'} — ${fav.price ?? 0} ₽`;
+        favoritesList.appendChild(li);
+      });
     }
 
     async function loadProfile() {
@@ -198,6 +222,7 @@
       phoneEl.textContent = data.phone || '—';
       phoneInput.value = data.phone || '';
       renderOrders(data.orders || []);
+      renderFavorites(data.favorites || []);
       profileGrid.style.display = 'grid';
     }
 

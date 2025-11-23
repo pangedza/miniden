@@ -49,7 +49,7 @@ async def _send_baskets_page(
         item_id = item["id"]
         photo = item.get("image_file_id")
 
-        is_fav = is_favorite(user_id, item_id)
+        is_fav = is_favorite(user_id, item_id, "basket")
 
         card_text = format_basket_card(item)
         keyboard = build_product_card_kb(
@@ -183,7 +183,8 @@ async def add_to_favorites(callback: CallbackQuery) -> None:
         await callback.answer("Товар не найден 😢", show_alert=True)
         return
 
-    add_favorite(user_id, product_id)
+    product_type = product.get("type") or "basket"
+    add_favorite(user_id, product_id, product_type)
 
     await callback.answer("Добавлено в избранное ❤️")
 
@@ -224,7 +225,8 @@ async def remove_from_favorites(callback: CallbackQuery) -> None:
         await callback.answer("Товар не найден 😢", show_alert=True)
         return
 
-    remove_favorite(user_id, product_id)
+    product_type = product.get("type") or "basket"
+    remove_favorite(user_id, product_id, product_type)
 
     await callback.answer("Удалено из избранного 💔")
 

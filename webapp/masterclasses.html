@@ -57,6 +57,7 @@
     .card h3 { margin: 0; letter-spacing: -0.01em; }
     .card p { margin: 0; color: var(--muted); line-height: 1.5; flex: 1; }
     .meta { font-size: 13px; color: var(--muted); }
+    .fav-btn { position: absolute; top: 10px; right: 10px; border: none; background: rgba(0, 0, 0, 0.3); color: #c1e9ff; border-radius: 50%; width: 38px; height: 38px; font-size: 18px; cursor: pointer; box-shadow: 0 6px 20px rgba(0,0,0,0.25); }
     .footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
     .price { font-weight: 800; color: #c1e9ff; }
     .btn { cursor: pointer; border: none; border-radius: 12px; padding: 12px 14px; background: linear-gradient(135deg, #7bd8ff, #4dc3ff); color: #0b0c10; font-weight: 700; font-size: 15px; width: 100%; box-shadow: 0 10px 30px rgba(123, 216, 255, 0.25); transition: transform 0.1s ease, box-shadow 0.1s ease; }
@@ -111,6 +112,7 @@
     let userId = null;
     let username = null;
     let isAdmin = false;
+    let favorites = new Set();
 
     const tabsEl = document.getElementById('tabs');
     const cardsEl = document.getElementById('cards');
@@ -129,6 +131,42 @@
       const num = Number(value) || 0;
       if (num === 0) return 'Бесплатно';
       return `${num.toLocaleString('ru-RU')} ₽`;
+    }
+
+    async function loadFavorites() {
+      if (!userId) return;
+      try {
+        const data = await fetchJson(`${API_BASE}/favorites?telegram_id=${userId}`);
+        favorites = new Set((data || []).filter((fav) => fav.type === 'course').map((fav) => Number(fav.product_id)));
+      } catch (e) {
+        console.warn('Не удалось загрузить избранное', e);
+      }
+    }
+
+    function isFavorite(id) {
+      return favorites.has(Number(id));
+    }
+
+    async function toggleFavorite(course) {
+      if (!userId) {
+        alert('Чтобы добавить в избранное, откройте сайт из Telegram-бота.');
+        return;
+      }
+      try {
+        const res = await fetchJson(`${API_BASE}/favorites/toggle`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ telegram_id: userId, product_id: course.id, type: 'course' }),
+        });
+        if (res.is_favorite) {
+          favorites.add(course.id);
+        } else {
+          favorites.delete(course.id);
+        }
+        renderCards();
+      } catch (e) {
+        alert('Не удалось обновить избранное. Попробуйте ещё раз.');
+      }
     }
 
     async function fetchJson(url, options) {
@@ -190,6 +228,16 @@
         const cover = document.createElement('div');
         cover.className = 'cover';
         cover.textContent = item.category_name || 'Мастер-классы';
+
+        const favBtn = document.createElement('button');
+        favBtn.type = 'button';
+        favBtn.className = 'fav-btn';
+        favBtn.textContent = isFavorite(item.id) ? '⭐' : '☆';
+        favBtn.addEventListener('click', (evt) => {
+          evt.stopPropagation();
+          toggleFavorite(item);
+        });
+        cover.appendChild(favBtn);
 
         const title = document.createElement('h3');
         title.textContent = item.name;
@@ -272,6 +320,7 @@
     async function initApp() {
       try {
         await authorize();
+        await loadFavorites();
         await loadCategories();
         await loadCourses();
       } catch (e) {
