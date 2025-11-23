@@ -243,7 +243,7 @@
             </select>
           </label>
           <label>Значение
-            <input name="discount_value" type="number" min="1" required />
+            <input name="value" type="number" min="1" required />
           </label>
           <label>Мин. сумма заказа
             <input name="min_order_total" type="number" min="0" />
@@ -252,19 +252,10 @@
             <input name="max_uses" type="number" min="0" />
           </label>
           <label>Активен?
-            <select name="is_active">
+            <select name="active">
               <option value="1">Да</option>
               <option value="0">Нет</option>
             </select>
-          </label>
-          <label>Дата начала (ISO)
-            <input name="valid_from" placeholder="2024-01-01" />
-          </label>
-          <label>Дата окончания (ISO)
-            <input name="valid_to" placeholder="2024-12-31" />
-          </label>
-          <label style="grid-column: 1 / -1">Описание
-            <textarea name="description"></textarea>
           </label>
           <div class="actions" style="grid-column: 1 / -1">
             <button type="submit" class="btn">Создать промокод</button>
@@ -475,9 +466,9 @@
           tr.innerHTML = `
             <td>${p.code}</td>
             <td>${p.discount_type}</td>
-            <td>${p.discount_value}</td>
+            <td>${p.value}</td>
             <td class="muted">мин ${p.min_order_total || 0}; лимит ${p.max_uses || '∞'}</td>
-            <td>${p.is_active ? 'Активен' : 'Неактивен'}</td>
+            <td>${p.active ? 'Активен' : 'Неактивен'}</td>
           `;
           tbody.appendChild(tr);
         });
@@ -536,10 +527,10 @@
       e.preventDefault();
       const data = Object.fromEntries(new FormData(e.target).entries());
       data.user_id = userId;
-      data.discount_value = Number(data.discount_value || 0);
-      data.min_order_total = Number(data.min_order_total || 0);
-      data.max_uses = Number(data.max_uses || 0);
-      data.is_active = data.is_active === '1';
+      data.value = Number(data.value || 0);
+      data.min_order_total = data.min_order_total ? Number(data.min_order_total) : null;
+      data.max_uses = data.max_uses ? Number(data.max_uses) : null;
+      data.active = data.active === '1';
       try {
         await fetchJson(`${API_BASE}/admin/promocodes`, {
           method: 'POST',

@@ -9,13 +9,7 @@ from services.cart import (
     get_cart_total,
     clear_cart,
 )
-from services.promocodes import (
-    calculate_discount_amount,
-    get_promocode_by_code,
-    increment_promocode_usage,
-    normalize_code,
-    validate_promocode_for_order,
-)
+from services.promocodes import increment_usage, validate_promocode
 from services.user_admin import get_user_ban_status
 from services.orders import add_order
 from services.subscription import ensure_subscribed
@@ -133,32 +127,19 @@ async def process_promocode(message: types.Message, state: FSMContext) -> None:
         )
 
     order_total = get_cart_total(user_id)
-    raw_code = normalize_code(message.text or "")
-
-    promo = get_promocode_by_code(raw_code)
-    if not promo:
+    validation = validate_promocode(message.text or "", user_id, order_total)
+    if not validation:
         await message.answer(
-            "Промокод не найден. Попробуйте ещё раз или нажмите «Пропустить».",
+            "Промокод не подходит. Попробуйте ещё раз или нажмите «Пропустить».",
             reply_markup=_promo_skip_kb(),
         )
         return
 
-    is_valid, reason = validate_promocode_for_order(promo, order_total)
-    if not is_valid:
-        await message.answer(
-            (reason or "Промокод не подходит.")
-            + " Попробуйте ещё раз или нажмите «Пропустить».",
-            reply_markup=_promo_skip_kb(),
-        )
-        return
-
-    discount_amount = calculate_discount_amount(promo, order_total)
-    final_total = order_total - discount_amount
-    if final_total < 0:
-        final_total = 0
+    discount_amount = validation.get("discount_amount", 0)
+    final_total = validation.get("final_total", order_total)
 
     await state.update_data(
-        promo_code=promo.get("code"),
+        promo_code=validation.get("code"),
         discount_amount=discount_amount,
         final_total=final_total,
         order_total=order_total,
@@ -236,21 +217,14 @@ async def process_comment(message: types.Message, state: FSMContext) -> None:
 
     recalculated_total = order_total
     if promo_code:
-        promo = get_promocode_by_code(promo_code)
-        if promo:
-            is_valid, reason = validate_promocode_for_order(promo, order_total)
-            if is_valid:
-                discount_amount = calculate_discount_amount(promo, order_total)
-                recalculated_total = order_total - discount_amount
-                if recalculated_total < 0:
-                    recalculated_total = 0
-            else:
-                await message.answer(
-                    f"Промокод больше не действует: {reason}. Заказ оформлен без скидки."
-                )
-                promo_code = None
-                discount_amount = 0
+        validation = validate_promocode(promo_code, user_id, order_total)
+        if validation:
+            discount_amount = int(validation.get("discount_amount", 0) or 0)
+            recalculated_total = int(validation.get("final_total", order_total) or order_total)
         else:
+            await message.answer(
+                "Промокод больше не действует. Заказ оформлен без скидки."
+            )
             promo_code = None
             discount_amount = 0
 
@@ -313,7 +287,7 @@ async def process_comment(message: types.Message, state: FSMContext) -> None:
     )
 
     if promo_code:
-        increment_promocode_usage(promo_code)
+        increment_usage(promo_code)
 
     # Очищаем корзину после оформления заказа
     clear_cart(user_id)

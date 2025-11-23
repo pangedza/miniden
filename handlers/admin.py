@@ -154,8 +154,8 @@ def _build_promocode_type_kb() -> types.InlineKeyboardMarkup:
 def _format_promocode_line(promo: dict) -> str:
     code = promo.get("code") or "—"
     discount_type = promo.get("discount_type")
-    discount_value = int(promo.get("discount_value", 0) or 0)
-    is_active = int(promo.get("is_active", 0) or 0) == 1
+    discount_value = int(promo.get("value", 0) or 0)
+    is_active = bool(promo.get("active"))
 
     if discount_type == "percent":
         discount_text = f"{discount_value}%"
@@ -275,10 +275,11 @@ async def admin_promo_stats_command(message: types.Message):
         for promo in promos:
             code = promo.get("code") or "—"
             discount_type = promo.get("discount_type")
-            value = int(promo.get("discount_value", 0) or 0)
+            value = int(promo.get("value", 0) or 0)
             used = int(promo.get("used_count", 0) or 0)
-            max_uses = int(promo.get("max_uses", 0) or 0)
-            limit_text = "∞" if max_uses == 0 else str(max_uses)
+            max_uses_raw = promo.get("max_uses")
+            max_uses = int(max_uses_raw) if max_uses_raw else 0
+            limit_text = "∞" if max_uses <= 0 else str(max_uses)
             discount_text = f"{value}%" if discount_type == "percent" else f"{format_price(value)}"
             lines.append(
                 f"{code} — {discount_text}, использований: {used} / {limit_text}"
@@ -375,7 +376,7 @@ async def admin_promocode_list(callback: types.CallbackQuery):
     if not _is_admin(callback.from_user.id):
         return
 
-    promos = promocodes_service.list_promocodes(limit=30)
+    promos = promocodes_service.list_promocodes()
     lines: list[str] = ["🎟 <b>Промокоды</b>", ""]
 
     if not promos:
@@ -389,7 +390,7 @@ async def admin_promocode_list(callback: types.CallbackQuery):
         code = promo.get("code")
         if not code:
             continue
-        is_active = int(promo.get("is_active", 0) or 0) == 1
+        is_active = bool(promo.get("active"))
         toggle_text = "ON" if not is_active else "OFF"
         keyboard_rows.append(
             [
@@ -423,12 +424,12 @@ async def admin_promocode_toggle(callback: types.CallbackQuery):
         return
 
     code = parts[-1]
-    promo = promocodes_service.get_promocode_by_code(code)
+    promo = promocodes_service.get_promocode(code)
     if not promo:
         await callback.answer("Промокод не найден", show_alert=True)
         return
 
-    current_status = int(promo.get("is_active", 0) or 0) == 1
+    current_status = bool(promo.get("active"))
     promocodes_service.set_promocode_active(code, not current_status)
     new_status = "активен" if not current_status else "отключён"
     await callback.answer(f"Промокод {code} теперь {new_status}")

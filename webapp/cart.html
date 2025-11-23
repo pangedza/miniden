@@ -107,9 +107,10 @@
 
     <div class="total-card">
       <div class="total-row"><span>Итого</span><span id="cart-total">0 ₽</span></div>
+      <div class="total-row" id="promo-info" style="display:none; color: var(--muted); font-weight:600;"></div>
       <div class="input-row">
-        <input type="text" placeholder="Промокод" disabled />
-        <button class="btn secondary" type="button" disabled>Применить</button>
+        <input type="text" placeholder="Промокод" id="promo-code" />
+        <button class="btn secondary" type="button" id="apply-promo">Применить</button>
       </div>
       <div class="input-row">
         <button class="btn secondary" type="button" id="clear-cart">Очистить корзину</button>
@@ -129,10 +130,17 @@
     let userId = null;
     let username = null;
     let isAdmin = false;
+    let currentCart = { items: [], total: 0 };
+    let appliedPromo = null;
+    let discountAmount = 0;
+    let finalTotal = 0;
 
     const noteEl = document.getElementById('note');
     const tbody = document.getElementById('cart-body');
     const totalEl = document.getElementById('cart-total');
+    const promoInfoEl = document.getElementById('promo-info');
+    const promoInput = document.getElementById('promo-code');
+    const applyPromoBtn = document.getElementById('apply-promo');
     const clearBtn = document.getElementById('clear-cart');
     const checkoutBtn = document.getElementById('checkout');
 
@@ -180,6 +188,7 @@
     }
 
     function renderCart(cart) {
+      currentCart = cart;
       tbody.innerHTML = '';
 
       if (!cart.items?.length) {
@@ -225,7 +234,17 @@
         tbody.appendChild(row);
       });
 
-      totalEl.textContent = formatPrice(cart.total || 0);
+      const totalToShow = appliedPromo ? finalTotal : cart.total;
+      totalEl.textContent = formatPrice(totalToShow || 0);
+      if (appliedPromo) {
+        promoInfoEl.style.display = 'flex';
+        promoInfoEl.textContent = `Скидка по промокоду ${appliedPromo}: -${formatPrice(discountAmount)}`;
+      } else {
+        promoInfoEl.style.display = 'none';
+        promoInfoEl.textContent = '';
+        discountAmount = 0;
+        finalTotal = cart.total || 0;
+      }
     }
 
     async function loadCart() {
@@ -255,6 +274,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ user_id: userId, product_id: productId, qty }),
         });
+        appliedPromo = null;
         await loadCart();
       } catch (e) {
         alert('Не удалось обновить количество. Попробуйте ещё раз.');
@@ -269,20 +289,62 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ user_id: userId }),
         });
+        appliedPromo = null;
         await loadCart();
       } catch (e) {
         alert('Не удалось очистить корзину. Попробуйте ещё раз.');
       }
     }
 
+    async function applyPromo() {
+      if (!userId) {
+        alert('Промокод можно применить только из Telegram.');
+        return;
+      }
+
+      const code = (promoInput.value || '').trim();
+      if (!code) {
+        alert('Введите промокод');
+        return;
+      }
+
+      try {
+        const result = await fetchJson(`${API_BASE}/promocode/validate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ telegram_id: userId, code, total: currentCart.total || 0 }),
+        });
+        appliedPromo = result.code;
+        discountAmount = result.discount_amount || 0;
+        finalTotal = result.final_total || currentCart.total || 0;
+        renderCart(currentCart);
+      } catch (e) {
+        appliedPromo = null;
+        discountAmount = 0;
+        finalTotal = currentCart.total || 0;
+        alert('Промокод не подошёл.');
+        renderCart(currentCart);
+      }
+    }
+
     function checkout() {
       if (tg) {
+        tg.sendData(
+          JSON.stringify({
+            action: 'checkout',
+            total: currentCart.total || 0,
+            final_total: appliedPromo ? finalTotal : currentCart.total || 0,
+            promocode_code: appliedPromo,
+            discount_amount: appliedPromo ? discountAmount : 0,
+          })
+        );
         tg.close();
       } else {
         alert('Вернитесь в Telegram-бот для оформления заказа.');
       }
     }
 
+    applyPromoBtn.addEventListener('click', applyPromo);
     clearBtn.addEventListener('click', clearCart);
     checkoutBtn.addEventListener('click', checkout);
 
