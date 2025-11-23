@@ -1,26 +1,17 @@
 from __future__ import annotations
 
 from datetime import datetime
+from datetime import datetime
 from typing import Any, Optional
 
 from sqlalchemy import select
 
 from database import get_session, init_db
-from models import Order, OrderItem, User
+from models import Order, OrderItem
+from services import users as users_service
 from services import products as products_service
 
 STATUS_NEW = "new"
-
-
-def _ensure_user(user_id: int, username: str | None = None, first_name: str | None = None) -> User:
-    init_db()
-    with get_session() as session:
-        user = session.get(User, user_id)
-        if not user:
-            user = User(id=user_id, username=username, first_name=first_name)
-            session.add(user)
-            session.flush()
-        return user
 
 
 def add_order(
@@ -36,7 +27,7 @@ def add_order(
     discount_amount: int | None = None,
     status: str | None = STATUS_NEW,
 ) -> int:
-    _ensure_user(user_id, user_name)
+    users_service.get_or_create_user_from_telegram({"id": user_id, "first_name": user_name})
     init_db()
 
     with get_session() as session:

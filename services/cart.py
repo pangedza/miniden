@@ -5,20 +5,8 @@ from typing import Any, Tuple
 from sqlalchemy import delete, select
 
 from database import get_session, init_db
-from models import CartItem, User
-
-
-def _ensure_user(user_id: int, username: str | None = None, first_name: str | None = None) -> None:
-    init_db()
-    with get_session() as session:
-        user = session.get(User, user_id)
-        if not user:
-            session.add(User(id=user_id, username=username, first_name=first_name))
-        else:
-            if username is not None:
-                user.username = username
-            if first_name is not None:
-                user.first_name = first_name
+from models import CartItem
+from services import users as users_service
 
 
 def get_cart_items(user_id: int) -> Tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -40,7 +28,7 @@ def get_cart_items(user_id: int) -> Tuple[list[dict[str, Any]], list[dict[str, A
 
 
 def add_to_cart(user_id: int, product_id: str, name: str, price: int, qty: int = 1, product_type: str = "basket") -> None:
-    _ensure_user(user_id)
+    users_service.get_or_create_user_from_telegram({"id": user_id})
     with get_session() as session:
         existing = session.scalar(
             select(CartItem).where(CartItem.user_id == user_id, CartItem.product_id == int(product_id), CartItem.type == product_type)

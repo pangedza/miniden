@@ -1,8 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
-from datetime import datetime
 
-from sqlalchemy import BigInteger, Column, DateTime, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import Boolean, BigInteger, Column, DateTime, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.orm import relationship
 
 from database import Base
@@ -47,9 +46,13 @@ class ProductCourse(Base):
 class User(Base):
     __tablename__ = "users"
 
-    id = Column(BigInteger, primary_key=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    telegram_id = Column(BigInteger, unique=True, nullable=False, index=True)
     username = Column(String, nullable=True)
     first_name = Column(String, nullable=True)
+    last_name = Column(String, nullable=True)
+    phone = Column(String, nullable=True)
+    is_admin = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     cart_items = relationship("CartItem", back_populates="user", cascade="all, delete-orphan")
@@ -60,19 +63,19 @@ class CartItem(Base):
     __tablename__ = "cart_items"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(BigInteger, ForeignKey("users.telegram_id", ondelete="CASCADE"), nullable=False)
     product_id = Column(Integer, nullable=False)
     type = Column(String, nullable=False)
     qty = Column(Integer, nullable=False, default=1)
 
-    user = relationship("User", back_populates="cart_items")
+    user = relationship("User", back_populates="cart_items", foreign_keys=[user_id])
 
 
 class Order(Base):
     __tablename__ = "orders"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(BigInteger, ForeignKey("users.id", ondelete="SET NULL"))
+    user_id = Column(BigInteger, ForeignKey("users.telegram_id", ondelete="SET NULL"))
     total_amount = Column(Numeric(10, 2), nullable=False, default=0)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     customer_name = Column(String, nullable=True)
@@ -83,7 +86,7 @@ class Order(Base):
     status = Column(String, nullable=True)
     order_text = Column(Text, nullable=True)
 
-    user = relationship("User", back_populates="orders")
+    user = relationship("User", back_populates="orders", foreign_keys=[user_id])
     items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
 
 

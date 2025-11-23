@@ -57,6 +57,11 @@
     .btn { cursor: pointer; border: none; border-radius: 12px; padding: 12px 14px; background: linear-gradient(135deg, #ffb800, #ff8f3f); color: #0b0c10; font-weight: 700; font-size: 15px; box-shadow: 0 10px 30px rgba(255, 184, 0, 0.25); transition: transform 0.1s ease, box-shadow 0.1s ease; margin-top: 10px; }
     .btn:hover { transform: translateY(-1px); box-shadow: 0 12px 32px rgba(255, 184, 0, 0.35); }
 
+    .message { padding: 12px; border-radius: 12px; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.12); color: var(--text); margin-bottom: 14px; }
+    .error { border-color: rgba(255, 99, 99, 0.6); color: #ffc0c0; }
+    .form-group { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+    .input { padding: 10px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.14); background: rgba(255, 255, 255, 0.08); color: var(--text); font-family: inherit; }
+
     @media (max-width: 780px) {
       .nav-links { display: none; }
       .nav-links.open { display: flex; flex-direction: column; align-items: flex-start; width: 100%; margin-top: 10px; }
@@ -81,30 +86,31 @@
 
   <main>
     <h1>Профиль</h1>
-    <p>Здесь появятся данные из Telegram-бота и истории заказов. Пока — демо-блоки.</p>
+    <p>Данные берутся из вашего Telegram-профиля MiniDeN и заказов.</p>
 
-    <div class="grid">
+    <div id="status" class="message" style="display:none"></div>
+
+    <div class="grid" id="profile-grid" style="display:none">
       <div class="card">
         <div class="label">Имя</div>
-        <div class="value">Ирина MiniDeN</div>
+        <div class="value" id="full-name">—</div>
         <div class="label" style="margin-top: 12px;">Telegram</div>
-        <div class="value">@miniden_demo</div>
+        <div class="value" id="username">—</div>
         <div class="label" style="margin-top: 12px;">Телефон</div>
-        <div class="value">+7 (900) 000-00-00</div>
-        <button class="btn" type="button">Редактировать позже через бота</button>
+        <div class="value" id="phone">—</div>
+
+        <div class="form-group">
+          <label class="label" for="phone-input">Обновить телефон</label>
+          <input id="phone-input" class="input" type="tel" placeholder="+7 (900) 000-00-00" />
+          <button class="btn" type="button" id="save-phone">Сохранить телефон</button>
+        </div>
       </div>
 
       <div class="card">
         <div class="label">Мои заказы</div>
-        <ul class="list">
-          <li>🧺 Домашний уют — 2 100 ₽ (в обработке)</li>
-          <li>👜 Шоппер «Ваниль» — 2 300 ₽ (доставлен)</li>
-        </ul>
-        <div class="label" style="margin-top: 12px;">Мои мастер-классы</div>
-        <ul class="list">
-          <li>🎓 Корзинка с крышкой — доступ открыт</li>
-          <li>🎓 Компактная корзинка — бесплатно</li>
-        </ul>
+        <ul class="list" id="orders-list"></ul>
+        <div class="label" style="margin-top: 12px;">Всего заказов</div>
+        <div class="value" id="orders-count">0</div>
       </div>
     </div>
   </main>
@@ -113,6 +119,111 @@
     const toggle = document.querySelector('.menu-toggle');
     const nav = document.querySelector('.nav-links');
     toggle?.addEventListener('click', () => nav?.classList.toggle('open'));
+
+    const tg = window.Telegram?.WebApp;
+    const API_BASE = "/api";
+
+    const statusEl = document.getElementById('status');
+    const profileGrid = document.getElementById('profile-grid');
+    const fullNameEl = document.getElementById('full-name');
+    const usernameEl = document.getElementById('username');
+    const phoneEl = document.getElementById('phone');
+    const phoneInput = document.getElementById('phone-input');
+    const ordersList = document.getElementById('orders-list');
+    const ordersCount = document.getElementById('orders-count');
+    const savePhoneBtn = document.getElementById('save-phone');
+
+    let userId = null;
+
+    function setStatus(message, isError = false) {
+      if (!message) {
+        statusEl.style.display = 'none';
+        statusEl.textContent = '';
+        statusEl.classList.remove('error');
+        return;
+      }
+      statusEl.textContent = message;
+      statusEl.classList.toggle('error', isError);
+      statusEl.style.display = 'block';
+    }
+
+    async function fetchJson(url, options) {
+      const res = await fetch(url, options);
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || 'Ошибка API');
+      }
+      return res.json();
+    }
+
+    async function authorize() {
+      const initData = tg?.initData || tg?.initDataUnsafe?.query_id ? tg.initData : null;
+      try {
+        const data = await fetchJson(`${API_BASE}/auth/telegram`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ initData }),
+        });
+        userId = data.telegram_id;
+        setStatus('');
+      } catch (e) {
+        setStatus('Откройте сайт из Telegram-бота MiniDeN, чтобы продолжить', true);
+        throw e;
+      }
+    }
+
+    function renderOrders(orders) {
+      ordersList.innerHTML = '';
+      if (!orders || !orders.length) {
+        const li = document.createElement('li');
+        li.textContent = 'Заказов пока нет';
+        ordersList.appendChild(li);
+        ordersCount.textContent = '0';
+        return;
+      }
+
+      orders.forEach((order) => {
+        const li = document.createElement('li');
+        li.textContent = `Заказ #${order.id} — ${order.total} ₽ (${order.status})`;
+        ordersList.appendChild(li);
+      });
+      ordersCount.textContent = String(orders.length);
+    }
+
+    async function loadProfile() {
+      const data = await fetchJson(`${API_BASE}/me?telegram_id=${userId}`);
+      const fullName = [data.first_name, data.last_name].filter(Boolean).join(' ') || '—';
+      fullNameEl.textContent = fullName;
+      usernameEl.textContent = data.username ? `@${data.username}` : '—';
+      phoneEl.textContent = data.phone || '—';
+      phoneInput.value = data.phone || '';
+      renderOrders(data.orders || []);
+      profileGrid.style.display = 'grid';
+    }
+
+    savePhoneBtn?.addEventListener('click', async () => {
+      if (!userId) return;
+      try {
+        await fetchJson(`${API_BASE}/me/contact`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ telegram_id: userId, phone: phoneInput.value.trim() || null }),
+        });
+        phoneEl.textContent = phoneInput.value.trim() || '—';
+        setStatus('Телефон обновлён');
+      } catch (e) {
+        setStatus('Не удалось сохранить телефон', true);
+      }
+    });
+
+    (async function initApp() {
+      try {
+        await authorize();
+        await loadProfile();
+      } catch (e) {
+        console.error(e);
+      }
+    })();
   </script>
 </body>
 </html>
