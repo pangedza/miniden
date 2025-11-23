@@ -1,0 +1,554 @@
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MiniDeN — Админка</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #0b0c10;
+      --card: rgba(255, 255, 255, 0.06);
+      --text: #f6f7fb;
+      --muted: #c7c9d3;
+      --accent: #ffb800;
+      --accent-2: #7bd8ff;
+      --shadow: 0 14px 50px rgba(0, 0, 0, 0.35);
+      --nav: rgba(17, 17, 19, 0.82);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Inter", system-ui, -apple-system, sans-serif;
+      background: radial-gradient(circle at 10% 20%, rgba(255, 184, 0, 0.06), transparent 35%),
+        radial-gradient(circle at 80% 10%, rgba(123, 216, 255, 0.08), transparent 30%),
+        radial-gradient(circle at 60% 80%, rgba(255, 184, 0, 0.05), transparent 32%),
+        #0b0c10;
+      color: var(--text);
+      min-height: 100vh;
+      padding: 0 18px 48px;
+    }
+
+    .top-nav {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: var(--nav);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 12px;
+      margin: 0 -18px;
+    }
+
+    .brand {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .brand span { color: var(--muted); font-size: 13px; font-weight: 600; letter-spacing: normal; }
+
+    .nav-links { display: flex; gap: 12px; align-items: center; }
+
+    .nav-links a {
+      color: var(--muted);
+      text-decoration: none;
+      font-weight: 600;
+      padding: 10px 12px;
+      border-radius: 12px;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+
+    .nav-links a:hover { color: var(--text); background: rgba(255, 255, 255, 0.06); }
+    .nav-links a.active { color: var(--text); background: linear-gradient(135deg, rgba(255, 184, 0, 0.18), rgba(123, 216, 255, 0.14)); }
+
+    .menu-toggle {
+      display: none;
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: var(--text);
+      border-radius: 12px;
+      padding: 10px 12px;
+      cursor: pointer;
+    }
+
+    main { max-width: 1180px; margin: 0 auto; padding-top: 28px; display: flex; flex-direction: column; gap: 18px; }
+
+    h1 { margin: 0 0 8px; }
+    h2 { margin: 0 0 10px; }
+
+    .card {
+      background: var(--card);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      padding: 14px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(6px);
+    }
+
+    .section-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .muted { color: var(--muted); }
+
+    .tabs { display: inline-flex; gap: 8px; padding: 4px; background: rgba(255,255,255,0.05); border-radius: 12px; border: 1px solid rgba(255,255,255,0.08); }
+    .tab { padding: 8px 12px; border-radius: 10px; cursor: pointer; border: none; background: transparent; color: var(--muted); font-weight: 700; }
+    .tab.active { background: rgba(255,255,255,0.12); color: var(--text); }
+
+    .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 12px; border: none; cursor: pointer; font-weight: 700; color: #0b0c10; background: linear-gradient(135deg, #ffb800, #ff8f3f); box-shadow: 0 10px 30px rgba(255, 184, 0, 0.25); }
+    .btn.secondary { background: rgba(255, 255, 255, 0.08); color: var(--text); box-shadow: none; border: 1px solid rgba(255, 255, 255, 0.12); }
+
+    .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+    .item-card { border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 12px; background: rgba(255,255,255,0.04); display: flex; flex-direction: column; gap: 8px; }
+    .item-card h3 { margin: 0; font-size: 18px; }
+    .item-meta { display: flex; gap: 10px; flex-wrap: wrap; color: var(--muted); font-size: 13px; }
+    .badge { padding: 4px 8px; background: rgba(255,255,255,0.08); border-radius: 999px; font-weight: 700; font-size: 12px; }
+
+    .form { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+    .form label { display: flex; flex-direction: column; gap: 6px; font-weight: 700; }
+    .form input, .form textarea, .form select { padding: 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.08); color: var(--text); font-family: inherit; }
+    .form textarea { min-height: 80px; resize: vertical; }
+
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .table { width: 100%; border-collapse: collapse; }
+    .table th, .table td { padding: 10px 8px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.08); }
+    .table th { color: var(--muted); font-weight: 700; }
+
+    .message { padding: 12px; border-radius: 12px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12); color: var(--text); }
+    .error { border-color: rgba(255, 99, 99, 0.6); color: #ffc0c0; }
+
+    @media (max-width: 780px) {
+      .nav-links { display: none; }
+      .nav-links.open { display: flex; flex-direction: column; align-items: flex-start; width: 100%; margin-top: 10px; }
+      .top-nav { flex-wrap: wrap; }
+      .menu-toggle { display: inline-flex; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="top-nav">
+    <div class="brand">
+      MiniDeN
+      <span>уютные корзинки</span>
+    </div>
+    <button class="menu-toggle" aria-label="Открыть меню">☰</button>
+    <div class="nav-links open">
+      <a href="index.html">Главная</a>
+      <a href="products.html">Товары</a>
+      <a href="masterclasses.html">Мастер-классы</a>
+      <a href="cart.html">Корзина</a>
+      <a href="profile.html">Профиль</a>
+      <a href="admin.html" class="active">Админка</a>
+    </div>
+  </nav>
+
+  <main>
+    <header>
+      <h1>Админка</h1>
+      <p class="muted">Управляйте товарами, заказами и промокодами прямо из WebApp.</p>
+    </header>
+
+    <div id="status" class="message" style="display:none"></div>
+
+    <section class="card" id="admin-content" style="display:none">
+      <div class="section-header">
+        <h2>Товары</h2>
+        <div class="tabs" id="product-tabs">
+          <button class="tab active" data-type="basket">Корзинки</button>
+          <button class="tab" data-type="course">Курсы</button>
+        </div>
+        <button class="btn" id="new-product">Создать товар</button>
+      </div>
+      <div class="muted" id="products-loading">Загрузка...</div>
+      <div class="grid" id="products-grid"></div>
+      <div class="muted" id="products-empty" style="display:none">Нет товаров для отображения</div>
+      <div class="card" id="product-form-card" style="margin-top:12px; display:none">
+        <h3 id="product-form-title">Новый товар</h3>
+        <form class="form" id="product-form">
+          <input type="hidden" name="id" />
+          <label>Тип
+            <select name="type">
+              <option value="basket">Корзинка</option>
+              <option value="course">Курс</option>
+            </select>
+          </label>
+          <label>Название
+            <input name="name" required />
+          </label>
+          <label>Цена (₽)
+            <input name="price" type="number" min="0" required />
+          </label>
+          <label>Категория (id)
+            <input name="category_id" type="number" min="0" />
+          </label>
+          <label>Ссылка на детали
+            <input name="detail_url" type="url" />
+          </label>
+          <label style="grid-column: 1 / -1">Описание
+            <textarea name="description"></textarea>
+          </label>
+          <div class="actions" style="grid-column: 1 / -1">
+            <button type="submit" class="btn">Сохранить</button>
+            <button type="button" id="cancel-product" class="btn secondary">Отмена</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <section class="card" id="orders-section" style="display:none">
+      <div class="section-header">
+        <h2>Заказы</h2>
+        <span class="muted">Последние заявки пользователей</span>
+      </div>
+      <div class="muted" id="orders-loading">Загрузка...</div>
+      <div id="orders-empty" class="muted" style="display:none">Нет заказов</div>
+      <table class="table" id="orders-table" style="display:none">
+        <thead>
+          <tr><th>ID</th><th>Пользователь</th><th>Сумма</th><th>Статус</th><th>Создан</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section class="card" id="promos-section" style="display:none">
+      <div class="section-header">
+        <h2>Промокоды</h2>
+        <span class="muted">Список активных скидок</span>
+      </div>
+      <div class="muted" id="promos-loading">Загрузка...</div>
+      <div id="promos-empty" class="muted" style="display:none">Промокодов пока нет</div>
+      <table class="table" id="promos-table" style="display:none">
+        <thead>
+          <tr><th>Код</th><th>Тип</th><th>Значение</th><th>Ограничения</th><th>Статус</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <div class="card" style="margin-top: 12px; background: rgba(255,255,255,0.03);">
+        <h3>Создать промокод</h3>
+        <form class="form" id="promo-form">
+          <label>Код
+            <input name="code" required />
+          </label>
+          <label>Тип скидки
+            <select name="discount_type">
+              <option value="percent">Процент</option>
+              <option value="fixed">Фиксированная</option>
+            </select>
+          </label>
+          <label>Значение
+            <input name="discount_value" type="number" min="1" required />
+          </label>
+          <label>Мин. сумма заказа
+            <input name="min_order_total" type="number" min="0" />
+          </label>
+          <label>Лимит использований
+            <input name="max_uses" type="number" min="0" />
+          </label>
+          <label>Активен?
+            <select name="is_active">
+              <option value="1">Да</option>
+              <option value="0">Нет</option>
+            </select>
+          </label>
+          <label>Дата начала (ISO)
+            <input name="valid_from" placeholder="2024-01-01" />
+          </label>
+          <label>Дата окончания (ISO)
+            <input name="valid_to" placeholder="2024-12-31" />
+          </label>
+          <label style="grid-column: 1 / -1">Описание
+            <textarea name="description"></textarea>
+          </label>
+          <div class="actions" style="grid-column: 1 / -1">
+            <button type="submit" class="btn">Создать промокод</button>
+          </div>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const tg = window.Telegram?.WebApp;
+    const userId = tg?.initDataUnsafe?.user?.id ?? null;
+    const API_BASE = '/api';
+
+    const toggle = document.querySelector('.menu-toggle');
+    const nav = document.querySelector('.nav-links');
+    toggle?.addEventListener('click', () => nav?.classList.toggle('open'));
+
+    const statusEl = document.getElementById('status');
+    const adminContent = document.getElementById('admin-content');
+    const ordersSection = document.getElementById('orders-section');
+    const promosSection = document.getElementById('promos-section');
+
+    const productsGrid = document.getElementById('products-grid');
+    const productsLoading = document.getElementById('products-loading');
+    const productsEmpty = document.getElementById('products-empty');
+    const productTabs = document.getElementById('product-tabs');
+    const productFormCard = document.getElementById('product-form-card');
+    const productForm = document.getElementById('product-form');
+    const productFormTitle = document.getElementById('product-form-title');
+
+    const ordersTable = document.getElementById('orders-table');
+    const ordersLoading = document.getElementById('orders-loading');
+    const ordersEmpty = document.getElementById('orders-empty');
+
+    const promosTable = document.getElementById('promos-table');
+    const promosLoading = document.getElementById('promos-loading');
+    const promosEmpty = document.getElementById('promos-empty');
+
+    let products = [];
+    let currentType = 'basket';
+
+    function showStatus(msg, isError = false) {
+      statusEl.textContent = msg;
+      statusEl.style.display = 'block';
+      statusEl.className = isError ? 'message error' : 'message';
+    }
+
+    function hideStatus() {
+      statusEl.style.display = 'none';
+    }
+
+    async function fetchJson(url, options = {}) {
+      const resp = await fetch(url, {
+        headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+        ...options,
+      });
+      if (!resp.ok) {
+        let detail = 'Ошибка запроса';
+        try {
+          const data = await resp.json();
+          detail = data.detail || JSON.stringify(data);
+        } catch (e) {}
+        throw new Error(detail || resp.statusText);
+      }
+      return resp.json();
+    }
+
+    function renderProducts() {
+      productsGrid.innerHTML = '';
+      const filtered = products.filter((p) => p.type === currentType);
+      productsEmpty.style.display = filtered.length ? 'none' : 'block';
+      productsLoading.style.display = 'none';
+
+      filtered.forEach((item) => {
+        const card = document.createElement('div');
+        card.className = 'item-card';
+        card.innerHTML = `
+          <div class="item-meta">
+            <span class="badge">#${item.id}</span>
+            <span class="badge">${item.type === 'basket' ? 'Корзинка' : 'Курс'}</span>
+            <span class="badge" style="background:${item.is_active ? 'rgba(123,216,255,0.2)' : 'rgba(255,255,255,0.08)'}">${item.is_active ? 'Активен' : 'Скрыт'}</span>
+          </div>
+          <h3>${item.name}</h3>
+          <div class="muted">${item.description || 'Нет описания'}</div>
+          <div class="item-meta">
+            <strong>${item.price} ₽</strong>
+            ${item.category_id ? `<span class="badge">Категория ${item.category_id}</span>` : ''}
+            ${item.created_at ? `<span class="badge">${new Date(item.created_at).toLocaleDateString('ru-RU')}</span>` : ''}
+          </div>
+          <div class="actions">
+            <button class="btn secondary" data-action="edit">Редактировать</button>
+            <button class="btn secondary" data-action="toggle">${item.is_active ? 'Скрыть' : 'Показать'}</button>
+          </div>
+        `;
+
+        card.querySelector('[data-action="edit"]').onclick = () => fillProductForm(item);
+        card.querySelector('[data-action="toggle"]').onclick = async () => {
+          try {
+            await fetchJson(`${API_BASE}/admin/products/${item.id}/toggle_active`, {
+              method: 'PATCH',
+              body: JSON.stringify({ user_id: userId }),
+            });
+            await loadProducts();
+          } catch (e) {
+            showStatus(e.message, true);
+          }
+        };
+        productsGrid.appendChild(card);
+      });
+    }
+
+    function fillProductForm(item) {
+      productFormCard.style.display = 'block';
+      productFormTitle.textContent = `Редактирование #${item.id}`;
+      productForm.elements.id.value = item.id;
+      productForm.elements.type.value = item.type;
+      productForm.elements.name.value = item.name;
+      productForm.elements.price.value = item.price;
+      productForm.elements.category_id.value = item.category_id || '';
+      productForm.elements.detail_url.value = item.detail_url || '';
+      productForm.elements.description.value = item.description || '';
+    }
+
+    function resetProductForm() {
+      productFormCard.style.display = 'none';
+      productForm.reset();
+      productForm.elements.id.value = '';
+      productFormTitle.textContent = 'Новый товар';
+    }
+
+    async function loadProducts() {
+      productsLoading.style.display = 'block';
+      productsGrid.innerHTML = '';
+      try {
+        const data = await fetchJson(`${API_BASE}/admin/products?user_id=${userId}&status=all`);
+        products = data.items || [];
+        renderProducts();
+      } catch (e) {
+        if (e.message.includes('Forbidden')) {
+          showStatus('Доступ только для администраторов', true);
+          return;
+        }
+        showStatus(e.message, true);
+      }
+    }
+
+    async function loadOrders() {
+      try {
+        const data = await fetchJson(`${API_BASE}/admin/orders?user_id=${userId}`);
+        const rows = data.items || [];
+        ordersLoading.style.display = 'none';
+        if (!rows.length) {
+          ordersEmpty.style.display = 'block';
+          return;
+        }
+        ordersTable.style.display = 'table';
+        const tbody = ordersTable.querySelector('tbody');
+        tbody.innerHTML = '';
+        rows.forEach((o) => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${o.id}</td>
+            <td>${o.user_id}</td>
+            <td>${o.total} ₽</td>
+            <td>${o.status}</td>
+            <td>${new Date(o.created_at).toLocaleString('ru-RU')}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+      } catch (e) {
+        ordersLoading.textContent = e.message;
+      }
+    }
+
+    async function loadPromocodes() {
+      try {
+        const data = await fetchJson(`${API_BASE}/admin/promocodes?user_id=${userId}`);
+        const items = data.items || [];
+        promosLoading.style.display = 'none';
+        if (!items.length) {
+          promosEmpty.style.display = 'block';
+          return;
+        }
+        promosTable.style.display = 'table';
+        const tbody = promosTable.querySelector('tbody');
+        tbody.innerHTML = '';
+        items.forEach((p) => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${p.code}</td>
+            <td>${p.discount_type}</td>
+            <td>${p.discount_value}</td>
+            <td class="muted">мин ${p.min_order_total || 0}; лимит ${p.max_uses || '∞'}</td>
+            <td>${p.is_active ? 'Активен' : 'Неактивен'}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+      } catch (e) {
+        promosLoading.textContent = e.message;
+      }
+    }
+
+    productTabs.addEventListener('click', (e) => {
+      if (e.target.classList.contains('tab')) {
+        productTabs.querySelectorAll('.tab').forEach((el) => el.classList.remove('active'));
+        e.target.classList.add('active');
+        currentType = e.target.dataset.type;
+        renderProducts();
+      }
+    });
+
+    document.getElementById('new-product').onclick = () => {
+      resetProductForm();
+      productFormCard.style.display = 'block';
+      productForm.elements.type.value = currentType;
+    };
+
+    document.getElementById('cancel-product').onclick = () => {
+      resetProductForm();
+    };
+
+    productForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formData = new FormData(productForm);
+      const payload = Object.fromEntries(formData.entries());
+      payload.user_id = userId;
+      payload.price = Number(payload.price || 0);
+      payload.category_id = payload.category_id ? Number(payload.category_id) : null;
+
+      try {
+        if (payload.id) {
+          await fetchJson(`${API_BASE}/admin/products/${payload.id}`, {
+            method: 'PUT',
+            body: JSON.stringify(payload),
+          });
+        } else {
+          await fetchJson(`${API_BASE}/admin/products`, {
+            method: 'POST',
+            body: JSON.stringify(payload),
+          });
+        }
+        resetProductForm();
+        await loadProducts();
+      } catch (err) {
+        showStatus(err.message, true);
+      }
+    });
+
+    document.getElementById('promo-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const data = Object.fromEntries(new FormData(e.target).entries());
+      data.user_id = userId;
+      data.discount_value = Number(data.discount_value || 0);
+      data.min_order_total = Number(data.min_order_total || 0);
+      data.max_uses = Number(data.max_uses || 0);
+      data.is_active = data.is_active === '1';
+      try {
+        await fetchJson(`${API_BASE}/admin/promocodes`, {
+          method: 'POST',
+          body: JSON.stringify(data),
+        });
+        e.target.reset();
+        await loadPromocodes();
+      } catch (err) {
+        showStatus(err.message, true);
+      }
+    });
+
+    async function init() {
+      hideStatus();
+      if (!userId) {
+        showStatus('Не удалось определить пользователя из Telegram WebApp', true);
+        return;
+      }
+      adminContent.style.display = 'block';
+      ordersSection.style.display = 'block';
+      promosSection.style.display = 'block';
+      await loadProducts();
+      await loadOrders();
+      await loadPromocodes();
+    }
+
+    init();
+  </script>
+</body>
+</html>

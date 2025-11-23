@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-import sqlite3
 from datetime import datetime
 from typing import Any
 
-from database import get_connection
+from sqlalchemy import select
+
+from database import get_session, init_db
+from models import Promocode
 
 
 def normalize_code(code: str) -> str:
@@ -12,6 +14,24 @@ def normalize_code(code: str) -> str:
 
     normalized = " ".join((code or "").strip().split())
     return normalized.upper()
+
+
+def _serialize(promo: Promocode | None) -> dict[str, Any]:
+    if not promo:
+        return {}
+    return {
+        "id": promo.id,
+        "code": promo.code,
+        "discount_type": promo.discount_type,
+        "discount_value": int(promo.discount_value or 0),
+        "min_order_total": int(promo.min_order_total or 0),
+        "max_uses": int(promo.max_uses or 0),
+        "used_count": int(promo.used_count or 0),
+        "is_active": int(promo.is_active or 0),
+        "valid_from": promo.valid_from,
+        "valid_to": promo.valid_to,
+        "description": promo.description,
+    }
 
 
 def create_promocode(
@@ -35,41 +55,62 @@ def create_promocode(
 
     code_norm = normalize_code(code)
 
-    conn = get_connection()
-    cur = conn.cursor()
+    init_db()
+    with get_session() as session:
+        existing = session.scalar(select(Promocode).where(Promocode.code == code_norm))
+        if existing:
+            return -1
 
-    try:
-        cur.execute(
-            """
-            INSERT INTO promocodes (
-                code, discount_type, discount_value,
-                min_order_total, max_uses, valid_from, valid_to, description
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                code_norm,
-                discount_type,
-                int(discount_value),
-                int(min_order_total or 0),
-                int(max_uses or 0),
-                valid_from,
-                valid_to,
-                description,
-            ),
+        promo = Promocode(
+            code=code_norm,
+            discount_type=discount_type,
+            discount_value=int(discount_value),
+            min_order_total=int(min_order_total or 0),
+            max_uses=int(max_uses or 0),
+            valid_from=valid_from,
+            valid_to=valid_to,
+            description=description,
         )
-    except sqlite3.IntegrityError:
-        conn.close()
-        return -1
-
-    new_id = cur.lastrowid
-    conn.commit()
-    conn.close()
-    return int(new_id)
+        session.add(promo)
+        session.flush()
+        return int(promo.id)
 
 
-def _row_to_dict(row: Any) -> dict[str, Any]:
-    return {key: row[key] for key in row.keys()} if row else {}
+def update_promocode(
+    promo_id: int,
+    *,
+    discount_type: str | None = None,
+    discount_value: int | None = None,
+    min_order_total: int | None = None,
+    max_uses: int | None = None,
+    valid_from: str | None = None,
+    valid_to: str | None = None,
+    description: str | None = None,
+    is_active: int | None = None,
+) -> bool:
+    init_db()
+    with get_session() as session:
+        promo = session.get(Promocode, promo_id)
+        if not promo:
+            return False
+
+        if discount_type:
+            promo.discount_type = discount_type
+        if discount_value is not None:
+            promo.discount_value = int(discount_value)
+        if min_order_total is not None:
+            promo.min_order_total = int(min_order_total)
+        if max_uses is not None:
+            promo.max_uses = int(max_uses)
+        if valid_from is not None:
+            promo.valid_from = valid_from
+        if valid_to is not None:
+            promo.valid_to = valid_to
+        if description is not None:
+            promo.description = description
+        if is_active is not None:
+            promo.is_active = 1 if is_active else 0
+        return True
 
 
 def get_promocode_by_code(code: str) -> dict | None:
@@ -77,76 +118,47 @@ def get_promocode_by_code(code: str) -> dict | None:
     if not code_norm:
         return None
 
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute(
-        """
-        SELECT *
-        FROM promocodes
-        WHERE code = ?
-        LIMIT 1
-        """,
-        (code_norm,),
-    )
-    row = cur.fetchone()
-    conn.close()
+    init_db()
+    with get_session() as session:
+        promo = session.scalar(select(Promocode).where(Promocode.code == code_norm))
+        return _serialize(promo) if promo else None
 
-    return _row_to_dict(row) if row else None
+
+def get_promocode_by_id(promo_id: int) -> dict | None:
+    init_db()
+    with get_session() as session:
+        promo = session.get(Promocode, promo_id)
+        return _serialize(promo) if promo else None
 
 
 def list_promocodes(limit: int = 50) -> list[dict]:
     if limit <= 0:
         return []
 
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute(
-        """
-        SELECT *
-        FROM promocodes
-        ORDER BY id DESC
-        LIMIT ?
-        """,
-        (limit,),
-    )
-    rows = cur.fetchall()
-    conn.close()
-
-    return [_row_to_dict(row) for row in rows]
+    init_db()
+    with get_session() as session:
+        rows = session.scalars(select(Promocode).order_by(Promocode.id.desc()).limit(limit)).all()
+        return [_serialize(row) for row in rows]
 
 
 def set_promocode_active(code: str, is_active: bool) -> bool:
     code_norm = normalize_code(code)
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute(
-        """
-        UPDATE promocodes
-        SET is_active = ?
-        WHERE code = ?
-        """,
-        (1 if is_active else 0, code_norm),
-    )
-    conn.commit()
-    changed = cur.rowcount > 0
-    conn.close()
-    return changed
+    init_db()
+    with get_session() as session:
+        promo = session.scalar(select(Promocode).where(Promocode.code == code_norm))
+        if not promo:
+            return False
+        promo.is_active = 1 if is_active else 0
+        return True
 
 
 def increment_promocode_usage(code: str) -> None:
     code_norm = normalize_code(code)
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute(
-        """
-        UPDATE promocodes
-        SET used_count = used_count + 1
-        WHERE code = ?
-        """,
-        (code_norm,),
-    )
-    conn.commit()
-    conn.close()
+    init_db()
+    with get_session() as session:
+        promo = session.scalar(select(Promocode).where(Promocode.code == code_norm))
+        if promo:
+            promo.used_count = int(promo.used_count or 0) + 1
 
 
 def validate_promocode_for_order(
@@ -216,18 +228,29 @@ def get_promocodes_usage_summary(limit: int = 50) -> list[dict]:
     if limit <= 0:
         return []
 
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute(
-        """
-        SELECT code, discount_type, discount_value, used_count, max_uses, is_active
-        FROM promocodes
-        ORDER BY id DESC
-        LIMIT ?
-        """,
-        (limit,),
-    )
-    rows = cur.fetchall()
-    conn.close()
+    init_db()
+    with get_session() as session:
+        result = session.execute(
+            select(
+                Promocode.code,
+                Promocode.discount_type,
+                Promocode.discount_value,
+                Promocode.used_count,
+                Promocode.max_uses,
+                Promocode.is_active,
+            ).order_by(Promocode.id.desc()).limit(limit)
+        )
 
-    return [_row_to_dict(row) for row in rows]
+        summary: list[dict[str, Any]] = []
+        for row in result.all():
+            summary.append(
+                {
+                    "code": row[0],
+                    "discount_type": row[1],
+                    "discount_value": int(row[2] or 0),
+                    "used_count": int(row[3] or 0),
+                    "max_uses": int(row[4] or 0),
+                    "is_active": int(row[5] or 0),
+                }
+            )
+        return summary

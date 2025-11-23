@@ -34,12 +34,24 @@ def add_order(
     order_text: str,
     promocode_code: str | None = None,
     discount_amount: int | None = None,
+    status: str | None = STATUS_NEW,
 ) -> int:
     _ensure_user(user_id, user_name)
     init_db()
 
     with get_session() as session:
-        order = Order(user_id=user_id, total_amount=total, created_at=datetime.utcnow())
+        order = Order(
+            user_id=user_id,
+            total_amount=total,
+            created_at=datetime.utcnow(),
+            customer_name=customer_name,
+            contact=contact,
+            comment=comment,
+            promocode_code=promocode_code,
+            discount_amount=discount_amount,
+            status=status,
+            order_text=order_text,
+        )
         session.add(order)
         session.flush()
 
@@ -71,7 +83,26 @@ def get_orders_by_user(user_id: int, limit: int = 20) -> list[dict[str, Any]]:
                 "id": row.id,
                 "user_id": row.user_id,
                 "total": int(row.total_amount or 0),
-                "status": STATUS_NEW,
+                "status": row.status or STATUS_NEW,
+                "created_at": row.created_at.isoformat(),
+            }
+            for row in rows
+        ]
+
+
+def list_orders(limit: int = 100, status: str | None = None) -> list[dict[str, Any]]:
+    init_db()
+    with get_session() as session:
+        query = select(Order).order_by(Order.id.desc()).limit(limit)
+        if status:
+            query = query.where(Order.status == status)
+        rows = session.scalars(query).all()
+        return [
+            {
+                "id": row.id,
+                "user_id": row.user_id,
+                "total": int(row.total_amount or 0),
+                "status": row.status or STATUS_NEW,
                 "created_at": row.created_at.isoformat(),
             }
             for row in rows
@@ -101,7 +132,15 @@ def get_order_by_id(order_id: int) -> Optional[dict[str, Any]]:
             "id": order.id,
             "user_id": order.user_id,
             "total": int(order.total_amount or 0),
-            "status": STATUS_NEW,
+            "status": order.status or STATUS_NEW,
             "created_at": order.created_at.isoformat(),
+            "customer_name": order.customer_name,
+            "contact": order.contact,
+            "comment": order.comment,
+            "promocode_code": order.promocode_code,
+            "discount_amount": int(order.discount_amount or 0)
+            if order.discount_amount is not None
+            else None,
+            "order_text": order.order_text,
             "items": serialized_items,
         }
