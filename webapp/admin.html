@@ -276,8 +276,10 @@
 
   <script>
     const tg = window.Telegram?.WebApp;
-    const userId = tg?.initDataUnsafe?.user?.id ?? null;
     const API_BASE = '/api';
+
+    let userId = null;
+    let isAdmin = false;
 
     const toggle = document.querySelector('.menu-toggle');
     const nav = document.querySelector('.nav-links');
@@ -331,6 +333,22 @@
         throw new Error(detail || resp.statusText);
       }
       return resp.json();
+    }
+
+    async function authorize() {
+      const initData = tg?.initData || tg?.initDataUnsafe?.query_id ? tg.initData : null;
+      try {
+        const data = await fetchJson(`${API_BASE}/auth/telegram`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ initData }),
+        });
+        userId = data.telegram_id;
+        isAdmin = Boolean(data.is_admin);
+      } catch (e) {
+        showStatus('Откройте сайт из Telegram-бота MiniDeN, чтобы продолжить', true);
+        throw e;
+      }
     }
 
     function renderProducts() {
@@ -536,10 +554,17 @@
 
     async function init() {
       hideStatus();
-      if (!userId) {
-        showStatus('Не удалось определить пользователя из Telegram WebApp', true);
+      try {
+        await authorize();
+      } catch (e) {
         return;
       }
+
+      if (!isAdmin) {
+        showStatus('Доступ только для администраторов', true);
+        return;
+      }
+
       adminContent.style.display = 'block';
       ordersSection.style.display = 'block';
       promosSection.style.display = 'block';

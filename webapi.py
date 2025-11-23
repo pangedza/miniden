@@ -1,12 +1,18 @@
+import hashlib
+import hmac
+import json
+from urllib.parse import parse_qsl
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from config import ADMIN_IDS_SET
+from config import get_settings
 from services import cart as cart_service
 from services import orders as orders_service
 from services import products as products_service
 from services import promocodes as promocodes_service
+from services import users as users_service
 
 
 app = FastAPI(title="MiniDeN Web API", version="1.0.0")
@@ -21,6 +27,9 @@ app.add_middleware(
 
 
 ALLOWED_TYPES = {"basket", "course"}
+
+SETTINGS = get_settings()
+BOT_TOKEN = SETTINGS.bot_token
 
 
 def _validate_type(product_type: str) -> str:
@@ -40,10 +49,51 @@ class CartClearPayload(BaseModel):
     user_id: int
 
 
+class AuthPayload(BaseModel):
+    initData: str | None = None
+    user: dict | None = None
+
+
+class ContactPayload(BaseModel):
+    telegram_id: int
+    phone: str | None = None
+
+
 def _ensure_admin(user_id: int | None) -> int:
-    if user_id is None or int(user_id) not in ADMIN_IDS_SET:
+    if user_id is None or not users_service.is_admin(int(user_id)):
         raise HTTPException(status_code=403, detail="Forbidden")
     return int(user_id)
+
+
+def _parse_webapp_user(init_data: str) -> dict | None:
+    if not init_data:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    data_pairs = dict(parse_qsl(init_data, strict_parsing=False))
+    received_hash = data_pairs.pop("hash", None)
+    if not received_hash:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    data_check_string = "\n".join(f"{k}={v}" for k, v in sorted(data_pairs.items()))
+    secret_key = hmac.new(f"WebAppData{BOT_TOKEN}".encode(), digestmod=hashlib.sha256).digest()
+    calculated_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
+
+    if not hmac.compare_digest(calculated_hash, received_hash):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    user_json = data_pairs.get("user")
+    if not user_json:
+        return None
+
+    try:
+        return json.loads(user_json)
+    except json.JSONDecodeError:
+        return None
+
+
+def _full_name(user) -> str:
+    parts = [user.first_name, user.last_name]
+    return " ".join(part for part in parts if part).strip()
 
 
 class AdminProductsCreatePayload(BaseModel):
@@ -94,6 +144,37 @@ class AdminPromocodeUpdatePayload(BaseModel):
     valid_to: str | None = None
     description: str | None = None
     is_active: bool | None = None
+
+
+@app.post("/api/auth/telegram")
+def api_auth_telegram(payload: AuthPayload):
+    if not payload.initData and not payload.user:
+        raise HTTPException(status_code=400, detail="initData is required")
+
+    user_data = None
+    if payload.initData:
+        user_data = _parse_webapp_user(payload.initData)
+
+    if not user_data and payload.user:
+        user_data = payload.user
+
+    if not user_data or "id" not in user_data:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    try:
+        user = users_service.get_or_create_user_from_telegram(user_data)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid user data")
+
+    full_name = _full_name(user) or user.username or ""
+
+    return {
+        "ok": True,
+        "telegram_id": user.telegram_id,
+        "username": user.username,
+        "full_name": full_name,
+        "is_admin": bool(user.is_admin),
+    }
 
 
 @app.get("/api/categories")
@@ -221,6 +302,37 @@ def api_cart_update(payload: CartItemPayload):
 def api_cart_clear(payload: CartClearPayload):
     cart_service.clear_cart(payload.user_id)
     return {"ok": True}
+
+
+@app.get("/api/me")
+def api_me(telegram_id: int):
+    user = users_service.get_user_by_telegram_id(telegram_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user_orders = orders_service.get_orders_by_user(telegram_id)
+
+    return {
+        "telegram_id": user.telegram_id,
+        "username": user.username,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "phone": user.phone,
+        "is_admin": bool(user.is_admin),
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+        "orders_count": len(user_orders),
+        "orders": user_orders,
+    }
+
+
+@app.post("/api/me/contact")
+def api_me_contact(payload: ContactPayload):
+    try:
+        user = users_service.update_user_contact(payload.telegram_id, payload.phone)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return {"ok": True, "phone": user.phone}
 
 
 @app.get("/")
