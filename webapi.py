@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import json
+from typing import Any
 from urllib.parse import parse_qsl
 
 from fastapi import FastAPI, HTTPException
@@ -197,23 +198,47 @@ def api_auth_telegram(payload: AuthPayload):
 
 @app.get("/api/categories")
 def api_categories(type: str):
-    _validate_type(type)
-    return []
+    product_type = _validate_type(type)
+
+    if product_type == "basket":
+        return [{"slug": "basket", "name": "Корзинки"}]
+
+    return [
+        {"slug": "paid", "name": "Платные курсы"},
+        {"slug": "free", "name": "Бесплатные уроки"},
+    ]
 
 
 @app.get("/api/products")
 def api_products(type: str, category_slug: str | None = None):
     product_type = _validate_type(type)
-    return products_service.list_products(product_type)
+    return products_service.list_products(product_type, category_slug=category_slug)
 
 
 @app.get("/api/cart")
 def api_cart(user_id: int):
     items, removed = cart_service.get_cart_items(user_id)
 
-    total = sum(int(item.get("price", 0)) * int(item.get("qty", 0)) for item in items)
+    normalized_items: list[dict[str, Any]] = []
+    total = 0
 
-    return {"items": items, "removed_items": removed, "total": total}
+    for item in items:
+        price = int(item.get("price", 0))
+        qty = int(item.get("qty", 0))
+        total += price * qty
+
+        normalized_items.append(
+            {
+                "product_id": int(item.get("product_id")),
+                "name": item.get("name"),
+                "price": price,
+                "qty": qty,
+                "type": item.get("type"),
+                "category_name": item.get("category_name"),
+            }
+        )
+
+    return {"items": normalized_items, "removed_items": removed, "total": total}
 
 
 @app.post("/api/cart/add")

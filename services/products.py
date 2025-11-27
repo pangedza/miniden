@@ -16,16 +16,34 @@ COURSES_JSON = DATA_DIR / "products_courses.json"
 
 
 def _serialize_product(product: ProductBasket | ProductCourse, product_type: str) -> dict[str, Any]:
+    price = int(product.price or 0)
+
+    if product_type == "basket":
+        category_slug = "basket"
+        category_name = "Корзинки"
+    elif product_type == "course":
+        if price > 0:
+            category_slug = "paid"
+            category_name = "Платные курсы"
+        else:
+            category_slug = "free"
+            category_name = "Бесплатные уроки"
+    else:
+        category_slug = None
+        category_name = None
+
     return {
         "id": int(product.id),
         "type": product_type,
         "name": product.name,
-        "price": int(product.price or 0),
+        "price": price,
         "description": product.description or "",
         "detail_url": getattr(product, "detail_url", None),
         "image_file_id": getattr(product, "image", None),
         "is_active": int(getattr(product, "is_active", 1) or 0),
         "category_id": getattr(product, "category_id", None),
+        "category_name": category_name,
+        "category_slug": category_slug,
         "created_at": product.created_at.isoformat() if getattr(product, "created_at", None) else None,
     }
 
@@ -43,6 +61,7 @@ def list_products(
     *,
     is_active: bool | None = True,
     category_id: int | None = None,
+    category_slug: str | None = None,
 ) -> list[dict[str, Any]]:
     """Возвращает список товаров из БД через ORM."""
 
@@ -60,6 +79,11 @@ def list_products(
                 query = query.where(model.is_active == (1 if is_active else 0))
             if category_id is not None:
                 query = query.where(model.category_id == category_id)
+            if p_type == "course" and category_slug:
+                if category_slug == "paid":
+                    query = query.where(model.price > 0)
+                elif category_slug == "free":
+                    query = query.where(model.price <= 0)
             rows = session.scalars(query.order_by(model.id)).all()
             results.extend(_serialize_product(row, p_type) for row in rows)
     return results

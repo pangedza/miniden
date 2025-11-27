@@ -26,6 +26,7 @@ def _normalize_product(item: CartItem) -> tuple[dict[str, Any] | None, bool]:
             "price": int(product.get("price", 0)),
             "qty": int(item.qty),
             "type": item.type,
+            "category_name": product.get("category_name"),
         },
         False,
     )
