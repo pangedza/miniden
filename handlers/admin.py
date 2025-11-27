@@ -600,10 +600,9 @@ async def _send_products_list(
     if status not in ("all", "active", "hidden", "deleted"):
         status = "all"
 
-    products = products_service.list_products_by_status(
+    products = products_service.list_products_admin(
         product_type=category,
         status=status,
-        limit=100,
     )
 
     await state.update_data(category=category, status=status)
