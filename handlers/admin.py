@@ -922,17 +922,21 @@ async def create_product_photo(message: types.Message, state: FSMContext):
     else:
         txt = (message.text or "").strip()
         if txt != "-":
-            await message.answer("Отправьте фото или '-' для пропуска.")
+            await message.answer("Отправьте фото или '-' если без фото.")
             return
 
+    # 1) создаём товар без фото
     product_id = products_service.create_product(
         product_type=product_type,
         name=name,
         price=price,
         description=description,
         detail_url=detail_url,
-        image_file_id=image_file_id,
     )
+
+    # 2) если есть фото — сохраняем его отдельной функцией
+    if image_file_id:
+        products_service.update_product_image(product_id, image_file_id)
 
     await state.clear()
 
