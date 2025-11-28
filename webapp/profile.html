@@ -149,6 +149,19 @@
     const tg = window.Telegram?.WebApp;
     const API_BASE = "/api";
 
+    let ENV = { bot_link: null, channel_link: null };
+    window.ENV = ENV;
+
+    async function initEnv() {
+      try {
+        const res = await fetch('/api/env');
+        ENV = await res.json();
+        window.ENV = ENV;
+      } catch (e) {
+        console.warn("ENV load failed", e);
+      }
+    }
+
     const statusEl = document.getElementById('status');
     const loginHint = document.getElementById('login-hint');
     const profileGrid = document.getElementById('profile-grid');
@@ -208,7 +221,7 @@
       if (!initData) {
         userId = null;
         setStatus(
-          'Профиль доступен только из Telegram. Откройте страницу через бота MiniDeN (https://t.me/miniden_bot) и затем обновите эту вкладку.',
+          `Профиль доступен только из Telegram. Откройте страницу через бота MiniDeN (${ENV.bot_link}) и затем обновите эту вкладку.`,
           true
         );
         updateAdminLinkVisibility();
@@ -231,7 +244,7 @@
         userId = null;
         setStatus(
           'Не удалось получить данные Telegram. ' +
-            'Откройте страницу профиля из бота MiniDeN и повторите попытку.',
+            `Откройте страницу профиля из бота MiniDeN (${ENV.bot_link}) и повторите попытку.`,
           true
         );
         updateAdminLinkVisibility();
@@ -343,6 +356,7 @@
 
     (async function initApp() {
       try {
+        await initEnv();
         await authorize();
         if (!userId) return;
         await loadProfile();

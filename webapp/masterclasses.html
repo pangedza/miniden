@@ -109,6 +109,19 @@
     const tg = window.Telegram?.WebApp;
     const API_BASE = "/api";
 
+    let ENV = { bot_link: null, channel_link: null };
+    window.ENV = ENV;
+
+    async function initEnv() {
+      try {
+        const res = await fetch('/api/env');
+        ENV = await res.json();
+        window.ENV = ENV;
+      } catch (e) {
+        console.warn("ENV load failed", e);
+      }
+    }
+
     let userId = null;
     let username = null;
     let isAdmin = false;
@@ -195,7 +208,7 @@
         noteEl.innerHTML =
           'Каталог мастер-классов доступен в режиме просмотра. ' +
           'Чтобы добавлять курсы в корзину и в избранное, откройте сайт из ' +
-          '<a href="https://t.me/miniden_bot" target="_blank" rel="noopener">Telegram-бота MiniDeN</a>.';
+          `<a href="${ENV.bot_link}" target="_blank" rel="noopener">Telegram-бота MiniDeN</a>.`;
         updateAdminLinkVisibility();
         return;
       }
@@ -219,7 +232,7 @@
         noteEl.innerHTML =
           'Каталог мастер-классов доступен в режиме просмотра. ' +
           'Чтобы использовать корзину, откройте сайт из ' +
-          '<a href="https://t.me/miniden_bot" target="_blank" rel="noopener">Telegram-бота MiniDeN</a>.';
+          `<a href="${ENV.bot_link}" target="_blank" rel="noopener">Telegram-бота MiniDeN</a>.`;
         updateAdminLinkVisibility();
       }
     }
@@ -348,6 +361,7 @@
 
     async function initApp() {
       try {
+        await initEnv();
         await authorize();
         await loadFavorites();
         await loadCategories();
