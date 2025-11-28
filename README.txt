@@ -33,9 +33,9 @@ MiniDeN — Telegram-бот-магазин
 
 ## WebApp, авторизация и админка
 
-- Backend поднимается через FastAPI-приложение `webapi:app` на 127.0.0.1:8000,
+  - Backend поднимается через FastAPI-приложение `webapi:app` на 127.0.0.1:8000,
   nginx проксирует `/api` на этот порт.
-- Telegram WebApp-страницы (`products.html`, `masterclasses.html`, `cart.html`,
+  - Telegram WebApp-страницы (`products.html`, `masterclasses.html`, `cart.html`,
   `profile.html`, `admin.html`) авторизуют пользователя через эндпоинт:
 
     POST /api/auth/telegram
@@ -44,9 +44,19 @@ MiniDeN — Telegram-бот-магазин
   по токену бота (BOT_TOKEN), создаёт/обновляет запись пользователя в PostgreSQL
   и возвращает `telegram_id`, `username`, `full_name`, `is_admin`.
 
-- Админские права определяются через переменные окружения `ADMIN_CHAT_ID` / `ADMIN_CHAT_IDS`.
+  - Админские права определяются через переменные окружения `ADMIN_CHAT_ID` / `ADMIN_CHAT_IDS`.
   При инициализации базы (`init_db`) пользователи с такими ID помечаются `is_admin = True`.
 
-- В WebApp ссылка «Админка» в верхнем меню отображается только для пользователей,
+  - В WebApp ссылка «Админка» в верхнем меню отображается только для пользователей,
   у которых `is_admin = True`. Для остальных она скрыта, а прямой доступ к admin.html
   всё равно блокируется backend'ом (эндпоинты `/api/admin/*` возвращают 403).
+
+### Авторизация на сайте через Telegram
+
+- Для входа на сайт с ПК используется Telegram Login Widget.
+- В @BotFather нужно выполнить `/setdomain` и указать домен `miniden.ru`.
+- На страничке `index.html` встроена кнопка «Войти через Telegram», которая обращается к
+  `/api/auth/telegram-login`. Бэкенд проверяет подпись данных, создаёт/обновляет пользователя
+  в БД (таблица users) и устанавливает cookie `tg_user_id` с его Telegram ID.
+- Все последующие запросы WebApp используют `/api/auth/session` для получения информации
+  о текущем пользователе по этой cookie.

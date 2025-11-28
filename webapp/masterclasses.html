@@ -150,7 +150,7 @@
 
     async function toggleFavorite(course) {
       if (!userId) {
-        alert('Чтобы добавить в избранное, откройте сайт из Telegram-бота.');
+        alert('Чтобы добавить в избранное, войдите через Telegram на главной странице.');
         return;
       }
       try {
@@ -187,14 +187,9 @@
     updateAdminLinkVisibility();
 
     async function authorize() {
-      const initData = tg?.initData || (tg?.initDataUnsafe ? tg.initData : null);
-      if (!tg || !initData) {
-        noteEl.textContent = 'Откройте сайт из Telegram-бота MiniDeN, чтобы продолжить';
-        updateAdminLinkVisibility();
-        return;
-      }
-
-      try {
+      const hasTelegram = !!tg && !!tg.initData;
+      if (hasTelegram) {
+        const initData = tg.initData;
         const data = await fetchJson(`${API_BASE}/auth/telegram`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -204,9 +199,18 @@
         username = data.username;
         isAdmin = Boolean(data.is_admin);
         updateAdminLinkVisibility();
-      } catch (e) {
-        noteEl.textContent = 'Откройте сайт из Telegram-бота MiniDeN, чтобы продолжить';
-        updateAdminLinkVisibility();
+      } else {
+        try {
+          const data = await fetchJson(`${API_BASE}/auth/session`);
+          userId = data.telegram_id;
+          username = data.username;
+          isAdmin = Boolean(data.is_admin);
+          updateAdminLinkVisibility();
+        } catch (e) {
+          noteEl.textContent = 'Вы не авторизованы. Откройте главную страницу и войдите через Telegram.';
+          updateAdminLinkVisibility();
+          throw e;
+        }
       }
     }
 
@@ -315,7 +319,7 @@
 
     async function handleAddToCart(course) {
       if (!userId) {
-        alert('Для добавления в корзину откройте сайт из Telegram-бота.');
+        alert('Для добавления в корзину войдите через Telegram на главной странице.');
         return;
       }
 
