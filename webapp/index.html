@@ -305,7 +305,7 @@
         После этого каталоги, корзина и профиль на сайте будут связаны с вашим аккаунтом.
       </p>
       <p style="margin-top:8px;">
-        <a class="btn" href="https://t.me/miniden_bot" target="_blank" rel="noopener">
+        <a class="btn" id="bot-link-hero" href="#" target="_blank" rel="noopener">
           Открыть бота MiniDeN в Telegram
         </a>
       </p>
@@ -320,11 +320,11 @@
   <footer>
     <div>
       Готовы помочь в Telegram:
-      <a href="https://t.me/miniden_bot" target="_blank" rel="noopener">бот MiniDeN</a>
+      <a id="bot-link-footer" href="#" target="_blank" rel="noopener">бот MiniDeN</a>
     </div>
     <div>
       Новости и вдохновение:
-      <a href="https://t.me" target="_blank" rel="noopener">Telegram-канал</a>
+      <a id="channel-link-footer" href="#" target="_blank" rel="noopener">Telegram-канал</a>
     </div>
     <div>Мы в соцсетях: <a href="#">Instagram*</a> • <a href="#">VK</a></div>
   </footer>
@@ -354,12 +354,39 @@
   </section>
 
   <script>
+    let ENV = { bot_link: null, channel_link: null };
+    window.ENV = ENV;
+
+    async function initEnv() {
+      try {
+        const res = await fetch('/api/env');
+        ENV = await res.json();
+        window.ENV = ENV;
+      } catch (e) {
+        console.warn("ENV load failed", e);
+      }
+    }
+
     const toggle = document.querySelector('.menu-toggle');
     const nav = document.querySelector('.nav-links');
 
     toggle?.addEventListener('click', () => {
       nav?.classList.toggle('open');
     });
+
+    async function initPage() {
+      await initEnv();
+
+      const botLinks = document.querySelectorAll('#bot-link-hero, #bot-link-footer');
+      botLinks.forEach((link) => {
+        link?.setAttribute('href', ENV.bot_link || '#');
+      });
+
+      const channelLink = document.getElementById('channel-link-footer');
+      channelLink?.setAttribute('href', ENV.channel_link || '#');
+    }
+
+    initPage();
   </script>
 </body>
 </html>

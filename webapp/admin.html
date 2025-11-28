@@ -316,6 +316,19 @@
     const tg = window.Telegram?.WebApp;
     const API_BASE = '/api';
 
+    let ENV = { bot_link: null, channel_link: null };
+    window.ENV = ENV;
+
+    async function initEnv() {
+      try {
+        const res = await fetch('/api/env');
+        ENV = await res.json();
+        window.ENV = ENV;
+      } catch (e) {
+        console.warn("ENV load failed", e);
+      }
+    }
+
     let userId = null;
     let isAdmin = false;
 
@@ -709,6 +722,7 @@
     async function init() {
       hideStatus();
       try {
+        await initEnv();
         await authorize();
       } catch (e) {
         return;

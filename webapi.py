@@ -45,6 +45,18 @@ def _startup() -> None:
     init_db()
 
 
+@app.get("/api/env")
+def api_env():
+    from config import get_settings
+
+    settings = get_settings()
+    bot_username = settings.bot_username.lstrip("@") if hasattr(settings, "bot_username") else ""
+    return {
+        "bot_link": f"https://t.me/{bot_username}",
+        "channel_link": settings.required_channel_link,
+    }
+
+
 def _validate_type(product_type: str) -> str:
     if product_type not in ALLOWED_TYPES:
         raise HTTPException(status_code=400, detail="type must be 'basket' or 'course'")

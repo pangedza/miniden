@@ -129,6 +129,19 @@
     const tg = window.Telegram?.WebApp;
     const API_BASE = "/api";
 
+    let ENV = { bot_link: null, channel_link: null };
+    window.ENV = ENV;
+
+    async function initEnv() {
+      try {
+        const res = await fetch('/api/env');
+        ENV = await res.json();
+        window.ENV = ENV;
+      } catch (e) {
+        console.warn("ENV load failed", e);
+      }
+    }
+
     let userId = null;
     let username = null;
     let isAdmin = false;
@@ -213,7 +226,7 @@
           'Каталог доступен в режиме просмотра. ' +
           'Чтобы добавлять товары в корзину и видеть свои заказы, ' +
           'откройте сайт из ' +
-          '<a href="https://t.me/miniden_bot" target="_blank" rel="noopener">Telegram-бота MiniDeN</a> ' +
+          `<a href="${ENV.bot_link}" target="_blank" rel="noopener">Telegram-бота MiniDeN</a> ` +
           'и затем обновите страницу.';
         updateAdminLinkVisibility();
         return;
@@ -240,7 +253,7 @@
         noteEl.innerHTML =
           'Каталог доступен в режиме просмотра. ' +
           'Чтобы добавить товары в корзину, откройте сайт из ' +
-          '<a href="https://t.me/miniden_bot" target="_blank" rel="noopener">Telegram-бота MiniDeN</a>.';
+          `<a href="${ENV.bot_link}" target="_blank" rel="noopener">Telegram-бота MiniDeN</a>.`;
         updateAdminLinkVisibility();
       }
     }
@@ -366,6 +379,7 @@
 
     async function initApp() {
       try {
+        await initEnv();
         await authorize();
         await loadFavorites();
         await loadCategories();

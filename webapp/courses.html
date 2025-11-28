@@ -126,6 +126,19 @@
 
     const tg = window.Telegram?.WebApp;
 
+    let ENV = { bot_link: null, channel_link: null };
+    window.ENV = ENV;
+
+    async function initEnv() {
+      try {
+        const res = await fetch('/api/env');
+        ENV = await res.json();
+        window.ENV = ENV;
+      } catch (e) {
+        console.warn("ENV load failed", e);
+      }
+    }
+
     const courses = [
       {
         id: 1,
@@ -246,7 +259,12 @@
       tg.MainButton.hide();
     }
 
-    renderCards(courses);
+    async function initPage() {
+      await initEnv();
+      renderCards(courses);
+    }
+
+    initPage();
   </script>
 </body>
 </html>
