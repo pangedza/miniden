@@ -185,14 +185,9 @@
     }
 
     async function authorize() {
-      const initData = tg?.initData || (tg?.initDataUnsafe ? tg.initData : null);
-      if (!tg || !initData) {
-        setStatus('Откройте сайт из Telegram-бота MiniDeN, чтобы продолжить', true);
-        updateAdminLinkVisibility();
-        return;
-      }
-
-      try {
+      const hasTelegram = !!tg && !!tg.initData;
+      if (hasTelegram) {
+        const initData = tg.initData;
         const data = await fetchJson(`${API_BASE}/auth/telegram`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -202,9 +197,18 @@
         isAdmin = Boolean(data.is_admin);
         setStatus('');
         updateAdminLinkVisibility();
-      } catch (e) {
-        setStatus('Откройте сайт из Telegram-бота MiniDeN, чтобы продолжить', true);
-        updateAdminLinkVisibility();
+      } else {
+        try {
+          const data = await fetchJson(`${API_BASE}/auth/session`);
+          userId = data.telegram_id;
+          isAdmin = Boolean(data.is_admin);
+          setStatus('');
+          updateAdminLinkVisibility();
+        } catch (e) {
+          setStatus('Вы не авторизованы. Откройте главную страницу и войдите через Telegram.', true);
+          updateAdminLinkVisibility();
+          throw e;
+        }
       }
     }
 

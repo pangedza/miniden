@@ -394,19 +394,21 @@
     }
 
     async function authorize() {
-      const initData = tg?.initData || (tg?.initDataUnsafe ? tg.initData : null);
-      if (!tg || !initData) {
-        showStatus('Откройте сайт из Telegram-бота MiniDeN, чтобы продолжить', true);
-        updateAdminLinkVisibility();
-        throw new Error('Telegram WebApp required');
-      }
-
       try {
-        const data = await fetchJson(`${API_BASE}/auth/telegram`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ initData }),
-        });
+        const hasTelegram = !!tg && !!tg.initData;
+        let data;
+
+        if (hasTelegram) {
+          const initData = tg.initData;
+          data = await fetchJson(`${API_BASE}/auth/telegram`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ initData }),
+          });
+        } else {
+          data = await fetchJson(`${API_BASE}/auth/session`);
+        }
+
         userId = data.telegram_id;
         isAdmin = Boolean(data.is_admin);
         updateAdminLinkVisibility();
@@ -415,8 +417,10 @@
           throw new Error('Forbidden');
         }
       } catch (e) {
-        if (e.message !== 'Forbidden') {
-          showStatus('Откройте сайт из Telegram-бота MiniDeN, чтобы продолжить', true);
+        if (e.message === 'Forbidden') {
+          showStatus('Нет доступа: вы не администратор', true);
+        } else {
+          showStatus('Вы не авторизованы. Откройте главную страницу и войдите через Telegram.', true);
         }
         updateAdminLinkVisibility();
         throw e;

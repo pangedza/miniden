@@ -1,11 +1,13 @@
 import hashlib
 import hmac
 import json
+import time
 from typing import Any
 from urllib.parse import parse_qsl
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 
 from config import get_settings
@@ -111,6 +113,106 @@ def _parse_webapp_user(init_data: str) -> dict | None:
 def _full_name(user) -> str:
     parts = [user.first_name, user.last_name]
     return " ".join(part for part in parts if part).strip()
+
+
+@app.get("/api/auth/telegram-login")
+def api_auth_telegram_login(request: Request):
+    """
+    Авторизация через Telegram Login Widget (браузер на сайте).
+    Telegram делает GET на этот URL с параметрами:
+    id, first_name, last_name, username, photo_url, auth_date, hash.
+    Алгоритм проверки: https://core.telegram.org/widgets/login
+    """
+    params = dict(request.query_params)
+    received_hash = params.pop("hash", None)
+    if not received_hash:
+        raise HTTPException(status_code=400, detail="Missing hash")
+
+    data_check_string = "\n".join(
+        f"{k}={v}" for k, v in sorted(params.items()) if v is not None and v != ""
+    )
+
+    secret_key = hashlib.sha256(BOT_TOKEN.encode()).digest()
+    calculated_hash = hmac.new(
+        secret_key,
+        data_check_string.encode(),
+        hashlib.sha256,
+    ).hexdigest()
+
+    if not hmac.compare_digest(calculated_hash, received_hash):
+        raise HTTPException(status_code=400, detail="Invalid login data")
+
+    auth_date = int(params.get("auth_date", "0") or 0)
+    if auth_date and time.time() - auth_date > 86400:
+        raise HTTPException(status_code=400, detail="Login data is too old")
+
+    user_data = {
+        "id": int(params["id"]),
+        "first_name": params.get("first_name") or "",
+        "last_name": params.get("last_name") or "",
+        "username": params.get("username") or "",
+        "photo_url": params.get("photo_url") or "",
+    }
+
+    try:
+        user = users_service.get_or_create_user_from_telegram(user_data)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid user data")
+
+    response = RedirectResponse(url="/webapp/profile.html", status_code=302)
+    response.set_cookie(
+        key="tg_user_id",
+        value=str(user.telegram_id),
+        max_age=30 * 24 * 60 * 60,
+        httponly=True,
+        samesite="lax",
+    )
+    return response
+
+
+@app.get("/api/auth/session")
+def api_auth_session(request: Request):
+    """
+    Авторизация из браузера по ранее установленной cookie tg_user_id.
+    Возвращает тот же формат данных, что и /api/auth/telegram.
+    """
+    user_id = request.cookies.get("tg_user_id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="No session")
+
+    try:
+        telegram_id = int(user_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid session")
+
+    user = users_service.get_user_by_telegram_id(telegram_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    full_name = _full_name(user) or user.username or ""
+
+    user_orders = orders_service.get_orders_by_user(telegram_id)
+    user_favorites = favorites_service.list_favorites(telegram_id)
+    user_stats = stats_service.get_user_stats(telegram_id)
+    ban_status = bans_service.is_banned(telegram_id)
+    notes = []
+    if user.is_admin:
+        notes = admin_notes_service.list_notes(telegram_id)
+
+    return {
+        "ok": True,
+        "telegram_id": user.telegram_id,
+        "username": user.username,
+        "full_name": full_name,
+        "is_admin": bool(user.is_admin),
+        "phone": user.phone,
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+        "orders": user_orders,
+        "favorites": user_favorites,
+        "stats": user_stats,
+        "ban": ban_status,
+        "notes": notes,
+    }
 
 
 class AdminProductsCreatePayload(BaseModel):

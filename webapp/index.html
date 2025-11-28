@@ -306,6 +306,21 @@
     <div>Мы в соцсетях: <a href="#">Instagram*</a> • <a href="#">VK</a></div>
   </footer>
 
+  <section class="section">
+    <h2>Вход через Telegram</h2>
+    <p>Чтобы синхронизировать корзину и профиль с ботом MiniDeN, войдите через Telegram:</p>
+    <div id="telegram-login-container">
+      <script async src="https://telegram.org/js/telegram-widget.js?22"
+              data-telegram-login="MiniDeN_bot"
+              data-size="large"
+              data-userpic="false"
+              data-request-access="write"
+              data-auth-url="/api/auth/telegram-login">
+      </script>
+    </div>
+    <p>После входа вы будете перенаправлены в профиль, и сайт начнёт использовать ваш Telegram-аккаунт.</p>
+  </section>
+
   <script>
     const toggle = document.querySelector('.menu-toggle');
     const nav = document.querySelector('.nav-links');
