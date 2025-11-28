@@ -82,7 +82,7 @@
       <a href="masterclasses.html">Мастер-классы</a>
       <a href="cart.html" class="active">Корзина</a>
       <a href="profile.html">Профиль</a>
-      <a href="admin.html">Админка</a>
+      <a href="admin.html" id="admin-link">Админка</a>
     </nav>
   </header>
 
@@ -130,6 +130,7 @@
     let userId = null;
     let username = null;
     let isAdmin = false;
+    const adminLink = document.getElementById('admin-link');
     let currentCart = { items: [], total: 0 };
     let appliedPromo = null;
     let discountAmount = 0;
@@ -143,6 +144,13 @@
     const applyPromoBtn = document.getElementById('apply-promo');
     const clearBtn = document.getElementById('clear-cart');
     const checkoutBtn = document.getElementById('checkout');
+
+    function updateAdminLinkVisibility() {
+      if (!adminLink) return;
+      adminLink.style.display = isAdmin ? '' : 'none';
+    }
+
+    updateAdminLinkVisibility();
 
     function formatPrice(value) {
       const num = Number(value) || 0;
@@ -159,7 +167,13 @@
     }
 
     async function authorize() {
-      const initData = tg?.initData || tg?.initDataUnsafe?.query_id ? tg.initData : null;
+      const initData = tg?.initData || (tg?.initDataUnsafe ? tg.initData : null);
+      if (!tg || !initData) {
+        noteEl.textContent = 'Откройте сайт из Telegram-бота MiniDeN, чтобы продолжить';
+        updateAdminLinkVisibility();
+        return;
+      }
+
       try {
         const data = await fetchJson(`${API_BASE}/auth/telegram`, {
           method: 'POST',
@@ -169,9 +183,10 @@
         userId = data.telegram_id;
         username = data.username;
         isAdmin = Boolean(data.is_admin);
+        updateAdminLinkVisibility();
       } catch (e) {
-        document.querySelector('#summary').textContent = 'Откройте сайт из Telegram-бота MiniDeN, чтобы продолжить';
-        throw e;
+        noteEl.textContent = 'Откройте сайт из Telegram-бота MiniDeN, чтобы продолжить';
+        updateAdminLinkVisibility();
       }
     }
 

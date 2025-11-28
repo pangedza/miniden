@@ -30,3 +30,23 @@ MiniDeN — Telegram-бот-магазин
   с `TypeError: list_products_by_status() got an unexpected keyword argument 'product_type'`.
 - Бот и WebApp используют общую базу данных, пока JSON-файлы служат
   только для начального наполнения каталога (опционально).
+
+## WebApp, авторизация и админка
+
+- Backend поднимается через FastAPI-приложение `webapi:app` на 127.0.0.1:8000,
+  nginx проксирует `/api` на этот порт.
+- Telegram WebApp-страницы (`products.html`, `masterclasses.html`, `cart.html`,
+  `profile.html`, `admin.html`) авторизуют пользователя через эндпоинт:
+
+    POST /api/auth/telegram
+
+  с передачей `initData` из `Telegram.WebApp`. Backend проверяет подпись initData
+  по токену бота (BOT_TOKEN), создаёт/обновляет запись пользователя в PostgreSQL
+  и возвращает `telegram_id`, `username`, `full_name`, `is_admin`.
+
+- Админские права определяются через переменные окружения `ADMIN_CHAT_ID` / `ADMIN_CHAT_IDS`.
+  При инициализации базы (`init_db`) пользователи с такими ID помечаются `is_admin = True`.
+
+- В WebApp ссылка «Админка» в верхнем меню отображается только для пользователей,
+  у которых `is_admin = True`. Для остальных она скрыта, а прямой доступ к admin.html
+  всё равно блокируется backend'ом (эндпоинты `/api/admin/*` возвращают 403).
