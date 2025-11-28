@@ -60,3 +60,15 @@ MiniDeN — Telegram-бот-магазин
   в БД (таблица users) и устанавливает cookie `tg_user_id` с его Telegram ID.
 - Все последующие запросы WebApp используют `/api/auth/session` для получения информации
   о текущем пользователе по этой cookie.
+
+### Точки входа на сайте
+
+- **Главная (`index.html`)** — содержит блок «Вход через Telegram» с официальным Telegram Login Widget.
+  После успешного входа backend устанавливает cookie и перенаправляет в профиль.
+
+- **Корзина (`cart.html`)** и **Профиль (`profile.html`)**:
+  если пользователь не авторизован, страницы показывают понятный блок
+  «Вы не авторизованы» с кнопкой «Перейти на главную для входа».
+
+- В режиме Telegram WebApp авторизация идёт через `initData` и `/api/auth/telegram`.
+  В режиме обычного браузера — через Telegram Login Widget и `/api/auth/telegram-login` + `/api/auth/session`.
