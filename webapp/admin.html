@@ -315,19 +315,10 @@
   <script>
     const tg = window.Telegram?.WebApp;
     const API_BASE = '/api';
-
-    let ENV = { bot_link: null, channel_link: null };
-    window.ENV = ENV;
-
-    async function initEnv() {
-      try {
-        const res = await fetch('/api/env');
-        ENV = await res.json();
-        window.ENV = ENV;
-      } catch (e) {
-        console.warn("ENV load failed", e);
-      }
-    }
+    const BOT_LINK = "https://t.me/BotMiniden_bot";
+    const CHANNEL_LINK = "https://t.me/petelka_za_petelko";
+    const INSTAGRAM_LINK = "https://www.instagram.com/balabanova_knit?igsh=MWhuMWFnOG8zejl6dQ==";
+    const VK_LINK = "https://vk.com/club233836469";
 
     let userId = null;
     let isAdmin = false;
@@ -722,7 +713,6 @@
     async function init() {
       hideStatus();
       try {
-        await initEnv();
         await authorize();
       } catch (e) {
         return;

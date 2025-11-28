@@ -137,19 +137,10 @@
 
     const tg = window.Telegram?.WebApp;
     const API_BASE = "/api";
-
-    let ENV = { bot_link: null, channel_link: null };
-    window.ENV = ENV;
-
-    async function initEnv() {
-      try {
-        const res = await fetch('/api/env');
-        ENV = await res.json();
-        window.ENV = ENV;
-      } catch (e) {
-        console.warn("ENV load failed", e);
-      }
-    }
+    const BOT_LINK = "https://t.me/BotMiniden_bot";
+    const CHANNEL_LINK = "https://t.me/petelka_za_petelko";
+    const INSTAGRAM_LINK = "https://www.instagram.com/balabanova_knit?igsh=MWhuMWFnOG8zejl6dQ==";
+    const VK_LINK = "https://vk.com/club233836469";
 
     let userId = null;
     let username = null;
@@ -210,7 +201,7 @@
           noteEl.innerHTML =
             'Корзина привязана к вашему Telegram-профилю. ' +
             'Откройте эту страницу из ' +
-            `<a href="${ENV.bot_link}" target="_blank" rel="noopener">Telegram-бота MiniDeN</a>, ` +
+            `<a href="${BOT_LINK}" target="_blank" rel="noopener">Telegram-бота MiniDeN</a>, ` +
             'а затем вернитесь и обновите страницу.';
         }
         updateAdminLinkVisibility();
@@ -238,7 +229,7 @@
           noteEl.innerHTML =
             'Не удалось получить данные Telegram. ' +
             'Откройте корзину через ' +
-            `<a href="${ENV.bot_link}" target="_blank" rel="noopener">бот MiniDeN</a>.`;
+            `<a href="${BOT_LINK}" target="_blank" rel="noopener">бот MiniDeN</a>.`;
         }
         updateAdminLinkVisibility();
       }
@@ -419,7 +410,6 @@
 
     async function initApp() {
       try {
-        await initEnv();
         await authorize();
         await loadCart();
       } catch (e) {
