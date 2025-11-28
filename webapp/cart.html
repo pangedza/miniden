@@ -188,9 +188,23 @@
     }
 
     async function authorize() {
-      const hasTelegram = !!tg && !!tg.initData;
-      if (hasTelegram) {
-        const initData = tg.initData;
+      const initData = tg?.initData || tg?.initDataUnsafe?.query_id ? tg.initData : null;
+      if (!initData) {
+        userId = null;
+        username = null;
+        isAdmin = false;
+        if (noteEl) {
+          noteEl.innerHTML =
+            'Корзина привязана к вашему Telegram-профилю. ' +
+            'Откройте эту страницу из ' +
+            '<a href="https://t.me/miniden_bot" target="_blank" rel="noopener">Telegram-бота MiniDeN</a>, ' +
+            'а затем вернитесь и обновите страницу.';
+        }
+        updateAdminLinkVisibility();
+        return;
+      }
+
+      try {
         const data = await fetchJson(`${API_BASE}/auth/telegram`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -202,20 +216,18 @@
         updateAdminLinkVisibility();
         if (loginHint) loginHint.style.display = 'none';
         if (noteEl) noteEl.textContent = '';
-      } else {
-        try {
-          const data = await fetchJson(`${API_BASE}/auth/session`);
-          userId = data.telegram_id;
-          username = data.username;
-          isAdmin = Boolean(data.is_admin);
-          updateAdminLinkVisibility();
-        } catch (e) {
-          showLoginHint('Вы не авторизованы. Перейдите на главную страницу и войдите через Telegram.');
-          updateAdminLinkVisibility();
-          throw e;
+      } catch (e) {
+        console.warn('WebApp auth failed, показываем пустую корзину', e);
+        userId = null;
+        username = null;
+        isAdmin = false;
+        if (noteEl) {
+          noteEl.innerHTML =
+            'Не удалось получить данные Telegram. ' +
+            'Откройте корзину через ' +
+            '<a href="https://t.me/miniden_bot" target="_blank" rel="noopener">бот MiniDeN</a>.';
         }
-        if (loginHint) loginHint.style.display = 'none';
-        if (noteEl) noteEl.textContent = '';
+        updateAdminLinkVisibility();
       }
     }
 
@@ -293,7 +305,7 @@
 
     async function loadCart() {
       if (!userId) {
-        showLoginHint('Чтобы видеть свою корзину, перейдите на главную страницу и войдите через Telegram.');
+        showLoginHint('Чтобы видеть содержимое корзины, откройте эту страницу из Telegram-бота MiniDeN.');
         renderEmpty('Нет данных — нет Telegram user_id');
         return;
       }

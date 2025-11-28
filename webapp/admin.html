@@ -395,35 +395,43 @@
 
     async function authorize() {
       try {
-        const hasTelegram = !!tg && !!tg.initData;
-        let data;
-
-        if (hasTelegram) {
-          const initData = tg.initData;
-          data = await fetchJson(`${API_BASE}/auth/telegram`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ initData }),
-          });
-        } else {
-          data = await fetchJson(`${API_BASE}/auth/session`);
+        const initData = tg?.initData || tg?.initDataUnsafe?.query_id ? tg.initData : null;
+        if (!initData) {
+          userId = null;
+          isAdmin = false;
+          showStatus(
+            'Админ-панель доступна только из Telegram-бота MiniDeN и только администраторам. ' +
+              'Откройте её из бота и повторите попытку.',
+            true
+          );
+          updateAdminLinkVisibility();
+          return;
         }
+
+        const data = await fetchJson(`${API_BASE}/auth/telegram`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ initData }),
+        });
 
         userId = data.telegram_id;
         isAdmin = Boolean(data.is_admin);
         updateAdminLinkVisibility();
         if (!isAdmin) {
-          showStatus('Нет доступа: вы не администратор', true);
-          throw new Error('Forbidden');
+          showStatus('У вас нет прав администратора.', true);
+          return;
         }
+
+        showStatus('');
       } catch (e) {
-        if (e.message === 'Forbidden') {
-          showStatus('Нет доступа: вы не администратор', true);
-        } else {
-          showStatus('Вы не авторизованы. Откройте главную страницу и войдите через Telegram.', true);
-        }
+        console.warn('WebApp auth failed в админке', e);
+        userId = null;
+        isAdmin = false;
+        showStatus(
+          'Не удалось авторизоваться через Telegram. Попробуйте открыть админку ещё раз из бота MiniDeN.',
+          true
+        );
         updateAdminLinkVisibility();
-        throw e;
       }
     }
 
