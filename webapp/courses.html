@@ -124,20 +124,11 @@
     const nav = document.querySelector('.nav-links');
     toggle?.addEventListener('click', () => nav?.classList.toggle('open'));
 
-    const tg = window.Telegram?.WebApp;
-
-    let ENV = { bot_link: null, channel_link: null };
-    window.ENV = ENV;
-
-    async function initEnv() {
-      try {
-        const res = await fetch('/api/env');
-        ENV = await res.json();
-        window.ENV = ENV;
-      } catch (e) {
-        console.warn("ENV load failed", e);
-      }
-    }
+      const tg = window.Telegram?.WebApp;
+      const BOT_LINK = "https://t.me/BotMiniden_bot";
+      const CHANNEL_LINK = "https://t.me/petelka_za_petelko";
+      const INSTAGRAM_LINK = "https://www.instagram.com/balabanova_knit?igsh=MWhuMWFnOG8zejl6dQ==";
+      const VK_LINK = "https://vk.com/club233836469";
 
     const courses = [
       {
@@ -257,12 +248,11 @@
     if (tg) {
       tg.expand();
       tg.MainButton.hide();
-    }
+      }
 
-    async function initPage() {
-      await initEnv();
-      renderCards(courses);
-    }
+      async function initPage() {
+        renderCards(courses);
+      }
 
     initPage();
   </script>
