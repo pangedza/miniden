@@ -119,6 +119,17 @@
     </div>
   </main>
 
+  <section class="section" id="login-hint" style="display: none; text-align: center;">
+    <h2>Вы не авторизованы</h2>
+    <p>
+      Чтобы увидеть вашу корзину и оформить заказ, войдите через Telegram.
+      Сначала откройте главную страницу и нажмите кнопку входа.
+    </p>
+    <p>
+      <a href="index.html" class="btn">Перейти на главную для входа</a>
+    </p>
+  </section>
+
   <script>
     const toggle = document.querySelector('.menu-toggle');
     const nav = document.querySelector('.nav-links');
@@ -137,6 +148,7 @@
     let finalTotal = 0;
 
     const noteEl = document.getElementById('note');
+    const loginHint = document.getElementById('login-hint');
     const tbody = document.getElementById('cart-body');
     const totalEl = document.getElementById('cart-total');
     const promoInfoEl = document.getElementById('promo-info');
@@ -144,6 +156,15 @@
     const applyPromoBtn = document.getElementById('apply-promo');
     const clearBtn = document.getElementById('clear-cart');
     const checkoutBtn = document.getElementById('checkout');
+
+    function showLoginHint(message) {
+      if (loginHint) {
+        loginHint.style.display = 'block';
+      }
+      if (noteEl && message) {
+        noteEl.textContent = message;
+      }
+    }
 
     function updateAdminLinkVisibility() {
       if (!adminLink) return;
@@ -179,6 +200,8 @@
         username = data.username;
         isAdmin = Boolean(data.is_admin);
         updateAdminLinkVisibility();
+        if (loginHint) loginHint.style.display = 'none';
+        if (noteEl) noteEl.textContent = '';
       } else {
         try {
           const data = await fetchJson(`${API_BASE}/auth/session`);
@@ -187,10 +210,12 @@
           isAdmin = Boolean(data.is_admin);
           updateAdminLinkVisibility();
         } catch (e) {
-          noteEl.textContent = 'Вы не авторизованы. Откройте главную страницу и войдите через Telegram.';
+          showLoginHint('Вы не авторизованы. Перейдите на главную страницу и войдите через Telegram.');
           updateAdminLinkVisibility();
           throw e;
         }
+        if (loginHint) loginHint.style.display = 'none';
+        if (noteEl) noteEl.textContent = '';
       }
     }
 
@@ -268,7 +293,7 @@
 
     async function loadCart() {
       if (!userId) {
-        noteEl.textContent = 'Чтобы видеть свою корзину, войдите через Telegram на главной странице.';
+        showLoginHint('Чтобы видеть свою корзину, перейдите на главную страницу и войдите через Telegram.');
         renderEmpty('Нет данных — нет Telegram user_id');
         return;
       }

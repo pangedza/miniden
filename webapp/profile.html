@@ -130,6 +130,17 @@
     </div>
   </main>
 
+  <section class="section" id="login-hint" style="display: none; text-align: center;">
+    <h2>Вы не авторизованы</h2>
+    <p>
+      Профиль, заказы и избранное привязаны к вашему Telegram-аккаунту.
+      Пожалуйста, войдите через Telegram на главной странице.
+    </p>
+    <p>
+      <a href="index.html" class="btn">Перейти на главную для входа</a>
+    </p>
+  </section>
+
   <script>
     const toggle = document.querySelector('.menu-toggle');
     const nav = document.querySelector('.nav-links');
@@ -139,6 +150,7 @@
     const API_BASE = "/api";
 
     const statusEl = document.getElementById('status');
+    const loginHint = document.getElementById('login-hint');
     const profileGrid = document.getElementById('profile-grid');
     const fullNameEl = document.getElementById('full-name');
     const usernameEl = document.getElementById('username');
@@ -175,6 +187,13 @@
       statusEl.style.display = 'block';
     }
 
+    function showLoginHint(message) {
+      if (loginHint) {
+        loginHint.style.display = 'block';
+      }
+      setStatus(message, true);
+    }
+
     async function fetchJson(url, options) {
       const res = await fetch(url, options);
       if (!res.ok) {
@@ -197,6 +216,7 @@
         isAdmin = Boolean(data.is_admin);
         setStatus('');
         updateAdminLinkVisibility();
+        if (loginHint) loginHint.style.display = 'none';
       } else {
         try {
           const data = await fetchJson(`${API_BASE}/auth/session`);
@@ -205,10 +225,11 @@
           setStatus('');
           updateAdminLinkVisibility();
         } catch (e) {
-          setStatus('Вы не авторизованы. Откройте главную страницу и войдите через Telegram.', true);
+          showLoginHint('Вы не авторизованы. Перейдите на главную страницу и войдите через Telegram.');
           updateAdminLinkVisibility();
           throw e;
         }
+        if (loginHint) loginHint.style.display = 'none';
       }
     }
 
