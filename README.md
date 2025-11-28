@@ -161,7 +161,7 @@ REST API развернут в каталоге `api/` (FastAPI) и исполь
 Базовый запуск локально:
 
 ```
-uvicorn api.main:app --host 127.0.0.1 --port 8000 --reload
+uvicorn webapi:app --host 127.0.0.1 --port 8000 --reload
 ```
 
 Для корректной работы добавьте в `.env` ключи `BOT_TOKEN`, `ADMIN_CHAT_ID`, `BASE_URL="https://miniden.ru"` и `API_URL="https://miniden.ru/api"` (реальные значения подставляются на сервере).
@@ -204,7 +204,7 @@ After=network.target
 WorkingDirectory=/opt/miniden
 Environment="PYTHONUNBUFFERED=1"
 EnvironmentFile=/opt/miniden/.env
-ExecStart=/usr/bin/python -m uvicorn api.main:app --host 127.0.0.1 --port 8000
+ExecStart=/usr/bin/python -m uvicorn webapi:app --host 127.0.0.1 --port 8000
 Restart=always
 
 [Install]

@@ -80,7 +80,7 @@
       <a href="masterclasses.html">Мастер-классы</a>
       <a href="cart.html">Корзина</a>
       <a href="profile.html" class="active">Профиль</a>
-      <a href="admin.html">Админка</a>
+      <a href="admin.html" id="admin-link">Админка</a>
     </nav>
   </header>
 
@@ -153,6 +153,15 @@
     const savePhoneBtn = document.getElementById('save-phone');
 
     let userId = null;
+    let isAdmin = false;
+    const adminLink = document.getElementById('admin-link');
+
+    function updateAdminLinkVisibility() {
+      if (!adminLink) return;
+      adminLink.style.display = isAdmin ? '' : 'none';
+    }
+
+    updateAdminLinkVisibility();
 
     function setStatus(message, isError = false) {
       if (!message) {
@@ -176,7 +185,13 @@
     }
 
     async function authorize() {
-      const initData = tg?.initData || tg?.initDataUnsafe?.query_id ? tg.initData : null;
+      const initData = tg?.initData || (tg?.initDataUnsafe ? tg.initData : null);
+      if (!tg || !initData) {
+        setStatus('Откройте сайт из Telegram-бота MiniDeN, чтобы продолжить', true);
+        updateAdminLinkVisibility();
+        return;
+      }
+
       try {
         const data = await fetchJson(`${API_BASE}/auth/telegram`, {
           method: 'POST',
@@ -184,10 +199,12 @@
           body: JSON.stringify({ initData }),
         });
         userId = data.telegram_id;
+        isAdmin = Boolean(data.is_admin);
         setStatus('');
+        updateAdminLinkVisibility();
       } catch (e) {
         setStatus('Откройте сайт из Telegram-бота MiniDeN, чтобы продолжить', true);
-        throw e;
+        updateAdminLinkVisibility();
       }
     }
 
@@ -297,6 +314,7 @@
     (async function initApp() {
       try {
         await authorize();
+        if (!userId) return;
         await loadProfile();
       } catch (e) {
         console.error(e);
