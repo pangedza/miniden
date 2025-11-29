@@ -4,15 +4,16 @@ import json
 import time
 from typing import Any
 from urllib.parse import parse_qsl
+from uuid import uuid4
 
-from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi import Cookie, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 
 from config import get_settings
-from database import init_db
-from services import auth_sessions as auth_sessions_service
+from database import get_session, init_db
+from models import AuthSession, User
 from services import admin_notes as admin_notes_service
 from services import bans as bans_service
 from services import cart as cart_service
@@ -130,24 +131,52 @@ def _full_name(user) -> str:
 
 @app.post("/api/auth/create-token")
 def api_auth_create_token():
-    token = auth_sessions_service.create_token()
+    """
+    Сайт запрашивает токен для авторизации.
+    Возвращаем новый UUID и создаём пустую сессию в БД.
+    """
+    token = str(uuid4())
+    with get_session() as s:
+        s.add(AuthSession(token=token))
     return {"token": token}
 
 
 @app.get("/api/auth/check")
-def api_auth_check(token: str, response: Response):
-    auth_session = auth_sessions_service.get_session_by_token(token)
-    if not auth_session or not auth_session.telegram_id:
-        return {"ok": False}
+def api_auth_check(token: str, request: Request, response: Response):
+    """
+    Сайт опрашивает этот эндпоинт каждые 0.5–1 сек после того,
+    как пользователь перешёл в бота по ссылке с этим токеном.
+    Если telegram_id уже записан в AuthSession — авторизуем.
+    """
+    with get_session() as s:
+        session = s.query(AuthSession).filter(AuthSession.token == token).first()
+        if not session:
+            return {"ok": False, "reason": "not_found"}
 
-    response.set_cookie(
-        key="tg_user_id",
-        value=str(auth_session.telegram_id),
-        max_age=30 * 24 * 60 * 60,
-        httponly=True,
-        samesite="lax",
-    )
-    return {"ok": True, "telegram_id": int(auth_session.telegram_id)}
+        if not session.telegram_id:
+            # пользователь ещё не нажал старт в боте
+            return {"ok": False, "reason": "pending"}
+
+        # telegram_id есть — авторизуем пользователя
+        telegram_id = session.telegram_id
+
+        user = s.query(User).filter(User.telegram_id == telegram_id).first()
+        if not user:
+            # на всякий случай создаём пользователя, если его ещё нет
+            user = User(telegram_id=telegram_id)
+            s.add(user)
+            s.flush()
+
+        # ставим cookie с tg_user_id, чтобы сайт знал, кто мы
+        response.set_cookie(
+            key="tg_user_id",
+            value=str(telegram_id),
+            httponly=True,
+            max_age=30 * 24 * 60 * 60,  # 30 дней
+            samesite="lax",
+        )
+
+        return {"ok": True, "telegram_id": telegram_id}
 
 
 @app.get("/api/auth/telegram-login")
