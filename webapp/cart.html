@@ -123,21 +123,21 @@
     <h2>Вы не авторизованы</h2>
     <p>
       Чтобы увидеть вашу корзину и оформить заказ, войдите через Telegram.
-      Сначала откройте главную страницу и нажмите кнопку входа.
+      Нажмите кнопку ниже, подтвердите авторизацию в боте и вернитесь на сайт.
     </p>
-    <p>
-      <a href="index.html" class="btn">Перейти на главную для входа</a>
-    </p>
+    <div style="display:flex; gap:12px; align-items:center; justify-content:center; flex-wrap:wrap;">
+      <button class="btn" type="button" id="login-via-telegram">Авторизоваться через Telegram</button>
+      <span id="login-status" class="muted"></span>
+    </div>
   </section>
 
+  <script src="auth.js"></script>
   <script>
     const toggle = document.querySelector('.menu-toggle');
     const nav = document.querySelector('.nav-links');
     toggle?.addEventListener('click', () => nav?.classList.toggle('open'));
 
-    const tg = window.Telegram?.WebApp;
     const API_BASE = "/api";
-    const BOT_LINK = "https://t.me/BotMiniden_bot";
     const CHANNEL_LINK = "https://t.me/petelka_za_petelko";
     const INSTAGRAM_LINK = "https://www.instagram.com/balabanova_knit?igsh=MWhuMWFnOG8zejl6dQ==";
     const VK_LINK = "https://vk.com/club233836469";
@@ -153,6 +153,8 @@
 
     const noteEl = document.getElementById('note');
     const loginHint = document.getElementById('login-hint');
+    const loginBtn = document.getElementById('login-via-telegram');
+    const loginStatus = document.getElementById('login-status');
     const tbody = document.getElementById('cart-body');
     const totalEl = document.getElementById('cart-total');
     const promoInfoEl = document.getElementById('promo-info');
@@ -165,9 +167,10 @@
       if (loginHint) {
         loginHint.style.display = 'block';
       }
-      if (noteEl && message) {
-        noteEl.textContent = message;
+      if (noteEl) {
+        noteEl.textContent = message || 'Авторизуйтесь через Telegram, чтобы увидеть корзину.';
       }
+      setLoginStatus(message);
     }
 
     function updateAdminLinkVisibility() {
@@ -191,46 +194,27 @@
       return res.json();
     }
 
-    async function authorize() {
-      const initData = tg?.initData || tg?.initDataUnsafe?.query_id ? tg.initData : null;
-      if (!initData) {
-        userId = null;
-        username = null;
-        isAdmin = false;
-        if (noteEl) {
-          noteEl.innerHTML =
-            'Корзина привязана к вашему Telegram-профилю. ' +
-            'Откройте эту страницу из ' +
-            `<a href="${BOT_LINK}" target="_blank" rel="noopener">Telegram-бота MiniDeN</a>, ` +
-            'а затем вернитесь и обновите страницу.';
-        }
-        updateAdminLinkVisibility();
-        return;
-      }
+    function setLoginStatus(text) {
+      if (loginStatus) loginStatus.textContent = text || '';
+    }
 
+    async function authorize() {
       try {
-        const data = await fetchJson(`${API_BASE}/auth/telegram`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ initData }),
-        });
+        const data = await fetchJson(`${API_BASE}/auth/session`);
         userId = data.telegram_id;
         username = data.username;
         isAdmin = Boolean(data.is_admin);
         updateAdminLinkVisibility();
         if (loginHint) loginHint.style.display = 'none';
         if (noteEl) noteEl.textContent = '';
+        setLoginStatus('');
       } catch (e) {
-        console.warn('WebApp auth failed, показываем пустую корзину', e);
+        console.warn('Cookie auth failed, показываем пустую корзину', e);
         userId = null;
         username = null;
         isAdmin = false;
-        if (noteEl) {
-          noteEl.innerHTML =
-            'Не удалось получить данные Telegram. ' +
-            'Откройте корзину через ' +
-            `<a href="${BOT_LINK}" target="_blank" rel="noopener">бот MiniDeN</a>.`;
-        }
+        setLoginStatus('Нажмите кнопку выше, чтобы авторизоваться через Telegram.');
+        if (loginHint) loginHint.style.display = 'block';
         updateAdminLinkVisibility();
       }
     }
@@ -309,8 +293,8 @@
 
     async function loadCart() {
       if (!userId) {
-        showLoginHint('Чтобы видеть содержимое корзины, откройте эту страницу из Telegram-бота MiniDeN.');
-        renderEmpty('Нет данных — нет Telegram user_id');
+        showLoginHint('Авторизуйтесь через Telegram, чтобы увидеть содержимое корзины.');
+        renderEmpty('Нет данных — пользователь не авторизован');
         return;
       }
 
@@ -388,21 +372,26 @@
     }
 
     function checkout() {
-      if (tg) {
-        tg.sendData(
-          JSON.stringify({
-            action: 'checkout',
-            total: currentCart.total || 0,
-            final_total: appliedPromo ? finalTotal : currentCart.total || 0,
-            promocode_code: appliedPromo,
-            discount_amount: appliedPromo ? discountAmount : 0,
-          })
-        );
-        tg.close();
-      } else {
-        alert('Вернитесь в Telegram-бот для оформления заказа.');
+      if (!userId) {
+        alert('Авторизуйтесь через Telegram, чтобы оформить заказ.');
+        return;
       }
+      window.open(BOT_LINK, '_blank', 'noopener');
+      alert('Мы открыли бота MiniDeN. Завершите оформление заказа в Telegram.');
     }
+
+    loginBtn?.addEventListener('click', async () => {
+      if (loginBtn.disabled) return;
+      loginBtn.disabled = true;
+      setLoginStatus('Открываем Telegram...');
+      try {
+        await startTelegramAuth();
+      } catch (e) {
+        console.error(e);
+        setLoginStatus('Не удалось запустить авторизацию. Попробуйте снова.');
+        loginBtn.disabled = false;
+      }
+    });
 
     applyPromoBtn.addEventListener('click', applyPromo);
     clearBtn.addEventListener('click', clearCart);
@@ -410,6 +399,17 @@
 
     async function initApp() {
       try {
+        if (getSavedAuthToken()) {
+          setLoginStatus('Ожидаем подтверждения в Telegram...');
+          startAuthPolling(
+            () => window.location.reload(),
+            () => setLoginStatus('Ожидаем подтверждения в Telegram...'),
+            () => {
+              setLoginStatus('Ошибка проверки авторизации. Попробуйте снова.');
+              loginBtn.disabled = false;
+            }
+          );
+        }
         await authorize();
         await loadCart();
       } catch (e) {

@@ -335,24 +335,13 @@
       Чтобы синхронизировать корзину и профиль с ботом MiniDeN, войдите через Telegram.
       После входа сайт будет использовать ваш Telegram-аккаунт.
     </p>
-
-    <!-- Вариант 1: официальный Telegram Login Widget -->
-    <div id="telegram-login-container">
-      <script async src="https://telegram.org/js/telegram-widget.js?22"
-              data-telegram-login="MiniDeN_bot"
-              data-size="large"
-              data-userpic="false"
-              data-request-access="write"
-              data-auth-url="/api/auth/telegram-login">
-      </script>
+    <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+      <button class="btn" type="button" id="login-via-telegram">Авторизоваться через Telegram</button>
+      <span id="login-status" class="muted"></span>
     </div>
-
-    <p class="muted">
-      Если кнопка не отображается, откройте сайт в обычном браузере и убедитесь,
-      что домен указан в настройках бота через BotFather (/setdomain).
-    </p>
   </section>
 
+  <script src="auth.js"></script>
   <script>
     const toggle = document.querySelector('.menu-toggle');
     const nav = document.querySelector('.nav-links');
@@ -362,6 +351,35 @@
     });
 
     nav?.classList.add('open');
+
+    const loginBtn = document.getElementById('login-via-telegram');
+    const loginStatus = document.getElementById('login-status');
+
+    function setLoginStatus(text) {
+      if (loginStatus) loginStatus.textContent = text || '';
+    }
+
+    loginBtn?.addEventListener('click', async () => {
+      if (loginBtn.disabled) return;
+      setLoginStatus('Открываем Telegram...');
+      loginBtn.disabled = true;
+      try {
+        await startTelegramAuth();
+      } catch (e) {
+        console.error(e);
+        setLoginStatus('Не удалось запустить авторизацию. Попробуйте ещё раз.');
+        loginBtn.disabled = false;
+      }
+    });
+
+    if (getSavedAuthToken()) {
+      setLoginStatus('Ожидаем подтверждения в Telegram...');
+      startAuthPolling(
+        () => window.location.reload(),
+        () => setLoginStatus('Ожидаем подтверждения в Telegram...'),
+        () => setLoginStatus('Ошибка проверки авторизации. Попробуйте снова.')
+      );
+    }
   </script>
 </body>
 </html>
