@@ -1,5 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
+from uuid import uuid4
 
 from sqlalchemy import (
     Boolean,
@@ -181,6 +182,14 @@ class PromoCode(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 
+class AuthSession(Base):
+    __tablename__ = "auth_sessions"
+
+    token = Column(String, primary_key=True, default=lambda: str(uuid4()))
+    telegram_id = Column(BigInteger, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 __all__ = [
     "Base",
     "AdminNote",
@@ -189,6 +198,7 @@ __all__ = [
     "Order",
     "OrderItem",
     "PromoCode",
+    "AuthSession",
     "ProductBasket",
     "ProductCourse",
     "UserBan",

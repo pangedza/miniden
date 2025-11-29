@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from config import get_settings
 from database import init_db
+from services import auth_sessions as auth_sessions_service
 from services import admin_notes as admin_notes_service
 from services import bans as bans_service
 from services import cart as cart_service
@@ -125,6 +126,28 @@ def _parse_webapp_user(init_data: str) -> dict | None:
 def _full_name(user) -> str:
     parts = [user.first_name, user.last_name]
     return " ".join(part for part in parts if part).strip()
+
+
+@app.post("/api/auth/create-token")
+def api_auth_create_token():
+    token = auth_sessions_service.create_token()
+    return {"token": token}
+
+
+@app.get("/api/auth/check")
+def api_auth_check(token: str, response: Response):
+    auth_session = auth_sessions_service.get_session_by_token(token)
+    if not auth_session or not auth_session.telegram_id:
+        return {"ok": False}
+
+    response.set_cookie(
+        key="tg_user_id",
+        value=str(auth_session.telegram_id),
+        max_age=30 * 24 * 60 * 60,
+        httponly=True,
+        samesite="lax",
+    )
+    return {"ok": True, "telegram_id": int(auth_session.telegram_id)}
 
 
 @app.get("/api/auth/telegram-login")

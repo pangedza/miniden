@@ -157,6 +157,15 @@
 
     <div id="status" class="message" style="display:none"></div>
 
+    <section class="card" id="login-hint" style="display:none; text-align:center;">
+      <h2>Авторизация через Telegram</h2>
+      <p>Админка доступна только администраторам MiniDeN. Авторизуйтесь через Telegram, чтобы продолжить.</p>
+      <div style="display:flex; gap:12px; align-items:center; justify-content:center; flex-wrap:wrap;">
+        <button class="btn" type="button" id="login-via-telegram">Авторизоваться через Telegram</button>
+        <span id="login-status" class="muted"></span>
+      </div>
+    </section>
+
     <section class="card" id="stats-section" style="display:none">
       <div class="section-header">
         <h2>Статистика</h2>
@@ -312,10 +321,9 @@
     </section>
   </main>
 
+  <script src="auth.js"></script>
   <script>
-    const tg = window.Telegram?.WebApp;
     const API_BASE = '/api';
-    const BOT_LINK = "https://t.me/BotMiniden_bot";
     const CHANNEL_LINK = "https://t.me/petelka_za_petelko";
     const INSTAGRAM_LINK = "https://www.instagram.com/balabanova_knit?igsh=MWhuMWFnOG8zejl6dQ==";
     const VK_LINK = "https://vk.com/club233836469";
@@ -328,6 +336,9 @@
     toggle?.addEventListener('click', () => nav?.classList.toggle('open'));
 
     const statusEl = document.getElementById('status');
+    const loginHint = document.getElementById('login-hint');
+    const loginBtn = document.getElementById('login-via-telegram');
+    const loginStatus = document.getElementById('login-status');
     const adminLink = document.getElementById('admin-link');
     const adminContent = document.getElementById('admin-content');
     const ordersSection = document.getElementById('orders-section');
@@ -381,6 +392,10 @@
       statusEl.style.display = 'none';
     }
 
+    function setLoginStatus(text) {
+      if (loginStatus) loginStatus.textContent = text || '';
+    }
+
     async function fetchJson(url, options = {}) {
       const resp = await fetch(url, {
         headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
@@ -399,42 +414,30 @@
 
     async function authorize() {
       try {
-        const initData = tg?.initData || tg?.initDataUnsafe?.query_id ? tg.initData : null;
-        if (!initData) {
-          userId = null;
-          isAdmin = false;
-          showStatus(
-            'Админ-панель доступна только из Telegram-бота MiniDeN и только администраторам. ' +
-              'Откройте её из бота и повторите попытку.',
-            true
-          );
-          updateAdminLinkVisibility();
-          return;
-        }
-
-        const data = await fetchJson(`${API_BASE}/auth/telegram`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ initData }),
-        });
-
+        const data = await fetchJson(`${API_BASE}/auth/session`);
         userId = data.telegram_id;
         isAdmin = Boolean(data.is_admin);
         updateAdminLinkVisibility();
         if (!isAdmin) {
           showStatus('У вас нет прав администратора.', true);
+          if (loginHint) loginHint.style.display = 'block';
+          setLoginStatus('Доступ только для администраторов.');
           return;
         }
 
         showStatus('');
+        if (loginHint) loginHint.style.display = 'none';
+        setLoginStatus('');
       } catch (e) {
-        console.warn('WebApp auth failed в админке', e);
+        console.warn('Cookie auth failed в админке', e);
         userId = null;
         isAdmin = false;
         showStatus(
-          'Не удалось авторизоваться через Telegram. Попробуйте открыть админку ещё раз из бота MiniDeN.',
+          'Админ-панель доступна только после авторизации в Telegram.',
           true
         );
+        if (loginHint) loginHint.style.display = 'block';
+        setLoginStatus('Авторизуйтесь через Telegram, чтобы открыть админку.');
         updateAdminLinkVisibility();
       }
     }
@@ -710,9 +713,33 @@
       }
     });
 
+    loginBtn?.addEventListener('click', async () => {
+      if (loginBtn.disabled) return;
+      loginBtn.disabled = true;
+      setLoginStatus('Открываем Telegram...');
+      try {
+        await startTelegramAuth();
+      } catch (e) {
+        console.error(e);
+        setLoginStatus('Не удалось запустить авторизацию. Попробуйте снова.');
+        loginBtn.disabled = false;
+      }
+    });
+
     async function init() {
       hideStatus();
       try {
+        if (getSavedAuthToken()) {
+          setLoginStatus('Ожидаем подтверждения в Telegram...');
+          startAuthPolling(
+            () => window.location.reload(),
+            () => setLoginStatus('Ожидаем подтверждения в Telegram...'),
+            () => {
+              setLoginStatus('Ошибка проверки авторизации. Попробуйте снова.');
+              loginBtn.disabled = false;
+            }
+          );
+        }
         await authorize();
       } catch (e) {
         return;

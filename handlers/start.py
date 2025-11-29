@@ -3,6 +3,8 @@ from aiogram.filters import CommandStart
 from aiogram.types import CallbackQuery
 
 from config import ADMIN_IDS, get_settings
+from services import auth_sessions as auth_sessions_service
+from services import users as users_service
 from keyboards.main_menu import get_main_menu
 from services.subscription import (
     ensure_subscribed,
@@ -21,6 +23,32 @@ async def _send_subscription_invite(target_message) -> None:
     )
 
 
+async def _handle_deep_link_auth(message: types.Message, payload: str) -> bool:
+    if not payload.startswith("auth_"):
+        return False
+
+    token = payload.removeprefix("auth_").strip()
+    if not token:
+        await message.answer("Некорректная ссылка авторизации. Сгенерируйте новую на сайте.")
+        return True
+
+    users_service.get_or_create_user_from_telegram(
+        {
+            "id": message.from_user.id,
+            "username": message.from_user.username,
+            "first_name": message.from_user.first_name,
+            "last_name": message.from_user.last_name,
+        }
+    )
+
+    if not auth_sessions_service.attach_telegram_id(token, message.from_user.id):
+        await message.answer("Ссылка авторизации устарела или неверна. Попробуйте авторизоваться на сайте заново.")
+        return True
+
+    await message.answer("Вы авторизованы! Вернитесь на сайт.")
+    return True
+
+
 # -------------------------------------------------------------------
 #   Экран приветствия /start
 # -------------------------------------------------------------------
@@ -30,6 +58,11 @@ async def _send_subscription_invite(target_message) -> None:
 async def cmd_start(message: types.Message):
     user_id = message.from_user.id
     is_admin = user_id in ADMIN_IDS
+
+    payload = (message.text or "").split(maxsplit=1)
+    deep_link = payload[1] if len(payload) > 1 else ""
+    if deep_link and await _handle_deep_link_auth(message, deep_link):
+        return
 
     if await ensure_subscribed(message, message.bot, is_admin=is_admin):
         await _send_start_screen(message, is_admin=is_admin)
