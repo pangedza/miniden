@@ -221,22 +221,33 @@
     }
 
     async function authorize() {
+      const initData = tg?.initData || tg?.initDataUnsafe?.query_id ? tg.initData : null;
+      if (!initData) {
+        // Открыто не из Telegram WebApp — каталог всё равно можно показать как гостю
+        userId = null;
+        username = null;
+        isAdmin = false;
+        noteEl.textContent = 'Каталог доступен в режиме просмотра. Чтобы корзина и профиль работали, откройте сайт из Telegram-бота MiniDeN.';
+        return;
+      }
+
       try {
-        const data = await fetchJson(`${API_BASE}/auth/session`);
+        const data = await fetchJson(`${API_BASE}/auth/telegram`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ initData }),
+        });
         userId = data.telegram_id;
         username = data.username;
         isAdmin = Boolean(data.is_admin);
         noteEl.textContent = '';
-        if (loginHint) loginHint.style.display = 'none';
-        setLoginStatus('');
       } catch (e) {
-        console.warn('Cookie auth failed, продолжаем как гость', e);
+        console.error('auth error', e);
+        // Даже если авторизация не удалась, даём пользователю хотя бы посмотреть каталог
         userId = null;
         username = null;
         isAdmin = false;
-        noteEl.textContent = 'Каталог доступен в режиме просмотра. Авторизуйтесь, чтобы работать с корзиной и избранным.';
-        if (loginHint) loginHint.style.display = 'block';
-        setLoginStatus('Авторизуйтесь через Telegram, чтобы продолжить.');
+        noteEl.textContent = 'Не удалось авторизоваться через Telegram. Каталог доступен только для просмотра.';
       }
       updateAdminLinkVisibility();
     }

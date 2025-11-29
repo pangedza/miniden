@@ -417,34 +417,26 @@
     }
 
     async function authorize() {
-      try {
-        const data = await fetchJson(`${API_BASE}/auth/session`);
-        userId = data.telegram_id;
-        isAdmin = Boolean(data.is_admin);
-        updateAdminLinkVisibility();
-        if (!isAdmin) {
-          showStatus('У вас нет прав администратора.', true);
-          if (loginHint) loginHint.style.display = 'block';
-          setLoginStatus('Доступ только для администраторов.');
-          return false;
-        }
-
-        showStatus('');
-        if (loginHint) loginHint.style.display = 'none';
-        setLoginStatus('');
-        return true;
-      } catch (e) {
-        console.warn('Cookie auth failed в админке', e);
+      const initData = tg?.initData || tg?.initDataUnsafe?.query_id ? tg.initData : null;
+      if (!initData) {
         userId = null;
         isAdmin = false;
-        showStatus(
-          'Админ-панель доступна только после авторизации в Telegram.',
-          true
-        );
-        if (loginHint) loginHint.style.display = 'block';
-        setLoginStatus('Авторизуйтесь через Telegram, чтобы открыть админку.');
-        updateAdminLinkVisibility();
-        return false;
+        showStatus('Админка доступна только при открытии из Telegram-бота MiniDeN.', true);
+        return;
+      }
+      try {
+        const data = await fetchJson(`${API_BASE}/auth/telegram`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ initData }),
+        });
+        userId = data.telegram_id;
+        isAdmin = Boolean(data.is_admin);
+      } catch (e) {
+        console.error('auth error in admin', e);
+        userId = null;
+        isAdmin = false;
+        showStatus('Не удалось авторизоваться как админ через Telegram.', true);
       }
     }
 
