@@ -119,6 +119,13 @@
     </div>
   </main>
 
+  <!-- Блок авторизации через бота (только для случая, когда нет userId) -->
+  <section class="section" id="tg-auth-section" style="display: none; text-align: center;">
+    <h2>Авторизация через Telegram</h2>
+    <p>Чтобы привязать корзину на сайте к вашему аккаунту в боте, нажмите кнопку ниже.</p>
+    <button class="btn" type="button" id="tg-auth-btn">Авторизоваться через Telegram</button>
+  </section>
+
   <section class="section" id="login-hint" style="display: none; text-align: center;">
     <h2>Вы не авторизованы</h2>
     <p>
@@ -162,6 +169,8 @@
     const applyPromoBtn = document.getElementById('apply-promo');
     const clearBtn = document.getElementById('clear-cart');
     const checkoutBtn = document.getElementById('checkout');
+    const tgAuthSection = document.getElementById('tg-auth-section');
+    const tgAuthBtn = document.getElementById('tg-auth-btn');
 
     function showLoginHint(message) {
       if (loginHint) {
@@ -196,6 +205,50 @@
 
     function setLoginStatus(text) {
       if (loginStatus) loginStatus.textContent = text || '';
+    }
+
+    async function startTelegramBotAuth() {
+      try {
+        const res = await fetch('/api/auth/create-token', { method: 'POST' });
+        const data = await res.json();
+        const token = data.token;
+        localStorage.setItem('auth_token', token);
+        if (typeof saveAuthToken === 'function') {
+          saveAuthToken(token);
+        }
+        window.location.href = `https://t.me/BotMiniden_bot?start=auth_${token}`;
+      } catch (e) {
+        setLoginStatus('Не удалось начать авторизацию через Telegram.');
+      }
+    }
+
+    if (tgAuthBtn) {
+      tgAuthBtn.addEventListener('click', async () => {
+        await startTelegramBotAuth();
+      });
+    }
+
+    async function pollAuthByToken() {
+      const token = localStorage.getItem('auth_token') || (typeof getSavedAuthToken === 'function' ? getSavedAuthToken() : null);
+      if (!token) return;
+
+      try {
+        for (let i = 0; i < 20; i++) {
+          const res = await fetch(`/api/auth/check?token=${encodeURIComponent(token)}`);
+          const data = await res.json();
+          if (data.ok) {
+            localStorage.removeItem('auth_token');
+            if (typeof clearSavedAuthToken === 'function') {
+              clearSavedAuthToken();
+            }
+            window.location.reload();
+            return;
+          }
+          await new Promise((r) => setTimeout(r, 500));
+        }
+      } catch (e) {
+        console.warn('pollAuthByToken error', e);
+      }
     }
 
     async function authorize() {
@@ -385,7 +438,7 @@
       loginBtn.disabled = true;
       setLoginStatus('Открываем Telegram...');
       try {
-        await startTelegramAuth();
+        await startTelegramBotAuth();
       } catch (e) {
         console.error(e);
         setLoginStatus('Не удалось запустить авторизацию. Попробуйте снова.');
@@ -399,18 +452,13 @@
 
     async function initApp() {
       try {
-        if (getSavedAuthToken()) {
-          setLoginStatus('Ожидаем подтверждения в Telegram...');
-          startAuthPolling(
-            () => window.location.reload(),
-            () => setLoginStatus('Ожидаем подтверждения в Telegram...'),
-            () => {
-              setLoginStatus('Ошибка проверки авторизации. Попробуйте снова.');
-              loginBtn.disabled = false;
-            }
-          );
-        }
         await authorize();
+        if (!userId && tgAuthSection) {
+          tgAuthSection.style.display = 'block';
+          pollAuthByToken();
+        } else if (tgAuthSection) {
+          tgAuthSection.style.display = 'none';
+        }
         await loadCart();
       } catch (e) {
         console.error(e);

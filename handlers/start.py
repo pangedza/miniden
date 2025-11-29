@@ -1,9 +1,10 @@
 from aiogram import Router, types, F
-from aiogram.filters import CommandStart
+from aiogram.filters import CommandStart, CommandObject
 from aiogram.types import CallbackQuery
 
 from config import ADMIN_IDS, get_settings
-from services import auth_sessions as auth_sessions_service
+from database import get_session
+from models import AuthSession
 from services import users as users_service
 from keyboards.main_menu import get_main_menu
 from services.subscription import (
@@ -23,35 +24,39 @@ async def _send_subscription_invite(target_message) -> None:
     )
 
 
-async def _handle_deep_link_auth(message: types.Message, payload: str) -> bool:
-    if not payload.startswith("auth_"):
-        return False
-
-    token = payload.removeprefix("auth_").strip()
-    if not token:
-        await message.answer("Некорректная ссылка авторизации. Сгенерируйте новую на сайте.")
-        return True
-
-    users_service.get_or_create_user_from_telegram(
-        {
-            "id": message.from_user.id,
-            "username": message.from_user.username,
-            "first_name": message.from_user.first_name,
-            "last_name": message.from_user.last_name,
-        }
-    )
-
-    if not auth_sessions_service.attach_telegram_id(token, message.from_user.id):
-        await message.answer("Ссылка авторизации устарела или неверна. Попробуйте авторизоваться на сайте заново.")
-        return True
-
-    await message.answer("Вы авторизованы! Вернитесь на сайт.")
-    return True
-
-
 # -------------------------------------------------------------------
 #   Экран приветствия /start
 # -------------------------------------------------------------------
+
+
+@router.message(CommandStart(deep_link=True))
+async def cmd_start_deeplink(message: types.Message, command: CommandObject):
+    """
+    /start auth_<token>
+    Этот обработчик вызывается, когда пользователь переходит из сайта в бота по ссылке
+    https://t.me/BotMiniden_bot?start=auth_<token>.
+    """
+    payload = (command.args or "").strip()
+    if not payload.startswith("auth_"):
+        # обычный /start без авторизации, тут оставляем текущую приветственную логику
+        # (если уже есть handler для CommandStart без deep_link — НЕ ломать его)
+        return
+
+    token = payload[len("auth_") :]
+
+    # связываем token ↔ telegram_id
+    with get_session() as s:
+        session = s.query(AuthSession).filter(AuthSession.token == token).first()
+        if not session:
+            await message.answer("Ссылка для авторизации устарела или неверна. Попробуйте начать авторизацию на сайте заново.")
+            return
+
+        session.telegram_id = message.from_user.id
+
+    await message.answer(
+        "✅ Авторизация для сайта выполнена!\n\n"
+        "Вернитесь в браузер и обновите страницу — ваш профиль и корзина будут доступны."
+    )
 
 
 @router.message(CommandStart())
@@ -61,7 +66,7 @@ async def cmd_start(message: types.Message):
 
     payload = (message.text or "").split(maxsplit=1)
     deep_link = payload[1] if len(payload) > 1 else ""
-    if deep_link and await _handle_deep_link_auth(message, deep_link):
+    if deep_link.startswith("auth_"):
         return
 
     if await ensure_subscribed(message, message.bot, is_admin=is_admin):
