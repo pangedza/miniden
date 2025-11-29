@@ -242,7 +242,9 @@
             <input name="price" type="number" min="0" required />
           </label>
           <label>Категория (id)
-            <input name="category_id" type="number" min="0" />
+            <select name="category_id" id="category-select">
+              <option value="">Без категории</option>
+            </select>
           </label>
           <label>Ссылка на детали
             <input name="detail_url" type="url" />
@@ -363,6 +365,7 @@
     const productFormCard = document.getElementById('product-form-card');
     const productForm = document.getElementById('product-form');
     const productFormTitle = document.getElementById('product-form-title');
+    const categorySelect = document.getElementById('category-select');
 
     const ordersTable = document.getElementById('orders-table');
     const ordersLoading = document.getElementById('orders-loading');
@@ -374,6 +377,7 @@
 
     let products = [];
     let currentType = 'basket';
+    let basketCategories = [];
 
     function updateAdminLinkVisibility() {
       if (!adminLink) return;
@@ -422,12 +426,13 @@
           showStatus('У вас нет прав администратора.', true);
           if (loginHint) loginHint.style.display = 'block';
           setLoginStatus('Доступ только для администраторов.');
-          return;
+          return false;
         }
 
         showStatus('');
         if (loginHint) loginHint.style.display = 'none';
         setLoginStatus('');
+        return true;
       } catch (e) {
         console.warn('Cookie auth failed в админке', e);
         userId = null;
@@ -439,6 +444,7 @@
         if (loginHint) loginHint.style.display = 'block';
         setLoginStatus('Авторизуйтесь через Telegram, чтобы открыть админку.');
         updateAdminLinkVisibility();
+        return false;
       }
     }
 
@@ -454,6 +460,20 @@
         const li = document.createElement('li');
         li.textContent = formatter(item);
         listEl.appendChild(li);
+      });
+    }
+
+    function renderCategoryOptions(selectedId = '') {
+      if (!categorySelect) return;
+      categorySelect.innerHTML = '<option value="">Без категории</option>';
+      (basketCategories || []).forEach((cat) => {
+        const option = document.createElement('option');
+        option.value = cat.id ?? '';
+        option.textContent = cat.name;
+        if (String(cat.id) === String(selectedId)) {
+          option.selected = true;
+        }
+        categorySelect.appendChild(option);
       });
     }
 
@@ -476,6 +496,16 @@
         statsSection.style.display = 'block';
       } catch (e) {
         console.error(e);
+      }
+    }
+
+    async function loadProductCategories() {
+      try {
+        basketCategories = await fetchJson(`${API_BASE}/categories?type=basket`);
+        renderCategoryOptions();
+      } catch (e) {
+        console.warn('Не удалось загрузить категории товаров', e);
+        showStatus('Категории товаров недоступны. Используйте id вручную.', true);
       }
     }
 
@@ -504,6 +534,7 @@
       filtered.forEach((item) => {
         const card = document.createElement('div');
         card.className = 'item-card';
+        const categoryLabel = item.category_name || (item.category_id ? `Категория ${item.category_id}` : 'Без категории');
         card.innerHTML = `
           <div class="item-meta">
             <span class="badge">#${item.id}</span>
@@ -514,7 +545,7 @@
           <div class="muted">${item.description || 'Нет описания'}</div>
           <div class="item-meta">
             <strong>${item.price} ₽</strong>
-            ${item.category_id ? `<span class="badge">Категория ${item.category_id}</span>` : ''}
+            ${item.category_id !== undefined && item.category_id !== null ? `<span class="badge">${categoryLabel}</span>` : '<span class="badge">Без категории</span>'}
             ${item.created_at ? `<span class="badge">${new Date(item.created_at).toLocaleDateString('ru-RU')}</span>` : ''}
           </div>
           <div class="actions">
@@ -546,7 +577,8 @@
       productForm.elements.type.value = item.type;
       productForm.elements.name.value = item.name;
       productForm.elements.price.value = item.price;
-      productForm.elements.category_id.value = item.category_id || '';
+      updateCategoryField(item.type);
+      renderCategoryOptions(item.category_id ?? '');
       productForm.elements.detail_url.value = item.detail_url || '';
       productForm.elements.description.value = item.description || '';
     }
@@ -556,13 +588,27 @@
       productForm.reset();
       productForm.elements.id.value = '';
       productFormTitle.textContent = 'Новый товар';
+      updateCategoryField('basket');
+      renderCategoryOptions('');
     }
 
-    async function loadProducts() {
+    function updateCategoryField(type) {
+      if (!categorySelect) return;
+      const isBasket = type === 'basket';
+      categorySelect.disabled = !isBasket;
+      if (!isBasket) {
+        categorySelect.value = '';
+      }
+    }
+
+    async function loadProducts(typeParam = currentType) {
+      currentType = typeParam || currentType;
       productsLoading.style.display = 'block';
       productsGrid.innerHTML = '';
       try {
-        const data = await fetchJson(`${API_BASE}/admin/products?user_id=${userId}&status=all`);
+        const params = new URLSearchParams({ user_id: userId, status: 'all' });
+        if (typeParam) params.set('type', typeParam);
+        const data = await fetchJson(`${API_BASE}/admin/products?${params.toString()}`);
         products = data.items || [];
         renderProducts();
       } catch (e) {
@@ -635,7 +681,7 @@
         productTabs.querySelectorAll('.tab').forEach((el) => el.classList.remove('active'));
         e.target.classList.add('active');
         currentType = e.target.dataset.type;
-        renderProducts();
+        loadProducts(currentType);
       }
     });
 
@@ -643,7 +689,13 @@
       resetProductForm();
       productFormCard.style.display = 'block';
       productForm.elements.type.value = currentType;
+      updateCategoryField(currentType);
     };
+
+    productForm.elements.type?.addEventListener('change', (e) => {
+      updateCategoryField(e.target.value);
+      renderCategoryOptions('');
+    });
 
     document.getElementById('cancel-product').onclick = () => {
       resetProductForm();
@@ -655,7 +707,7 @@
       const payload = Object.fromEntries(formData.entries());
       payload.user_id = userId;
       payload.price = Number(payload.price || 0);
-      payload.category_id = payload.category_id ? Number(payload.category_id) : null;
+      payload.category_id = payload.type === 'basket' && payload.category_id ? Number(payload.category_id) : null;
 
       try {
         if (payload.id) {
@@ -670,7 +722,7 @@
           });
         }
         resetProductForm();
-        await loadProducts();
+        await loadProducts(payload.type || currentType);
       } catch (err) {
         showStatus(err.message, true);
       }
@@ -740,7 +792,8 @@
             }
           );
         }
-        await authorize();
+        const ok = await authorize();
+        if (!ok) return;
       } catch (e) {
         return;
       }
@@ -755,10 +808,12 @@
       adminContent.style.display = 'block';
       ordersSection.style.display = 'block';
       promosSection.style.display = 'block';
+      await loadProductCategories();
       await loadStats();
-      await loadProducts();
+      await loadProducts('basket');
       await loadOrders();
       await loadPromocodes();
+      await loadNotes(userId);
     }
 
     init();

@@ -364,19 +364,25 @@ def api_auth_telegram(payload: AuthPayload):
 
 @app.get("/api/categories")
 def api_categories(type: str):
+    """
+    Вернуть список категорий для товаров или курсов.
+    Ожидаемый формат элементов:
+    {
+      "id": int,
+      "slug": str,
+      "name": str,
+    }
+    """
     product_type = _validate_type(type)
-
-    if product_type == "basket":
-        return [{"slug": "basket", "name": "Корзинки"}]
-
-    return [
-        {"slug": "paid", "name": "Платные курсы"},
-        {"slug": "free", "name": "Бесплатные уроки"},
-    ]
+    return products_service.list_categories(product_type)
 
 
 @app.get("/api/products")
 def api_products(type: str, category_slug: str | None = None):
+    """
+    Вернуть список товаров/курсов.
+    Если category_slug передан — фильтровать по категории.
+    """
     product_type = _validate_type(type)
     return products_service.list_products(product_type, category_slug=category_slug)
 

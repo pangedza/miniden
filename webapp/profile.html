@@ -353,24 +353,38 @@
       });
     }
 
-    async function loadProfile() {
-      const data = await fetchJson(`${API_BASE}/me?telegram_id=${userId}`);
-      const fullName = [data.first_name, data.last_name].filter(Boolean).join(' ') || '—';
-      fullNameEl.textContent = fullName;
-      usernameEl.textContent = data.username ? `@${data.username}` : '—';
-      phoneEl.textContent = data.phone || '—';
-      phoneInput.value = data.phone || '';
-      renderOrders(data.orders || []);
-      renderFavorites(data.favorites || []);
-      renderStats(data.stats || {}, data.ban || {});
-      if (data.notes && data.notes.length) {
-        adminNotesCard.style.display = 'block';
-        renderNotes(data.notes);
+    async function loadProfile(targetId) {
+      if (!targetId) {
+        showLoginHint('Откройте профиль из Telegram-бота MiniDeN для авторизации.');
+        return;
       }
-      if (data.ban?.is_banned) {
-        setStatus('Ваш аккаунт заблокирован. Свяжитесь с администратором.', true);
+
+      try {
+        const data = await fetchJson(`${API_BASE}/me?telegram_id=${targetId}`);
+        const fullName = [data.first_name, data.last_name].filter(Boolean).join(' ') || '—';
+        fullNameEl.textContent = fullName;
+        usernameEl.textContent = data.username ? `@${data.username}` : '—';
+        phoneEl.textContent = data.phone || '—';
+        phoneInput.value = data.phone || '';
+        renderOrders(data.orders || []);
+        renderFavorites(data.favorites || []);
+        renderStats(data.stats || {}, data.ban || {});
+        if (data.is_admin && data.notes && data.notes.length) {
+          adminNotesCard.style.display = 'block';
+          renderNotes(data.notes);
+        } else {
+          adminNotesCard.style.display = 'none';
+        }
+        if (data.ban?.is_banned) {
+          setStatus('Ваш аккаунт заблокирован. Свяжитесь с администратором.', true);
+        } else {
+          setStatus('');
+        }
+        profileGrid.style.display = 'grid';
+      } catch (e) {
+        console.error('loadProfile', e);
+        setStatus('Не удалось загрузить профиль', true);
       }
-      profileGrid.style.display = 'grid';
     }
 
     savePhoneBtn?.addEventListener('click', async () => {
@@ -410,7 +424,7 @@
         tgAuthSection.style.display = 'none';
       }
       if (userId) {
-        await loadProfile();
+        await loadProfile(userId);
       }
     }
 
