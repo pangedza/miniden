@@ -267,21 +267,24 @@
     }
 
     async function authorize() {
-      try {
-        const data = await fetchJson(`${API_BASE}/auth/session`);
-        userId = data.telegram_id;
-        isAdmin = Boolean(data.is_admin);
-        setStatus('');
-        setLoginStatus('');
-        updateAdminLinkVisibility();
-        if (loginHint) loginHint.style.display = 'none';
-      } catch (e) {
-        console.warn('Cookie auth failed в профиле', e);
+      const initData = tg?.initData || tg?.initDataUnsafe?.query_id ? tg.initData : null;
+      if (!initData) {
         userId = null;
-        setStatus('Профиль доступен после авторизации через Telegram.', true);
-        setLoginStatus('Авторизуйтесь через Telegram, чтобы продолжить.');
-        updateAdminLinkVisibility();
-        if (loginHint) loginHint.style.display = 'block';
+        setStatus('Профиль работает только при открытии из Telegram-бота MiniDeN.', true);
+        return;
+      }
+      try {
+        const data = await fetchJson(`${API_BASE}/auth/telegram`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ initData }),
+        });
+        userId = data.telegram_id;
+        setStatus('');
+      } catch (e) {
+        console.error('auth error in profile', e);
+        userId = null;
+        setStatus('Не удалось авторизоваться через Telegram. Попробуйте открыть профиль ещё раз из бота.', true);
       }
     }
 

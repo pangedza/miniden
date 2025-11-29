@@ -333,6 +333,10 @@ class PromocodeValidatePayload(BaseModel):
 
 @app.post("/api/auth/telegram")
 def api_auth_telegram(payload: AuthPayload):
+    """
+    Авторизация WebApp по initData (из Telegram WebApp) или по заранее
+    переданным данным user. Возвращает данные пользователя, которые ждёт фронтенд.
+    """
     if not payload.initData and not payload.user:
         raise HTTPException(status_code=400, detail="initData is required")
 
@@ -353,12 +357,29 @@ def api_auth_telegram(payload: AuthPayload):
 
     full_name = _full_name(user) or user.username or ""
 
+    # Собираем сопутствующие данные
+    telegram_id = int(user.telegram_id)
+    user_orders = orders_service.get_orders_by_user(telegram_id)
+    user_favorites = favorites_service.list_favorites(telegram_id)
+    user_stats = stats_service.get_user_stats(telegram_id)
+    ban_status = bans_service.is_banned(telegram_id)
+    notes = []
+    if user.is_admin:
+        notes = admin_notes_service.list_notes(telegram_id)
+
     return {
         "ok": True,
-        "telegram_id": user.telegram_id,
+        "telegram_id": telegram_id,
         "username": user.username,
         "full_name": full_name,
         "is_admin": bool(user.is_admin),
+        "phone": user.phone,
+        "created_at": user.created_at.isoformat() if getattr(user, "created_at", None) else None,
+        "orders": user_orders,
+        "favorites": user_favorites,
+        "stats": user_stats,
+        "ban": ban_status,
+        "notes": notes,
     }
 
 
@@ -486,10 +507,15 @@ def api_cart_clear(payload: CartClearPayload):
 
 @app.get("/api/me")
 def api_me(telegram_id: int):
+    """
+    Вернуть профиль пользователя (личный кабинет) по его telegram_id.
+    Формат ответа совпадает с /api/auth/telegram, чтобы фронту было удобно.
+    """
     user = users_service.get_user_by_telegram_id(telegram_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    full_name = _full_name(user) or user.username or ""
     user_orders = orders_service.get_orders_by_user(telegram_id)
     user_favorites = favorites_service.list_favorites(telegram_id)
     user_stats = stats_service.get_user_stats(telegram_id)
@@ -499,13 +525,13 @@ def api_me(telegram_id: int):
         notes = admin_notes_service.list_notes(telegram_id)
 
     return {
-        "telegram_id": user.telegram_id,
+        "ok": True,
+        "telegram_id": int(user.telegram_id),
         "username": user.username,
-        "first_name": user.first_name,
-        "last_name": user.last_name,
-        "phone": user.phone,
+        "full_name": full_name,
         "is_admin": bool(user.is_admin),
-        "created_at": user.created_at.isoformat() if user.created_at else None,
+        "phone": user.phone,
+        "created_at": user.created_at.isoformat() if getattr(user, "created_at", None) else None,
         "orders": user_orders,
         "favorites": user_favorites,
         "stats": user_stats,
