@@ -227,9 +227,20 @@
     }
 
     function renderTabs() {
+      if (!tabsEl) return;
       tabsEl.innerHTML = '';
 
-      categories.forEach((cat) => {
+      const allBtn = document.createElement('button');
+      allBtn.type = 'button';
+      allBtn.className = `tab${active === null ? ' active' : ''}`;
+      allBtn.textContent = 'Все';
+      allBtn.addEventListener('click', () => {
+        active = null;
+        loadCourses();
+      });
+      tabsEl.appendChild(allBtn);
+
+      (categories || []).forEach((cat) => {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = `tab${active === cat.slug ? ' active' : ''}`;
@@ -306,7 +317,9 @@
     async function loadCategories() {
       try {
         categories = await fetchJson(`${API_BASE}/categories?type=course`);
-        active = categories[0]?.slug ?? null;
+        if (!active) {
+          active = categories?.[0]?.slug ?? null;
+        }
         renderTabs();
       } catch (e) {
         noteEl.textContent = 'Не удалось загрузить категории. Попробуйте обновить страницу.';
@@ -314,18 +327,14 @@
     }
 
     async function loadCourses() {
-      if (!active) {
-        courses = [];
-        renderCards();
-        return;
-      }
-
       try {
-        const params = new URLSearchParams({ type: 'course', category_slug: active });
+        const params = new URLSearchParams({ type: 'course' });
+        if (active) params.set('category_slug', active);
         courses = await fetchJson(`${API_BASE}/products?${params.toString()}`);
         renderCards();
       } catch (e) {
         noteEl.textContent = 'Не удалось загрузить курсы. Попробуйте обновить страницу.';
+        cardsEl.innerHTML = '';
       }
     }
 

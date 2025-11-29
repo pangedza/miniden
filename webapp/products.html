@@ -242,6 +242,7 @@
     }
 
     function renderTabs() {
+      if (!tabsEl) return;
       tabsEl.innerHTML = '';
 
       const allBtn = document.createElement('button');
@@ -254,7 +255,7 @@
       });
       tabsEl.appendChild(allBtn);
 
-      categories.forEach((cat) => {
+      (categories || []).forEach((cat) => {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = `tab${active === cat.slug ? ' active' : ''}`;
@@ -322,7 +323,9 @@
     async function loadCategories() {
       try {
         categories = await fetchJson(`${API_BASE}/categories?type=basket`);
-        active = categories[0]?.slug ?? null;
+        if (!active) {
+          active = categories?.[0]?.slug ?? null;
+        }
         renderTabs();
       } catch (e) {
         noteEl.textContent = 'Не удалось загрузить категории. Попробуйте обновить страницу.';
@@ -338,6 +341,7 @@
         renderCards();
       } catch (e) {
         noteEl.textContent = 'Не удалось загрузить товары. Попробуйте обновить страницу.';
+        cardsEl.innerHTML = '';
       }
     }
 
