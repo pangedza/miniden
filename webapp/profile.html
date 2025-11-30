@@ -54,6 +54,12 @@
     .list { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
     .list li { padding: 10px 12px; border-radius: 12px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.06); }
 
+    .editable { display: inline-flex; align-items: center; gap: 8px; }
+    .edit-btn { cursor: pointer; border: none; background: transparent; color: var(--muted); font-size: 16px; padding: 4px; }
+    .edit-btn:hover { color: var(--text); }
+    .edit-input { padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.12); background: rgba(255, 255, 255, 0.08); color: var(--text); min-width: 180px; }
+    .edit-save { cursor: pointer; border: none; border-radius: 10px; padding: 8px 10px; background: rgba(255, 255, 255, 0.12); color: var(--text); font-weight: 700; }
+
     .btn { cursor: pointer; border: none; border-radius: 12px; padding: 12px 14px; background: linear-gradient(135deg, #ffb800, #ff8f3f); color: #0b0c10; font-weight: 700; font-size: 15px; box-shadow: 0 10px 30px rgba(255, 184, 0, 0.25); transition: transform 0.1s ease, box-shadow 0.1s ease; margin-top: 10px; }
     .btn:hover { transform: translateY(-1px); box-shadow: 0 12px 32px rgba(255, 184, 0, 0.35); }
 
@@ -91,11 +97,13 @@
     <div class="grid" id="profile-grid" style="display:none">
       <div class="card">
         <div class="label">Имя</div>
-        <div class="value" id="full-name">—</div>
+        <div class="value editable"><span id="full-name">—</span><button class="edit-btn" id="edit-full-name" title="Редактировать имя">✏️</button></div>
         <div class="label" style="margin-top: 12px;">Telegram</div>
         <div class="value" id="username">—</div>
+        <div class="label" style="margin-top: 12px;">Telegram ID</div>
+        <div class="value" id="telegram-id">—</div>
         <div class="label" style="margin-top: 12px;">Телефон</div>
-        <div class="value" id="phone">—</div>
+        <div class="value editable"><span id="phone">—</span><button class="edit-btn" id="edit-phone" title="Редактировать телефон">✏️</button></div>
         <div class="label" style="margin-top: 12px;">Дата регистрации</div>
         <div class="value" id="created-at">—</div>
       </div>
@@ -139,6 +147,7 @@
     const profileGrid = document.getElementById('profile-grid');
     const fullNameEl = document.getElementById('full-name');
     const usernameEl = document.getElementById('username');
+    const telegramIdEl = document.getElementById('telegram-id');
     const phoneEl = document.getElementById('phone');
     const createdAtEl = document.getElementById('created-at');
     const ordersList = document.getElementById('orders-list');
@@ -148,6 +157,8 @@
     const actions = document.getElementById('profile-actions');
     const switchUserBtn = document.getElementById('switch-user-btn');
     const loginButton = document.getElementById('login-button');
+    const editFullNameBtn = document.getElementById('edit-full-name');
+    const editPhoneBtn = document.getElementById('edit-phone');
 
     let currentUser = null;
     const isTelegramWebApp = Boolean(window.Telegram?.WebApp);
@@ -176,6 +187,69 @@
       setStatus(message, true);
       actions?.style.setProperty('display', 'none');
       profileGrid?.style.setProperty('display', 'none');
+    }
+
+    async function saveProfileUpdates(updates) {
+      const res = await fetch('/api/profile/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates || {}),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        const message = errorData?.detail || 'Не удалось сохранить изменения';
+        const err = new Error(message);
+        err.status = res.status;
+        throw err;
+      }
+
+      const data = await res.json();
+      if (!data?.ok || !data.user) {
+        throw new Error('Не удалось сохранить изменения');
+      }
+      currentUser = data.user;
+      return currentUser;
+    }
+
+    function startEditing(field) {
+      if (!currentUser) return;
+      const valueEl = field === 'full_name' ? fullNameEl : phoneEl;
+      const container = valueEl?.parentElement;
+      const editBtn = field === 'full_name' ? editFullNameBtn : editPhoneBtn;
+      if (!valueEl || !container || !editBtn) return;
+
+      const currentValue = field === 'full_name' ? (currentUser.full_name || '') : (currentUser.phone || '');
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.value = currentValue;
+      input.className = 'edit-input';
+
+      const saveBtn = document.createElement('button');
+      saveBtn.type = 'button';
+      saveBtn.className = 'edit-save';
+      saveBtn.textContent = 'Сохранить';
+
+      container.replaceChild(input, valueEl);
+      editBtn.style.display = 'none';
+      container.insertBefore(saveBtn, editBtn);
+
+      saveBtn.addEventListener('click', async () => {
+        try {
+          const updates = field === 'full_name' ? { full_name: input.value } : { phone: input.value };
+          const updated = await saveProfileUpdates(updates);
+          container.replaceChild(valueEl, input);
+          if (saveBtn.parentElement === container) container.removeChild(saveBtn);
+          editBtn.style.display = '';
+          renderProfile(updated);
+        } catch (e) {
+          alert(e?.message || 'Не удалось сохранить изменения');
+          container.replaceChild(valueEl, input);
+          if (saveBtn.parentElement === container) container.removeChild(saveBtn);
+          editBtn.style.display = '';
+          renderProfile(currentUser);
+        }
+      });
     }
 
     function renderOrders(orders) {
@@ -230,7 +304,8 @@
 
     function renderProfile(profile) {
       fullNameEl.textContent = profile.full_name || '—';
-      usernameEl.textContent = profile.username ? `@${profile.username}` : '—';
+      usernameEl.textContent = profile.telegram_username ? `@${profile.telegram_username}` : '—';
+      telegramIdEl.textContent = profile.telegram_id ?? '—';
       phoneEl.textContent = profile.phone || '—';
       createdAtEl.textContent = profile.created_at ? new Date(profile.created_at).toLocaleDateString('ru-RU') : '—';
       renderOrders(profile.orders || []);
@@ -238,6 +313,8 @@
       renderStats(profile.stats || {}, profile.ban || {});
       profileGrid.style.display = 'grid';
       actions?.style.setProperty('display', 'flex');
+      editFullNameBtn.style.display = '';
+      editPhoneBtn.style.display = '';
     }
 
     async function logout() {
@@ -264,7 +341,7 @@
         return null;
       }
       const data = await handleResponse(res);
-      return data;
+      return data?.ok ? data : null;
     }
 
     async function loadProfileFromWebApp() {
@@ -274,7 +351,7 @@
         return null;
       }
       const profile = await apiPost('/auth/telegram', { initData, include_notes: true });
-      return profile;
+      return profile?.ok ? profile : null;
     }
 
     async function initProfile() {
@@ -294,6 +371,8 @@
     }
 
     switchUserBtn?.addEventListener('click', logout);
+    editFullNameBtn?.addEventListener('click', () => startEditing('full_name'));
+    editPhoneBtn?.addEventListener('click', () => startEditing('phone'));
     loginButton?.addEventListener('click', () => {
       window.location.href = '/index.html';
     });

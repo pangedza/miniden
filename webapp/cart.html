@@ -132,6 +132,7 @@
   <section class="section" id="unauthorized" style="display:none; text-align:center;">
     <h2>Вы не авторизованы</h2>
     <p>Вы не авторизованы. Войдите через Telegram. После входа откройте <a href="index.html">главную страницу</a> и вернитесь сюда.</p>
+    <a class="btn" href="/index.html">Войти через Telegram</a>
   </section>
 
   <script src="js/api.js"></script>
@@ -175,13 +176,15 @@
     async function loadCurrentUser() {
       try {
         if (isTelegramWebApp && window.Telegram?.WebApp?.initData) {
-          return await apiPost('/auth/telegram', { initData: window.Telegram.WebApp.initData });
+          const profile = await apiPost('/auth/telegram', { initData: window.Telegram.WebApp.initData });
+          return profile?.ok ? profile : null;
         }
         const res = await fetch('/api/auth/session');
         if (res.status === 401 || res.status === 404) {
           return null;
         }
-        return await handleResponse(res);
+        const data = await handleResponse(res);
+        return data?.ok ? data : null;
       } catch (e) {
         if (e?.status === 401 || e?.status === 404) return null;
         console.error('Не удалось получить пользователя', e);
@@ -360,7 +363,7 @@
       try {
         const result = await apiPost('/checkout', {
           user_id: currentUser.telegram_id,
-          user_name: currentUser.username,
+          user_name: currentUser.telegram_username,
           customer_name: customerName,
           contact,
           comment: comment || null,
@@ -390,7 +393,9 @@
         updateAdminLinkVisibility();
         if (!currentUser) {
           showUnauthorized('Вы не авторизованы. Войдите через Telegram.');
-        } else if (unauthorizedBlock) {
+          return;
+        }
+        if (unauthorizedBlock) {
           unauthorizedBlock.style.display = 'none';
         }
         await loadCart();
