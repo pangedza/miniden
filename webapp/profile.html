@@ -59,8 +59,6 @@
 
     .message { padding: 12px; border-radius: 12px; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.12); color: var(--text); margin-bottom: 14px; }
     .error { border-color: rgba(255, 99, 99, 0.6); color: #ffc0c0; }
-    .form-group { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
-    .input { padding: 10px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.14); background: rgba(255, 255, 255, 0.08); color: var(--text); font-family: inherit; }
 
     @media (max-width: 780px) {
       .nav-links { display: none; }
@@ -98,19 +96,13 @@
         <div class="value" id="username">—</div>
         <div class="label" style="margin-top: 12px;">Телефон</div>
         <div class="value" id="phone">—</div>
-
-        <div class="form-group">
-          <label class="label" for="phone-input">Обновить телефон</label>
-          <input id="phone-input" class="input" type="tel" placeholder="+7 (900) 000-00-00" />
-          <button class="btn" type="button" id="save-phone">Сохранить телефон</button>
-        </div>
+        <div class="label" style="margin-top: 12px;">Дата регистрации</div>
+        <div class="value" id="created-at">—</div>
       </div>
 
       <div class="card">
         <div class="label">Мои заказы</div>
         <ul class="list" id="orders-list"></ul>
-        <div class="label" style="margin-top: 12px;">Всего заказов</div>
-        <div class="value" id="orders-count">0</div>
       </div>
 
       <div class="card">
@@ -122,73 +114,38 @@
         <div class="label">Статистика</div>
         <ul class="list" id="stats-list"></ul>
       </div>
-
-      <div class="card" id="admin-notes-card" style="display:none">
-        <div class="label">Заметки администратора</div>
-        <ul class="list" id="notes-list"></ul>
-      </div>
     </div>
   </main>
 
-  <!-- Блок авторизации через бота (только для случая, когда нет userId) -->
-  <section class="section" id="tg-auth-section" style="display: none;">
-    <h2>Авторизация через Telegram</h2>
-    <p>Чтобы привязать профиль на сайте к вашему аккаунту в боте, нажмите кнопку ниже.</p>
-    <button class="btn" type="button" id="tg-auth-btn">Авторизоваться через Telegram</button>
-  </section>
-
   <section class="section" id="login-hint" style="display: none; text-align: center;">
     <h2>Вы не авторизованы</h2>
-    <p>
-      Профиль, заказы и избранное привязаны к вашему Telegram-аккаунту.
-      Нажмите кнопку ниже, подтвердите авторизацию в боте и вернитесь на сайт.
-    </p>
-    <div style="display:flex; gap:12px; align-items:center; justify-content:center; flex-wrap:wrap;">
-      <button class="btn" type="button" id="login-via-telegram">Авторизоваться через Telegram</button>
-      <span id="login-status" class="muted"></span>
-    </div>
+    <p>Профиль, заказы и избранное доступны после входа через Telegram. Перейдите на <a href="index.html">главную страницу</a>, выполните вход и вернитесь сюда.</p>
   </section>
 
-  <script src="auth.js"></script>
+  <script src="js/api.js"></script>
   <script>
     const toggle = document.querySelector('.menu-toggle');
     const nav = document.querySelector('.nav-links');
     toggle?.addEventListener('click', () => nav?.classList.toggle('open'));
 
-    const API_BASE = "/api";
-    const CHANNEL_LINK = "https://t.me/petelka_za_petelko";
-    const INSTAGRAM_LINK = "https://www.instagram.com/balabanova_knit?igsh=MWhuMWFnOG8zejl6dQ==";
-    const VK_LINK = "https://vk.com/club233836469";
-
     const statusEl = document.getElementById('status');
     const loginHint = document.getElementById('login-hint');
-    const loginBtn = document.getElementById('login-via-telegram');
-    const loginStatus = document.getElementById('login-status');
     const profileGrid = document.getElementById('profile-grid');
     const fullNameEl = document.getElementById('full-name');
     const usernameEl = document.getElementById('username');
     const phoneEl = document.getElementById('phone');
-    const phoneInput = document.getElementById('phone-input');
+    const createdAtEl = document.getElementById('created-at');
     const ordersList = document.getElementById('orders-list');
-    const ordersCount = document.getElementById('orders-count');
     const favoritesList = document.getElementById('favorites-list');
     const statsList = document.getElementById('stats-list');
-    const notesList = document.getElementById('notes-list');
-    const adminNotesCard = document.getElementById('admin-notes-card');
-    const savePhoneBtn = document.getElementById('save-phone');
-    const tgAuthSection = document.getElementById('tg-auth-section');
-    const tgAuthBtn = document.getElementById('tg-auth-btn');
-
-    let userId = null;
-    let isAdmin = false;
     const adminLink = document.getElementById('admin-link');
+
+    let currentUser = null;
 
     function updateAdminLinkVisibility() {
       if (!adminLink) return;
-      adminLink.style.display = isAdmin ? '' : 'none';
+      adminLink.style.display = currentUser?.is_admin ? '' : 'none';
     }
-
-    updateAdminLinkVisibility();
 
     function setStatus(message, isError = false) {
       if (!message) {
@@ -209,92 +166,12 @@
       setStatus(message, true);
     }
 
-    async function fetchJson(url, options) {
-      const res = await fetch(url, options);
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || 'Ошибка API');
-      }
-      return res.json();
-    }
-
-    function setLoginStatus(text) {
-      if (loginStatus) loginStatus.textContent = text || '';
-    }
-
-    async function startTelegramBotAuth() {
-      try {
-        const res = await fetch('/api/auth/create-token', { method: 'POST' });
-        const data = await res.json();
-        const token = data.token;
-        localStorage.setItem('auth_token', token);
-        if (typeof saveAuthToken === 'function') {
-          saveAuthToken(token);
-        }
-        window.location.href = `https://t.me/BotMiniden_bot?start=auth_${token}`;
-      } catch (e) {
-        setStatus('Не удалось начать авторизацию через Telegram', true);
-      }
-    }
-
-    if (tgAuthBtn) {
-      tgAuthBtn.addEventListener('click', async () => {
-        await startTelegramBotAuth();
-      });
-    }
-
-    async function pollAuthByToken() {
-      const token = localStorage.getItem('auth_token') || (typeof getSavedAuthToken === 'function' ? getSavedAuthToken() : null);
-      if (!token) return;
-
-      try {
-        for (let i = 0; i < 20; i++) {
-          const res = await fetch(`/api/auth/check?token=${encodeURIComponent(token)}`);
-          const data = await res.json();
-          if (data.ok) {
-            localStorage.removeItem('auth_token');
-            if (typeof clearSavedAuthToken === 'function') {
-              clearSavedAuthToken();
-            }
-            window.location.reload();
-            return;
-          }
-          await new Promise((r) => setTimeout(r, 500));
-        }
-      } catch (e) {
-        console.warn('pollAuthByToken error', e);
-      }
-    }
-
-    async function authorize() {
-      const initData = tg?.initData || tg?.initDataUnsafe?.query_id ? tg.initData : null;
-      if (!initData) {
-        userId = null;
-        setStatus('Профиль работает только при открытии из Telegram-бота MiniDeN.', true);
-        return;
-      }
-      try {
-        const data = await fetchJson(`${API_BASE}/auth/telegram`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ initData }),
-        });
-        userId = data.telegram_id;
-        setStatus('');
-      } catch (e) {
-        console.error('auth error in profile', e);
-        userId = null;
-        setStatus('Не удалось авторизоваться через Telegram. Попробуйте открыть профиль ещё раз из бота.', true);
-      }
-    }
-
     function renderOrders(orders) {
       ordersList.innerHTML = '';
       if (!orders || !orders.length) {
         const li = document.createElement('li');
         li.textContent = 'Заказов пока нет';
         ordersList.appendChild(li);
-        ordersCount.textContent = '0';
         return;
       }
 
@@ -304,7 +181,6 @@
         li.textContent = `Заказ #${order.id} — ${order.total} ₽ (${order.status || 'в обработке'}) ${dateText ? '• ' + dateText : ''}`;
         ordersList.appendChild(li);
       });
-      ordersCount.textContent = String(orders.length);
     }
 
     function renderFavorites(favorites) {
@@ -340,104 +216,34 @@
       });
     }
 
-    function renderNotes(notes) {
-      notesList.innerHTML = '';
-      if (!notes || !notes.length) {
-        const li = document.createElement('li');
-        li.textContent = 'Заметок нет';
-        notesList.appendChild(li);
-        return;
-      }
-      notes.forEach((note) => {
-        const li = document.createElement('li');
-        const created = note.created_at ? new Date(note.created_at).toLocaleString('ru-RU') : '';
-        li.textContent = `[${created}] ${note.note}`;
-        notesList.appendChild(li);
-      });
+    function renderProfile(profile) {
+      fullNameEl.textContent = profile.full_name || '—';
+      usernameEl.textContent = profile.username ? `@${profile.username}` : '—';
+      phoneEl.textContent = profile.phone || '—';
+      createdAtEl.textContent = profile.created_at ? new Date(profile.created_at).toLocaleDateString('ru-RU') : '—';
+      renderOrders(profile.orders || []);
+      renderFavorites(profile.favorites || []);
+      renderStats(profile.stats || {}, profile.ban || {});
+      profileGrid.style.display = 'grid';
     }
 
-    async function loadProfile(targetId) {
-      if (!targetId) {
-        showLoginHint('Откройте профиль из Telegram-бота MiniDeN для авторизации.');
-        return;
-      }
-
+    async function initProfile() {
       try {
-        const data = await fetchJson(`${API_BASE}/me?telegram_id=${targetId}`);
-        const fullName = [data.first_name, data.last_name].filter(Boolean).join(' ') || '—';
-        fullNameEl.textContent = fullName;
-        usernameEl.textContent = data.username ? `@${data.username}` : '—';
-        phoneEl.textContent = data.phone || '—';
-        phoneInput.value = data.phone || '';
-        renderOrders(data.orders || []);
-        renderFavorites(data.favorites || []);
-        renderStats(data.stats || {}, data.ban || {});
-        if (data.is_admin && data.notes && data.notes.length) {
-          adminNotesCard.style.display = 'block';
-          renderNotes(data.notes);
-        } else {
-          adminNotesCard.style.display = 'none';
+        currentUser = await getCurrentUser({ includeNotes: true });
+        if (!currentUser) {
+          showLoginHint('Вы не авторизованы. Перейдите на главную страницу и выполните вход через Telegram.');
+          return;
         }
-        if (data.ban?.is_banned) {
-          setStatus('Ваш аккаунт заблокирован. Свяжитесь с администратором.', true);
-        } else {
-          setStatus('');
-        }
-        profileGrid.style.display = 'grid';
+        updateAdminLinkVisibility();
+        setStatus('');
+        renderProfile(currentUser);
       } catch (e) {
-        console.error('loadProfile', e);
+        console.error(e);
         setStatus('Не удалось загрузить профиль', true);
       }
     }
 
-    savePhoneBtn?.addEventListener('click', async () => {
-      if (!userId) return;
-      try {
-        await fetchJson(`${API_BASE}/me/contact`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ telegram_id: userId, phone: phoneInput.value.trim() || null }),
-        });
-        phoneEl.textContent = phoneInput.value.trim() || '—';
-        setStatus('Телефон обновлён');
-      } catch (e) {
-        setStatus('Не удалось сохранить телефон', true);
-      }
-    });
-
-    loginBtn?.addEventListener('click', async () => {
-      if (loginBtn.disabled) return;
-      loginBtn.disabled = true;
-      setLoginStatus('Открываем Telegram...');
-      try {
-        await startTelegramBotAuth();
-      } catch (e) {
-        console.error(e);
-        setLoginStatus('Не удалось запустить авторизацию. Попробуйте снова.');
-        loginBtn.disabled = false;
-      }
-    });
-
-    async function initProfile() {
-      await authorize();
-      if (!userId && tgAuthSection) {
-        tgAuthSection.style.display = 'block';
-        pollAuthByToken();
-      } else if (tgAuthSection) {
-        tgAuthSection.style.display = 'none';
-      }
-      if (userId) {
-        await loadProfile(userId);
-      }
-    }
-
-    (async function initApp() {
-      try {
-        await initProfile();
-      } catch (e) {
-        console.error(e);
-      }
-    })();
+    initProfile();
   </script>
 </body>
 </html>

@@ -130,15 +130,16 @@
   WebApp-страницы
   ---------------
 
-  Папка `webapp/` содержит лендинг и разделы для сайта MiniDeN в едином тёмном стиле:
+  Папка `webapp/` содержит лендинг и разделы для сайта MiniDeN в едином тёмном стиле. Все страницы используют REST API из `webapi.py`, авторизация выполняется через `/api/auth/telegram` (Telegram WebApp) или `/api/auth/session` (браузер по cookie), а профиль/корзина/заказы/избранное хранятся в PostgreSQL.
 
-  - `index.html` — главная страница-лендинг с героем, категориями и CTA-кнопками.
-  - `products.html` — витрина товаров (тип `basket`) с категориями и добавлением в корзину через API.
-  - `masterclasses.html` — раздел мастер-классов (категории `free`/`paid`) с загрузкой карточек из API и добавлением в корзину.
-  - `cart.html` — корзина, связанная с таблицей `cart_items` бота; управление количеством и очистка через API.
-  - `profile.html` — макет профиля и блоков «Мои заказы» / «Мои мастер-классы».
+  - `index.html` — главная страница-лендинг с героем, категориями и CTA-кнопками. Блок входа использует Telegram Login Widget с callback на `/api/auth/telegram-login`.
+  - `products.html` — витрина товаров (тип `basket`), категории и карточки приходят из REST API.
+  - `masterclasses.html` — раздел мастер-классов (тип `course`) с загрузкой категорий/курсов через API.
+  - `cart.html` — корзина, связанная с таблицей `cart_items` бота; управление количеством, промокод и оформление заказа через API.
+  - `profile.html` — профиль пользователя, заказы и избранное из REST API.
+  - `admin.html` — минимальная админка на API `/api/admin/*`.
 
-  Общий верхний навбар (Главная, Товары, Мастер-классы, Корзина, Профиль) добавлен на все страницы.
+  Страницы используют только REST API `webapi.py` и не обращаются напрямую к JSON или БД.
 
   WebApp-кнопки Telegram-бота
   ---------------------------
@@ -169,18 +170,27 @@ uvicorn webapi:app --host 127.0.0.1 --port 8000 --reload
 Ключевые endpoint'ы (все реализованы в `webapi.py`):
 
 - `GET /` — healthcheck.
+- `GET /api/auth/session` — профиль по cookie `tg_user_id` (используется в браузерной версии WebApp).
+- `POST /api/auth/telegram` — авторизация Telegram WebApp по initData.
 - `GET /api/categories?type=basket|course` — список активных категорий.
 - `GET /api/products?type=basket|course&category_slug=...` — товары/курсы по типу и категории.
 - `GET /api/cart?user_id=123` — корзина пользователя (items + total + removed_items).
 - `POST /api/cart/add` — {user_id, product_id, qty?, type?} → добавить позицию.
 - `POST /api/cart/update` — {user_id, product_id, qty, type?} → выставить количество (0/отрицательное удаляет позицию).
 - `POST /api/cart/clear` — {user_id} → очистить корзину.
-- `POST /api/checkout` — {user_id, customer_name, contact, comment?, user_name?} → оформить заказ, вернёт номер заказа и итоговую сумму.
-- `POST /api/auth/telegram` / `GET /api/auth/check` / `POST /api/auth/create-token` / `GET /api/auth/telegram-login` — сценарии авторизации WebApp.
-- `GET /api/me`, `POST /api/me/contact` — данные профиля и сохранение контакта.
-- `GET /api/favorites`, `POST /api/favorites/toggle` — избранное.
+- `POST /api/checkout` — {user_id, customer_name, contact, comment?, promocode?} → оформить заказ, вернёт номер заказа и итоговую сумму.
 - `POST /api/promocode/validate` — проверка промокода.
-- `GET/POST/PUT/PATCH /api/admin/*` — управление товарами, заказами, статистикой, заметками и промокодами.
+- `GET /api/auth/telegram-login` — callback Telegram Login Widget.
+- `GET /api/admin/orders` / `GET /api/admin/orders/{id}` / `POST /api/admin/orders/{id}/status` — просмотр и смена статуса заказов (требует `is_admin`).
+- `GET/POST/PUT /api/admin/products` и связанные методы — управление товарами.
+- `GET /api/admin/stats` / `/api/admin/promocodes` — административные данные.
+
+Для WebApp:
+- products.html → `/api/categories`, `/api/products`, `/api/cart/add`
+- masterclasses.html → `/api/categories`, `/api/products`, `/api/cart/add`
+- cart.html → `/api/cart`, `/api/cart/update`, `/api/cart/clear`, `/api/promocode/validate`, `/api/checkout`
+- profile.html → `/api/auth/session` (или `/api/auth/telegram` в режиме WebApp)
+- admin.html → `/api/admin/*`
 
 На WebApp-страницах JS-константа `API_BASE` указана как `"/api"` — при развёртывании за nginx она отработает, если nginx проксирует `/api` → `http://127.0.0.1:8000`.
 

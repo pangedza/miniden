@@ -47,82 +47,33 @@
       margin: 0 -18px;
     }
 
-    .brand {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      font-weight: 800;
-      letter-spacing: -0.02em;
-    }
-
+    .brand { display: flex; flex-direction: column; gap: 2px; font-weight: 800; letter-spacing: -0.02em; }
     .brand span { color: var(--muted); font-size: 13px; font-weight: 600; letter-spacing: normal; }
 
     .nav-links { display: flex; gap: 12px; align-items: center; }
-
-    .nav-links a {
-      color: var(--muted);
-      text-decoration: none;
-      font-weight: 600;
-      padding: 10px 12px;
-      border-radius: 12px;
-      transition: background 0.15s ease, color 0.15s ease;
-    }
-
+    .nav-links a { color: var(--muted); text-decoration: none; font-weight: 600; padding: 10px 12px; border-radius: 12px; transition: background 0.15s ease, color 0.15s ease; }
     .nav-links a:hover { color: var(--text); background: rgba(255, 255, 255, 0.06); }
     .nav-links a.active { color: var(--text); background: linear-gradient(135deg, rgba(255, 184, 0, 0.18), rgba(123, 216, 255, 0.14)); }
 
-    .menu-toggle {
-      display: none;
-      background: transparent;
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      color: var(--text);
-      border-radius: 12px;
-      padding: 10px 12px;
-      cursor: pointer;
-    }
+    .menu-toggle { display: none; background: transparent; border: 1px solid rgba(255, 255, 255, 0.12); color: var(--text); border-radius: 12px; padding: 10px 12px; cursor: pointer; }
 
     main { max-width: 1180px; margin: 0 auto; padding-top: 28px; display: flex; flex-direction: column; gap: 18px; }
 
     h1 { margin: 0 0 8px; }
     h2 { margin: 0 0 10px; }
 
-    .card {
-      background: var(--card);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 16px;
-      padding: 14px;
-      box-shadow: var(--shadow);
-      backdrop-filter: blur(6px);
-    }
-
+    .card { background: var(--card); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 14px; box-shadow: var(--shadow); backdrop-filter: blur(6px); }
     .section-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
     .muted { color: var(--muted); }
-
-    .tabs { display: inline-flex; gap: 8px; padding: 4px; background: rgba(255,255,255,0.05); border-radius: 12px; border: 1px solid rgba(255,255,255,0.08); }
-    .tab { padding: 8px 12px; border-radius: 10px; cursor: pointer; border: none; background: transparent; color: var(--muted); font-weight: 700; }
-    .tab.active { background: rgba(255,255,255,0.12); color: var(--text); }
-
     .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 12px; border: none; cursor: pointer; font-weight: 700; color: #0b0c10; background: linear-gradient(135deg, #ffb800, #ff8f3f); box-shadow: 0 10px 30px rgba(255, 184, 0, 0.25); }
     .btn.secondary { background: rgba(255, 255, 255, 0.08); color: var(--text); box-shadow: none; border: 1px solid rgba(255, 255, 255, 0.12); }
-
-    .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
-    .item-card { border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 12px; background: rgba(255,255,255,0.04); display: flex; flex-direction: column; gap: 8px; }
-    .item-card h3 { margin: 0; font-size: 18px; }
-    .item-meta { display: flex; gap: 10px; flex-wrap: wrap; color: var(--muted); font-size: 13px; }
-    .badge { padding: 4px 8px; background: rgba(255,255,255,0.08); border-radius: 999px; font-weight: 700; font-size: 12px; }
-
-    .form { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
-    .form label { display: flex; flex-direction: column; gap: 6px; font-weight: 700; }
-    .form input, .form textarea, .form select { padding: 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.08); color: var(--text); font-family: inherit; }
-    .form textarea { min-height: 80px; resize: vertical; }
-
-    .actions { display: flex; gap: 8px; flex-wrap: wrap; }
     .table { width: 100%; border-collapse: collapse; }
     .table th, .table td { padding: 10px 8px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.08); }
     .table th { color: var(--muted); font-weight: 700; }
-
-    .message { padding: 12px; border-radius: 12px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12); color: var(--text); }
-    .error { border-color: rgba(255, 99, 99, 0.6); color: #ffc0c0; }
+    select { padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.06); color: var(--text); }
+    .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+    .list { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+    .list li { padding: 10px 12px; border-radius: 12px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.06); }
 
     @media (max-width: 780px) {
       .nav-links { display: none; }
@@ -152,663 +103,236 @@
   <main>
     <header>
       <h1>Админка</h1>
-      <p class="muted">Управляйте товарами, заказами и промокодами прямо из WebApp.</p>
+      <p class="muted">Управляйте заказами и пользователями через REST API backend.</p>
     </header>
 
-    <div id="status" class="message" style="display:none"></div>
+    <div id="status" class="card" style="display:none"></div>
 
-    <section class="card" id="login-hint" style="display:none; text-align:center;">
-      <h2>Авторизация через Telegram</h2>
-      <p>Админка доступна только администраторам MiniDeN. Авторизуйтесь через Telegram, чтобы продолжить.</p>
-      <div style="display:flex; gap:12px; align-items:center; justify-content:center; flex-wrap:wrap;">
-        <button class="btn" type="button" id="login-via-telegram">Авторизоваться через Telegram</button>
-        <span id="login-status" class="muted"></span>
-      </div>
+    <section class="card" id="access-denied" style="display:none; text-align:center;">
+      <h2>Доступ запрещён</h2>
+      <p class="muted">Админка доступна только администраторам MiniDeN. Авторизуйтесь через Telegram в боте и откройте эту страницу из WebApp.</p>
     </section>
 
-    <section class="card" id="stats-section" style="display:none">
-      <div class="section-header">
-        <h2>Статистика</h2>
-        <span class="muted">Данные по пользователям и заказам</span>
-      </div>
-      <div class="grid" id="stats-totals">
-        <div class="item-card"><div class="label">Пользователи</div><div class="value" id="stat-users">0</div></div>
-        <div class="item-card"><div class="label">Заказы</div><div class="value" id="stat-orders">0</div></div>
-        <div class="item-card"><div class="label">Сумма продаж</div><div class="value" id="stat-amount">0 ₽</div></div>
-        <div class="item-card"><div class="label">Избранное</div><div class="value" id="stat-favorites">0</div></div>
-      </div>
-      <div class="grid">
-        <div class="item-card">
-          <h3>Топ корзинок</h3>
-          <ul class="list" id="top-products"></ul>
-        </div>
-        <div class="item-card">
-          <h3>Топ курсов</h3>
-          <ul class="list" id="top-courses"></ul>
-        </div>
-        <div class="item-card">
-          <h3>Новые пользователи</h3>
-          <ul class="list" id="new-users"></ul>
-        </div>
-      </div>
-    </section>
-
-    <section class="card" id="notes-section" style="display:none">
-      <div class="section-header">
-        <h2>Заметки администратора</h2>
-        <span class="muted">Быстрые заметки по пользователям</span>
-      </div>
-      <form class="form" id="note-form">
-        <label>Telegram ID пользователя
-          <input name="target_id" type="number" required />
-        </label>
-        <label style="grid-column:1 / -1">Текст заметки
-          <textarea name="note" required></textarea>
-        </label>
-        <div class="actions" style="grid-column:1 / -1">
-          <button type="submit" class="btn">Добавить</button>
-        </div>
-      </form>
-      <div class="muted" id="notes-loading" style="display:none">Загрузка заметок...</div>
-      <ul class="list" id="notes-list"></ul>
-    </section>
-
-    <section class="card" id="admin-content" style="display:none">
-      <div class="section-header">
-        <h2>Товары</h2>
-        <div class="tabs" id="product-tabs">
-          <button class="tab active" data-type="basket">Корзинки</button>
-          <button class="tab" data-type="course">Курсы</button>
-        </div>
-        <button class="btn" id="new-product">Создать товар</button>
-      </div>
-      <div class="muted" id="products-loading">Загрузка...</div>
-      <div class="grid" id="products-grid"></div>
-      <div class="muted" id="products-empty" style="display:none">Нет товаров для отображения</div>
-      <div class="card" id="product-form-card" style="margin-top:12px; display:none">
-        <h3 id="product-form-title">Новый товар</h3>
-        <form class="form" id="product-form">
-          <input type="hidden" name="id" />
-          <label>Тип
-            <select name="type">
-              <option value="basket">Корзинка</option>
-              <option value="course">Курс</option>
-            </select>
-          </label>
-          <label>Название
-            <input name="name" required />
-          </label>
-          <label>Цена (₽)
-            <input name="price" type="number" min="0" required />
-          </label>
-          <label>Категория (id)
-            <select name="category_id" id="category-select">
-              <option value="">Без категории</option>
-            </select>
-          </label>
-          <label>Ссылка на детали
-            <input name="detail_url" type="url" />
-          </label>
-          <label style="grid-column: 1 / -1">Описание
-            <textarea name="description"></textarea>
-          </label>
-          <div class="actions" style="grid-column: 1 / -1">
-            <button type="submit" class="btn">Сохранить</button>
-            <button type="button" id="cancel-product" class="btn secondary">Отмена</button>
-          </div>
-        </form>
-      </div>
-    </section>
-
-    <section class="card" id="orders-section" style="display:none">
+    <section class="card" id="orders-section" style="display:none;">
       <div class="section-header">
         <h2>Заказы</h2>
-        <span class="muted">Последние заявки пользователей</span>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <label class="muted">Статус</label>
+          <select id="status-filter">
+            <option value="all">Все</option>
+            <option value="new">Новый</option>
+            <option value="in_progress">В работе</option>
+            <option value="paid">Оплачен</option>
+            <option value="sent">Отправлен</option>
+            <option value="archived">Архив</option>
+          </select>
+        </div>
       </div>
-      <div class="muted" id="orders-loading">Загрузка...</div>
-      <div id="orders-empty" class="muted" style="display:none">Нет заказов</div>
-      <table class="table" id="orders-table" style="display:none">
+      <table class="table" aria-label="Список заказов">
         <thead>
-          <tr><th>ID</th><th>Пользователь</th><th>Сумма</th><th>Статус</th><th>Создан</th></tr>
+          <tr>
+            <th>ID</th>
+            <th>Покупатель</th>
+            <th>Сумма</th>
+            <th>Статус</th>
+            <th>Дата</th>
+            <th></th>
+          </tr>
         </thead>
-        <tbody></tbody>
+        <tbody id="orders-body"></tbody>
       </table>
     </section>
 
-    <section class="card" id="promos-section" style="display:none">
+    <section class="card" id="order-detail" style="display:none;">
       <div class="section-header">
-        <h2>Промокоды</h2>
-        <span class="muted">Список активных скидок</span>
+        <h2>Заказ <span id="detail-id"></span></h2>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <label class="muted">Статус</label>
+          <select id="detail-status">
+            <option value="new">Новый</option>
+            <option value="in_progress">В работе</option>
+            <option value="paid">Оплачен</option>
+            <option value="sent">Отправлен</option>
+            <option value="archived">Архив</option>
+          </select>
+          <button class="btn secondary" type="button" id="save-status">Сохранить</button>
+        </div>
       </div>
-      <div class="muted" id="promos-loading">Загрузка...</div>
-      <div id="promos-empty" class="muted" style="display:none">Промокодов пока нет</div>
-      <table class="table" id="promos-table" style="display:none">
-        <thead>
-          <tr><th>Код</th><th>Тип</th><th>Значение</th><th>Ограничения</th><th>Статус</th></tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-      <div class="card" style="margin-top: 12px; background: rgba(255,255,255,0.03);">
-        <h3>Создать промокод</h3>
-        <form class="form" id="promo-form">
-          <label>Код
-            <input name="code" required />
-          </label>
-          <label>Тип скидки
-            <select name="discount_type">
-              <option value="percent">Процент</option>
-              <option value="fixed">Фиксированная</option>
-            </select>
-          </label>
-          <label>Значение
-            <input name="value" type="number" min="1" required />
-          </label>
-          <label>Мин. сумма заказа
-            <input name="min_order_total" type="number" min="0" />
-          </label>
-          <label>Лимит использований
-            <input name="max_uses" type="number" min="0" />
-          </label>
-          <label>Активен?
-            <select name="active">
-              <option value="1">Да</option>
-              <option value="0">Нет</option>
-            </select>
-          </label>
-          <div class="actions" style="grid-column: 1 / -1">
-            <button type="submit" class="btn">Создать промокод</button>
-          </div>
-        </form>
+      <div class="grid" style="margin-top:12px;">
+        <div>
+          <div class="muted">Клиент</div>
+          <div id="detail-client">—</div>
+          <div class="muted" style="margin-top:8px;">Контакт</div>
+          <div id="detail-contact">—</div>
+          <div class="muted" style="margin-top:8px;">Промокод</div>
+          <div id="detail-promocode">—</div>
+        </div>
+        <div>
+          <div class="muted">Комментарий</div>
+          <div id="detail-comment">—</div>
+        </div>
       </div>
+      <h3>Товары</h3>
+      <ul class="list" id="detail-items"></ul>
+      <div class="muted" id="detail-total"></div>
     </section>
   </main>
 
-  <script src="auth.js"></script>
+  <script src="js/api.js"></script>
   <script>
-    const API_BASE = '/api';
-    const CHANNEL_LINK = "https://t.me/petelka_za_petelko";
-    const INSTAGRAM_LINK = "https://www.instagram.com/balabanova_knit?igsh=MWhuMWFnOG8zejl6dQ==";
-    const VK_LINK = "https://vk.com/club233836469";
-
-    let userId = null;
-    let isAdmin = false;
-
     const toggle = document.querySelector('.menu-toggle');
     const nav = document.querySelector('.nav-links');
     toggle?.addEventListener('click', () => nav?.classList.toggle('open'));
 
-    const statusEl = document.getElementById('status');
-    const loginHint = document.getElementById('login-hint');
-    const loginBtn = document.getElementById('login-via-telegram');
-    const loginStatus = document.getElementById('login-status');
     const adminLink = document.getElementById('admin-link');
-    const adminContent = document.getElementById('admin-content');
+    const statusBox = document.getElementById('status');
+    const accessDenied = document.getElementById('access-denied');
     const ordersSection = document.getElementById('orders-section');
-    const promosSection = document.getElementById('promos-section');
+    const orderDetail = document.getElementById('order-detail');
+    const ordersBody = document.getElementById('orders-body');
+    const statusFilter = document.getElementById('status-filter');
+    const detailId = document.getElementById('detail-id');
+    const detailStatus = document.getElementById('detail-status');
+    const saveStatusBtn = document.getElementById('save-status');
+    const detailClient = document.getElementById('detail-client');
+    const detailContact = document.getElementById('detail-contact');
+    const detailPromocode = document.getElementById('detail-promocode');
+    const detailComment = document.getElementById('detail-comment');
+    const detailItems = document.getElementById('detail-items');
+    const detailTotal = document.getElementById('detail-total');
 
-    const productsGrid = document.getElementById('products-grid');
-    const productsLoading = document.getElementById('products-loading');
-    const productsEmpty = document.getElementById('products-empty');
-    const productTabs = document.getElementById('product-tabs');
-    const statsSection = document.getElementById('stats-section');
-    const notesSection = document.getElementById('notes-section');
-    const statUsers = document.getElementById('stat-users');
-    const statOrders = document.getElementById('stat-orders');
-    const statAmount = document.getElementById('stat-amount');
-    const statFavorites = document.getElementById('stat-favorites');
-    const topProducts = document.getElementById('top-products');
-    const topCourses = document.getElementById('top-courses');
-    const newUsers = document.getElementById('new-users');
-    const notesList = document.getElementById('notes-list');
-    const notesLoading = document.getElementById('notes-loading');
-    const noteForm = document.getElementById('note-form');
-    const productFormCard = document.getElementById('product-form-card');
-    const productForm = document.getElementById('product-form');
-    const productFormTitle = document.getElementById('product-form-title');
-    const categorySelect = document.getElementById('category-select');
+    let currentUser = null;
+    let selectedOrder = null;
 
-    const ordersTable = document.getElementById('orders-table');
-    const ordersLoading = document.getElementById('orders-loading');
-    const ordersEmpty = document.getElementById('orders-empty');
-
-    const promosTable = document.getElementById('promos-table');
-    const promosLoading = document.getElementById('promos-loading');
-    const promosEmpty = document.getElementById('promos-empty');
-
-    let products = [];
-    let currentType = 'basket';
-    let basketCategories = [];
+    function setStatus(message, isError = false) {
+      if (!message) {
+        statusBox.style.display = 'none';
+        statusBox.textContent = '';
+        statusBox.classList.remove('error');
+        return;
+      }
+      statusBox.style.display = 'block';
+      statusBox.textContent = message;
+      statusBox.classList.toggle('error', isError);
+    }
 
     function updateAdminLinkVisibility() {
-      if (!adminLink) return;
-      adminLink.style.display = isAdmin ? '' : 'none';
+      adminLink.style.display = currentUser?.is_admin ? '' : 'none';
     }
 
-    updateAdminLinkVisibility();
-
-    function showStatus(msg, isError = false) {
-      statusEl.textContent = msg;
-      statusEl.style.display = 'block';
-      statusEl.className = isError ? 'message error' : 'message';
-    }
-
-    function hideStatus() {
-      statusEl.style.display = 'none';
-    }
-
-    function setLoginStatus(text) {
-      if (loginStatus) loginStatus.textContent = text || '';
-    }
-
-    async function fetchJson(url, options = {}) {
-      const resp = await fetch(url, {
-        headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
-        ...options,
-      });
-      if (!resp.ok) {
-        let detail = 'Ошибка запроса';
-        try {
-          const data = await resp.json();
-          detail = data.detail || JSON.stringify(data);
-        } catch (e) {}
-        throw new Error(detail || resp.statusText);
+    function requireAdmin(profile) {
+      if (!profile || !profile.is_admin) {
+        setStatus('Доступ запрещён', true);
+        accessDenied.style.display = 'block';
+        ordersSection.style.display = 'none';
+        orderDetail.style.display = 'none';
+        return false;
       }
-      return resp.json();
+      accessDenied.style.display = 'none';
+      return true;
     }
 
-    async function authorize() {
-      const initData = tg?.initData || tg?.initDataUnsafe?.query_id ? tg.initData : null;
-      if (!initData) {
-        userId = null;
-        isAdmin = false;
-        showStatus('Админка доступна только при открытии из Telegram-бота MiniDeN.', true);
+    function renderOrders(orders) {
+      ordersBody.innerHTML = '';
+      if (!orders || !orders.length) {
+        const row = document.createElement('tr');
+        const cell = document.createElement('td');
+        cell.colSpan = 6;
+        cell.textContent = 'Заказов нет';
+        cell.className = 'muted';
+        row.appendChild(cell);
+        ordersBody.appendChild(row);
         return;
       }
-      try {
-        const data = await fetchJson(`${API_BASE}/auth/telegram`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ initData }),
-        });
-        userId = data.telegram_id;
-        isAdmin = Boolean(data.is_admin);
-      } catch (e) {
-        console.error('auth error in admin', e);
-        userId = null;
-        isAdmin = false;
-        showStatus('Не удалось авторизоваться как админ через Telegram.', true);
-      }
-    }
 
-    function renderList(listEl, items, formatter) {
-      listEl.innerHTML = '';
-      if (!items || !items.length) {
-        const li = document.createElement('li');
-        li.textContent = 'Нет данных';
-        listEl.appendChild(li);
-        return;
-      }
-      items.forEach((item) => {
-        const li = document.createElement('li');
-        li.textContent = formatter(item);
-        listEl.appendChild(li);
-      });
-    }
-
-    function renderCategoryOptions(selectedId = '') {
-      if (!categorySelect) return;
-      categorySelect.innerHTML = '<option value="">Без категории</option>';
-      (basketCategories || []).forEach((cat) => {
-        const option = document.createElement('option');
-        option.value = cat.id ?? '';
-        option.textContent = cat.name;
-        if (String(cat.id) === String(selectedId)) {
-          option.selected = true;
-        }
-        categorySelect.appendChild(option);
-      });
-    }
-
-    async function loadStats() {
-      try {
-        const data = await fetchJson(`${API_BASE}/admin/stats?user_id=${userId}`);
-        statUsers.textContent = data.totals?.users ?? 0;
-        statOrders.textContent = data.totals?.orders ?? 0;
-        statFavorites.textContent = data.totals?.favorites ?? 0;
-        statAmount.textContent = `${data.totals?.amount ?? 0} ₽`;
-
-        renderList(topProducts, data.top_products || [], (item) => `${item.name} — ${item.total_qty} шт / ${item.total_amount} ₽`);
-        renderList(topCourses, data.top_courses || [], (item) => `${item.name} — ${item.total_qty} шт / ${item.total_amount} ₽`);
-        renderList(newUsers, data.new_users || [], (user) => {
-          const name = [user.first_name, user.last_name].filter(Boolean).join(' ') || user.username || user.telegram_id;
-          const created = user.created_at ? new Date(user.created_at).toLocaleString('ru-RU') : '';
-          return `${name} — ${created}`;
-        });
-
-        statsSection.style.display = 'block';
-      } catch (e) {
-        console.error(e);
-      }
-    }
-
-    async function loadProductCategories() {
-      try {
-        basketCategories = await fetchJson(`${API_BASE}/categories?type=basket`);
-        renderCategoryOptions();
-      } catch (e) {
-        console.warn('Не удалось загрузить категории товаров', e);
-        showStatus('Категории товаров недоступны. Используйте id вручную.', true);
-      }
-    }
-
-    async function loadNotes(targetId) {
-      if (!targetId) return;
-      notesLoading.style.display = 'block';
-      try {
-        const data = await fetchJson(`${API_BASE}/admin/notes?user_id=${userId}&target_id=${targetId}`);
-        renderList(notesList, data.items || [], (item) => {
-          const created = item.created_at ? new Date(item.created_at).toLocaleString('ru-RU') : '';
-          return `[${created}] ${item.note}`;
-        });
-      } catch (e) {
-        notesList.innerHTML = `<li>${e.message}</li>`;
-      } finally {
-        notesLoading.style.display = 'none';
-      }
-    }
-
-    function renderProducts() {
-      productsGrid.innerHTML = '';
-      const filtered = products.filter((p) => p.type === currentType);
-      productsEmpty.style.display = filtered.length ? 'none' : 'block';
-      productsLoading.style.display = 'none';
-
-      filtered.forEach((item) => {
-        const card = document.createElement('div');
-        card.className = 'item-card';
-        const categoryLabel = item.category_name || (item.category_id ? `Категория ${item.category_id}` : 'Без категории');
-        card.innerHTML = `
-          <div class="item-meta">
-            <span class="badge">#${item.id}</span>
-            <span class="badge">${item.type === 'basket' ? 'Корзинка' : 'Курс'}</span>
-            <span class="badge" style="background:${item.is_active ? 'rgba(123,216,255,0.2)' : 'rgba(255,255,255,0.08)'}">${item.is_active ? 'Активен' : 'Скрыт'}</span>
-          </div>
-          <h3>${item.name}</h3>
-          <div class="muted">${item.description || 'Нет описания'}</div>
-          <div class="item-meta">
-            <strong>${item.price} ₽</strong>
-            ${item.category_id !== undefined && item.category_id !== null ? `<span class="badge">${categoryLabel}</span>` : '<span class="badge">Без категории</span>'}
-            ${item.created_at ? `<span class="badge">${new Date(item.created_at).toLocaleDateString('ru-RU')}</span>` : ''}
-          </div>
-          <div class="actions">
-            <button class="btn secondary" data-action="edit">Редактировать</button>
-            <button class="btn secondary" data-action="toggle">${item.is_active ? 'Скрыть' : 'Показать'}</button>
-          </div>
+      orders.forEach((order) => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>#${order.id}</td>
+          <td>${order.customer_name || 'Без имени'}</td>
+          <td>${order.total || 0} ₽</td>
+          <td>${order.status || 'new'}</td>
+          <td>${order.created_at ? new Date(order.created_at).toLocaleString('ru-RU') : ''}</td>
+          <td><button class="btn secondary" data-id="${order.id}">Открыть</button></td>
         `;
-
-        card.querySelector('[data-action="edit"]').onclick = () => fillProductForm(item);
-        card.querySelector('[data-action="toggle"]').onclick = async () => {
-          try {
-            await fetchJson(`${API_BASE}/admin/products/${item.id}/toggle_active`, {
-              method: 'PATCH',
-              body: JSON.stringify({ user_id: userId }),
-            });
-            await loadProducts();
-          } catch (e) {
-            showStatus(e.message, true);
-          }
-        };
-        productsGrid.appendChild(card);
+        const btn = row.querySelector('button');
+        btn.addEventListener('click', () => loadOrderDetail(order.id));
+        ordersBody.appendChild(row);
       });
     }
 
-    function fillProductForm(item) {
-      productFormCard.style.display = 'block';
-      productFormTitle.textContent = `Редактирование #${item.id}`;
-      productForm.elements.id.value = item.id;
-      productForm.elements.type.value = item.type;
-      productForm.elements.name.value = item.name;
-      productForm.elements.price.value = item.price;
-      updateCategoryField(item.type);
-      renderCategoryOptions(item.category_id ?? '');
-      productForm.elements.detail_url.value = item.detail_url || '';
-      productForm.elements.description.value = item.description || '';
-    }
+    function renderOrderDetail(order) {
+      selectedOrder = order;
+      orderDetail.style.display = 'block';
+      detailId.textContent = `#${order.id}`;
+      detailStatus.value = order.status || 'new';
+      detailClient.textContent = order.customer_name || '—';
+      detailContact.textContent = order.contact || '—';
+      detailPromocode.textContent = order.promocode_code || '—';
+      detailComment.textContent = order.comment || '—';
+      detailItems.innerHTML = '';
 
-    function resetProductForm() {
-      productFormCard.style.display = 'none';
-      productForm.reset();
-      productForm.elements.id.value = '';
-      productFormTitle.textContent = 'Новый товар';
-      updateCategoryField('basket');
-      renderCategoryOptions('');
-    }
+      (order.items || []).forEach((item) => {
+        const li = document.createElement('li');
+        li.textContent = `${item.name || 'Товар'} — ${item.qty} × ${item.price} ₽ (${item.type || 'basket'})`;
+        detailItems.appendChild(li);
+      });
 
-    function updateCategoryField(type) {
-      if (!categorySelect) return;
-      const isBasket = type === 'basket';
-      categorySelect.disabled = !isBasket;
-      if (!isBasket) {
-        categorySelect.value = '';
-      }
-    }
-
-    async function loadProducts(typeParam = currentType) {
-      currentType = typeParam || currentType;
-      productsLoading.style.display = 'block';
-      productsGrid.innerHTML = '';
-      try {
-        const params = new URLSearchParams({ user_id: userId, status: 'all' });
-        if (typeParam) params.set('type', typeParam);
-        const data = await fetchJson(`${API_BASE}/admin/products?${params.toString()}`);
-        products = data.items || [];
-        renderProducts();
-      } catch (e) {
-        if (e.message.includes('Forbidden')) {
-          showStatus('Доступ только для администраторов', true);
-          return;
-        }
-        showStatus(e.message, true);
-      }
+      detailTotal.textContent = `Итого: ${(order.total || 0)} ₽`;
     }
 
     async function loadOrders() {
+      if (!currentUser) return;
       try {
-        const data = await fetchJson(`${API_BASE}/admin/orders?user_id=${userId}`);
-        const rows = data.items || [];
-        ordersLoading.style.display = 'none';
-        if (!rows.length) {
-          ordersEmpty.style.display = 'block';
-          return;
-        }
-        ordersTable.style.display = 'table';
-        const tbody = ordersTable.querySelector('tbody');
-        tbody.innerHTML = '';
-        rows.forEach((o) => {
-          const tr = document.createElement('tr');
-          tr.innerHTML = `
-            <td>${o.id}</td>
-            <td>${o.user_id}</td>
-            <td>${o.total} ₽</td>
-            <td>${o.status}</td>
-            <td>${new Date(o.created_at).toLocaleString('ru-RU')}</td>
-          `;
-          tbody.appendChild(tr);
-        });
+        const status = statusFilter.value === 'all' ? undefined : statusFilter.value;
+        const data = await apiGet('/admin/orders', { user_id: currentUser.telegram_id, status });
+        renderOrders(data.items || []);
+        ordersSection.style.display = 'block';
+        setStatus('');
       } catch (e) {
-        ordersLoading.textContent = e.message;
+        setStatus('Не удалось загрузить заказы', true);
       }
     }
 
-    async function loadPromocodes() {
+    async function loadOrderDetail(orderId) {
+      if (!currentUser) return;
       try {
-        const data = await fetchJson(`${API_BASE}/admin/promocodes?user_id=${userId}`);
-        const items = data.items || [];
-        promosLoading.style.display = 'none';
-        if (!items.length) {
-          promosEmpty.style.display = 'block';
-          return;
-        }
-        promosTable.style.display = 'table';
-        const tbody = promosTable.querySelector('tbody');
-        tbody.innerHTML = '';
-        items.forEach((p) => {
-          const tr = document.createElement('tr');
-          tr.innerHTML = `
-            <td>${p.code}</td>
-            <td>${p.discount_type}</td>
-            <td>${p.value}</td>
-            <td class="muted">мин ${p.min_order_total || 0}; лимит ${p.max_uses || '∞'}</td>
-            <td>${p.active ? 'Активен' : 'Неактивен'}</td>
-          `;
-          tbody.appendChild(tr);
-        });
+        const order = await apiGet(`/admin/orders/${orderId}`, { user_id: currentUser.telegram_id });
+        renderOrderDetail(order);
       } catch (e) {
-        promosLoading.textContent = e.message;
+        setStatus('Не удалось загрузить заказ', true);
       }
     }
 
-    productTabs.addEventListener('click', (e) => {
-      if (e.target.classList.contains('tab')) {
-        productTabs.querySelectorAll('.tab').forEach((el) => el.classList.remove('active'));
-        e.target.classList.add('active');
-        currentType = e.target.dataset.type;
-        loadProducts(currentType);
-      }
-    });
-
-    document.getElementById('new-product').onclick = () => {
-      resetProductForm();
-      productFormCard.style.display = 'block';
-      productForm.elements.type.value = currentType;
-      updateCategoryField(currentType);
-    };
-
-    productForm.elements.type?.addEventListener('change', (e) => {
-      updateCategoryField(e.target.value);
-      renderCategoryOptions('');
-    });
-
-    document.getElementById('cancel-product').onclick = () => {
-      resetProductForm();
-    };
-
-    productForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const formData = new FormData(productForm);
-      const payload = Object.fromEntries(formData.entries());
-      payload.user_id = userId;
-      payload.price = Number(payload.price || 0);
-      payload.category_id = payload.type === 'basket' && payload.category_id ? Number(payload.category_id) : null;
-
+    async function updateOrderStatus() {
+      if (!currentUser || !selectedOrder) return;
       try {
-        if (payload.id) {
-          await fetchJson(`${API_BASE}/admin/products/${payload.id}`, {
-            method: 'PUT',
-            body: JSON.stringify(payload),
-          });
-        } else {
-          await fetchJson(`${API_BASE}/admin/products`, {
-            method: 'POST',
-            body: JSON.stringify(payload),
-          });
-        }
-        resetProductForm();
-        await loadProducts(payload.type || currentType);
-      } catch (err) {
-        showStatus(err.message, true);
+        const payload = { user_id: currentUser.telegram_id, status: detailStatus.value };
+        const updated = await apiPost(`/admin/orders/${selectedOrder.id}/status`, payload);
+        setStatus('Статус заказа обновлён');
+        renderOrderDetail(updated);
+        await loadOrders();
+      } catch (e) {
+        setStatus('Не удалось обновить статус заказа', true);
       }
-    });
+    }
 
-    document.getElementById('promo-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const data = Object.fromEntries(new FormData(e.target).entries());
-      data.user_id = userId;
-      data.value = Number(data.value || 0);
-      data.min_order_total = data.min_order_total ? Number(data.min_order_total) : null;
-      data.max_uses = data.max_uses ? Number(data.max_uses) : null;
-      data.active = data.active === '1';
-      try {
-        await fetchJson(`${API_BASE}/admin/promocodes`, {
-          method: 'POST',
-          body: JSON.stringify(data),
-        });
-        e.target.reset();
-        await loadPromocodes();
-      } catch (err) {
-        showStatus(err.message, true);
-      }
-    });
+    statusFilter.addEventListener('change', loadOrders);
+    saveStatusBtn.addEventListener('click', updateOrderStatus);
 
-    noteForm?.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const data = Object.fromEntries(new FormData(noteForm).entries());
-      data.user_id = userId;
-      data.target_id = Number(data.target_id);
+    async function initApp() {
       try {
-        await fetchJson(`${API_BASE}/admin/notes`, {
-          method: 'POST',
-          body: JSON.stringify(data),
-        });
-        await loadNotes(data.target_id);
-        noteForm.reset();
-      } catch (err) {
-        showStatus(err.message, true);
-      }
-    });
-
-    loginBtn?.addEventListener('click', async () => {
-      if (loginBtn.disabled) return;
-      loginBtn.disabled = true;
-      setLoginStatus('Открываем Telegram...');
-      try {
-        await startTelegramAuth();
+        currentUser = await getCurrentUser({ includeNotes: true });
+        updateAdminLinkVisibility();
+        if (!requireAdmin(currentUser)) return;
+        await loadOrders();
       } catch (e) {
         console.error(e);
-        setLoginStatus('Не удалось запустить авторизацию. Попробуйте снова.');
-        loginBtn.disabled = false;
+        setStatus('Ошибка загрузки админки', true);
       }
-    });
-
-    async function init() {
-      hideStatus();
-      try {
-        if (getSavedAuthToken()) {
-          setLoginStatus('Ожидаем подтверждения в Telegram...');
-          startAuthPolling(
-            () => window.location.reload(),
-            () => setLoginStatus('Ожидаем подтверждения в Telegram...'),
-            () => {
-              setLoginStatus('Ошибка проверки авторизации. Попробуйте снова.');
-              loginBtn.disabled = false;
-            }
-          );
-        }
-        const ok = await authorize();
-        if (!ok) return;
-      } catch (e) {
-        return;
-      }
-
-      if (!isAdmin) {
-        showStatus('Доступ только для администраторов', true);
-        return;
-      }
-
-      statsSection.style.display = 'block';
-      notesSection.style.display = 'block';
-      adminContent.style.display = 'block';
-      ordersSection.style.display = 'block';
-      promosSection.style.display = 'block';
-      await loadProductCategories();
-      await loadStats();
-      await loadProducts('basket');
-      await loadOrders();
-      await loadPromocodes();
-      await loadNotes(userId);
     }
 
-    init();
+    initApp();
   </script>
 </body>
 </html>

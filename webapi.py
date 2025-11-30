@@ -409,6 +409,11 @@ class AdminTogglePayload(BaseModel):
     user_id: int
 
 
+class AdminOrderStatusPayload(BaseModel):
+    user_id: int
+    status: str
+
+
 class AdminPromocodeCreatePayload(BaseModel):
     user_id: int
     code: str
@@ -867,6 +872,17 @@ def admin_order_detail(order_id: int, user_id: int):
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     return order
+
+
+@app.post("/api/admin/orders/{order_id}/status")
+def admin_order_set_status(order_id: int, payload: AdminOrderStatusPayload):
+    _ensure_admin(payload.user_id)
+    if payload.status not in orders_service.STATUS_TITLES:
+        raise HTTPException(status_code=400, detail="Invalid status")
+    updated = orders_service.set_order_status(order_id, payload.status)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return orders_service.get_order_by_id(order_id)
 
 
 @app.get("/api/admin/promocodes")
