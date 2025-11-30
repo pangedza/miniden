@@ -1,5 +1,3 @@
-from datetime import datetime, timedelta
-
 from aiogram import Router, types, F
 from aiogram.filters import Command
 from aiogram.fsm.state import StatesGroup, State
@@ -10,12 +8,8 @@ from services import admin_notes as admin_notes_service
 from services import bans as bans_service
 from services import orders as orders_service
 from services import products as products_service
-from services import promocodes as promocodes_service
-from services import stats as stats_service
 from services import user_stats as user_stats_service
 from keyboards.admin_inline import (
-    products_list_kb,
-    admin_product_actions_kb,
     course_access_list_kb,
     course_access_actions_kb,
 )
@@ -26,15 +20,16 @@ from utils.texts import (
     format_order_detail_text,
     format_orders_list_text,
     format_order_status_changed_for_user,
-    format_stats_by_day,
-    format_stats_summary,
-    format_top_products,
     format_user_courses_access_granted,
     format_user_notes,
-    format_price,
 )
 
 router = Router()
+
+WEB_ADMIN_REDIRECT_TEXT = (
+    "Управление каталогом, промокодами и статистикой теперь доступно в веб-админке.\n"
+    "Откройте админку через кнопку «⚙️ Админка (WebApp)» в главном меню бота."
+)
 
 
 def _is_admin(user_id: int | None) -> bool:
@@ -95,76 +90,14 @@ def _build_orders_menu_kb() -> types.InlineKeyboardMarkup:
     )
 
 
-def _build_stats_period_kb() -> types.InlineKeyboardMarkup:
-    return types.InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                types.InlineKeyboardButton(
-                    text="📅 Сегодня", callback_data="admin:stats:today"
-                )
-            ],
-            [
-                types.InlineKeyboardButton(
-                    text="7 дней", callback_data="admin:stats:7d"
-                ),
-                types.InlineKeyboardButton(
-                    text="30 дней", callback_data="admin:stats:30d"
-                ),
-            ],
-            [
-                types.InlineKeyboardButton(
-                    text="Все время", callback_data="admin:stats:all"
-                )
-            ],
-        ]
-    )
+async def _send_web_admin_redirect_message(target_message: types.Message) -> None:
+    await target_message.answer(WEB_ADMIN_REDIRECT_TEXT)
 
 
-def _build_promocodes_menu_kb() -> types.InlineKeyboardMarkup:
-    return types.InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                types.InlineKeyboardButton(
-                    text="➕ Создать промокод", callback_data="admin:promo:create"
-                )
-            ],
-            [
-                types.InlineKeyboardButton(
-                    text="📋 Список промокодов", callback_data="admin:promo:list"
-                )
-            ],
-        ]
-    )
-
-
-def _build_promocode_type_kb() -> types.InlineKeyboardMarkup:
-    return types.InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                types.InlineKeyboardButton(
-                    text="Процент", callback_data="admin:promo:type:percent"
-                ),
-                types.InlineKeyboardButton(
-                    text="Фиксированная", callback_data="admin:promo:type:fixed"
-                ),
-            ]
-        ]
-    )
-
-
-def _format_promocode_line(promo: dict) -> str:
-    code = promo.get("code") or "—"
-    discount_type = promo.get("discount_type")
-    discount_value = int(promo.get("value", 0) or 0)
-    is_active = bool(promo.get("active"))
-
-    if discount_type == "percent":
-        discount_text = f"{discount_value}%"
-    else:
-        discount_text = f"{format_price(discount_value)}"
-
-    status_text = "активен" if is_active else "выключен"
-    return f"{code} — {discount_text} [{status_text}]"
+async def _send_web_admin_redirect_callback(callback: types.CallbackQuery) -> None:
+    if callback.message:
+        await callback.message.answer(WEB_ADMIN_REDIRECT_TEXT)
+    await callback.answer()
 
 
 async def _send_orders_menu(message: types.Message) -> None:
@@ -174,46 +107,9 @@ async def _send_orders_menu(message: types.Message) -> None:
     )
 
 
-async def _send_stats_menu(target_message: types.Message) -> None:
-    await target_message.answer(
-        "Выберите период для статистики:", reply_markup=_build_stats_period_kb()
-    )
-
-
-# --------- FSM для добавления товара ---------
-
-
-class CreateState(StatesGroup):
-    waiting_name = State()
-    waiting_payment_type = State()
-    waiting_price = State()
-    waiting_desc = State()
-    waiting_url = State()
-    waiting_photo = State()
-
-
-# --------- FSM для редактирования товара ---------
-
-
-class EditState(StatesGroup):
-    waiting_name = State()
-    waiting_price = State()
-    waiting_desc = State()
-    waiting_url = State()
-    waiting_photo = State()
-
-
 class CourseAccessState(StatesGroup):
     waiting_grant_user_id = State()
     waiting_revoke_user_id = State()
-
-
-class PromoCreateState(StatesGroup):
-    waiting_code = State()
-    waiting_type = State()
-    waiting_value = State()
-    waiting_min_total = State()
-    waiting_max_uses = State()
 
 
 # ---------------- ВХОД В АДМИНКУ ----------------
@@ -259,7 +155,7 @@ async def admin_stats_command(message: types.Message):
     if not _is_admin(message.from_user.id):
         return
 
-    await _send_stats_menu(message)
+    await _send_web_admin_redirect_message(message)
 
 
 @router.message(Command("promo_stats"))
@@ -267,26 +163,7 @@ async def admin_promo_stats_command(message: types.Message):
     if not _is_admin(message.from_user.id):
         return
 
-    promos = promocodes_service.get_promocodes_usage_summary()
-    lines: list[str] = ["🎟 <b>Статистика промокодов</b>", ""]
-
-    if not promos:
-        lines.append("Промокоды ещё не созданы.")
-    else:
-        for promo in promos:
-            code = promo.get("code") or "—"
-            discount_type = promo.get("discount_type")
-            value = int(promo.get("value", 0) or 0)
-            used = int(promo.get("used_count", 0) or 0)
-            max_uses_raw = promo.get("max_uses")
-            max_uses = int(max_uses_raw) if max_uses_raw else 0
-            limit_text = "∞" if max_uses <= 0 else str(max_uses)
-            discount_text = f"{value}%" if discount_type == "percent" else f"{format_price(value)}"
-            lines.append(
-                f"{code} — {discount_text}, использований: {used} / {limit_text}"
-            )
-
-    await message.answer("\n".join(lines).strip())
+    await _send_web_admin_redirect_message(message)
 
 
 @router.message(F.text == "📊 Статистика")
@@ -294,7 +171,7 @@ async def admin_stats_button(message: types.Message):
     if not _is_admin(message.from_user.id):
         return
 
-    await _send_stats_menu(message)
+    await _send_web_admin_redirect_message(message)
 
 
 @router.message(F.text == "🎟 Промокоды")
@@ -302,9 +179,7 @@ async def admin_promocodes_menu(message: types.Message):
     if not _is_admin(message.from_user.id):
         return
 
-    await message.answer(
-        "🎟 <b>Управление промокодами</b>", reply_markup=_build_promocodes_menu_kb()
-    )
+    await _send_web_admin_redirect_message(message)
 
 
 @router.callback_query(F.data.startswith("admin:stats:"))
@@ -312,259 +187,16 @@ async def admin_stats_callback(callback: types.CallbackQuery):
     if not _is_admin(callback.from_user.id):
         return
 
-    parts = (callback.data or "").split(":")
-    if len(parts) != 3:
-        await callback.answer("Некорректный запрос", show_alert=True)
-        return
-
-    period = parts[-1]
-    today = datetime.now().date()
-    date_from: str | None = None
-    date_to: str | None = None
-    days_limit: int | None = None
-    title = "Статистика"
-
-    if period == "today":
-        date_iso = today.isoformat()
-        date_from = f"{date_iso}T00:00:00"
-        date_to = f"{date_iso}T23:59:59"
-        days_limit = 1
-        title = "Статистика за сегодня"
-    elif period == "7d":
-        start_date = today - timedelta(days=6)
-        date_from = f"{start_date.isoformat()}T00:00:00"
-        date_to = f"{today.isoformat()}T23:59:59"
-        days_limit = 7
-        title = "Статистика за 7 дней"
-    elif period == "30d":
-        start_date = today - timedelta(days=29)
-        date_from = f"{start_date.isoformat()}T00:00:00"
-        date_to = f"{today.isoformat()}T23:59:59"
-        days_limit = 30
-        title = "Статистика за 30 дней"
-    elif period == "all":
-        title = "Статистика за все время"
-    else:
-        await callback.answer("Неизвестный период", show_alert=True)
-        return
-
-    summary = stats_service.get_orders_stats_summary(date_from, date_to)
-    by_day: list[dict] = []
-    if days_limit:
-        by_day = stats_service.get_orders_stats_by_day(days_limit)
-
-    top_products = stats_service.get_top_products(5)
-    top_courses = stats_service.get_top_courses(5)
-
-    text_parts = [format_stats_summary(title, summary)]
-    if days_limit:
-        text_parts.append(format_stats_by_day(by_day))
-    text_parts.append(format_top_products("Топ товаров", top_products))
-    text_parts.append(format_top_products("Топ курсов", top_courses))
-
-    text = "\n\n".join(text_parts).strip()
-
-    try:
-        await callback.message.edit_text(text, reply_markup=_build_stats_period_kb())
-    except Exception:
-        await callback.message.answer(text, reply_markup=_build_stats_period_kb())
-
-    await callback.answer()
+    await _send_web_admin_redirect_callback(callback)
 
 
-@router.callback_query(F.data == "admin:promo:list")
-async def admin_promocode_list(callback: types.CallbackQuery):
+@router.callback_query(F.data.startswith("admin:promo"))
+async def admin_promocode_disabled(callback: types.CallbackQuery, state: FSMContext):
     if not _is_admin(callback.from_user.id):
         return
 
-    promos = promocodes_service.list_promocodes()
-    lines: list[str] = ["🎟 <b>Промокоды</b>", ""]
-
-    if not promos:
-        lines.append("Промокоды ещё не созданы.")
-    else:
-        for promo in promos:
-            lines.append(_format_promocode_line(promo))
-
-    keyboard_rows: list[list[types.InlineKeyboardButton]] = []
-    for promo in promos:
-        code = promo.get("code")
-        if not code:
-            continue
-        is_active = bool(promo.get("active"))
-        toggle_text = "ON" if not is_active else "OFF"
-        keyboard_rows.append(
-            [
-                types.InlineKeyboardButton(
-                    text=f"{code}: {toggle_text}",
-                    callback_data=f"admin:promo:toggle:{code}",
-                )
-            ]
-        )
-
-    reply_markup = (
-        types.InlineKeyboardMarkup(inline_keyboard=keyboard_rows)
-        if keyboard_rows
-        else None
-    )
-    if callback.message:
-        await callback.message.edit_text(
-            "\n".join(lines).strip(), reply_markup=reply_markup
-        )
-    await callback.answer()
-
-
-@router.callback_query(F.data.startswith("admin:promo:toggle:"))
-async def admin_promocode_toggle(callback: types.CallbackQuery):
-    if not _is_admin(callback.from_user.id):
-        return
-
-    parts = (callback.data or "").split(":", 3)
-    if len(parts) < 3:
-        await callback.answer("Некорректный запрос", show_alert=True)
-        return
-
-    code = parts[-1]
-    promo = promocodes_service.get_promocode(code)
-    if not promo:
-        await callback.answer("Промокод не найден", show_alert=True)
-        return
-
-    current_status = bool(promo.get("active"))
-    promocodes_service.set_promocode_active(code, not current_status)
-    new_status = "активен" if not current_status else "отключён"
-    await callback.answer(f"Промокод {code} теперь {new_status}")
-    await admin_promocode_list(callback)
-
-
-@router.callback_query(F.data == "admin:promo:create")
-async def admin_promocode_create_start(callback: types.CallbackQuery, state: FSMContext):
-    if not _is_admin(callback.from_user.id):
-        return
-
-    await state.set_state(PromoCreateState.waiting_code)
-    await callback.message.edit_text(
-        "Введите код промокода (можно с пробелами, мы его нормализуем):"
-    )
-    await callback.answer()
-
-
-@router.message(PromoCreateState.waiting_code)
-async def admin_promocode_enter_code(message: types.Message, state: FSMContext):
-    if not _is_admin(message.from_user.id):
-        return
-
-    await state.update_data(promo_code=(message.text or "").strip())
-    await message.answer(
-        "Выберите тип скидки:", reply_markup=_build_promocode_type_kb()
-    )
-    await state.set_state(PromoCreateState.waiting_type)
-
-
-@router.callback_query(F.data.startswith("admin:promo:type:"))
-async def admin_promocode_choose_type(callback: types.CallbackQuery, state: FSMContext):
-    if not _is_admin(callback.from_user.id):
-        return
-
-    parts = (callback.data or "").split(":")
-    if len(parts) != 4:
-        await callback.answer("Некорректный запрос", show_alert=True)
-        return
-
-    promo_type = parts[-1]
-    if promo_type not in {"percent", "fixed"}:
-        await callback.answer("Неизвестный тип", show_alert=True)
-        return
-
-    await state.update_data(promo_type=promo_type)
-    await callback.message.edit_text(
-        "Введите значение скидки (число). Например: 10 или 500"
-    )
-    await state.set_state(PromoCreateState.waiting_value)
-    await callback.answer()
-
-
-@router.message(PromoCreateState.waiting_value)
-async def admin_promocode_enter_value(message: types.Message, state: FSMContext):
-    if not _is_admin(message.from_user.id):
-        return
-
-    try:
-        value = int((message.text or "").strip())
-        if value <= 0:
-            raise ValueError
-    except Exception:
-        await message.answer("Введите положительное число для скидки")
-        return
-
-    await state.update_data(promo_value=value)
-    await message.answer("Минимальная сумма заказа для применения (0 — без ограничений):")
-    await state.set_state(PromoCreateState.waiting_min_total)
-
-
-@router.message(PromoCreateState.waiting_min_total)
-async def admin_promocode_enter_min_total(message: types.Message, state: FSMContext):
-    if not _is_admin(message.from_user.id):
-        return
-
-    try:
-        min_total = int((message.text or "").strip() or 0)
-    except Exception:
-        await message.answer("Введите число (0 — без ограничения)")
-        return
-
-    await state.update_data(min_total=min_total)
-    await message.answer("Максимальное количество использований (0 — без лимита):")
-    await state.set_state(PromoCreateState.waiting_max_uses)
-
-
-@router.message(PromoCreateState.waiting_max_uses)
-async def admin_promocode_enter_max_uses(message: types.Message, state: FSMContext):
-    if not _is_admin(message.from_user.id):
-        return
-
-    try:
-        max_uses = int((message.text or "").strip() or 0)
-        if max_uses < 0:
-            max_uses = 0
-    except Exception:
-        await message.answer("Введите число (0 — без ограничения)")
-        return
-
-    data = await state.get_data()
-    code = data.get("promo_code", "")
-    promo_type = data.get("promo_type", "")
-    value = int(data.get("promo_value", 0) or 0)
-    min_total = int(data.get("min_total", 0) or 0)
-
-    try:
-        new_id = promocodes_service.create_promocode(
-            code=code,
-            discount_type=promo_type,
-            discount_value=value,
-            min_order_total=min_total,
-            max_uses=max_uses,
-        )
-    except Exception as exc:  # noqa: BLE001
-        await message.answer(f"Не удалось создать промокод: {exc}")
-        await state.clear()
-        return
-
-    if new_id == -1:
-        await message.answer("Такой промокод уже существует. Попробуйте другой код.")
-        await state.clear()
-        return
-
-    code_normalized = promocodes_service.normalize_code(code)
-    limit_text = "без лимита" if max_uses == 0 else f"{max_uses} раз"
-    min_total_text = "без ограничений" if min_total == 0 else f"от {min_total} ₽"
-    discount_text = f"{value}%" if promo_type == "percent" else f"{format_price(value)}"
-
-    await message.answer(
-        "Создан промокод: \n"
-        f"{code_normalized} — {discount_text}, {min_total_text}, {limit_text}"
-    )
     await state.clear()
+    await _send_web_admin_redirect_callback(callback)
 
 
 @router.message(F.text == "📝 Заметки")
@@ -579,69 +211,13 @@ async def admin_notes_menu_hint(message: types.Message):
     )
 
 
-# =====================================================================
-#            ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ: СПИСОК ТОВАРОВ С ФИЛЬТРОМ
-# =====================================================================
-
-
-async def _send_products_list(
-    target_message: types.Message,
-    state: FSMContext,
-    category: str,
-    status: str = "all",
-) -> None:
-    """
-    Показ списка товаров в админке с учётом фильтра по статусу.
-
-    category: 'basket' или 'course'
-    status:  'all' | 'active' | 'hidden' | 'deleted'
-    """
-    status = (status or "all").lower()
-    if status not in ("all", "active", "hidden", "deleted"):
-        status = "all"
-
-    products = products_service.list_products_admin(
-        product_type=category,
-        status=status,
-    )
-
-    await state.update_data(category=category, status=status)
-
-    title = "🧺 Корзинки" if category == "basket" else "🎓 Курсы"
-    human = {
-        "all": "все",
-        "active": "только активные",
-        "hidden": "только скрытые / «удалённые»",
-        "deleted": "только скрытые / «удалённые»",
-    }.get(status, "все")
-
-    text = f"{title} (админ)\nФильтр: {human}\n\nВыберите товар:"
-
-    await target_message.answer(
-        text,
-        reply_markup=products_list_kb(products, category, status),
-    )
-
-
-# =====================================================================
-#                           СПИСКИ ТОВАРОВ
-# =====================================================================
-
-
-@router.message(F.text == "📋 Товары: корзинки")
-async def show_baskets_admin(message: types.Message, state: FSMContext):
+@router.message(F.text.in_({"📋 Товары: корзинки", "📋 Товары: курсы"}))
+async def admin_products_redirect(message: types.Message, state: FSMContext):
     if not _is_admin(message.from_user.id):
         return
 
-    await _send_products_list(message, state, category="basket", status="all")
-
-
-@router.message(F.text == "📋 Товары: курсы")
-async def show_courses_admin(message: types.Message, state: FSMContext):
-    if not _is_admin(message.from_user.id):
-        return
-
-    await _send_products_list(message, state, category="course", status="all")
+    await state.clear()
+    await _send_web_admin_redirect_message(message)
 
 
 # ---------------- ВЫБОР КОНКРЕТНОГО ТОВАРА ----------------
@@ -649,50 +225,11 @@ async def show_courses_admin(message: types.Message, state: FSMContext):
 
 @router.callback_query(F.data.startswith("admin:product:"))
 async def admin_product_selected(callback: types.CallbackQuery, state: FSMContext):
-    """
-    Клик по товару → показываем карточку (фото + текст) и меню действий.
-    """
     if not _is_admin(callback.from_user.id):
         return
 
-    _, _, raw_id = (callback.data or "").split(":")
-    product_id = int(raw_id)
-
-    product = products_service.get_product_by_id(product_id)
-    if not product:
-        await callback.answer("Товар не найден", show_alert=True)
-        return
-
-    await state.update_data(product_id=product_id)
-
-    name = product["name"]
-    price = product["price"]
-    desc = product.get("description") or "(нет описания)"
-    photo = product.get("image_file_id")
-
-    caption = (
-        f"🛒 <b>{name}</b>\n"
-        f"ID: <code>{product_id}</code>\n"
-        f"💰 Цена: <b>{price} ₽</b>\n\n"
-        f"{desc}"
-    )
-
-    try:
-        await callback.message.delete()
-    except Exception:
-        pass
-
-    if photo:
-        await callback.message.answer_photo(
-            photo=photo,
-            caption=caption,
-            reply_markup=admin_product_actions_kb(product_id),
-        )
-    else:
-        await callback.message.answer(
-            caption,
-            reply_markup=admin_product_actions_kb(product_id),
-        )
+    await state.clear()
+    await _send_web_admin_redirect_callback(callback)
 
 
 # ---------------- НАЗАД К СПИСКУ ----------------
@@ -703,16 +240,8 @@ async def admin_back_list(callback: types.CallbackQuery, state: FSMContext):
     if not _is_admin(callback.from_user.id):
         return
 
-    data = await state.get_data()
-    category = data.get("category", "basket")
-    status = data.get("status", "all")
-
-    try:
-        await callback.message.delete()
-    except Exception:
-        pass
-
-    await _send_products_list(callback.message, state, category=category, status=status)
+    await state.clear()
+    await _send_web_admin_redirect_callback(callback)
 
 
 # ---------------- НАЗАД В АДМИНКУ ----------------
@@ -756,474 +285,26 @@ async def admin_home_cb(callback: types.CallbackQuery, state: FSMContext):
     )
 
 
-# =====================================================================
-#                           СОЗДАНИЕ ТОВАРА
-# =====================================================================
-
-
-@router.callback_query(F.data == "admin:add:basket")
-async def admin_add_basket(callback: types.CallbackQuery, state: FSMContext):
-    if not _is_admin(callback.from_user.id):
-        return
-
-    await state.clear()
-    await state.update_data(product_type="basket")
-
-    try:
-        await callback.message.delete()
-    except Exception:
-        pass
-
-    await state.set_state(CreateState.waiting_name)
-    await callback.message.answer("➕ Добавление корзинки.\n\nВведите название товара:")
-
-
-@router.callback_query(F.data == "admin:add:course")
-async def admin_add_course(callback: types.CallbackQuery, state: FSMContext):
-    if not _is_admin(callback.from_user.id):
-        return
-
-    await state.clear()
-    await state.update_data(product_type="course")
-
-    try:
-        await callback.message.delete()
-    except Exception:
-        pass
-
-    await state.set_state(CreateState.waiting_name)
-    await callback.message.answer("➕ Добавление курса.\n\nВведите название товара:")
-
-
-@router.message(CreateState.waiting_name)
-async def create_product_name(message: types.Message, state: FSMContext):
-    name = (message.text or "").strip()
-    if not name:
-        await message.answer("Название не может быть пустым. Введите ещё раз:")
-        return
-
-    await state.update_data(name=name)
-    data = await state.get_data()
-    product_type = data.get("product_type")
-
-    if product_type == "course":
-        await state.set_state(CreateState.waiting_payment_type)
-
-        kb = types.InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
-                    types.InlineKeyboardButton(
-                        text="💸 Бесплатный", callback_data="admin:course:new:free"
-                    )
-                ],
-                [
-                    types.InlineKeyboardButton(
-                        text="💰 Платный", callback_data="admin:course:new:paid"
-                    )
-                ],
-            ]
+@router.callback_query(
+    F.data.startswith(
+        (
+            "admin:add:",
+            "admin:course:new",
+            "admin:edit:",
+            "admin:hide:",
+            "admin:toggle:",
+            "admin:delete_disabled",
         )
-
-        await message.answer(
-            "Курс платный или бесплатный?",
-            reply_markup=kb,
-        )
-        return
-
-    await state.set_state(CreateState.waiting_price)
-    await message.answer(f"Название: <b>{name}</b>\nТеперь введите цену (число):")
-
-
-@router.callback_query(F.data == "admin:course:new:free")
-async def admin_course_new_free(callback: types.CallbackQuery, state: FSMContext):
+    )
+)
+async def admin_products_actions_disabled(
+    callback: types.CallbackQuery, state: FSMContext
+):
     if not _is_admin(callback.from_user.id):
         return
 
-    current_state = await state.get_state()
-    if current_state != CreateState.waiting_payment_type.state:
-        await callback.answer("Сейчас не ожидается выбор типа оплаты", show_alert=True)
-        return
-
-    await state.update_data(price=0)
-    await state.set_state(CreateState.waiting_desc)
-
-    await callback.message.answer(
-        "Вы выбрали бесплатный курс.\nВведите описание товара (или '-' чтобы оставить пустым):"
-    )
-    await callback.answer()
-
-
-@router.callback_query(F.data == "admin:course:new:paid")
-async def admin_course_new_paid(callback: types.CallbackQuery, state: FSMContext):
-    if not _is_admin(callback.from_user.id):
-        return
-
-    current_state = await state.get_state()
-    if current_state != CreateState.waiting_payment_type.state:
-        await callback.answer("Сейчас не ожидается выбор типа оплаты", show_alert=True)
-        return
-
-    await state.set_state(CreateState.waiting_price)
-    await callback.message.answer("Введите стоимость курса в рублях:")
-    await callback.answer()
-
-
-@router.message(CreateState.waiting_price)
-async def create_product_price(message: types.Message, state: FSMContext):
-    raw = (message.text or "").replace(" ", "")
-    if not raw.isdigit():
-        await message.answer("Цена должна быть числом. Введите ещё раз:")
-        return
-
-    price = int(raw)
-    await state.update_data(price=price)
-    await state.set_state(CreateState.waiting_desc)
-
-    await message.answer("Введите описание товара (или '-' чтобы оставить пустым):")
-
-
-@router.message(CreateState.waiting_desc)
-async def create_product_desc(message: types.Message, state: FSMContext):
-    desc = (message.text or "").strip()
-    if desc == "-":
-        desc = ""
-
-    await state.update_data(description=desc)
-    await state.set_state(CreateState.waiting_url)
-
-    await message.answer("Введите ссылку «Подробнее» или '-' если ссылки нет:")
-
-
-@router.message(CreateState.waiting_url)
-async def create_product_url(message: types.Message, state: FSMContext):
-    url = (message.text or "").strip()
-    if url == "-":
-        url = None
-
-    await state.update_data(detail_url=url)
-    await state.set_state(CreateState.waiting_photo)
-
-    await message.answer("Отправьте фото товара или '-' если без фото:")
-
-
-@router.message(CreateState.waiting_photo)
-async def create_product_photo(message: types.Message, state: FSMContext):
-    data = await state.get_data()
-
-    product_type = data.get("product_type")
-    name = data.get("name")
-    price = int(data.get("price") or 0)
-    description = data.get("description") or ""
-    detail_url = data.get("detail_url")
-
-    image_file_id = None
-    if message.photo:
-        image_file_id = message.photo[-1].file_id
-    else:
-        txt = (message.text or "").strip()
-        if txt != "-":
-            await message.answer("Отправьте фото или '-' если без фото.")
-            return
-
-    # 1) создаём товар без фото
-    product_id = products_service.create_product(
-        product_type=product_type,
-        name=name,
-        price=price,
-        description=description,
-        detail_url=detail_url,
-    )
-
-    # 2) если есть фото — сохраняем его отдельной функцией
-    if image_file_id:
-        products_service.update_product_image(product_id, image_file_id)
-
     await state.clear()
-
-    await message.answer(
-        f"✅ Товар добавлен!\n\n"
-        f"ID: <code>{product_id}</code>\n"
-        f"Тип: <b>{'Корзинка' if product_type == 'basket' else 'Курс'}</b>\n"
-        f"Название: <b>{name}</b>\n"
-        f"Цена: <b>{format_price(price)}</b>"
-    )
-
-
-# =====================================================================
-#                           РЕДАКТИРОВАНИЕ ТОВАРА
-# =====================================================================
-
-
-@router.callback_query(F.data.startswith("admin:edit:name:"))
-async def admin_edit_name_start(callback: types.CallbackQuery, state: FSMContext):
-    if not _is_admin(callback.from_user.id):
-        return
-
-    _, _, _, raw_id = (callback.data or "").split(":")
-    product_id = int(raw_id)
-
-    await state.clear()
-    await state.update_data(product_id=product_id)
-
-    try:
-        await callback.message.delete()
-    except Exception:
-        pass
-
-    await state.set_state(EditState.waiting_name)
-    await callback.message.answer(
-        f"✏ Изменение названия товара ID <code>{product_id}</code>\n\n"
-        f"Введите новое название:"
-    )
-
-
-@router.message(EditState.waiting_name)
-async def admin_edit_name_finish(message: types.Message, state: FSMContext):
-    data = await state.get_data()
-    product_id = data.get("product_id")
-
-    new_name = (message.text or "").strip()
-    if not new_name:
-        await message.answer("Название не может быть пустым. Введите ещё раз:")
-        return
-
-    products_service.update_product_name(product_id, new_name)
-    await state.clear()
-
-    await message.answer(
-        f"✅ Название товара ID <code>{product_id}</code> обновлено на:\n<b>{new_name}</b>",
-        reply_markup=admin_product_actions_kb(product_id),
-    )
-
-
-@router.callback_query(F.data.startswith("admin:edit:price:"))
-async def admin_edit_price_start(callback: types.CallbackQuery, state: FSMContext):
-    if not _is_admin(callback.from_user.id):
-        return
-
-    _, _, _, raw_id = (callback.data or "").split(":")
-    product_id = int(raw_id)
-
-    await state.clear()
-    await state.update_data(product_id=product_id)
-
-    try:
-        await callback.message.delete()
-    except Exception:
-        pass
-
-    await state.set_state(EditState.waiting_price)
-    await callback.message.answer(
-        f"💰 Изменение цены товара ID <code>{product_id}</code>\n\n"
-        f"Введите новую цену (число):"
-    )
-
-
-@router.message(EditState.waiting_price)
-async def admin_edit_price_finish(message: types.Message, state: FSMContext):
-    data = await state.get_data()
-    product_id = data.get("product_id")
-
-    raw = (message.text or "").replace(" ", "")
-    if not raw.isdigit():
-        await message.answer("Цена должна быть числом. Введите ещё раз:")
-        return
-
-    new_price = int(raw)
-    products_service.update_product_price(product_id, new_price)
-
-    await state.clear()
-
-    await message.answer(
-        f"✅ Цена товара ID <code>{product_id}</code> обновлена на <b>{new_price} ₽</b>",
-        reply_markup=admin_product_actions_kb(product_id),
-    )
-
-
-@router.callback_query(F.data.startswith("admin:edit:desc:"))
-async def admin_edit_desc_start(callback: types.CallbackQuery, state: FSMContext):
-    if not _is_admin(callback.from_user.id):
-        return
-
-    _, _, _, raw_id = (callback.data or "").split(":")
-    product_id = int(raw_id)
-
-    await state.clear()
-    await state.update_data(product_id=product_id)
-
-    try:
-        await callback.message.delete()
-    except Exception:
-        pass
-
-    await state.set_state(EditState.waiting_desc)
-    await callback.message.answer(
-        f"📝 Изменение описания товара ID <code>{product_id}</code>\n\n"
-        f"Введите новое описание (или '-' чтобы удалить описание):"
-    )
-
-
-@router.message(EditState.waiting_desc)
-async def admin_edit_desc_finish(message: types.Message, state: FSMContext):
-    data = await state.get_data()
-    product_id = data.get("product_id")
-
-    desc = (message.text or "").strip()
-    if desc == "-":
-        desc = ""
-
-    products_service.update_product_description(product_id, desc)
-
-    await state.clear()
-
-    await message.answer(
-        "✅ Описание товара обновлено.",
-        reply_markup=admin_product_actions_kb(product_id),
-    )
-
-
-@router.callback_query(F.data.startswith("admin:edit:link:"))
-async def admin_edit_link_start(callback: types.CallbackQuery, state: FSMContext):
-    if not _is_admin(callback.from_user.id):
-        return
-
-    _, _, _, raw_id = (callback.data or "").split(":")
-    product_id = int(raw_id)
-
-    await state.clear()
-    await state.update_data(product_id=product_id)
-
-    try:
-        await callback.message.delete()
-    except Exception:
-        pass
-
-    await state.set_state(EditState.waiting_url)
-    await callback.message.answer(
-        f"🔗 Изменение ссылки товара ID <code>{product_id}</code>\n\n"
-        f"Введите новую ссылку (или '-' чтобы удалить ссылку):"
-    )
-
-
-@router.message(EditState.waiting_url)
-async def admin_edit_link_finish(message: types.Message, state: FSMContext):
-    data = await state.get_data()
-    product_id = data.get("product_id")
-
-    url = (message.text or "").strip()
-    if url == "-":
-        url = None
-
-    products_service.update_product_detail_url(product_id, url)
-
-    await state.clear()
-
-    await message.answer(
-        f"✅ Ссылка товара обновлена: {url or '(нет ссылки)'}",
-        reply_markup=admin_product_actions_kb(product_id),
-    )
-
-
-@router.callback_query(F.data.startswith("admin:edit:photo:"))
-async def admin_edit_photo_start(callback: types.CallbackQuery, state: FSMContext):
-    if not _is_admin(callback.from_user.id):
-        return
-
-    _, _, _, raw_id = (callback.data or "").split(":")
-    product_id = int(raw_id)
-
-    await state.clear()
-    await state.update_data(product_id=product_id)
-
-    try:
-        await callback.message.delete()
-    except Exception:
-        pass
-
-    await state.set_state(EditState.waiting_photo)
-    await callback.message.answer(
-        f"🖼 Изменение фото товара ID <code>{product_id}</code>\n\n"
-        f"Отправьте новое фото одним сообщением\n"
-        f"или '-' чтобы удалить фото:"
-    )
-
-
-@router.message(EditState.waiting_photo)
-async def admin_edit_photo_finish(message: types.Message, state: FSMContext):
-    data = await state.get_data()
-    product_id = data.get("product_id")
-
-    image_file_id = None
-
-    if message.photo:
-        image_file_id = message.photo[-1].file_id
-    else:
-        txt = (message.text or "").strip()
-        if txt != "-":
-            await message.answer("Отправьте фото или '-' чтобы удалить фото.")
-            return
-
-    products_service.update_product_image(product_id, image_file_id)
-
-    await state.clear()
-
-    await message.answer(
-        "✅ Фото обновлено." if image_file_id else "✅ Фото удалено.",
-        reply_markup=admin_product_actions_kb(product_id),
-    )
-
-
-# ---------------- СКРЫТЬ / ПЕРЕКЛЮЧИТЬ ПОКАЗ ----------------
-
-
-@router.callback_query(F.data.startswith("admin:hide:"))
-async def admin_hide_product(callback: types.CallbackQuery, state: FSMContext):
-    if not _is_admin(callback.from_user.id):
-        return
-
-    _, _, raw_id = (callback.data or "").split(":")
-    product_id = int(raw_id)
-
-    products_service.soft_delete_product(product_id)
-
-    await callback.answer()
-
-    await callback.message.answer(
-        f"🚫 Товар ID <code>{product_id}</code> скрыт (is_active = 0).",
-        reply_markup=admin_product_actions_kb(product_id),
-    )
-
-
-@router.callback_query(F.data.startswith("admin:toggle:"))
-async def admin_toggle_product(callback: types.CallbackQuery, state: FSMContext):
-    if not _is_admin(callback.from_user.id):
-        return
-
-    _, _, raw_id = (callback.data or "").split(":")
-    product_id = int(raw_id)
-
-    products_service.toggle_product_active(product_id)
-
-    await callback.answer()
-
-    await callback.message.answer(
-        f"🔁 Статус показа товара ID <code>{product_id}</code> переключён.",
-        reply_markup=admin_product_actions_kb(product_id),
-    )
-
-
-# ---------------- "Удаление" временно = скрытие ----------------
-
-
-@router.callback_query(F.data.startswith("admin:delete_disabled:"))
-async def admin_delete_disabled(callback: types.CallbackQuery):
-    """
-    Временная заглушка — реального удаления нет, используем «Скрыть».
-    """
-    if not _is_admin(callback.from_user.id):
-        return
-
-    await callback.answer("Удаление товара пока не настроено 🛠", show_alert=True)
+    await _send_web_admin_redirect_callback(callback)
 
 
 # =====================================================================
