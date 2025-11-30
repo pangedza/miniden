@@ -210,6 +210,11 @@ def _build_user_profile(session: Session, user: User, *, include_notes: bool = F
         favorites = []
 
     try:
+        courses = orders_service.get_user_courses_with_access(telegram_id) or []
+    except Exception:
+        courses = []
+
+    try:
         stats = user_stats_service.get_user_order_stats(telegram_id) or {}
     except Exception:
         stats = {}
@@ -237,6 +242,7 @@ def _build_user_profile(session: Session, user: User, *, include_notes: bool = F
         "is_admin": bool(user.is_admin),
         "orders": orders,
         "favorites": favorites,
+        "courses": courses,
         "stats": stats,
         "ban": ban_status,
         "notes": notes,
@@ -460,6 +466,12 @@ class AdminProductsCreatePayload(BaseModel):
     description: str | None = ""
     detail_url: str | None = None
     category_id: int | None = None
+    image: str | None = None
+    wb_url: str | None = None
+    ozon_url: str | None = None
+    yandex_url: str | None = None
+    avito_url: str | None = None
+    masterclass_url: str | None = None
 
 
 class AdminProductsUpdatePayload(BaseModel):
@@ -471,6 +483,12 @@ class AdminProductsUpdatePayload(BaseModel):
     detail_url: str | None = None
     category_id: int | None = None
     is_active: bool | None = None
+    image: str | None = None
+    wb_url: str | None = None
+    ozon_url: str | None = None
+    yandex_url: str | None = None
+    avito_url: str | None = None
+    masterclass_url: str | None = None
 
 
 class AdminTogglePayload(BaseModel):
@@ -916,6 +934,12 @@ def admin_create_product(payload: AdminProductsCreatePayload):
         payload.description or "",
         payload.detail_url,
         payload.category_id,
+        image=payload.image,
+        wb_url=payload.wb_url,
+        ozon_url=payload.ozon_url,
+        yandex_url=payload.yandex_url,
+        avito_url=payload.avito_url,
+        masterclass_url=payload.masterclass_url,
     )
     return {"id": new_id}
 
@@ -933,6 +957,12 @@ def admin_update_product(product_id: int, payload: AdminProductsUpdatePayload):
         payload.detail_url,
         payload.category_id,
         payload.is_active,
+        image=payload.image,
+        wb_url=payload.wb_url,
+        ozon_url=payload.ozon_url,
+        yandex_url=payload.yandex_url,
+        avito_url=payload.avito_url,
+        masterclass_url=payload.masterclass_url,
     )
     if not updated:
         raise HTTPException(status_code=404, detail="Product not found")
@@ -940,6 +970,7 @@ def admin_update_product(product_id: int, payload: AdminProductsUpdatePayload):
 
 
 @app.patch("/api/admin/products/{product_id}/toggle_active")
+@app.post("/api/admin/products/{product_id}/toggle")
 def admin_toggle_product(product_id: int, payload: AdminTogglePayload):
     _ensure_admin(payload.user_id)
     changed = products_service.toggle_product_active(product_id)
@@ -1005,11 +1036,12 @@ def admin_order_detail(order_id: int, user_id: int):
 
 
 @app.post("/api/admin/orders/{order_id}/status")
+@app.put("/api/admin/orders/{order_id}/status")
 def admin_order_set_status(order_id: int, payload: AdminOrderStatusPayload):
     _ensure_admin(payload.user_id)
     if payload.status not in orders_service.STATUS_TITLES:
         raise HTTPException(status_code=400, detail="Invalid status")
-    updated = orders_service.set_order_status(order_id, payload.status)
+    updated = orders_service.update_order_status(order_id, payload.status)
     if not updated:
         raise HTTPException(status_code=404, detail="Order not found")
     return orders_service.get_order_by_id(order_id)

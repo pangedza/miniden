@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
@@ -10,13 +11,13 @@
     :root {
       color-scheme: light;
       --bg: #0b0c10;
-      --card: rgba(255, 255, 255, 0.06);
+      --panel: rgba(255, 255, 255, 0.06);
       --text: #f6f7fb;
       --muted: #c7c9d3;
       --accent: #ffb800;
       --accent-2: #7bd8ff;
+      --border: rgba(255, 255, 255, 0.08);
       --shadow: 0 14px 50px rgba(0, 0, 0, 0.35);
-      --nav: rgba(17, 17, 19, 0.82);
     }
 
     * { box-sizing: border-box; }
@@ -30,167 +31,336 @@
         #0b0c10;
       color: var(--text);
       min-height: 100vh;
-      padding: 0 18px 48px;
     }
 
-    .top-nav {
+    a { color: var(--accent-2); }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      min-height: 100vh;
+    }
+
+    aside {
+      background: rgba(17, 17, 19, 0.85);
+      border-right: 1px solid var(--border);
+      padding: 24px 18px;
       position: sticky;
       top: 0;
-      z-index: 20;
-      background: var(--nav);
-      backdrop-filter: blur(10px);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 14px 12px;
-      margin: 0 -18px;
+      height: 100vh;
     }
 
-    .brand { display: flex; flex-direction: column; gap: 2px; font-weight: 800; letter-spacing: -0.02em; }
-    .brand span { color: var(--muted); font-size: 13px; font-weight: 600; letter-spacing: normal; }
+    .brand { font-weight: 800; letter-spacing: -0.02em; margin-bottom: 14px; }
+    .brand span { color: var(--muted); font-size: 13px; }
 
-    .nav-links { display: flex; gap: 12px; align-items: center; }
-    .nav-links a { color: var(--muted); text-decoration: none; font-weight: 600; padding: 10px 12px; border-radius: 12px; transition: background 0.15s ease, color 0.15s ease; }
-    .nav-links a:hover { color: var(--text); background: rgba(255, 255, 255, 0.06); }
-    .nav-links a.active { color: var(--text); background: linear-gradient(135deg, rgba(255, 184, 0, 0.18), rgba(123, 216, 255, 0.14)); }
+    .nav-btn {
+      width: 100%;
+      display: block;
+      text-align: left;
+      padding: 12px 14px;
+      margin: 6px 0;
+      border-radius: 12px;
+      border: 1px solid transparent;
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--muted);
+      font-weight: 700;
+      cursor: pointer;
+    }
 
-    .menu-toggle { display: none; background: transparent; border: 1px solid rgba(255, 255, 255, 0.12); color: var(--text); border-radius: 12px; padding: 10px 12px; cursor: pointer; }
+    .nav-btn.active {
+      color: var(--text);
+      border-color: rgba(255, 255, 255, 0.12);
+      background: linear-gradient(135deg, rgba(255, 184, 0, 0.2), rgba(123, 216, 255, 0.16));
+    }
 
-    main { max-width: 1180px; margin: 0 auto; padding-top: 28px; display: flex; flex-direction: column; gap: 18px; }
+    main {
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
 
-    h1 { margin: 0 0 8px; }
-    h2 { margin: 0 0 10px; }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+      box-shadow: var(--shadow);
+    }
 
-    .card { background: var(--card); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 14px; box-shadow: var(--shadow); backdrop-filter: blur(6px); }
-    .section-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .section-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
     .muted { color: var(--muted); }
-    .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 12px; border: none; cursor: pointer; font-weight: 700; color: #0b0c10; background: linear-gradient(135deg, #ffb800, #ff8f3f); box-shadow: 0 10px 30px rgba(255, 184, 0, 0.25); }
-    .btn.secondary { background: rgba(255, 255, 255, 0.08); color: var(--text); box-shadow: none; border: 1px solid rgba(255, 255, 255, 0.12); }
-    .table { width: 100%; border-collapse: collapse; }
-    .table th, .table td { padding: 10px 8px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.08); }
-    .table th { color: var(--muted); font-weight: 700; }
-    select { padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.06); color: var(--text); }
-    .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
-    .list { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
-    .list li { padding: 10px 12px; border-radius: 12px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.06); }
+    .btn { cursor: pointer; border: none; border-radius: 12px; padding: 10px 12px; font-weight: 700; }
+    .btn.primary { background: linear-gradient(135deg, #ffb800, #ff8f3f); color: #0b0c10; box-shadow: 0 10px 30px rgba(255, 184, 0, 0.25); }
+    .btn.secondary { background: rgba(255, 255, 255, 0.08); color: var(--text); border: 1px solid var(--border); }
 
-    @media (max-width: 780px) {
-      .nav-links { display: none; }
-      .nav-links.open { display: flex; flex-direction: column; align-items: flex-start; width: 100%; margin-top: 10px; }
-      .top-nav { flex-wrap: wrap; }
-      .menu-toggle { display: inline-flex; }
+    label { display: block; font-weight: 700; margin: 8px 0 4px; }
+    input, textarea, select {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text);
+    }
+
+    textarea { min-height: 80px; resize: vertical; }
+
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 10px 8px; border-bottom: 1px solid var(--border); text-align: left; }
+    th { color: var(--muted); font-weight: 700; }
+
+    .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+    .status-box { padding: 12px; border-radius: 12px; border: 1px solid var(--border); background: rgba(255,255,255,0.07); }
+    .tag { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 10px; background: rgba(255,255,255,0.08); border: 1px solid var(--border); }
+
+    .pill { padding: 6px 10px; border-radius: 999px; font-size: 12px; border: 1px solid var(--border); color: var(--muted); }
+    .pill.active { background: rgba(123, 216, 255, 0.12); color: var(--text); }
+
+    @media (max-width: 1024px) {
+      .layout { grid-template-columns: 1fr; }
+      aside { position: relative; height: auto; }
     }
   </style>
 </head>
 <body>
-  <nav class="top-nav">
-    <div class="brand">
-      MiniDeN
-      <span>уютные корзинки</span>
-    </div>
-    <button class="menu-toggle" aria-label="Открыть меню">☰</button>
-    <div class="nav-links open">
-      <a href="index.html">Главная</a>
-      <a href="products.html">Товары</a>
-      <a href="masterclasses.html">Мастер-классы</a>
-      <a href="cart.html">Корзина</a>
-      <a href="profile.html">Профиль</a>
-      <a href="admin.html" id="admin-link" class="active">Админка</a>
-    </div>
-  </nav>
+  <div class="layout">
+    <aside>
+      <div class="brand">MiniDeN<br /><span>админ-панель</span></div>
+      <button class="nav-btn active" data-section="orders">Заказы</button>
+      <button class="nav-btn" data-section="products">Товары</button>
+      <button class="nav-btn" data-section="courses">Мастер-классы</button>
+      <button class="nav-btn" data-section="promocodes">Промокоды</button>
+      <button class="nav-btn" data-section="stats">Статистика</button>
+      <div class="muted" style="margin-top:16px; font-size:13px;">Выйдите в профиль, чтобы проверить статус авторизации.</div>
+    </aside>
 
-  <main>
-    <header>
+    <main>
       <h1>Админка</h1>
-      <p class="muted">Управляйте заказами и пользователями через REST API backend.</p>
-    </header>
+      <div id="status" class="status-box" style="display:none"></div>
 
-    <div id="status" class="card" style="display:none"></div>
-
-    <section class="card" id="access-denied" style="display:none; text-align:center;">
-      <h2>Доступ запрещён</h2>
-      <p class="muted">Админка доступна только администраторам MiniDeN. Авторизуйтесь через Telegram в боте и откройте эту страницу из WebApp.</p>
-    </section>
-
-    <section class="card" id="orders-section" style="display:none;">
-      <div class="section-header">
-        <h2>Заказы</h2>
-        <div style="display:flex; gap:8px; align-items:center;">
-          <label class="muted">Статус</label>
-          <select id="status-filter">
-            <option value="all">Все</option>
-            <option value="new">Новый</option>
-            <option value="in_progress">В работе</option>
-            <option value="paid">Оплачен</option>
-            <option value="sent">Отправлен</option>
-            <option value="archived">Архив</option>
-          </select>
-        </div>
+      <div id="access-denied" class="card" style="display:none;">
+        <h2>Нет доступа</h2>
+        <p class="muted">Админка доступна только администраторам. Авторизуйтесь через Telegram WebApp или войдите в профиль с правами администратора.</p>
       </div>
-      <table class="table" aria-label="Список заказов">
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Покупатель</th>
-            <th>Сумма</th>
-            <th>Статус</th>
-            <th>Дата</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody id="orders-body"></tbody>
-      </table>
-    </section>
 
-    <section class="card" id="order-detail" style="display:none;">
-      <div class="section-header">
-        <h2>Заказ <span id="detail-id"></span></h2>
-        <div style="display:flex; gap:8px; align-items:center;">
-          <label class="muted">Статус</label>
-          <select id="detail-status">
-            <option value="new">Новый</option>
-            <option value="in_progress">В работе</option>
-            <option value="paid">Оплачен</option>
-            <option value="sent">Отправлен</option>
-            <option value="archived">Архив</option>
-          </select>
-          <button class="btn secondary" type="button" id="save-status">Сохранить</button>
+      <section id="orders" class="card">
+        <div class="section-header">
+          <div>
+            <h2>Заказы</h2>
+            <p class="muted">Просматривайте заказы, обновляйте статусы и выдавайте доступ к мастер-классам после оплаты.</p>
+          </div>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <label for="status-filter" class="muted" style="margin:0;">Статус</label>
+            <select id="status-filter">
+              <option value="all">Все</option>
+              <option value="new">Новый</option>
+              <option value="in_progress">В работе</option>
+              <option value="paid">Оплачен</option>
+              <option value="sent">Отправлен</option>
+              <option value="archived">Архив</option>
+            </select>
+          </div>
         </div>
-      </div>
-      <div class="grid" style="margin-top:12px;">
-        <div>
-          <div class="muted">Клиент</div>
-          <div id="detail-client">—</div>
-          <div class="muted" style="margin-top:8px;">Контакт</div>
-          <div id="detail-contact">—</div>
-          <div class="muted" style="margin-top:8px;">Промокод</div>
-          <div id="detail-promocode">—</div>
+        <table aria-label="Список заказов">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Клиент</th>
+              <th>Сумма</th>
+              <th>Статус</th>
+              <th>Дата</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="orders-body"></tbody>
+        </table>
+
+        <div id="order-detail" class="card" style="margin-top:14px; display:none;">
+          <div class="section-header">
+            <h3>Заказ <span id="detail-id"></span></h3>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <label for="detail-status" class="muted" style="margin:0;">Статус</label>
+              <select id="detail-status">
+                <option value="new">Новый</option>
+                <option value="in_progress">В работе</option>
+                <option value="paid">Оплачен</option>
+                <option value="sent">Отправлен</option>
+                <option value="archived">Архив</option>
+              </select>
+              <button class="btn secondary" type="button" id="save-status">Сохранить</button>
+            </div>
+          </div>
+          <div class="grid" style="margin-top:10px;">
+            <div>
+              <div class="muted">Клиент</div>
+              <div id="detail-client">—</div>
+              <div class="muted" style="margin-top:8px;">Контакт</div>
+              <div id="detail-contact">—</div>
+              <div class="muted" style="margin-top:8px;">Промокод</div>
+              <div id="detail-promocode">—</div>
+            </div>
+            <div>
+              <div class="muted">Комментарий</div>
+              <div id="detail-comment">—</div>
+            </div>
+          </div>
+          <h4>Позиции</h4>
+          <ul class="list" id="detail-items"></ul>
+          <div id="detail-total" class="muted"></div>
         </div>
-        <div>
-          <div class="muted">Комментарий</div>
-          <div id="detail-comment">—</div>
+      </section>
+
+      <section id="products" class="card" style="display:none;">
+        <div class="section-header">
+          <div>
+            <h2>Товары</h2>
+            <p class="muted">Категории корзинок и аксессуаров.</p>
+          </div>
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <select id="products-category"></select>
+            <select id="products-status">
+              <option value="all">Все</option>
+              <option value="active">Активные</option>
+              <option value="hidden">Скрытые</option>
+            </select>
+            <button class="btn primary" type="button" id="product-reset">Новый товар</button>
+          </div>
         </div>
-      </div>
-      <h3>Товары</h3>
-      <ul class="list" id="detail-items"></ul>
-      <div class="muted" id="detail-total"></div>
-    </section>
-  </main>
+
+        <div class="grid">
+          <div class="card" style="background: rgba(255,255,255,0.03);">
+            <h3 id="product-form-title">Создать товар</h3>
+            <form id="product-form">
+              <label>Категория</label>
+              <select name="category_id" id="product-category-select"></select>
+              <label>Название</label>
+              <input type="text" name="name" required />
+              <label>Цена</label>
+              <input type="number" name="price" min="0" required />
+              <label>Ссылка на фото</label>
+              <input type="text" name="image" />
+              <label>Описание</label>
+              <textarea name="description"></textarea>
+              <label>Ссылка на Wildberries</label>
+              <input type="text" name="wb_url" />
+              <label>Ссылка на Ozon</label>
+              <input type="text" name="ozon_url" />
+              <label>Ссылка на Яндекс.Маркет</label>
+              <input type="text" name="yandex_url" />
+              <label>Ссылка на Авито</label>
+              <input type="text" name="avito_url" />
+              <label>Ссылка на мастер-класс</label>
+              <input type="text" name="masterclass_url" />
+              <label>Ссылка на подробности</label>
+              <input type="text" name="detail_url" />
+              <div style="display:flex; gap:8px; margin-top:10px;">
+                <button class="btn primary" type="submit">Сохранить</button>
+                <button class="btn secondary" type="button" id="product-cancel">Отмена</button>
+              </div>
+            </form>
+          </div>
+
+          <div class="card" style="overflow:auto;">
+            <table aria-label="Товары">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Название</th>
+                  <th>Категория</th>
+                  <th>Цена</th>
+                  <th>Активен</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="products-table"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="courses" class="card" style="display:none;">
+        <div class="section-header">
+          <div>
+            <h2>Мастер-классы</h2>
+            <p class="muted">Онлайн уроки. Бесплатные доступны сразу, платные — после оплаты заказа.</p>
+          </div>
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <select id="courses-category"></select>
+            <select id="courses-status">
+              <option value="all">Все</option>
+              <option value="active">Активные</option>
+              <option value="hidden">Скрытые</option>
+            </select>
+            <button class="btn primary" type="button" id="course-reset">Новый мастер-класс</button>
+          </div>
+        </div>
+
+        <div class="grid">
+          <div class="card" style="background: rgba(255,255,255,0.03);">
+            <h3 id="course-form-title">Создать мастер-класс</h3>
+            <form id="course-form">
+              <label>Категория</label>
+              <select name="category_id" id="course-category-select"></select>
+              <label>Название</label>
+              <input type="text" name="name" required />
+              <label>Цена (0 — бесплатно)</label>
+              <input type="number" name="price" min="0" required />
+              <label>Ссылка на обложку</label>
+              <input type="text" name="image" />
+              <label>Описание</label>
+              <textarea name="description"></textarea>
+              <label>Ссылка на мастер-класс</label>
+              <input type="text" name="masterclass_url" />
+              <label>Ссылка на подробности</label>
+              <input type="text" name="detail_url" />
+              <div style="display:flex; gap:8px; margin-top:10px;">
+                <button class="btn primary" type="submit">Сохранить</button>
+                <button class="btn secondary" type="button" id="course-cancel">Отмена</button>
+              </div>
+            </form>
+          </div>
+
+          <div class="card" style="overflow:auto;">
+            <table aria-label="Мастер-классы">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Название</th>
+                  <th>Категория</th>
+                  <th>Цена</th>
+                  <th>Активен</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="courses-table"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="promocodes" class="card" style="display:none;">
+        <h2>Промокоды</h2>
+        <p class="muted">Существующий функционал промокодов доступен в этой секции без изменений.</p>
+        <p class="muted">Используйте текущие команды бота и REST API для управления промокодами.</p>
+      </section>
+
+      <section id="stats" class="card" style="display:none;">
+        <h2>Статистика</h2>
+        <p class="muted">Статистика заказов и продаж остаётся доступной через существующий API. Эта вкладка — заглушка для будущего UI.</p>
+      </section>
+    </main>
+  </div>
 
   <script src="js/api.js"></script>
   <script>
-    const toggle = document.querySelector('.menu-toggle');
-    const nav = document.querySelector('.nav-links');
-    toggle?.addEventListener('click', () => nav?.classList.toggle('open'));
-
-    const adminLink = document.getElementById('admin-link');
     const statusBox = document.getElementById('status');
     const accessDenied = document.getElementById('access-denied');
-    const ordersSection = document.getElementById('orders-section');
-    const orderDetail = document.getElementById('order-detail');
+    const navButtons = document.querySelectorAll('.nav-btn');
+
     const ordersBody = document.getElementById('orders-body');
     const statusFilter = document.getElementById('status-filter');
+    const orderDetail = document.getElementById('order-detail');
     const detailId = document.getElementById('detail-id');
     const detailStatus = document.getElementById('detail-status');
     const saveStatusBtn = document.getElementById('save-status');
@@ -201,8 +371,28 @@
     const detailItems = document.getElementById('detail-items');
     const detailTotal = document.getElementById('detail-total');
 
+    const productCategoryFilter = document.getElementById('products-category');
+    const courseCategoryFilter = document.getElementById('courses-category');
+    const productsStatusFilter = document.getElementById('products-status');
+    const coursesStatusFilter = document.getElementById('courses-status');
+    const productsTable = document.getElementById('products-table');
+    const coursesTable = document.getElementById('courses-table');
+
+    const productForm = document.getElementById('product-form');
+    const courseForm = document.getElementById('course-form');
+    const productFormTitle = document.getElementById('product-form-title');
+    const courseFormTitle = document.getElementById('course-form-title');
+    const productCategorySelect = document.getElementById('product-category-select');
+    const courseCategorySelect = document.getElementById('course-category-select');
+    const productCancel = document.getElementById('product-cancel');
+    const courseCancel = document.getElementById('course-cancel');
+    const productReset = document.getElementById('product-reset');
+    const courseReset = document.getElementById('course-reset');
+
     let currentUser = null;
     let selectedOrder = null;
+    let editingProductId = null;
+    let editingCourseId = null;
 
     function setStatus(message, isError = false) {
       if (!message) {
@@ -213,19 +403,27 @@
       }
       statusBox.style.display = 'block';
       statusBox.textContent = message;
-      statusBox.classList.toggle('error', isError);
+      statusBox.style.borderColor = isError ? 'rgba(255,99,99,0.7)' : 'var(--border)';
     }
 
-    function updateAdminLinkVisibility() {
-      adminLink.style.display = currentUser?.is_admin ? '' : 'none';
+    function showSection(id) {
+      document.querySelectorAll('section.card').forEach((el) => {
+        el.style.display = el.id === id ? 'block' : 'none';
+      });
+      navButtons.forEach((btn) => btn.classList.toggle('active', btn.dataset.section === id));
     }
+
+    navButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        showSection(btn.dataset.section);
+      });
+    });
 
     function requireAdmin(profile) {
       if (!profile || !profile.is_admin) {
         setStatus('Доступ запрещён', true);
         accessDenied.style.display = 'block';
-        ordersSection.style.display = 'none';
-        orderDetail.style.display = 'none';
+        document.querySelectorAll('section.card').forEach((el) => (el.style.display = 'none'));
         return false;
       }
       accessDenied.style.display = 'none';
@@ -247,16 +445,16 @@
 
       orders.forEach((order) => {
         const row = document.createElement('tr');
+        const date = order.created_at ? new Date(order.created_at).toLocaleString('ru-RU') : '';
         row.innerHTML = `
           <td>#${order.id}</td>
           <td>${order.customer_name || 'Без имени'}</td>
           <td>${order.total || 0} ₽</td>
           <td>${order.status || 'new'}</td>
-          <td>${order.created_at ? new Date(order.created_at).toLocaleString('ru-RU') : ''}</td>
-          <td><button class="btn secondary" data-id="${order.id}">Открыть</button></td>
+          <td>${date}</td>
+          <td><button class="btn secondary" data-id="${order.id}">Подробнее</button></td>
         `;
-        const btn = row.querySelector('button');
-        btn.addEventListener('click', () => loadOrderDetail(order.id));
+        row.querySelector('button').addEventListener('click', () => loadOrderDetail(order.id));
         ordersBody.appendChild(row);
       });
     }
@@ -274,11 +472,13 @@
 
       (order.items || []).forEach((item) => {
         const li = document.createElement('li');
-        li.textContent = `${item.name || 'Товар'} — ${item.qty} × ${item.price} ₽ (${item.type || 'basket'})`;
+        const label = item.type === 'course' ? '🎓' : '🧺';
+        const access = item.type === 'course' ? (item.can_access ? 'доступ открыт' : 'после оплаты') : '';
+        li.textContent = `${label} ${item.name || 'Товар'} — ${item.qty} × ${item.price} ₽ ${access}`;
         detailItems.appendChild(li);
       });
 
-      detailTotal.textContent = `Итого: ${(order.total || 0)} ₽`;
+      detailTotal.textContent = `Итого: ${order.total || 0} ₽`;
     }
 
     async function loadOrders() {
@@ -287,19 +487,19 @@
         const status = statusFilter.value === 'all' ? undefined : statusFilter.value;
         const data = await apiGet('/admin/orders', { user_id: currentUser.telegram_id, status });
         renderOrders(data.items || []);
-        ordersSection.style.display = 'block';
         setStatus('');
       } catch (e) {
+        console.error(e);
         setStatus('Не удалось загрузить заказы', true);
       }
     }
 
     async function loadOrderDetail(orderId) {
-      if (!currentUser) return;
       try {
         const order = await apiGet(`/admin/orders/${orderId}`, { user_id: currentUser.telegram_id });
         renderOrderDetail(order);
       } catch (e) {
+        console.error(e);
         setStatus('Не удалось загрузить заказ', true);
       }
     }
@@ -313,6 +513,7 @@
         renderOrderDetail(updated);
         await loadOrders();
       } catch (e) {
+        console.error(e);
         setStatus('Не удалось обновить статус заказа', true);
       }
     }
@@ -320,12 +521,267 @@
     statusFilter.addEventListener('change', loadOrders);
     saveStatusBtn.addEventListener('click', updateOrderStatus);
 
+    async function loadCategories(targetSelect, type) {
+      try {
+        const categories = await apiGet('/categories', { type });
+        targetSelect.innerHTML = '';
+        const allOption = document.createElement('option');
+        allOption.value = '';
+        allOption.textContent = 'Все категории';
+        targetSelect.appendChild(allOption);
+        categories.forEach((cat) => {
+          const option = document.createElement('option');
+          option.value = cat.id ?? cat.slug ?? '';
+          option.textContent = cat.name;
+          targetSelect.appendChild(option);
+        });
+      } catch (e) {
+        console.error('Не удалось загрузить категории', e);
+      }
+    }
+
+    function fillForm(form, data = {}) {
+      Object.entries(data).forEach(([key, value]) => {
+        const el = form.elements.namedItem(key);
+        if (!el) return;
+        if (el.tagName === 'SELECT' || el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+          el.value = value ?? '';
+        }
+      });
+    }
+
+    function serializeForm(form) {
+      const payload = {};
+      Array.from(form.elements).forEach((el) => {
+        if (!el.name) return;
+        if (el.name === 'category_id') {
+          payload[el.name] = el.value && !Number.isNaN(Number(el.value)) ? Number(el.value) : null;
+          return;
+        }
+        if (el.type === 'number') {
+          payload[el.name] = el.value ? Number(el.value) : null;
+        } else {
+          payload[el.name] = el.value || null;
+        }
+      });
+      return payload;
+    }
+
+    function renderProductTable(items, targetTable, type) {
+      targetTable.innerHTML = '';
+      if (!items || !items.length) {
+        const row = document.createElement('tr');
+        const cell = document.createElement('td');
+        cell.colSpan = 6;
+        cell.textContent = 'Пусто';
+        cell.className = 'muted';
+        row.appendChild(cell);
+        targetTable.appendChild(row);
+        return;
+      }
+
+      items.forEach((item) => {
+        const row = document.createElement('tr');
+        const categoryLabel = item.category_name || '—';
+        const priceLabel = `${item.price || 0} ₽${type === 'course' && (!item.price || item.price === 0) ? ' (бесплатно)' : ''}`;
+        row.innerHTML = `
+          <td>#${item.id}</td>
+          <td>${item.name}</td>
+          <td>${categoryLabel}</td>
+          <td>${priceLabel}</td>
+          <td>${item.is_active ? 'Да' : 'Нет'}</td>
+          <td style="display:flex; gap:6px; flex-wrap:wrap;">
+            <button class="btn secondary" type="button" data-action="edit">Редактировать</button>
+            <button class="btn secondary" type="button" data-action="toggle">${item.is_active ? 'Скрыть' : 'Показать'}</button>
+          </td>
+        `;
+        const editBtn = row.querySelector('[data-action="edit"]');
+        const toggleBtn = row.querySelector('[data-action="toggle"]');
+        editBtn.addEventListener('click', () => {
+          if (type === 'basket') {
+            editingProductId = item.id;
+            productFormTitle.textContent = `Редактировать товар #${item.id}`;
+            fillForm(productForm, {
+              category_id: item.category_id ?? '',
+              name: item.name,
+              price: item.price,
+              image: item.image,
+              description: item.description,
+              wb_url: item.wb_url,
+              ozon_url: item.ozon_url,
+              yandex_url: item.yandex_url,
+              avito_url: item.avito_url,
+              masterclass_url: item.masterclass_url,
+              detail_url: item.detail_url,
+            });
+          } else {
+            editingCourseId = item.id;
+            courseFormTitle.textContent = `Редактировать мастер-класс #${item.id}`;
+            fillForm(courseForm, {
+              category_id: item.category_id ?? '',
+              name: item.name,
+              price: item.price,
+              image: item.image,
+              description: item.description,
+              masterclass_url: item.masterclass_url,
+              detail_url: item.detail_url,
+            });
+          }
+        });
+        toggleBtn.addEventListener('click', async () => {
+          try {
+            await apiPost(`/admin/products/${item.id}/toggle`, { user_id: currentUser.telegram_id });
+            setStatus('Статус товара обновлён');
+            if (type === 'basket') {
+              await loadProducts();
+            } else {
+              await loadCourses();
+            }
+          } catch (e) {
+            console.error(e);
+            setStatus('Не удалось переключить активность', true);
+          }
+        });
+        targetTable.appendChild(row);
+      });
+    }
+
+    async function loadProducts() {
+      if (!currentUser) return;
+      try {
+        const status = productsStatusFilter.value === 'all' ? undefined : productsStatusFilter.value;
+        const data = await apiGet('/admin/products', { user_id: currentUser.telegram_id, type: 'basket', status });
+        let items = data.items || [];
+        const catFilter = productCategoryFilter.value;
+        if (catFilter) {
+          items = items.filter((i) => String(i.category_id || i.category_slug || '') === String(catFilter));
+        }
+        renderProductTable(items, productsTable, 'basket');
+      } catch (e) {
+        console.error(e);
+        setStatus('Не удалось загрузить товары', true);
+      }
+    }
+
+    async function loadCourses() {
+      if (!currentUser) return;
+      try {
+        const status = coursesStatusFilter.value === 'all' ? undefined : coursesStatusFilter.value;
+        const data = await apiGet('/admin/products', { user_id: currentUser.telegram_id, type: 'course', status });
+        let items = data.items || [];
+        const catFilter = courseCategoryFilter.value;
+        if (catFilter) {
+          items = items.filter((i) => String(i.category_slug || i.category_id || '') === String(catFilter));
+        }
+        renderProductTable(items, coursesTable, 'course');
+      } catch (e) {
+        console.error(e);
+        setStatus('Не удалось загрузить мастер-классы', true);
+      }
+    }
+
+    async function submitProductForm(event) {
+      event.preventDefault();
+      if (!currentUser) return;
+      const payload = serializeForm(productForm);
+      payload.user_id = currentUser.telegram_id;
+      payload.type = 'basket';
+      payload.price = payload.price ? Number(payload.price) : 0;
+
+      try {
+        if (editingProductId) {
+          await fetch(`${API_BASE}/admin/products/${editingProductId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          }).then(handleResponse);
+        } else {
+          await apiPost('/admin/products', payload);
+        }
+        setStatus('Товар сохранён');
+        editingProductId = null;
+        productFormTitle.textContent = 'Создать товар';
+        productForm.reset();
+        await loadProducts();
+      } catch (e) {
+        console.error(e);
+        setStatus('Не удалось сохранить товар', true);
+      }
+    }
+
+    async function submitCourseForm(event) {
+      event.preventDefault();
+      if (!currentUser) return;
+      const payload = serializeForm(courseForm);
+      payload.user_id = currentUser.telegram_id;
+      payload.type = 'course';
+      payload.price = payload.price ? Number(payload.price) : 0;
+
+      try {
+        if (editingCourseId) {
+          await fetch(`${API_BASE}/admin/products/${editingCourseId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          }).then(handleResponse);
+        } else {
+          await apiPost('/admin/products', payload);
+        }
+        setStatus('Мастер-класс сохранён');
+        editingCourseId = null;
+        courseFormTitle.textContent = 'Создать мастер-класс';
+        courseForm.reset();
+        await loadCourses();
+      } catch (e) {
+        console.error(e);
+        setStatus('Не удалось сохранить мастер-класс', true);
+      }
+    }
+
+    productForm.addEventListener('submit', submitProductForm);
+    courseForm.addEventListener('submit', submitCourseForm);
+    productCancel.addEventListener('click', () => {
+      editingProductId = null;
+      productFormTitle.textContent = 'Создать товар';
+      productForm.reset();
+    });
+    courseCancel.addEventListener('click', () => {
+      editingCourseId = null;
+      courseFormTitle.textContent = 'Создать мастер-класс';
+      courseForm.reset();
+    });
+    productReset.addEventListener('click', () => {
+      editingProductId = null;
+      productFormTitle.textContent = 'Создать товар';
+      productForm.reset();
+    });
+    courseReset.addEventListener('click', () => {
+      editingCourseId = null;
+      courseFormTitle.textContent = 'Создать мастер-класс';
+      courseForm.reset();
+    });
+
+    productsStatusFilter.addEventListener('change', loadProducts);
+    coursesStatusFilter.addEventListener('change', loadCourses);
+    productCategoryFilter.addEventListener('change', loadProducts);
+    courseCategoryFilter.addEventListener('change', loadCourses);
+
     async function initApp() {
       try {
         currentUser = await getCurrentUser({ includeNotes: true });
-        updateAdminLinkVisibility();
         if (!requireAdmin(currentUser)) return;
+
+        await Promise.all([
+          loadCategories(productCategoryFilter, 'basket'),
+          loadCategories(productCategorySelect, 'basket'),
+          loadCategories(courseCategoryFilter, 'course'),
+          loadCategories(courseCategorySelect, 'course'),
+        ]);
+
         await loadOrders();
+        await loadProducts();
+        await loadCourses();
+        showSection('orders');
       } catch (e) {
         console.error(e);
         setStatus('Ошибка загрузки админки', true);

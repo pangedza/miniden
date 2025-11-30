@@ -9,7 +9,7 @@ import os
 from contextlib import contextmanager
 from typing import Iterator
 
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 
@@ -53,6 +53,24 @@ def init_db() -> None:
     from models import Base, User  # noqa: WPS433
 
     Base.metadata.create_all(bind=engine)
+
+    def _ensure_optional_columns() -> None:
+        """Добавить недостающие колонки без разрушения существующей схемы."""
+
+        alter_statements = [
+            "ALTER TABLE products_baskets ADD COLUMN IF NOT EXISTS wb_url TEXT",
+            "ALTER TABLE products_baskets ADD COLUMN IF NOT EXISTS ozon_url TEXT",
+            "ALTER TABLE products_baskets ADD COLUMN IF NOT EXISTS yandex_url TEXT",
+            "ALTER TABLE products_baskets ADD COLUMN IF NOT EXISTS avito_url TEXT",
+            "ALTER TABLE products_baskets ADD COLUMN IF NOT EXISTS masterclass_url TEXT",
+            "ALTER TABLE products_courses ADD COLUMN IF NOT EXISTS masterclass_url TEXT",
+        ]
+
+        with engine.begin() as conn:
+            for statement in alter_statements:
+                conn.execute(text(statement))
+
+    _ensure_optional_columns()
 
     if ADMIN_IDS_SET:
         with get_session() as session:
