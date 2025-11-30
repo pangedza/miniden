@@ -9,6 +9,10 @@ from database import get_session, init_db
 from models import Favorite, Order, OrderItem, User, UserStats
 from services import products as products_service
 
+# NOTE: Этот модуль используется прежде всего для веб-админки
+# (WEBAPP_ADMIN_URL). В Telegram-боте подробные отчёты больше не
+# отображаются, чтобы оставить боту роль CRM-инструмента.
+
 
 def _parse_date(value: str | None) -> datetime | None:
     if not value:

@@ -101,23 +101,12 @@ def get_admin_menu() -> ReplyKeyboardMarkup:
     """Клавиатура админского меню, собранная из ADMIN_COMMANDS."""
 
     admin_commands = get_admin_commands()
+    settings = get_settings()
 
     keyboard: list[list[KeyboardButton]] = []
 
     if "orders" in admin_commands:
         keyboard.append([KeyboardButton(text="📦 Заказы")])
-
-    if "stats" in admin_commands:
-        keyboard.append([KeyboardButton(text="📊 Статистика")])
-
-    keyboard.append([KeyboardButton(text="🎟 Промокоды")])
-
-    keyboard.append(
-        [
-            KeyboardButton(text="📋 Товары: корзинки"),
-            KeyboardButton(text="📋 Товары: курсы"),
-        ]
-    )
 
     if "client" in admin_commands:
         keyboard.append([KeyboardButton(text="👤 Клиент (CRM)")])
@@ -129,6 +118,16 @@ def get_admin_menu() -> ReplyKeyboardMarkup:
         keyboard.append([KeyboardButton(text="📝 Заметки")])
 
     keyboard.append([KeyboardButton(text="🎓 Доступ к курсам")])
+
+    if getattr(settings, "webapp_admin_url", None):
+        keyboard.append(
+            [
+                KeyboardButton(
+                    text="⚙️ Админка (WebApp)",
+                    web_app=WebAppInfo(url=settings.webapp_admin_url),
+                )
+            ]
+        )
 
     keyboard.append([KeyboardButton(text="⬅️ В главное меню")])
 
