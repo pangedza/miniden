@@ -144,12 +144,52 @@ def _serialize_order_summary(order: Order) -> dict[str, Any]:
     }
 
 
+def _course_item_available(status: str | None, price: int) -> bool:
+    if status == STATUS_PAID:
+        return True
+    return price <= 0
+
+
+def _serialize_order_item(item: OrderItem, order_status: str | None = None) -> dict[str, Any]:
+    product = products_service.get_product_by_id(item.product_id, include_inactive=True)
+    price = int(item.price or 0)
+    status = order_status or STATUS_NEW
+    return {
+        "product_id": item.product_id,
+        "qty": item.qty,
+        "price": price,
+        "type": item.type,
+        "product": product,
+        "name": (product or {}).get("name"),
+        "detail_url": (product or {}).get("detail_url"),
+        "masterclass_url": (product or {}).get("masterclass_url"),
+        "can_access": item.type == "course" and _course_item_available(status, price),
+    }
+
+
 def get_orders_by_user(user_id: int, limit: int = 20) -> list[dict[str, Any]]:
     with get_session() as session:
         rows = session.scalars(
             select(Order).where(Order.user_id == user_id).order_by(Order.id.desc()).limit(limit)
         ).all()
-        return [_serialize_order_summary(row) for row in rows]
+        serialized: list[dict[str, Any]] = []
+        for row in rows:
+            items = session.scalars(select(OrderItem).where(OrderItem.order_id == row.id)).all()
+            serialized.append(
+                {
+                    **_serialize_order_summary(row),
+                    "customer_name": row.customer_name,
+                    "contact": row.contact,
+                    "comment": row.comment,
+                    "promocode_code": row.promocode_code,
+                    "discount_amount": int(row.discount_amount or 0)
+                    if row.discount_amount is not None
+                    else None,
+                    "order_text": row.order_text,
+                    "items": [_serialize_order_item(item, row.status) for item in items],
+                }
+            )
+        return serialized
 
 
 def list_orders(limit: int = 100, status: str | None = None) -> list[dict[str, Any]]:
@@ -173,16 +213,7 @@ def get_order_by_id(order_id: int) -> Optional[dict[str, Any]]:
         items = session.scalars(select(OrderItem).where(OrderItem.order_id == order.id)).all()
         serialized_items: list[dict[str, Any]] = []
         for item in items:
-            product = products_service.get_product_by_id(item.product_id)
-            serialized_items.append(
-                {
-                    "product_id": item.product_id,
-                    "qty": item.qty,
-                    "price": int(item.price or 0),
-                    "product": product,
-                    "type": item.type,
-                }
-            )
+            serialized_items.append(_serialize_order_item(item, order.status))
         return {
             "id": order.id,
             "user_id": order.user_id,
@@ -212,6 +243,13 @@ def set_order_status(order_id: int, status: str) -> bool:
         return True
 
 
+def update_order_status(order_id: int, status: str) -> bool:
+    changed = set_order_status(order_id, status)
+    if changed and status == STATUS_PAID:
+        grant_courses_from_order(order_id)
+    return changed
+
+
 def get_courses_from_order(order_id: int) -> list[dict[str, Any]]:
     with get_session() as session:
         items = session.scalars(
@@ -227,26 +265,52 @@ def get_courses_from_order(order_id: int) -> list[dict[str, Any]]:
 
 def get_user_courses_with_access(user_id: int) -> list[dict[str, Any]]:
     with get_session() as session:
-        items = session.execute(
-            select(OrderItem)
+        rows = session.execute(
+            select(OrderItem, Order)
             .join(Order, OrderItem.order_id == Order.id)
             .where(Order.user_id == user_id, OrderItem.type == "course")
-        ).scalars().all()
+        ).all()
 
-    seen: set[int] = set()
-    courses: list[dict[str, Any]] = []
-    for item in items:
-        if item.product_id in seen:
-            continue
-        product = products_service.get_course_by_id(item.product_id)
+    courses: dict[int, dict[str, Any]] = {}
+    for item, order in rows:
+        product = products_service.get_course_by_id(item.product_id, include_inactive=True)
         if not product:
             continue
-        seen.add(item.product_id)
-        courses.append(product)
-    return courses
+        price = int(item.price or 0)
+        if not _course_item_available(order.status, price):
+            continue
+
+        course_id = int(product.get("id"))
+        entry = {
+            "id": course_id,
+            "name": product.get("name"),
+            "masterclass_url": product.get("masterclass_url") or product.get("detail_url"),
+            "is_paid": price > 0,
+            "from_order_id": order.id,
+            "price": price,
+        }
+
+        existing = courses.get(course_id)
+        if existing:
+            if existing.get("is_paid"):
+                continue
+            if entry.get("is_paid"):
+                courses[course_id] = entry
+        else:
+            courses[course_id] = entry
+
+    return list(courses.values())
 
 
-def grant_course_access(user_id: int, course_id: int, *, admin_id: int | None = None) -> bool:
+def grant_course_access(
+    user_id: int,
+    course_id: int,
+    *,
+    admin_id: int | None = None,
+    granted_by: int | None = None,
+    source_order_id: int | None = None,
+    comment: str | None = None,
+) -> bool:
     existing = [c for c in get_user_courses_with_access(user_id) if c.get("id") == course_id]
     if existing:
         return True
@@ -257,7 +321,7 @@ def grant_course_access(user_id: int, course_id: int, *, admin_id: int | None = 
             total_amount=0,
             created_at=datetime.utcnow(),
             status=STATUS_PAID,
-            comment="Access granted manually",
+            comment=comment or "Access granted manually",
         )
         session.add(order)
         session.flush()
@@ -303,15 +367,15 @@ def get_course_users(course_id: int) -> list[int]:
 
 
 def grant_courses_from_order(order_id: int, admin_id: int | None = None) -> int:
-    courses = get_courses_from_order(order_id)
-    if not courses:
-        return 0
     order = get_order_by_id(order_id)
     if not order:
         return 0
-    user_id = int(order.get("user_id") or 0)
+
     granted = 0
-    for course in courses:
-        if grant_course_access(user_id, int(course.get("id"))):
+    for item in order.get("items", []):
+        if item.get("type") != "course":
+            continue
+        price = int(item.get("price") or 0)
+        if _course_item_available(order.get("status"), price):
             granted += 1
     return granted

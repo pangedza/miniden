@@ -46,10 +46,16 @@ def _serialize_product(
         "description": product.description or "",
         "detail_url": getattr(product, "detail_url", None),
         "image_file_id": getattr(product, "image", None),
+        "image": getattr(product, "image", None),
         "is_active": int(getattr(product, "is_active", 1) or 0),
         "category_id": getattr(product, "category_id", None),
         "category_name": category_name,
         "category_slug": category_slug,
+        "wb_url": getattr(product, "wb_url", None),
+        "ozon_url": getattr(product, "ozon_url", None),
+        "yandex_url": getattr(product, "yandex_url", None),
+        "avito_url": getattr(product, "avito_url", None),
+        "masterclass_url": getattr(product, "masterclass_url", None),
         "created_at": product.created_at.isoformat() if getattr(product, "created_at", None) else None,
     }
 
@@ -217,6 +223,13 @@ def create_product(
     description: str = "",
     detail_url: str | None = None,
     category_id: int | None = None,
+    *,
+    wb_url: str | None = None,
+    ozon_url: str | None = None,
+    yandex_url: str | None = None,
+    avito_url: str | None = None,
+    masterclass_url: str | None = None,
+    image: str | None = None,
 ) -> int:
     model = _pick_model(product_type)
     with get_session() as session:
@@ -227,6 +240,12 @@ def create_product(
             detail_url=detail_url,
             is_active=1,
             category_id=category_id,
+            wb_url=wb_url,
+            ozon_url=ozon_url,
+            yandex_url=yandex_url,
+            avito_url=avito_url,
+            masterclass_url=masterclass_url,
+            image=image,
         )
         session.add(instance)
         session.flush()
@@ -296,6 +315,13 @@ def update_product_full(
     detail_url: str | None = None,
     category_id: int | None = None,
     is_active: bool | None = None,
+    *,
+    wb_url: str | None = None,
+    ozon_url: str | None = None,
+    yandex_url: str | None = None,
+    avito_url: str | None = None,
+    masterclass_url: str | None = None,
+    image: str | None = None,
 ) -> bool:
     model = _pick_model(product_type)
     with get_session() as session:
@@ -308,6 +334,13 @@ def update_product_full(
         instance.price = price
         instance.detail_url = detail_url
         instance.category_id = category_id
+        instance.wb_url = wb_url
+        instance.ozon_url = ozon_url
+        instance.yandex_url = yandex_url
+        instance.avito_url = avito_url
+        instance.masterclass_url = masterclass_url
+        if image is not None:
+            instance.image = image
         if is_active is not None:
             instance.is_active = 1 if is_active else 0
         return True
