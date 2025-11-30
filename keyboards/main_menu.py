@@ -1,9 +1,7 @@
 from aiogram.types import KeyboardButton, ReplyKeyboardMarkup, WebAppInfo
 
-from utils.commands_map import get_admin_commands, get_user_commands
+from utils.commands_map import get_admin_commands
 from config import get_settings
-
-PROFILE_BUTTON_TEXT = "👤 Профиль"
 
 
 def get_start_keyboard() -> ReplyKeyboardMarkup:
@@ -28,63 +26,74 @@ def get_main_menu(is_admin: bool = False) -> ReplyKeyboardMarkup:
     """
 
     settings = get_settings()
-    user_commands = get_user_commands()
-    admin_commands = get_admin_commands()
+    keyboard: list[list[KeyboardButton]] = []
 
-    keyboard: list[list[KeyboardButton]] = [
-        [KeyboardButton(text="🧺 Корзинки"), KeyboardButton(text="🎓 Курсы")],
-    ]
+    webapp_buttons: list[KeyboardButton] = []
 
-    row: list[KeyboardButton] = [KeyboardButton(text="🛒 Корзина")]
-    row.append(KeyboardButton(text="❤️ Избранное"))
-    if "profile" in user_commands:
-        row.append(KeyboardButton(text=PROFILE_BUTTON_TEXT))
-    keyboard.append(row)
-
-    webapp_row: list[KeyboardButton] = []
-    if settings.webapp_index_url:
-        webapp_row.append(
-            KeyboardButton(text="🏠 Главная (WebApp)", web_app=WebAppInfo(url=settings.webapp_index_url))
-        )
-    if settings.webapp_products_url:
-        webapp_row.append(
+    base_url = getattr(settings, "webapp_base_url", None) or settings.webapp_index_url
+    if base_url:
+        webapp_buttons.append(
             KeyboardButton(
-                text="🛍 Товары (WebApp)", web_app=WebAppInfo(url=settings.webapp_products_url)
+                text="🏠 Главная (WebApp)",
+                web_app=WebAppInfo(url=base_url),
             )
         )
+
+    if settings.webapp_products_url:
+        webapp_buttons.append(
+            KeyboardButton(
+                text="🛍 Товары (WebApp)",
+                web_app=WebAppInfo(url=settings.webapp_products_url),
+            )
+        )
+
     if settings.webapp_masterclasses_url:
-        webapp_row.append(
+        webapp_buttons.append(
             KeyboardButton(
                 text="🎓 Мастер-классы (WebApp)",
                 web_app=WebAppInfo(url=settings.webapp_masterclasses_url),
             )
         )
+
     if settings.webapp_cart_url:
-        webapp_row.append(
-            KeyboardButton(text="🛒 Корзина (WebApp)", web_app=WebAppInfo(url=settings.webapp_cart_url))
-        )
-    if settings.webapp_profile_url:
-        webapp_row.append(
+        webapp_buttons.append(
             KeyboardButton(
-                text="👤 Профиль (WebApp)", web_app=WebAppInfo(url=settings.webapp_profile_url)
+                text="🛒 Корзина (WebApp)",
+                web_app=WebAppInfo(url=settings.webapp_cart_url),
             )
         )
-    if webapp_row:
-        keyboard.append(webapp_row)
 
-    if "help" in user_commands:
-        keyboard.append([KeyboardButton(text="❓ Помощь")])
+    if settings.webapp_profile_url:
+        webapp_buttons.append(
+            KeyboardButton(
+                text="👤 Профиль (WebApp)",
+                web_app=WebAppInfo(url=settings.webapp_profile_url),
+            )
+        )
 
-    if is_admin:
-        admin_row: list[KeyboardButton] = [KeyboardButton(text="⚙️ Админка")]
-        if "stats" in admin_commands:
-            admin_row.append(KeyboardButton(text="📊 Статистика"))
-        keyboard.append(admin_row)
+    row: list[KeyboardButton] = []
+    for button in webapp_buttons:
+        row.append(button)
+        if len(row) >= 3:
+            keyboard.append(row)
+            row = []
+    if row:
+        keyboard.append(row)
+
+    if is_admin and getattr(settings, "webapp_admin_url", None):
+        keyboard.append(
+            [
+                KeyboardButton(
+                    text="⚙️ Админка (WebApp)",
+                    web_app=WebAppInfo(url=settings.webapp_admin_url),
+                )
+            ]
+        )
 
     return ReplyKeyboardMarkup(
         keyboard=keyboard,
         resize_keyboard=True,
-        input_field_placeholder="Выберите раздел…",
+        input_field_placeholder="Откройте магазин через WebApp…",
     )
 
 
