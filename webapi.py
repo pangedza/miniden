@@ -1,7 +1,17 @@
+"""
+Основной backend MiniDeN (FastAPI).
+Приложение: webapi:app
+
+- Авторизация через Telegram (WebApp, Login Widget, deeplink).
+- Профиль пользователя, корзина, заказы, избранное.
+- Админские эндпоинты.
+"""
+
 import hashlib
 import hmac
 import json
 import time
+from datetime import datetime, timedelta
 from typing import Any
 from urllib.parse import parse_qsl
 from uuid import uuid4
@@ -15,13 +25,14 @@ from config import get_settings
 from database import get_session, init_db
 from models import AuthSession, User
 from services import admin_notes as admin_notes_service
-from services import bans as bans_service
 from services import cart as cart_service
 from services import favorites as favorites_service
 from services import orders as orders_service
 from services import products as products_service
 from services import promocodes as promocodes_service
 from services import stats as stats_service
+from services import user_admin as user_admin_service
+from services import user_stats as user_stats_service
 from services import users as users_service
 from utils.texts import format_order_for_admin
 
@@ -41,6 +52,8 @@ ALLOWED_TYPES = {"basket", "course"}
 
 SETTINGS = get_settings()
 BOT_TOKEN = SETTINGS.bot_token
+AUTH_SESSION_TTL_SECONDS = 600
+COOKIE_MAX_AGE = 30 * 24 * 60 * 60
 
 
 @app.on_event("startup")
@@ -83,11 +96,13 @@ class CheckoutPayload(BaseModel):
     customer_name: str = Field(..., description="Имя клиента")
     contact: str = Field(..., description="Способ связи")
     comment: str | None = None
+    promocode: str | None = None
 
 
 class AuthPayload(BaseModel):
     initData: str | None = None
     user: dict | None = None
+    include_notes: bool | None = False
 
 
 class ContactPayload(BaseModel):
@@ -138,54 +153,155 @@ def _full_name(user) -> str:
     return " ".join(part for part in parts if part).strip()
 
 
+def _build_user_profile(telegram_id: int, *, include_notes: bool = False) -> dict[str, Any] | None:
+    user = users_service.get_user_by_telegram_id(telegram_id)
+    if not user:
+        return None
+
+    full_name = _full_name(user) or user.username or ""
+    orders = orders_service.get_orders_by_user(telegram_id)
+    favorites = favorites_service.list_favorites(telegram_id)
+    stats = user_stats_service.get_user_order_stats(telegram_id)
+    ban_status = user_admin_service.get_user_ban_status(telegram_id)
+    notes = (
+        user_admin_service.get_user_notes(telegram_id, limit=20)
+        if include_notes and user.is_admin
+        else []
+    )
+
+    return {
+        "ok": True,
+        "telegram_id": int(user.telegram_id),
+        "username": user.username,
+        "full_name": full_name,
+        "is_admin": bool(user.is_admin),
+        "phone": user.phone,
+        "created_at": user.created_at.isoformat() if getattr(user, "created_at", None) else None,
+        "orders": orders,
+        "favorites": favorites,
+        "stats": stats,
+        "ban": ban_status,
+        "notes": notes,
+    }
+
+
+def _product_by_type(product_type: str, product_id: int, *, include_inactive: bool = False):
+    if product_type == "basket":
+        return products_service.get_basket_by_id(product_id, include_inactive=include_inactive)
+    return products_service.get_course_by_id(product_id, include_inactive=include_inactive)
+
+
+def _build_cart_response(user_id: int) -> dict[str, Any]:
+    items, removed_ids = cart_service.get_cart_items(user_id)
+
+    normalized_items: list[dict[str, Any]] = []
+    removed_items: list[dict[str, Any]] = []
+    total = 0
+
+    for item in items:
+        product_type = item.get("type") or "basket"
+        if product_type not in ALLOWED_TYPES:
+            removed_items.append({"product_id": item.get("product_id"), "type": product_type, "reason": "invalid"})
+            cart_service.remove_from_cart(user_id, int(item.get("product_id") or 0), product_type)
+            continue
+        try:
+            product_id = int(item.get("product_id"))
+        except (TypeError, ValueError):
+            removed_items.append({"product_id": None, "type": product_type, "reason": "invalid"})
+            continue
+
+        product_info = _product_by_type(product_type, product_id)
+        if not product_info:
+            removed_items.append({"product_id": product_id, "type": product_type, "reason": "inactive"})
+            cart_service.remove_from_cart(user_id, product_id, product_type)
+            continue
+
+        qty = max(int(item.get("qty") or 0), 0)
+        if qty <= 0:
+            cart_service.remove_from_cart(user_id, product_id, product_type)
+            continue
+
+        price = int(product_info.get("price") or 0)
+        subtotal = price * qty
+        total += subtotal
+
+        normalized_items.append(
+            {
+                "product_id": product_id,
+                "type": product_type,
+                "name": product_info.get("name"),
+                "price": price,
+                "qty": qty,
+                "subtotal": subtotal,
+            }
+        )
+
+    for removed_id in removed_ids:
+        product_info = products_service.get_product_by_id(removed_id, include_inactive=True)
+        removed_items.append(
+            {
+                "product_id": removed_id,
+                "type": product_info.get("type") if product_info else "unknown",
+                "reason": "inactive" if product_info else "not_found",
+            }
+        )
+
+    return {"items": normalized_items, "removed_items": removed_items, "total": total}
+
+
 @app.post("/api/auth/create-token")
 def api_auth_create_token():
     """
-    Сайт запрашивает токен для авторизации.
-    Возвращаем новый UUID и создаём пустую сессию в БД.
+    Создать новую сессию авторизации для deeplink-а из бота.
+    Возвращает {"ok": true, "token": "..."}.
     """
     token = str(uuid4())
     with get_session() as s:
         s.add(AuthSession(token=token))
-    return {"token": token}
+    return {"ok": True, "token": token}
 
 
 @app.get("/api/auth/check")
-def api_auth_check(token: str, request: Request, response: Response):
+def api_auth_check(token: str, response: Response, include_notes: bool = False):
     """
-    Сайт опрашивает этот эндпоинт каждые 0.5–1 сек после того,
-    как пользователь перешёл в бота по ссылке с этим токеном.
-    Если telegram_id уже записан в AuthSession — авторизуем.
+    Проверить токен AuthSession, выданный по deeplink-у из бота.
+    При успешной проверке возвращает профиль пользователя в едином формате.
     """
     with get_session() as s:
         session = s.query(AuthSession).filter(AuthSession.token == token).first()
         if not session:
+            response.status_code = 404
             return {"ok": False, "reason": "not_found"}
 
+        if session.created_at and datetime.utcnow() - session.created_at > timedelta(seconds=AUTH_SESSION_TTL_SECONDS):
+            response.status_code = 410
+            return {"ok": False, "reason": "expired"}
+
         if not session.telegram_id:
-            # пользователь ещё не нажал старт в боте
             return {"ok": False, "reason": "pending"}
 
-        # telegram_id есть — авторизуем пользователя
-        telegram_id = session.telegram_id
+        telegram_id = int(session.telegram_id)
 
         user = s.query(User).filter(User.telegram_id == telegram_id).first()
         if not user:
-            # на всякий случай создаём пользователя, если его ещё нет
             user = User(telegram_id=telegram_id)
             s.add(user)
             s.flush()
 
-        # ставим cookie с tg_user_id, чтобы сайт знал, кто мы
-        response.set_cookie(
-            key="tg_user_id",
-            value=str(telegram_id),
-            httponly=True,
-            max_age=30 * 24 * 60 * 60,  # 30 дней
-            samesite="lax",
-        )
+    profile = _build_user_profile(telegram_id, include_notes=include_notes)
+    if not profile:
+        response.status_code = 404
+        return {"ok": False, "reason": "not_found"}
 
-        return {"ok": True, "telegram_id": telegram_id}
+    response.set_cookie(
+        key="tg_user_id",
+        value=str(telegram_id),
+        httponly=True,
+        max_age=COOKIE_MAX_AGE,
+        samesite="lax",
+    )
+
+    return profile
 
 
 @app.get("/api/auth/telegram-login")
@@ -236,7 +352,7 @@ def api_auth_telegram_login(request: Request):
     response.set_cookie(
         key="tg_user_id",
         value=str(user.telegram_id),
-        max_age=30 * 24 * 60 * 60,
+        max_age=COOKIE_MAX_AGE,
         httponly=True,
         samesite="lax",
     )
@@ -244,48 +360,28 @@ def api_auth_telegram_login(request: Request):
 
 
 @app.get("/api/auth/session")
-def api_auth_session(request: Request):
+def api_auth_session(request: Request, response: Response, include_notes: bool = False):
     """
     Авторизация из браузера по ранее установленной cookie tg_user_id.
-    Возвращает тот же формат данных, что и /api/auth/telegram.
+    Возвращает профиль пользователя в едином формате или ok=false при ошибке.
     """
     user_id = request.cookies.get("tg_user_id")
     if not user_id:
-        raise HTTPException(status_code=401, detail="No session")
+        response.status_code = 401
+        return {"ok": False, "reason": "unauthorized"}
 
     try:
         telegram_id = int(user_id)
     except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid session")
+        response.status_code = 400
+        return {"ok": False, "reason": "invalid_session"}
 
-    user = users_service.get_user_by_telegram_id(telegram_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    profile = _build_user_profile(telegram_id, include_notes=include_notes)
+    if not profile:
+        response.status_code = 404
+        return {"ok": False, "reason": "unauthorized"}
 
-    full_name = _full_name(user) or user.username or ""
-
-    user_orders = orders_service.get_orders_by_user(telegram_id)
-    user_favorites = favorites_service.list_favorites(telegram_id)
-    user_stats = stats_service.get_user_stats(telegram_id)
-    ban_status = bans_service.is_banned(telegram_id)
-    notes = []
-    if user.is_admin:
-        notes = admin_notes_service.list_notes(telegram_id)
-
-    return {
-        "ok": True,
-        "telegram_id": user.telegram_id,
-        "username": user.username,
-        "full_name": full_name,
-        "is_admin": bool(user.is_admin),
-        "phone": user.phone,
-        "created_at": user.created_at.isoformat() if user.created_at else None,
-        "orders": user_orders,
-        "favorites": user_favorites,
-        "stats": user_stats,
-        "ban": ban_status,
-        "notes": notes,
-    }
+    return profile
 
 
 class AdminProductsCreatePayload(BaseModel):
@@ -344,7 +440,7 @@ class PromocodeValidatePayload(BaseModel):
 def api_auth_telegram(payload: AuthPayload):
     """
     Авторизация WebApp по initData (из Telegram WebApp) или по заранее
-    переданным данным user. Возвращает данные пользователя, которые ждёт фронтенд.
+    переданным данным user. Возвращает единый JSON-профиль пользователя.
     """
     if not payload.initData and not payload.user:
         raise HTTPException(status_code=400, detail="initData is required")
@@ -364,32 +460,11 @@ def api_auth_telegram(payload: AuthPayload):
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid user data")
 
-    full_name = _full_name(user) or user.username or ""
+    profile = _build_user_profile(int(user.telegram_id), include_notes=bool(payload.include_notes))
+    if not profile:
+        raise HTTPException(status_code=404, detail="User not found")
 
-    # Собираем сопутствующие данные
-    telegram_id = int(user.telegram_id)
-    user_orders = orders_service.get_orders_by_user(telegram_id)
-    user_favorites = favorites_service.list_favorites(telegram_id)
-    user_stats = stats_service.get_user_stats(telegram_id)
-    ban_status = bans_service.is_banned(telegram_id)
-    notes = []
-    if user.is_admin:
-        notes = admin_notes_service.list_notes(telegram_id)
-
-    return {
-        "ok": True,
-        "telegram_id": telegram_id,
-        "username": user.username,
-        "full_name": full_name,
-        "is_admin": bool(user.is_admin),
-        "phone": user.phone,
-        "created_at": user.created_at.isoformat() if getattr(user, "created_at", None) else None,
-        "orders": user_orders,
-        "favorites": user_favorites,
-        "stats": user_stats,
-        "ban": ban_status,
-        "notes": notes,
-    }
+    return profile
 
 
 @app.get("/api/categories")
@@ -420,39 +495,19 @@ def api_products(type: str, category_slug: str | None = None):
 @app.get("/api/cart")
 def api_cart(user_id: int):
     """Вернуть содержимое корзины пользователя и сумму заказа."""
-    items, removed = cart_service.get_cart_items(user_id)
-
-    normalized_items: list[dict[str, Any]] = []
-    total = 0
-
-    for item in items:
-        price = int(item.get("price", 0))
-        qty = int(item.get("qty", 0))
-        total += price * qty
-
-        normalized_items.append(
-            {
-                "product_id": int(item.get("product_id")),
-                "name": item.get("name"),
-                "price": price,
-                "qty": qty,
-                "type": item.get("type"),
-                "category_name": item.get("category_name"),
-            }
-        )
-
-    return {"items": normalized_items, "removed_items": removed, "total": total}
+    return _build_cart_response(user_id)
 
 
 @app.post("/api/checkout")
 def api_checkout(payload: CheckoutPayload):
     """Оформить заказ из текущей корзины WebApp."""
-    items, removed_items = cart_service.get_cart_items(payload.user_id)
+    items, removed_ids = cart_service.get_cart_items(payload.user_id)
 
     if not items:
         raise HTTPException(status_code=400, detail="Cart is empty")
 
     normalized_items: list[dict[str, Any]] = []
+    removed_items: list[dict[str, Any]] = []
     total = 0
 
     for item in items:
@@ -463,17 +518,20 @@ def api_checkout(payload: CheckoutPayload):
         try:
             product_id_int = int(item.get("product_id"))
         except (TypeError, ValueError):
-            removed_items.append({"product_id": item.get("product_id"), "reason": "invalid_id"})
+            removed_items.append({"product_id": item.get("product_id"), "type": item.get("type"), "reason": "invalid"})
+            cart_service.remove_from_cart(payload.user_id, int(item.get("product_id") or 0), item.get("type") or "basket")
             continue
 
         product_type = item.get("type") or "basket"
-        if product_type == "basket":
-            product_info = products_service.get_basket_by_id(product_id_int)
-        else:
-            product_info = products_service.get_course_by_id(product_id_int)
+        if product_type not in ALLOWED_TYPES:
+            removed_items.append({"product_id": product_id_int, "type": product_type, "reason": "invalid"})
+            cart_service.remove_from_cart(payload.user_id, product_id_int, product_type)
+            continue
+        product_info = _product_by_type(product_type, product_id_int)
 
         if not product_info:
-            removed_items.append({"product_id": product_id_int, "reason": "inactive"})
+            removed_items.append({"product_id": product_id_int, "type": product_type, "reason": "inactive"})
+            cart_service.remove_from_cart(payload.user_id, product_id_int, product_type)
             continue
 
         price = int(product_info.get("price") or 0)
@@ -490,17 +548,36 @@ def api_checkout(payload: CheckoutPayload):
             }
         )
 
+    for removed_id in removed_ids:
+        product_info = products_service.get_product_by_id(removed_id, include_inactive=True)
+        removed_items.append(
+            {
+                "product_id": removed_id,
+                "type": product_info.get("type") if product_info else "unknown",
+                "reason": "inactive" if product_info else "not_found",
+            }
+        )
+
     if not normalized_items:
         cart_service.clear_cart(payload.user_id)
         raise HTTPException(status_code=400, detail="No valid items in cart")
 
     user_name = payload.user_name or "webapp"
 
+    promo_result = None
+    if payload.promocode:
+        promo_result = promocodes_service.validate_promocode(payload.promocode, payload.user_id, total)
+        if not promo_result:
+            raise HTTPException(status_code=400, detail="Invalid promocode")
+
+    discount_amount = int(promo_result.get("discount_amount", 0)) if promo_result else 0
+    final_total = max(total - discount_amount, 0)
+
     order_text = format_order_for_admin(
         user_id=payload.user_id,
         user_name=user_name,
         items=normalized_items,
-        total=total,
+        total=final_total,
         customer_name=payload.customer_name,
         contact=payload.contact,
         comment=payload.comment or "",
@@ -518,19 +595,25 @@ def api_checkout(payload: CheckoutPayload):
         user_id=payload.user_id,
         user_name=user_name,
         items=normalized_items,
-        total=total,
+        total=final_total,
         customer_name=payload.customer_name,
         contact=payload.contact,
         comment=payload.comment or "",
         order_text=order_text,
+        promocode_code=promo_result.get("code") if promo_result else None,
+        discount_amount=discount_amount if promo_result else None,
     )
+
+    if promo_result:
+        promocodes_service.increment_usage(promo_result.get("code"))
 
     cart_service.clear_cart(payload.user_id)
 
     return {
+        "ok": True,
         "order_id": order_id,
-        "total": total,
-        "items": normalized_items,
+        "total": final_total,
+        "discount_amount": discount_amount,
         "removed_items": removed_items,
     }
 
@@ -541,11 +624,8 @@ def api_cart_add(payload: CartItemPayload):
     if qty <= 0:
         raise HTTPException(status_code=400, detail="qty must be positive")
 
-    product = (
-        products_service.get_basket_by_id(int(payload.product_id))
-        if payload.type == "basket"
-        else products_service.get_course_by_id(int(payload.product_id))
-    )
+    product_type = _validate_type(payload.type)
+    product = _product_by_type(product_type, int(payload.product_id))
     if not product:
         raise HTTPException(status_code=404, detail="Product not found or inactive")
 
@@ -553,25 +633,22 @@ def api_cart_add(payload: CartItemPayload):
         user_id=payload.user_id,
         product_id=int(payload.product_id),
         qty=qty,
-        product_type=payload.type,
+        product_type=product_type,
     )
 
-    return {"ok": True}
+    return _build_cart_response(payload.user_id)
 
 
 @app.post("/api/cart/update")
 def api_cart_update(payload: CartItemPayload):
     qty = payload.qty or 0
+    product_type = _validate_type(payload.type)
 
     if qty <= 0:
-        cart_service.remove_from_cart(payload.user_id, int(payload.product_id), payload.type)
-        return {"ok": True}
+        cart_service.remove_from_cart(payload.user_id, int(payload.product_id), product_type)
+        return _build_cart_response(payload.user_id)
 
-    product = (
-        products_service.get_basket_by_id(int(payload.product_id))
-        if payload.type == "basket"
-        else products_service.get_course_by_id(int(payload.product_id))
-    )
+    product = _product_by_type(product_type, int(payload.product_id))
     if not product:
         raise HTTPException(status_code=404, detail="Product not found or inactive")
 
@@ -580,7 +657,7 @@ def api_cart_update(payload: CartItemPayload):
         (
             i
             for i in current_items
-            if int(i.get("product_id")) == int(payload.product_id) and i.get("type") == payload.type
+            if int(i.get("product_id")) == int(payload.product_id) and i.get("type") == product_type
         ),
         None,
     )
@@ -588,22 +665,22 @@ def api_cart_update(payload: CartItemPayload):
     if existing:
         delta = qty - int(existing.get("qty") or 0)
         if delta != 0:
-            cart_service.change_qty(payload.user_id, int(payload.product_id), delta, payload.type)
+            cart_service.change_qty(payload.user_id, int(payload.product_id), delta, product_type)
     else:
         cart_service.add_to_cart(
             user_id=payload.user_id,
             product_id=int(payload.product_id),
             qty=qty,
-            product_type=payload.type,
+            product_type=product_type,
         )
 
-    return {"ok": True}
+    return _build_cart_response(payload.user_id)
 
 
 @app.post("/api/cart/clear")
 def api_cart_clear(payload: CartClearPayload):
     cart_service.clear_cart(payload.user_id)
-    return {"ok": True}
+    return _build_cart_response(payload.user_id)
 
 
 @app.get("/api/me")
@@ -612,33 +689,11 @@ def api_me(telegram_id: int):
     Вернуть профиль пользователя (личный кабинет) по его telegram_id.
     Формат ответа совпадает с /api/auth/telegram, чтобы фронту было удобно.
     """
-    user = users_service.get_user_by_telegram_id(telegram_id)
-    if not user:
+    profile = _build_user_profile(telegram_id, include_notes=True)
+    if not profile:
         raise HTTPException(status_code=404, detail="User not found")
 
-    full_name = _full_name(user) or user.username or ""
-    user_orders = orders_service.get_orders_by_user(telegram_id)
-    user_favorites = favorites_service.list_favorites(telegram_id)
-    user_stats = stats_service.get_user_stats(telegram_id)
-    ban_status = bans_service.is_banned(telegram_id)
-    notes = []
-    if user.is_admin:
-        notes = admin_notes_service.list_notes(telegram_id)
-
-    return {
-        "ok": True,
-        "telegram_id": int(user.telegram_id),
-        "username": user.username,
-        "full_name": full_name,
-        "is_admin": bool(user.is_admin),
-        "phone": user.phone,
-        "created_at": user.created_at.isoformat() if getattr(user, "created_at", None) else None,
-        "orders": user_orders,
-        "favorites": user_favorites,
-        "stats": user_stats,
-        "ban": ban_status,
-        "notes": notes,
-    }
+    return profile
 
 
 @app.post("/api/me/contact")
