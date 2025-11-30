@@ -120,7 +120,13 @@
   <section class="section" id="login-hint" style="display: none; text-align: center;">
     <h2>Вы не авторизованы</h2>
     <p>Профиль, заказы и избранное доступны после входа через Telegram. Перейдите на <a href="index.html">главную страницу</a>, выполните вход и вернитесь сюда.</p>
+    <button class="btn" id="login-button" type="button">Войти через Telegram</button>
   </section>
+
+  <div id="profile-actions" style="display: none; gap: 10px; margin-top: 16px;">
+    <button class="btn secondary" id="switch-user-btn" type="button">Сменить пользователя</button>
+    <a class="btn" href="products.html">Перейти в каталог</a>
+  </div>
 
   <script src="js/api.js"></script>
   <script>
@@ -139,6 +145,9 @@
     const favoritesList = document.getElementById('favorites-list');
     const statsList = document.getElementById('stats-list');
     const adminLink = document.getElementById('admin-link');
+    const actions = document.getElementById('profile-actions');
+    const switchUserBtn = document.getElementById('switch-user-btn');
+    const loginButton = document.getElementById('login-button');
 
     let currentUser = null;
 
@@ -164,6 +173,8 @@
         loginHint.style.display = 'block';
       }
       setStatus(message, true);
+      actions?.style.setProperty('display', 'none');
+      profileGrid?.style.setProperty('display', 'none');
     }
 
     function renderOrders(orders) {
@@ -225,6 +236,13 @@
       renderFavorites(profile.favorites || []);
       renderStats(profile.stats || {}, profile.ban || {});
       profileGrid.style.display = 'grid';
+      actions?.style.setProperty('display', 'flex');
+    }
+
+    function switchUser() {
+      document.cookie = 'tg_user_id=; Max-Age=0; path=/';
+      window._currentUser = null;
+      window.location.href = '/index.html';
     }
 
     async function initProfile() {
@@ -235,6 +253,7 @@
           return;
         }
         updateAdminLinkVisibility();
+        loginHint?.style.setProperty('display', 'none');
         setStatus('');
         renderProfile(currentUser);
       } catch (e) {
@@ -243,7 +262,11 @@
       }
     }
 
+    switchUserBtn?.addEventListener('click', switchUser);
+    loginButton?.addEventListener('click', switchUser);
+
     initProfile();
   </script>
+
 </body>
 </html>
