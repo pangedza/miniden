@@ -51,6 +51,10 @@
 
   - Backend поднимается через FastAPI-приложение `webapi:app` на 127.0.0.1:8000,
   nginx проксирует `/api` на этот порт.
+  - Все бизнес-данные хранятся в PostgreSQL (строка подключения `DATABASE_URL` из `.env`),
+  таблицы общие для Telegram-бота и `webapi.py`.
+  - Каталог `api/routers/` содержит legacy-версию API до появления `webapi.py` и оставлен как архив;
+  в продакшене используется только `webapi:app`.
   - Telegram WebApp-страницы (`products.html`, `masterclasses.html`, `cart.html`,
   `profile.html`, `admin.html`) авторизуют пользователя через эндпоинт:
 

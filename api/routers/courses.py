@@ -1,3 +1,9 @@
+"""
+LEGACY ROUTER: не используется в продакшене.
+Курсы обслуживаются через webapi.py (/api/products, /api/categories).
+Файл оставлен только как архив/история.
+"""
+
 from fastapi import APIRouter
 
 from services import products as products_service

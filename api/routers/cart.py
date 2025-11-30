@@ -1,4 +1,8 @@
-from __future__ import annotations
+"""
+LEGACY ROUTER: не используется в продакшене.
+Актуальная логика корзины реализована в webapi.py (/api/cart, /api/cart/add, /api/cart/update, /api/cart/clear).
+Файл оставлен только как архив/история.
+"""
 
 from typing import Any
 
