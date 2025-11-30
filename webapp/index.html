@@ -364,17 +364,17 @@
     const authUsername = document.getElementById('auth-username');
     const switchUserBtn = document.getElementById('switch-user-btn');
 
-    async function logoutAndGoToIndex() {
+    async function logout() {
       try {
         await fetch('/api/auth/logout', { method: 'POST' });
       } catch (e) {
         console.warn('Failed to call logout', e);
+      } finally {
+        window.location.reload();
       }
-      window._currentUser = null;
-      window.location.reload();
     }
 
-    switchUserBtn?.addEventListener('click', logoutAndGoToIndex);
+    switchUserBtn?.addEventListener('click', logout);
 
     async function loadSession() {
       try {
@@ -393,7 +393,8 @@
         if (user?.ok) {
           loginSection?.style.setProperty('display', 'none');
           authStatus?.style.setProperty('display', 'block');
-          authUsername.textContent = `Вошли как ${user.username ? '@' + user.username : user.full_name || user.telegram_id}`;
+          const displayName = user.full_name || (user.telegram_username ? '@' + user.telegram_username : user.telegram_id);
+          authUsername.textContent = `Вы вошли как ${displayName}`;
         } else {
           loginSection?.style.setProperty('display', 'block');
           authStatus?.style.setProperty('display', 'none');

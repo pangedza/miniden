@@ -102,6 +102,11 @@ class AuthPayload(BaseModel):
     include_notes: bool | None = False
 
 
+class ProfileUpdatePayload(BaseModel):
+    full_name: str | None = None
+    phone: str | None = None
+
+
 class ContactPayload(BaseModel):
     telegram_id: int
     phone: str | None = None
@@ -161,25 +166,38 @@ def _full_name(user) -> str:
     return " ".join(part for part in parts if part).strip()
 
 
-def _build_user_profile(
-    session: Session, user: User | None, *, include_notes: bool = False
-) -> dict[str, Any] | None:
-    """
-    Сбор полного профиля пользователя для фронтенда.
+def _split_full_name(full_name: str | None) -> tuple[str | None, str | None]:
+    if not full_name:
+        return None, None
+    parts = full_name.split(" ", 1)
+    first_name = parts[0].strip() if parts else None
+    last_name = parts[1].strip() if len(parts) > 1 else None
+    return first_name or None, last_name or None
 
-    Возвращает единый JSON, используемый и браузером, и Telegram WebApp:
-    - базовые поля: telegram_id, username, full_name, is_admin, phone, created_at
-    - заказы: через services.orders
-    - избранное: через services.favorites
-    - статистика: через services.user_stats / services.stats
-    - бан: через services.user_admin / services.bans
-    - заметки: через services.admin_notes (только если user.is_admin и include_notes=True)
+
+def _build_user_profile(session: Session, user: User, *, include_notes: bool = False) -> dict:
+    """
+    Собирает полный профиль пользователя для фронтенда.
+
+    Возвращаемые поля:
+      - ok: True
+      - telegram_id: int
+      - telegram_username: str | None
+      - full_name: str | None
+      - phone: str | None
+      - created_at: str | None (ISO8601)
+      - is_admin: bool
+      - orders: list[dict]
+      - stats: dict
+      - favorites: list[dict]
+      - ban: dict | None
+    Заметки (notes) для CRM можно добавлять только если user.is_admin и include_notes=True.
     """
     if not user:
-        return None
+        raise HTTPException(status_code=404, detail="User not found")
 
     telegram_id = int(user.telegram_id)
-    full_name = _full_name(user) or user.username or ""
+    display_full_name = _full_name(user) or None
 
     try:
         orders = orders_service.get_orders_by_user(telegram_id) or []
@@ -211,17 +229,31 @@ def _build_user_profile(
     return {
         "ok": True,
         "telegram_id": telegram_id,
+        "telegram_username": user.username,
         "username": user.username,
-        "full_name": full_name,
-        "is_admin": bool(user.is_admin),
+        "full_name": display_full_name,
         "phone": user.phone,
         "created_at": user.created_at.isoformat() if getattr(user, "created_at", None) else None,
+        "is_admin": bool(user.is_admin),
         "orders": orders,
         "favorites": favorites,
         "stats": stats,
         "ban": ban_status,
         "notes": notes,
     }
+
+
+def _get_current_user_from_cookie(session: Session, request: Request) -> User | None:
+    user_id = request.cookies.get("tg_user_id")
+    if not user_id:
+        return None
+
+    try:
+        telegram_id = int(user_id)
+    except ValueError:
+        return None
+
+    return session.query(User).filter(User.telegram_id == telegram_id).first()
 
 
 def _product_by_type(product_type: str, product_id: int, *, include_inactive: bool = False):
@@ -405,28 +437,17 @@ def api_auth_session(request: Request, response: Response, include_notes: bool =
     Авторизация из браузера по ранее установленной cookie tg_user_id.
     Возвращает профиль пользователя в едином формате или ok=false при ошибке.
     """
-    user_id = request.cookies.get("tg_user_id")
-    if not user_id:
-        response.status_code = 401
-        return {"ok": False, "reason": "unauthorized"}
-
-    try:
-        telegram_id = int(user_id)
-    except ValueError:
-        response.status_code = 400
-        return {"ok": False, "reason": "invalid_session"}
-
     with get_session() as session:
-        user = session.query(User).filter(User.telegram_id == telegram_id).first()
+        user = _get_current_user_from_cookie(session, request)
         if not user:
-            response.status_code = 404
-            return {"ok": False, "reason": "unauthorized"}
+            response.status_code = 401
+            return {"ok": False, "detail": "unauthorized"}
 
-        profile = _build_user_profile(session, user, include_notes=include_notes)
-
-    if not profile:
-        response.status_code = 404
-        return {"ok": False, "reason": "unauthorized"}
+        try:
+            profile = _build_user_profile(session, user, include_notes=include_notes)
+        except HTTPException as exc:
+            response.status_code = exc.status_code
+            return {"ok": False, "detail": exc.detail}
 
     return profile
 
@@ -542,22 +563,41 @@ def api_auth_telegram(payload: AuthPayload):
         except Exception:
             raise HTTPException(status_code=500, detail="Failed to authorize user")
 
-        profile = _build_user_profile(session, user, include_notes=bool(payload.include_notes))
-
-    if not profile:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    return profile
+        return _build_user_profile(session, user, include_notes=bool(payload.include_notes))
 
 
 @app.post("/api/auth/logout")
 def api_auth_logout(response: Response):
     """
-    Logout для обычного сайта: сбрасывает cookie с tg_user_id.
-    Используется кнопкой "Выйти" на странице профиля.
+    Logout для обычного сайта: сбрасывает cookie tg_user_id.
+    Используется кнопкой "Выйти"/"Сменить пользователя".
     """
     response.delete_cookie("tg_user_id", path="/")
     return {"ok": True}
+
+
+@app.post("/api/profile/update")
+def api_profile_update(payload: ProfileUpdatePayload, request: Request):
+    """
+    Обновление имени и телефона текущего пользователя (по cookie tg_user_id).
+    Telegram ID и username менять нельзя.
+    """
+    with get_session() as session:
+        user = _get_current_user_from_cookie(session, request)
+        if not user:
+            raise HTTPException(status_code=401, detail="Not authenticated")
+
+        if payload.full_name is not None:
+            first_name, last_name = _split_full_name(payload.full_name.strip())
+            user.first_name = first_name
+            user.last_name = last_name
+        if payload.phone is not None:
+            user.phone = payload.phone.strip()
+
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+        return {"ok": True, "user": _build_user_profile(session, user)}
 
 
 @app.get("/api/categories")
