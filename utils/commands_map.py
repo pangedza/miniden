@@ -4,11 +4,7 @@ from __future__ import annotations
 
 USER_COMMANDS: dict[str, str] = {
     "start": "Запуск бота",
-    "profile": "Мой профиль и заказы",
-    "checkout": "Начать оформление заказа",
-    "order": "Оформить заказ через корзину",
-    "clear_cart": "Очистить корзину",
-    "help": "FAQ и поддержка",
+    "help": "FAQ и поддержка (как пользоваться WebApp)",
 }
 
 ADMIN_COMMANDS: dict[str, str] = {
