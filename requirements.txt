@@ -1,6 +1,7 @@
-aiogram==3.*
-python-dotenv
+aiogram>=3
 fastapi
-uvicorn
-SQLAlchemy
+uvicorn[standard]
+sqlalchemy
 psycopg2-binary
+python-dotenv
+pydantic

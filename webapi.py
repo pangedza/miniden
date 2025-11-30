@@ -1,10 +1,6 @@
 """
 Основной backend MiniDeN (FastAPI).
 Приложение: webapi:app
-
-- Авторизация через Telegram (WebApp, Login Widget, deeplink).
-- Профиль пользователя, корзина, заказы, избранное.
-- Админские эндпоинты.
 """
 
 import hashlib

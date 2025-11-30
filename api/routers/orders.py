@@ -1,7 +1,6 @@
 """
-LEGACY ROUTER: не используется в продакшене.
-Актуальный checkout и работа с заказами реализованы в webapi.py (/api/checkout, /api/admin/orders и т.п.).
-Файл оставлен только как архив/история.
+LEGACY ROUTER — старый API.
+Не используется. Оставлен только как архив.
 """
 
 from typing import Any

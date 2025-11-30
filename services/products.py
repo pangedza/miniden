@@ -10,9 +10,9 @@ from database import get_session
 from models import ProductBasket, ProductCourse
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = BASE_DIR / "data"
-BASKETS_JSON = DATA_DIR / "products_baskets.json"
-COURSES_JSON = DATA_DIR / "products_courses.json"
+LEGACY_DATA_DIR = BASE_DIR / "docs" / "legacy-data"
+BASKETS_JSON = LEGACY_DATA_DIR / "products_baskets.json"
+COURSES_JSON = LEGACY_DATA_DIR / "products_courses.json"
 
 
 def _serialize_product(

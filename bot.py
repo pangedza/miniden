@@ -1,3 +1,11 @@
+"""
+Точка входа Telegram-бота MiniDeN.
+- Проверка подписки
+- Стартовый экран
+- Главное меню с WebApp-кнопками (магазин работает в браузере)
+- Мини-CRM для админов (заказы, клиенты, заметки, бан/разбан)
+"""
+
 import asyncio
 import logging
 
@@ -9,18 +17,7 @@ from aiogram.client.default import DefaultBotProperties  # 👈 ДОБАВИЛИ
 from config import get_settings
 from database import init_db
 
-from handlers import (
-    start,
-    baskets,
-    courses,
-    help,
-    cart,
-    checkout,
-    payments,
-    admin,
-    profile,
-    webapp,
-)
+from handlers import admin, start, webapp
 
 
 async def main() -> None:
@@ -46,16 +43,9 @@ async def main() -> None:
     # FSM-хранилище в памяти (для состояний при оформлении заказа и т.п.)
     dp = Dispatcher(storage=MemoryStorage())
 
-    # Подключаем все роутеры
+    # Подключаем актуальные роутеры
     dp.include_router(start.router)
-    dp.include_router(baskets.router)
-    dp.include_router(courses.router)
-    dp.include_router(help.router)
-    dp.include_router(cart.router)
-    dp.include_router(checkout.router)
-    dp.include_router(payments.router)
     dp.include_router(admin.router)
-    dp.include_router(profile.router)
     dp.include_router(webapp.router)
 
     # Старт поллинга
