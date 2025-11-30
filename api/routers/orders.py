@@ -1,4 +1,8 @@
-from __future__ import annotations
+"""
+LEGACY ROUTER: не используется в продакшене.
+Актуальный checkout и работа с заказами реализованы в webapi.py (/api/checkout, /api/admin/orders и т.п.).
+Файл оставлен только как архив/история.
+"""
 
 from typing import Any
 
