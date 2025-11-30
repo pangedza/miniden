@@ -364,20 +364,33 @@
     const authUsername = document.getElementById('auth-username');
     const switchUserBtn = document.getElementById('switch-user-btn');
 
-    function switchUser() {
-      document.cookie = 'tg_user_id=; Max-Age=0; path=/';
+    async function logoutAndGoToIndex() {
+      try {
+        await fetch('/api/auth/logout', { method: 'POST' });
+      } catch (e) {
+        console.warn('Failed to call logout', e);
+      }
       window._currentUser = null;
-      loginSection?.style.setProperty('display', 'block');
-      authStatus?.style.setProperty('display', 'none');
-      window.location.href = '/index.html';
+      window.location.reload();
     }
 
-    switchUserBtn?.addEventListener('click', switchUser);
+    switchUserBtn?.addEventListener('click', logoutAndGoToIndex);
 
-    (async () => {
+    async function loadSession() {
       try {
-        const user = await getCurrentUser();
-        if (user) {
+        const res = await fetch('/api/auth/session');
+        if (res.status === 401 || res.status === 404) {
+          loginSection?.style.setProperty('display', 'block');
+          authStatus?.style.setProperty('display', 'none');
+          return;
+        }
+
+        if (!res.ok) {
+          throw new Error('Failed to check session');
+        }
+
+        const user = await res.json();
+        if (user?.ok) {
           loginSection?.style.setProperty('display', 'none');
           authStatus?.style.setProperty('display', 'block');
           authUsername.textContent = `Вошли как ${user.username ? '@' + user.username : user.full_name || user.telegram_id}`;
@@ -387,8 +400,12 @@
         }
       } catch (e) {
         console.error('Failed to load auth status', e);
+        loginSection?.style.setProperty('display', 'block');
+        authStatus?.style.setProperty('display', 'none');
       }
-    })();
+    }
+
+    loadSession();
   </script>
 </body>
 </html>

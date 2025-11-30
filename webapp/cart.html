@@ -156,6 +156,10 @@
     const commentInput = document.getElementById('customer-comment');
 
     let currentUser = null;
+    const isTelegramWebApp = Boolean(window.Telegram?.WebApp);
+    if (isTelegramWebApp && window.Telegram?.WebApp?.ready) {
+      window.Telegram.WebApp.ready();
+    }
     let currentCart = { items: [], total: 0 };
     let appliedPromo = null;
     let discountAmount = 0;
@@ -166,6 +170,23 @@
       if (noteEl) noteEl.textContent = message || '';
       if (unauthorizedBlock) unauthorizedBlock.style.display = 'block';
       if (cartPanel) cartPanel.style.display = 'none';
+    }
+
+    async function loadCurrentUser() {
+      try {
+        if (isTelegramWebApp && window.Telegram?.WebApp?.initData) {
+          return await apiPost('/auth/telegram', { initData: window.Telegram.WebApp.initData });
+        }
+        const res = await fetch('/api/auth/session');
+        if (res.status === 401 || res.status === 404) {
+          return null;
+        }
+        return await handleResponse(res);
+      } catch (e) {
+        if (e?.status === 401 || e?.status === 404) return null;
+        console.error('Не удалось получить пользователя', e);
+        return null;
+      }
     }
 
     function updateAdminLinkVisibility() {
@@ -365,7 +386,7 @@
 
     async function initApp() {
       try {
-        currentUser = await getCurrentUser();
+        currentUser = await loadCurrentUser();
         updateAdminLinkVisibility();
         if (!currentUser) {
           showUnauthorized('Вы не авторизованы. Войдите через Telegram.');
