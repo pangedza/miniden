@@ -28,19 +28,18 @@ def get_main_menu(is_admin: bool = False) -> ReplyKeyboardMarkup:
     settings = get_settings()
     keyboard: list[list[KeyboardButton]] = []
 
-    webapp_buttons: list[KeyboardButton] = []
+    webapp_row: list[KeyboardButton] = []
 
-    base_url = getattr(settings, "webapp_base_url", None) or settings.webapp_index_url
-    if base_url:
-        webapp_buttons.append(
+    if settings.webapp_index_url:
+        webapp_row.append(
             KeyboardButton(
                 text="🏠 Главная (WebApp)",
-                web_app=WebAppInfo(url=base_url),
+                web_app=WebAppInfo(url=settings.webapp_index_url),
             )
         )
 
     if settings.webapp_products_url:
-        webapp_buttons.append(
+        webapp_row.append(
             KeyboardButton(
                 text="🛍 Товары (WebApp)",
                 web_app=WebAppInfo(url=settings.webapp_products_url),
@@ -48,7 +47,7 @@ def get_main_menu(is_admin: bool = False) -> ReplyKeyboardMarkup:
         )
 
     if settings.webapp_masterclasses_url:
-        webapp_buttons.append(
+        webapp_row.append(
             KeyboardButton(
                 text="🎓 Мастер-классы (WebApp)",
                 web_app=WebAppInfo(url=settings.webapp_masterclasses_url),
@@ -56,7 +55,7 @@ def get_main_menu(is_admin: bool = False) -> ReplyKeyboardMarkup:
         )
 
     if settings.webapp_cart_url:
-        webapp_buttons.append(
+        webapp_row.append(
             KeyboardButton(
                 text="🛒 Корзина (WebApp)",
                 web_app=WebAppInfo(url=settings.webapp_cart_url),
@@ -64,21 +63,15 @@ def get_main_menu(is_admin: bool = False) -> ReplyKeyboardMarkup:
         )
 
     if settings.webapp_profile_url:
-        webapp_buttons.append(
+        webapp_row.append(
             KeyboardButton(
                 text="👤 Профиль (WebApp)",
                 web_app=WebAppInfo(url=settings.webapp_profile_url),
             )
         )
 
-    row: list[KeyboardButton] = []
-    for button in webapp_buttons:
-        row.append(button)
-        if len(row) >= 3:
-            keyboard.append(row)
-            row = []
-    if row:
-        keyboard.append(row)
+    if webapp_row:
+        keyboard.append(webapp_row)
 
     if is_admin and getattr(settings, "webapp_admin_url", None):
         keyboard.append(
