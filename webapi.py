@@ -164,6 +164,17 @@ def _full_name(user) -> str:
 def _build_user_profile(
     session: Session, user: User | None, *, include_notes: bool = False
 ) -> dict[str, Any] | None:
+    """
+    Сбор полного профиля пользователя для фронтенда.
+
+    Возвращает единый JSON, используемый и браузером, и Telegram WebApp:
+    - базовые поля: telegram_id, username, full_name, is_admin, phone, created_at
+    - заказы: через services.orders
+    - избранное: через services.favorites
+    - статистика: через services.user_stats / services.stats
+    - бан: через services.user_admin / services.bans
+    - заметки: через services.admin_notes (только если user.is_admin и include_notes=True)
+    """
     if not user:
         return None
 
@@ -537,6 +548,16 @@ def api_auth_telegram(payload: AuthPayload):
         raise HTTPException(status_code=404, detail="User not found")
 
     return profile
+
+
+@app.post("/api/auth/logout")
+def api_auth_logout(response: Response):
+    """
+    Logout для обычного сайта: сбрасывает cookie с tg_user_id.
+    Используется кнопкой "Выйти" на странице профиля.
+    """
+    response.delete_cookie("tg_user_id", path="/")
+    return {"ok": True}
 
 
 @app.get("/api/categories")

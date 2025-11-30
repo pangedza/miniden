@@ -119,6 +119,10 @@
     const noteEl = document.getElementById('note');
 
     let currentUser = null;
+    const isTelegramWebApp = Boolean(window.Telegram?.WebApp);
+    if (isTelegramWebApp && window.Telegram?.WebApp?.ready) {
+      window.Telegram.WebApp.ready();
+    }
     let categories = [];
     let courses = [];
     let active = null;
@@ -141,6 +145,23 @@
 
     function showLoginHint() {
       if (loginHint) loginHint.style.display = 'block';
+    }
+
+    async function loadCurrentUser() {
+      try {
+        if (isTelegramWebApp && window.Telegram?.WebApp?.initData) {
+          return await apiPost('/auth/telegram', { initData: window.Telegram.WebApp.initData });
+        }
+        const res = await fetch('/api/auth/session');
+        if (res.status === 401 || res.status === 404) {
+          return null;
+        }
+        return await handleResponse(res);
+      } catch (e) {
+        if (e?.status === 401 || e?.status === 404) return null;
+        console.error('Не удалось получить пользователя', e);
+        return null;
+      }
     }
 
     function renderTabs() {
@@ -279,7 +300,7 @@
 
     async function initApp() {
       try {
-        currentUser = await getCurrentUser();
+        currentUser = await loadCurrentUser();
         if (!currentUser) {
           showLoginHint();
           noteEl.textContent = 'Каталог доступен в режиме просмотра. Чтобы оформить заказ, войдите через Telegram.';

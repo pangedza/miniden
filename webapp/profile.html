@@ -150,6 +150,7 @@
     const loginButton = document.getElementById('login-button');
 
     let currentUser = null;
+    const isTelegramWebApp = Boolean(window.Telegram?.WebApp);
 
     function updateAdminLinkVisibility() {
       if (!adminLink) return;
@@ -239,17 +240,47 @@
       actions?.style.setProperty('display', 'flex');
     }
 
-    function switchUser() {
-      document.cookie = 'tg_user_id=; Max-Age=0; path=/';
-      window._currentUser = null;
-      window.location.href = '/index.html';
+    async function logout() {
+      try {
+        await fetch('/api/auth/logout', { method: 'POST' });
+      } catch (e) {
+        console.warn('Logout request failed', e);
+      }
+
+      if (isTelegramWebApp && window.Telegram?.WebApp?.close) {
+        profileGrid?.style.setProperty('display', 'none');
+        actions?.style.setProperty('display', 'none');
+        setStatus('Вы вышли. Чтобы войти другим пользователем, откройте WebApp заново из бота.', false);
+        setTimeout(() => window.Telegram.WebApp.close(), 200);
+      } else {
+        window.location.href = '/index.html';
+      }
+    }
+
+    async function loadProfileFromSession() {
+      const res = await fetch('/api/auth/session?include_notes=true');
+      if (res.status === 401 || res.status === 404) {
+        showLoginHint('Вы не авторизованы. Перейдите на главную страницу и выполните вход через Telegram.');
+        return null;
+      }
+      const data = await handleResponse(res);
+      return data;
+    }
+
+    async function loadProfileFromWebApp() {
+      const initData = window.Telegram?.WebApp?.initData;
+      if (!initData) {
+        showLoginHint('Не удалось получить данные Telegram WebApp. Откройте профиль из бота.');
+        return null;
+      }
+      const profile = await apiPost('/auth/telegram', { initData, include_notes: true });
+      return profile;
     }
 
     async function initProfile() {
       try {
-        currentUser = await getCurrentUser({ includeNotes: true });
+        currentUser = isTelegramWebApp ? await loadProfileFromWebApp() : await loadProfileFromSession();
         if (!currentUser) {
-          showLoginHint('Вы не авторизованы. Перейдите на главную страницу и выполните вход через Telegram.');
           return;
         }
         updateAdminLinkVisibility();
@@ -262,8 +293,14 @@
       }
     }
 
-    switchUserBtn?.addEventListener('click', switchUser);
-    loginButton?.addEventListener('click', switchUser);
+    switchUserBtn?.addEventListener('click', logout);
+    loginButton?.addEventListener('click', () => {
+      window.location.href = '/index.html';
+    });
+
+    if (isTelegramWebApp && window.Telegram?.WebApp?.ready) {
+      window.Telegram.WebApp.ready();
+    }
 
     initProfile();
   </script>
