@@ -1,3 +1,9 @@
+"""
+ORM-модели SQLAlchemy.
+Общие для Telegram-бота и backend webapi.py.
+База данных — PostgreSQL.
+"""
+
 from datetime import datetime
 from decimal import Decimal
 

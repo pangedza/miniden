@@ -1,7 +1,6 @@
 """
-LEGACY ROUTER: не используется в продакшене.
-Актуальная логика корзины реализована в webapi.py (/api/cart, /api/cart/add, /api/cart/update, /api/cart/clear).
-Файл оставлен только как архив/история.
+LEGACY ROUTER — старый API.
+Не используется. Оставлен только как архив.
 """
 
 from typing import Any

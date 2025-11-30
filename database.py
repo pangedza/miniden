@@ -1,5 +1,10 @@
-import os
-from contextlib import contextmanager
+"""
+Конфигурация SQLAlchemy + PostgreSQL.
+Используется одновременно Telegram-ботом и backend webapi.py.
+Таблицы создаются через Base.metadata.create_all.
+.env НЕ изменяем.
+"""
+
 import os
 from contextlib import contextmanager
 from typing import Iterator
