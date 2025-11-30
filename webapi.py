@@ -14,8 +14,9 @@ from uuid import uuid4
 
 from fastapi import Cookie, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
 from config import get_settings
 from database import get_session, init_db
@@ -118,7 +119,7 @@ def _ensure_admin(user_id: int | None) -> int:
     return int(user_id)
 
 
-def _parse_webapp_user(init_data: str) -> dict | None:
+def _parse_webapp_user(init_data: str, bot_token: str | None = None) -> dict | None:
     if not init_data:
         raise HTTPException(status_code=400, detail="initData is empty")
 
@@ -127,8 +128,9 @@ def _parse_webapp_user(init_data: str) -> dict | None:
     if not received_hash:
         raise HTTPException(status_code=401, detail="Missing hash")
 
+    resolved_bot_token = bot_token or BOT_TOKEN
     data_check_string = "\n".join(f"{k}={v}" for k, v in sorted(data_pairs.items()))
-    secret_key = hmac.new(f"WebAppData{BOT_TOKEN}".encode(), digestmod=hashlib.sha256).digest()
+    secret_key = hmac.new(f"WebAppData{resolved_bot_token}".encode(), digestmod=hashlib.sha256).digest()
     calculated_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
 
     if not hmac.compare_digest(calculated_hash, received_hash):
@@ -159,19 +161,41 @@ def _full_name(user) -> str:
     return " ".join(part for part in parts if part).strip()
 
 
-def _build_user_profile(user: User | None, *, include_notes: bool = False) -> dict[str, Any] | None:
+def _build_user_profile(
+    session: Session, user: User | None, *, include_notes: bool = False
+) -> dict[str, Any] | None:
     if not user:
         return None
 
     telegram_id = int(user.telegram_id)
     full_name = _full_name(user) or user.username or ""
-    orders = orders_service.get_orders_by_user(telegram_id) or []
-    favorites = favorites_service.list_favorites(telegram_id) or []
-    stats = user_stats_service.get_user_order_stats(telegram_id) or {}
-    ban_status = user_admin_service.get_user_ban_status(telegram_id) or None
+
+    try:
+        orders = orders_service.get_orders_by_user(telegram_id) or []
+    except Exception:
+        orders = []
+
+    try:
+        favorites = favorites_service.list_favorites(telegram_id) or []
+    except Exception:
+        favorites = []
+
+    try:
+        stats = user_stats_service.get_user_order_stats(telegram_id) or {}
+    except Exception:
+        stats = {}
+
+    try:
+        ban_status = user_admin_service.get_user_ban_status(telegram_id) or None
+    except Exception:
+        ban_status = None
+
     notes = []
     if include_notes and user.is_admin:
-        notes = user_admin_service.get_user_notes(telegram_id, limit=20) or []
+        try:
+            notes = user_admin_service.get_user_notes(telegram_id, limit=20) or []
+        except Exception:
+            notes = []
 
     return {
         "ok": True,
@@ -292,7 +316,8 @@ def api_auth_check(token: str, response: Response, include_notes: bool = False):
             s.add(user)
             s.flush()
 
-    profile = _build_user_profile(user, include_notes=include_notes)
+        profile = _build_user_profile(s, user, include_notes=include_notes)
+
     if not profile:
         response.status_code = 404
         return {"ok": False, "reason": "not_found"}
@@ -352,7 +377,7 @@ def api_auth_telegram_login(request: Request):
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid user data")
 
-    response = RedirectResponse(url="/webapp/profile.html", status_code=302)
+    response = RedirectResponse(url="/profile.html", status_code=302)
     response.set_cookie(
         key="tg_user_id",
         value=str(user.telegram_id),
@@ -380,8 +405,14 @@ def api_auth_session(request: Request, response: Response, include_notes: bool =
         response.status_code = 400
         return {"ok": False, "reason": "invalid_session"}
 
-    user = users_service.get_user_by_telegram_id(telegram_id)
-    profile = _build_user_profile(user, include_notes=include_notes)
+    with get_session() as session:
+        user = session.query(User).filter(User.telegram_id == telegram_id).first()
+        if not user:
+            response.status_code = 404
+            return {"ok": False, "reason": "unauthorized"}
+
+        profile = _build_user_profile(session, user, include_notes=include_notes)
+
     if not profile:
         response.status_code = 404
         return {"ok": False, "reason": "unauthorized"}
@@ -456,13 +487,19 @@ def api_auth_telegram(payload: AuthPayload):
         raise HTTPException(status_code=400, detail="initData or user is required")
 
     user_data = None
-    try:
-        if payload.initData:
-            user_data = _parse_webapp_user(payload.initData)
-    except HTTPException:
-        raise
-    except Exception:
-        raise HTTPException(status_code=500, detail="Failed to parse initData")
+    if payload.initData:
+        try:
+            user_data = _parse_webapp_user(payload.initData, BOT_TOKEN)
+        except HTTPException as exc:
+            return JSONResponse(
+                status_code=exc.status_code,
+                content={"ok": False, "detail": "invalid telegram webapp auth"},
+            )
+        except Exception:
+            return JSONResponse(
+                status_code=401,
+                content={"ok": False, "detail": "invalid telegram webapp auth"},
+            )
 
     if not user_data and payload.user:
         user_data = payload.user
@@ -470,17 +507,32 @@ def api_auth_telegram(payload: AuthPayload):
     if not user_data:
         raise HTTPException(status_code=401, detail="Unauthorized: no user data")
 
-    if "id" not in user_data:
+    telegram_id = user_data.get("id")
+    if telegram_id is None:
         raise HTTPException(status_code=400, detail="Missing user id")
 
-    try:
-        user = users_service.get_or_create_user_from_telegram(user_data)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid user data")
-    except Exception:
-        raise HTTPException(status_code=500, detail="Failed to authorize user")
+    first_name = user_data.get("first_name") or ""
+    last_name = user_data.get("last_name") or ""
+    full_name = " ".join([part for part in [first_name, last_name] if part]).strip() or None
 
-    profile = _build_user_profile(user, include_notes=bool(payload.include_notes))
+    with get_session() as session:
+        try:
+            user = users_service.get_or_create_user_from_telegram(
+                session,
+                telegram_id=int(telegram_id),
+                username=user_data.get("username"),
+                full_name=full_name,
+                phone=user_data.get("phone"),
+            )
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid user data")
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(status_code=500, detail="Failed to authorize user")
+
+        profile = _build_user_profile(session, user, include_notes=bool(payload.include_notes))
+
     if not profile:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -709,7 +761,9 @@ def api_me(telegram_id: int):
     Вернуть профиль пользователя (личный кабинет) по его telegram_id.
     Формат ответа совпадает с /api/auth/telegram, чтобы фронту было удобно.
     """
-    profile = _build_user_profile(users_service.get_user_by_telegram_id(telegram_id), include_notes=True)
+    with get_session() as session:
+        user = session.query(User).filter(User.telegram_id == telegram_id).first()
+        profile = _build_user_profile(session, user, include_notes=True)
     if not profile:
         raise HTTPException(status_code=404, detail="User not found")
 

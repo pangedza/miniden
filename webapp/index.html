@@ -339,6 +339,16 @@
     </div>
   </section>
 
+  <section class="section" id="auth-status" style="display: none;">
+    <h2>Вы уже вошли</h2>
+    <p id="auth-username" class="muted"></p>
+    <div class="hero-cta">
+      <a class="btn" href="/profile.html">Перейти в профиль</a>
+      <button class="btn secondary" type="button" id="switch-user-btn">Сменить пользователя</button>
+    </div>
+  </section>
+
+  <script src="js/api.js"></script>
   <script>
     const toggle = document.querySelector('.menu-toggle');
     const nav = document.querySelector('.nav-links');
@@ -348,6 +358,37 @@
     });
 
     nav?.classList.add('open');
+
+    const loginSection = document.getElementById('telegram-login-section');
+    const authStatus = document.getElementById('auth-status');
+    const authUsername = document.getElementById('auth-username');
+    const switchUserBtn = document.getElementById('switch-user-btn');
+
+    function switchUser() {
+      document.cookie = 'tg_user_id=; Max-Age=0; path=/';
+      window._currentUser = null;
+      loginSection?.style.setProperty('display', 'block');
+      authStatus?.style.setProperty('display', 'none');
+      window.location.href = '/index.html';
+    }
+
+    switchUserBtn?.addEventListener('click', switchUser);
+
+    (async () => {
+      try {
+        const user = await getCurrentUser();
+        if (user) {
+          loginSection?.style.setProperty('display', 'none');
+          authStatus?.style.setProperty('display', 'block');
+          authUsername.textContent = `Вошли как ${user.username ? '@' + user.username : user.full_name || user.telegram_id}`;
+        } else {
+          loginSection?.style.setProperty('display', 'block');
+          authStatus?.style.setProperty('display', 'none');
+        }
+      } catch (e) {
+        console.error('Failed to load auth status', e);
+      }
+    })();
   </script>
 </body>
 </html>
