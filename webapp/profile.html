@@ -47,9 +47,10 @@
       <div id="profile-avatar" class="profile-avatar">
         <span id="profile-avatar-initials" class="profile-avatar-initials"></span>
       </div>
-      <div class="profile-avatar-edit-row">
-        <input type="text" id="profile-avatar-url-input" placeholder="/media/users/&lt;tg_id&gt;/avatar.jpg">
-        <button id="profile-avatar-url-save-btn">Сохранить аватар</button>
+      <div class="profile-avatar-actions">
+        <input type="file" id="profile-avatar-file-input" accept="image/*" hidden>
+        <button class="btn secondary" id="profile-avatar-choose-btn" type="button">Выбрать фото</button>
+        <div class="profile-avatar-hint">JPG, PNG или WEBP • до 10 МБ</div>
       </div>
     </div>
 
@@ -109,8 +110,8 @@
     const profileAvatarWrapper = document.getElementById('profile-avatar-wrapper');
     const avatarDiv = document.getElementById('profile-avatar');
     const avatarInitialsSpan = document.getElementById('profile-avatar-initials');
-    const avatarUrlInput = document.getElementById('profile-avatar-url-input');
-    const avatarSaveBtn = document.getElementById('profile-avatar-url-save-btn');
+    const avatarFileInput = document.getElementById('profile-avatar-file-input');
+    const avatarChooseBtn = document.getElementById('profile-avatar-choose-btn');
     const fullNameEl = document.getElementById('full-name');
     const usernameEl = document.getElementById('username');
     const telegramIdEl = document.getElementById('telegram-id');
@@ -221,18 +222,56 @@
 
     function renderOrders(orders) {
       ordersList.innerHTML = '';
-      if (!orders || !orders.length) {
+      const activeOrders = (orders || []).filter(
+        (order) => (order.status || '').toLowerCase() !== 'archived'
+      );
+
+      if (!activeOrders.length) {
         const li = document.createElement('li');
-        li.textContent = 'Заказов пока нет';
+        li.textContent = 'Активных заказов нет';
         ordersList.appendChild(li);
         return;
       }
 
-      orders.forEach((order) => {
+      activeOrders.forEach((order) => {
         const li = document.createElement('li');
         const dateText = order.created_at ? new Date(order.created_at).toLocaleString('ru-RU') : '';
         const header = document.createElement('div');
-        header.textContent = `Заказ #${order.id} — ${order.total} ₽ (${order.status || 'в обработке'}) ${dateText ? '• ' + dateText : ''}`;
+        const headerText = document.createElement('span');
+        header.className = 'order-header';
+        headerText.textContent = `Заказ #${order.id} — ${order.total} ₽ (${order.status || 'в обработке'}) ${dateText ? '• ' + dateText : ''}`;
+
+        const archiveBtn = document.createElement('button');
+        archiveBtn.type = 'button';
+        archiveBtn.className = 'circle-action-btn archive-btn';
+        archiveBtn.title = 'Убрать в архив';
+        archiveBtn.textContent = '📁';
+
+        archiveBtn.addEventListener('click', async () => {
+          archiveBtn.disabled = true;
+          try {
+            const res = await fetch(`/api/orders/${order.id}/archive`, { method: 'POST' });
+            const text = await res.text();
+            const data = text ? JSON.parse(text) : {};
+            if (!res.ok || !data.ok) {
+              throw new Error(data.detail || 'Не удалось архивировать заказ');
+            }
+            li.remove();
+            if (ordersList.childElementCount === 0) {
+              const emptyLi = document.createElement('li');
+              emptyLi.textContent = 'Активных заказов нет';
+              ordersList.appendChild(emptyLi);
+            }
+            showToast('Заказ отправлен в архив');
+          } catch (err) {
+            archiveBtn.disabled = false;
+            showToast(err?.message || 'Не удалось архивировать заказ');
+          }
+        });
+
+        header.appendChild(headerText);
+        header.appendChild(archiveBtn);
+
         const list = document.createElement('ul');
         list.className = 'list';
 
@@ -313,18 +352,19 @@
       });
     }
 
-    function updateAvatar(profile) {
-      if (avatarUrlInput) {
-        avatarUrlInput.value = profile.avatar_url || '';
+    function setAvatarBackground(url) {
+      if (!avatarDiv) return;
+      if (url) {
+        avatarDiv.style.backgroundImage = `url(${url})`;
+        avatarDiv.classList.add('profile-avatar--with-image');
+      } else {
+        avatarDiv.style.backgroundImage = 'none';
+        avatarDiv.classList.remove('profile-avatar--with-image');
       }
+    }
 
-      if (avatarDiv) {
-        if (profile.avatar_url) {
-          avatarDiv.style.backgroundImage = `url(${profile.avatar_url})`;
-        } else {
-          avatarDiv.style.backgroundImage = 'none';
-        }
-      }
+    function updateAvatar(profile) {
+      setAvatarBackground(profile.avatar_url);
 
       if (avatarInitialsSpan) {
         let initials = '';
@@ -348,37 +388,37 @@
       }
     }
 
-    async function saveAvatarUrl() {
-      if (!avatarUrlInput) return;
-      const avatarUrl = avatarUrlInput.value.trim();
-      if (!avatarUrl) {
-        showToast('Введите URL аватара, например /media/users/<tg_id>/avatar.jpg');
-        return;
+    function previewAvatar(file) {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        setAvatarBackground(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+
+    async function uploadAvatarFile(file) {
+      if (!file) return;
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch('/api/profile/avatar', { method: 'POST', body: formData });
+      const text = await res.text();
+      const data = text ? JSON.parse(text) : {};
+      if (!res.ok || !data.ok) {
+        const message = data.detail || 'Не удалось загрузить аватар';
+        throw new Error(message);
       }
 
-      try {
-        const res = await fetch('/api/profile/avatar-url', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ avatar_url: avatarUrl }),
-        });
-        const data = await res.json();
-        if (!data.ok) {
-          showToast('Не удалось сохранить аватар');
-          return;
-        }
-        currentUser = data.profile || currentUser;
-        updateAvatar(currentUser);
-        showToast('Аватар сохранён');
-      } catch (e) {
-        console.error(e);
-        showToast('Ошибка при сохранении аватара');
-      }
+      currentUser = data.profile || currentUser;
+      updateAvatar(currentUser);
+      showToast('Аватар обновлён');
     }
 
     function renderProfile(profile) {
       fullNameEl.textContent = profile.full_name || '—';
-      usernameEl.textContent = profile.telegram_username ? `@${profile.telegram_username}` : '—';
+      usernameEl.textContent = profile.telegram_username ? `@${profile.telegram_username}` : 'ник не указан';
       telegramIdEl.textContent = profile.telegram_id ?? '—';
       phoneEl.textContent = profile.phone || '—';
       createdAtEl.textContent = profile.created_at ? new Date(profile.created_at).toLocaleDateString('ru-RU') : '—';
@@ -430,7 +470,19 @@
     switchUserBtn?.addEventListener('click', logout);
     editFullNameBtn?.addEventListener('click', () => startEditing('full_name'));
     editPhoneBtn?.addEventListener('click', () => startEditing('phone'));
-    avatarSaveBtn?.addEventListener('click', saveAvatarUrl);
+    avatarChooseBtn?.addEventListener('click', () => avatarFileInput?.click());
+    avatarFileInput?.addEventListener('change', async () => {
+      const file = avatarFileInput.files?.[0];
+      if (!file) return;
+      previewAvatar(file);
+      try {
+        await uploadAvatarFile(file);
+      } catch (err) {
+        showToast(err?.message || 'Не удалось загрузить аватар');
+      } finally {
+        avatarFileInput.value = '';
+      }
+    });
     loginButton?.addEventListener('click', () => {
       window.location.href = '/index.html';
     });
