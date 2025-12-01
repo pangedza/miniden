@@ -93,6 +93,8 @@
     .btn { cursor: pointer; border: none; border-radius: 12px; padding: 10px 12px; font-weight: 700; }
     .btn.primary { background: linear-gradient(135deg, #ffb800, #ff8f3f); color: #0b0c10; box-shadow: 0 10px 30px rgba(255, 184, 0, 0.25); }
     .btn.secondary { background: rgba(255, 255, 255, 0.08); color: var(--text); border: 1px solid var(--border); }
+    .admin-back-to-main { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; }
+    .admin-top-row h1 { margin: 0; }
 
     label { display: block; font-weight: 700; margin: 8px 0 4px; }
     input, textarea, select {
@@ -152,7 +154,10 @@
     </aside>
 
     <main>
-      <h1>Админка</h1>
+      <div class="section-header admin-top-row">
+        <h1>Админка</h1>
+        <a href="/webapp/index.html" class="btn secondary admin-back-to-main">Вернуться на главную</a>
+      </div>
       <div id="status" class="status-box" style="display:none"></div>
 
       <div id="access-denied" class="card" style="display:none;">
