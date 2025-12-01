@@ -507,7 +507,7 @@
 
       courseModalTitle.textContent = item.name || 'Мастер-класс';
       courseModalMeta.textContent = metaBySlug[item.category_slug] || '';
-      courseModalDescription.textContent = item.description || 'Описание появится позже.';
+      courseModalDescription.textContent = item.description || item.short_description || 'Описание появится позже.';
       courseModalPrice.textContent = formatPrice(item.price);
 
       if (courseModalActions) {
