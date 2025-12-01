@@ -47,7 +47,7 @@ def _serialize_product(
         "detail_url": getattr(product, "detail_url", None),
         "image_file_id": getattr(product, "image", None),
         "image": getattr(product, "image", None),
-        "is_active": int(getattr(product, "is_active", 1) or 0),
+        "is_active": bool(getattr(product, "is_active", 1)),
         "category_id": getattr(product, "category_id", None),
         "category_name": category_name,
         "category_slug": category_slug,

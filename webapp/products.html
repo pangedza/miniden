@@ -85,6 +85,7 @@
     .footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
     .price { font-weight: 800; color: #ffdf80; }
     .btn { cursor: pointer; border: none; border-radius: 12px; padding: 12px 14px; background: linear-gradient(135deg, #ffb800, #ff8f3f); color: #0b0c10; font-weight: 700; font-size: 15px; width: 100%; box-shadow: 0 10px 30px rgba(255, 184, 0, 0.25); transition: transform 0.1s ease, box-shadow 0.1s ease; }
+    .btn.secondary { background: rgba(255, 255, 255, 0.08); color: var(--text); box-shadow: none; border: 1px solid rgba(255, 255, 255, 0.12); }
     .btn:hover { transform: translateY(-1px); box-shadow: 0 12px 32px rgba(255, 184, 0, 0.35); }
 
     .note { margin: 18px 0 8px; font-size: 14px; color: var(--muted); }
@@ -138,15 +139,15 @@
     const cardsEl = document.getElementById('cards');
     const noteEl = document.getElementById('note');
 
-    let currentUser = null;
-    const isTelegramWebApp = Boolean(window.Telegram?.WebApp);
-
-    if (isTelegramWebApp && window.Telegram?.WebApp?.ready) {
-      window.Telegram.WebApp.ready();
-    }
+    let profile = null;
     let categories = [];
     let products = [];
     let active = null;
+
+    const isTelegramWebApp = Boolean(window.Telegram?.WebApp);
+    if (isTelegramWebApp && window.Telegram?.WebApp?.ready) {
+      window.Telegram.WebApp.ready();
+    }
 
     function formatPrice(value) {
       const num = Number(value) || 0;
@@ -154,31 +155,18 @@
       return `${num.toLocaleString('ru-RU')} ₽`;
     }
 
+    function truncateText(text, limit = 160) {
+      if (!text) return '';
+      return text.length > limit ? `${text.slice(0, limit)}…` : text;
+    }
+
     function updateAdminLinkVisibility() {
       if (!adminLink) return;
-      adminLink.style.display = currentUser?.is_admin ? '' : 'none';
+      adminLink.style.display = profile?.is_admin ? '' : 'none';
     }
 
     function showLoginHint() {
       if (loginHint) loginHint.style.display = 'block';
-    }
-
-    async function loadCurrentUser() {
-      try {
-        if (isTelegramWebApp && window.Telegram?.WebApp?.initData) {
-          return await apiPost('/auth/telegram', { initData: window.Telegram.WebApp.initData });
-        }
-
-        const res = await fetch('/api/auth/session');
-        if (res.status === 401 || res.status === 404) {
-          return null;
-        }
-        return await handleResponse(res);
-      } catch (e) {
-        if (e?.status === 401 || e?.status === 404) return null;
-        console.error('Не удалось получить пользователя', e);
-        return null;
-      }
     }
 
     function renderTabs() {
@@ -208,6 +196,34 @@
       });
     }
 
+    function createMarketLinks(item) {
+      const links = document.createElement('div');
+      links.style.display = 'flex';
+      links.style.gap = '8px';
+      links.style.flexWrap = 'wrap';
+
+      const marketplaces = [
+        { key: 'wb_url', label: 'WB' },
+        { key: 'ozon_url', label: 'Ozon' },
+        { key: 'yandex_url', label: 'Яндекс' },
+        { key: 'avito_url', label: 'Авито' },
+      ];
+
+      marketplaces.forEach(({ key, label }) => {
+        if (!item[key]) return;
+        const link = document.createElement('a');
+        link.href = item[key];
+        link.target = '_blank';
+        link.rel = 'noopener';
+        link.textContent = label;
+        link.className = 'btn secondary';
+        link.style.width = 'auto';
+        links.appendChild(link);
+      });
+
+      return links;
+    }
+
     function renderCards() {
       cardsEl.innerHTML = '';
 
@@ -224,24 +240,25 @@
 
         const cover = document.createElement('div');
         cover.className = 'cover';
-        cover.innerHTML = `<span>${item.category_name || 'Товары'}</span>`;
+        if (item.image) {
+          const img = document.createElement('img');
+          img.src = item.image;
+          img.alt = item.name;
+          img.style.width = '100%';
+          img.style.height = '100%';
+          img.style.objectFit = 'cover';
+          cover.appendChild(img);
+        } else {
+          cover.innerHTML = `<span>${item.category_name || 'Товары'}</span>`;
+        }
 
         const title = document.createElement('h3');
         title.textContent = item.name;
 
         const desc = document.createElement('p');
-        desc.textContent = item.description || 'Описание появится позже.';
+        desc.textContent = truncateText(item.description || 'Описание появится позже.');
 
-        if (item.detail_url) {
-          const detailLink = document.createElement('a');
-          detailLink.href = item.detail_url;
-          detailLink.textContent = 'Подробнее';
-          detailLink.className = 'muted';
-          detailLink.target = '_blank';
-          detailLink.rel = 'noopener';
-          desc.appendChild(document.createElement('br'));
-          desc.appendChild(detailLink);
-        }
+        const marketLinks = createMarketLinks(item);
 
         const footer = document.createElement('div');
         footer.className = 'footer';
@@ -252,11 +269,11 @@
 
         const btn = document.createElement('button');
         btn.className = 'btn';
-        btn.textContent = 'В корзину';
+        btn.textContent = 'Добавить в корзину';
         btn.addEventListener('click', () => handleAddToCart(item));
 
         footer.append(price, btn);
-        card.append(cover, title, desc, footer);
+        card.append(cover, title, desc, marketLinks, footer);
         cardsEl.appendChild(card);
       });
     }
@@ -287,14 +304,14 @@
     }
 
     async function handleAddToCart(product) {
-      if (!currentUser) {
+      if (!profile) {
         showLoginHint();
         alert('Для добавления в корзину войдите через Telegram на главной странице.');
         return;
       }
 
       try {
-        await apiPost('/cart/add', { user_id: currentUser.telegram_id, product_id: product.id, qty: 1, type: 'basket' });
+        await apiPost('/cart/add', { user_id: profile.telegram_id, product_id: product.id, qty: 1, type: 'basket' });
         alert('Товар добавлен в корзину');
       } catch (e) {
         alert('Не удалось добавить товар в корзину. Попробуйте ещё раз.');
@@ -303,8 +320,8 @@
 
     async function initApp() {
       try {
-        currentUser = await loadCurrentUser();
-        if (!currentUser) {
+        profile = await getCurrentUserProfile();
+        if (!profile) {
           showLoginHint();
           noteEl.textContent = 'Каталог доступен для просмотра. Чтобы оформить заказ, войдите через Telegram.';
         }

@@ -640,7 +640,7 @@ def api_products(type: str, category_slug: str | None = None):
     Если category_slug передан — фильтровать по категории.
     """
     product_type = _validate_type(type)
-    return products_service.list_products(product_type, category_slug=category_slug)
+    return products_service.list_products(product_type, category_slug=category_slug, is_active=True)
 
 
 @app.get("/api/cart")

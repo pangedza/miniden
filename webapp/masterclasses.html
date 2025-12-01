@@ -118,14 +118,15 @@
     const cardsEl = document.getElementById('cards');
     const noteEl = document.getElementById('note');
 
-    let currentUser = null;
+    let profile = null;
+    let categories = [];
+    let courses = [];
+    let active = null;
+
     const isTelegramWebApp = Boolean(window.Telegram?.WebApp);
     if (isTelegramWebApp && window.Telegram?.WebApp?.ready) {
       window.Telegram.WebApp.ready();
     }
-    let categories = [];
-    let courses = [];
-    let active = null;
 
     const metaBySlug = {
       paid: 'Доступ навсегда + материалы',
@@ -138,30 +139,22 @@
       return `${num.toLocaleString('ru-RU')} ₽`;
     }
 
+    function truncateText(text, limit = 160) {
+      if (!text) return '';
+      return text.length > limit ? `${text.slice(0, limit)}…` : text;
+    }
+
     function updateAdminLinkVisibility() {
       if (!adminLink) return;
-      adminLink.style.display = currentUser?.is_admin ? '' : 'none';
+      adminLink.style.display = profile?.is_admin ? '' : 'none';
     }
 
     function showLoginHint() {
       if (loginHint) loginHint.style.display = 'block';
     }
 
-    async function loadCurrentUser() {
-      try {
-        if (isTelegramWebApp && window.Telegram?.WebApp?.initData) {
-          return await apiPost('/auth/telegram', { initData: window.Telegram.WebApp.initData });
-        }
-        const res = await fetch('/api/auth/session');
-        if (res.status === 401 || res.status === 404) {
-          return null;
-        }
-        return await handleResponse(res);
-      } catch (e) {
-        if (e?.status === 401 || e?.status === 404) return null;
-        console.error('Не удалось получить пользователя', e);
-        return null;
-      }
+    function courseLink(item) {
+      return item.masterclass_url || item.detail_url || null;
     }
 
     function renderTabs() {
@@ -207,7 +200,17 @@
 
         const cover = document.createElement('div');
         cover.className = 'cover';
-        cover.textContent = item.category_name || 'Мастер-классы';
+        if (item.image) {
+          const img = document.createElement('img');
+          img.src = item.image;
+          img.alt = item.name;
+          img.style.width = '100%';
+          img.style.height = '100%';
+          img.style.objectFit = 'cover';
+          cover.appendChild(img);
+        } else {
+          cover.textContent = item.category_name || 'Мастер-классы';
+        }
 
         const title = document.createElement('h3');
         title.textContent = item.name;
@@ -217,18 +220,7 @@
         meta.textContent = metaBySlug[item.category_slug] || '';
 
         const desc = document.createElement('p');
-        desc.textContent = item.description || 'Описание появится позже.';
-
-        if (item.detail_url) {
-          const detailLink = document.createElement('a');
-          detailLink.href = item.detail_url;
-          detailLink.textContent = 'Подробнее';
-          detailLink.className = 'muted';
-          detailLink.target = '_blank';
-          detailLink.rel = 'noopener';
-          desc.appendChild(document.createElement('br'));
-          desc.appendChild(detailLink);
-        }
+        desc.textContent = truncateText(item.description || 'Описание появится позже.');
 
         const footer = document.createElement('div');
         footer.className = 'footer';
@@ -237,24 +229,56 @@
         price.className = 'price';
         price.textContent = formatPrice(item.price);
 
-        const btn = document.createElement('button');
-        btn.className = 'btn';
-        btn.textContent = 'В корзину';
-        btn.addEventListener('click', () => handleAddToCart(item));
+        const hasAccess = profile?.courses?.some((c) => c.id === item.id) ?? false;
+        const linkHref = courseLink(item);
 
-        const more = document.createElement('button');
-        more.className = 'btn secondary';
-        more.textContent = 'Подробнее';
-        more.addEventListener('click', () => {
-          if (item.detail_url) {
-            window.open(item.detail_url, '_blank', 'noopener');
-          } else {
-            alert('Описание курса появится позже.');
-          }
-        });
+        const primaryBtn = document.createElement('a');
+        primaryBtn.className = 'btn';
+        primaryBtn.textContent = 'Перейти к мастер-классу';
+        primaryBtn.style.textAlign = 'center';
 
-        footer.append(price, btn);
-        card.append(cover, title, meta, desc, footer, more);
+        const actionRow = document.createElement('div');
+        actionRow.style.display = 'grid';
+        actionRow.style.gap = '8px';
+
+        if (Number(item.price || 0) === 0) {
+          primaryBtn.href = linkHref || '#';
+          primaryBtn.target = linkHref ? '_blank' : '';
+          primaryBtn.rel = linkHref ? 'noopener' : '';
+          primaryBtn.addEventListener('click', (e) => {
+            if (!linkHref) {
+              e.preventDefault();
+              alert('Ссылка появится позже.');
+            }
+          });
+          actionRow.appendChild(primaryBtn);
+        } else if (hasAccess) {
+          primaryBtn.href = linkHref || '#';
+          primaryBtn.target = linkHref ? '_blank' : '';
+          primaryBtn.rel = linkHref ? 'noopener' : '';
+          primaryBtn.addEventListener('click', (e) => {
+            if (!linkHref) {
+              e.preventDefault();
+              alert('Ссылка появится позже.');
+            }
+          });
+          actionRow.appendChild(primaryBtn);
+        } else {
+          const accessText = document.createElement('div');
+          accessText.style.color = 'var(--muted)';
+          accessText.textContent = profile ? 'Доступ появится после оплаты' : 'Для доступа войдите и оплатите заказ';
+
+          const addBtn = document.createElement('button');
+          addBtn.type = 'button';
+          addBtn.className = 'btn';
+          addBtn.textContent = 'Добавить в корзину';
+          addBtn.addEventListener('click', () => handleAddToCart(item));
+
+          actionRow.append(accessText, addBtn);
+        }
+
+        footer.append(price);
+        card.append(cover, title, meta, desc, footer, actionRow);
         cardsEl.appendChild(card);
       });
     }
@@ -284,14 +308,14 @@
     }
 
     async function handleAddToCart(course) {
-      if (!currentUser) {
+      if (!profile) {
         showLoginHint();
         alert('Для добавления в корзину войдите через Telegram на главной странице.');
         return;
       }
 
       try {
-        await apiPost('/cart/add', { user_id: currentUser.telegram_id, product_id: course.id, qty: 1, type: 'course' });
+        await apiPost('/cart/add', { user_id: profile.telegram_id, product_id: course.id, qty: 1, type: 'course' });
         alert('Курс добавлен в корзину');
       } catch (e) {
         alert('Не удалось добавить курс. Попробуйте ещё раз.');
@@ -300,8 +324,8 @@
 
     async function initApp() {
       try {
-        currentUser = await loadCurrentUser();
-        if (!currentUser) {
+        profile = await getCurrentUserProfile();
+        if (!profile) {
           showLoginHint();
           noteEl.textContent = 'Каталог доступен в режиме просмотра. Чтобы оформить заказ, войдите через Telegram.';
         }

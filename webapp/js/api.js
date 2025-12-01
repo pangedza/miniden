@@ -69,7 +69,40 @@ async function getCurrentUser(options = {}) {
   }
 }
 
+async function getCurrentUserProfile(options = {}) {
+  if (window._currentProfile && !options.forceRefresh) {
+    return window._currentProfile;
+  }
+
+  const includeNotes = Boolean(options.includeNotes);
+  const telegram = window.Telegram?.WebApp;
+  const initData = telegram?.initData;
+
+  try {
+    if (initData) {
+      const profile = await apiPost("/auth/telegram", { initData, include_notes: includeNotes });
+      window._currentProfile = profile;
+      return profile;
+    }
+
+    const res = await fetch(buildUrl("/auth/session", includeNotes ? { include_notes: true } : undefined));
+    if (res.status === 401 || res.status === 404) {
+      return null;
+    }
+    const data = await handleResponse(res);
+    window._currentProfile = data;
+    return data;
+  } catch (error) {
+    if (error.status === 401 || error.status === 404) {
+      return null;
+    }
+    console.error("Failed to load current user profile", error);
+    throw error;
+  }
+}
+
 window.apiGet = apiGet;
 window.apiPost = apiPost;
 window.getCurrentUser = getCurrentUser;
+window.getCurrentUserProfile = getCurrentUserProfile;
 window.API_BASE = API_BASE;
