@@ -146,44 +146,79 @@
       }
     }
 
-    function calculateEligibleTotal(items, promo) {
-      if (!promo) return 0;
-      return (items || []).reduce((sum, cartItem) => {
-        if (!isItemEligibleForPromo(cartItem, promo)) return sum;
-        const price = Number(cartItem.price) || 0;
-        const qty = Number(cartItem.qty) || 0;
-        return sum + price * qty;
-      }, 0);
-    }
+    function calculateItemSums(items, promo, totalBeforeDiscount, totalAfterDiscount) {
+      const entries = (items || []).map((item) => {
+        const price = Number(item.price) || 0;
+        const qty = Number(item.qty) || 0;
+        const originalSum = price * qty;
+        return {
+          originalSum,
+          discountedSum: null,
+          eligible: Boolean(promo && isItemEligibleForPromo(item, promo)),
+        };
+      });
 
-    function getItemDiscountedSum(item, promo, eligibleTotal, totalDiscountValue) {
-      const price = Number(item.price) || 0;
-      const qty = Number(item.qty) || 0;
-      const originalSum = price * qty;
+      const fallbackTotal = entries.reduce((sum, entry) => sum + entry.originalSum, 0);
+      const baseTotal = Number.isFinite(totalBeforeDiscount) && totalBeforeDiscount > 0 ? totalBeforeDiscount : fallbackTotal;
+      const desiredTotal = promo
+        ? Number.isFinite(totalAfterDiscount) && totalAfterDiscount > 0
+          ? totalAfterDiscount
+          : baseTotal
+        : baseTotal;
 
-      if (!promo || !isItemEligibleForPromo(item, promo)) {
-        return { originalSum, discountedSum: null };
+      if (!promo) {
+        return entries;
       }
 
-      const discountType = promo.discount_type || 'percent';
-      const discountValue = Number(promo.discount_value || 0);
+      const promoDiscountValue = Math.max(Number(promo.discount_amount ?? discountAmount ?? 0) || 0, 0);
+      const discountFromTotals = Math.max(baseTotal - desiredTotal, 0);
+      const totalDiscount = Math.max(promoDiscountValue, discountFromTotals);
 
-      if (discountType === 'percent') {
-        const percent = Math.min(Math.max(discountValue, 0), 100);
-        const discountedSum = Math.max(Math.round(originalSum - (originalSum * percent) / 100), 0);
-        return { originalSum, discountedSum };
+      const eligibleIndexes = entries
+        .map((entry, index) => (entry.eligible && entry.originalSum > 0 ? index : -1))
+        .filter((index) => index >= 0);
+      const eligibleTotal = eligibleIndexes.reduce((sum, index) => sum + entries[index].originalSum, 0);
+
+      if (!totalDiscount || !eligibleIndexes.length || eligibleTotal <= 0) {
+        return entries;
       }
 
-      const safeEligibleTotal = eligibleTotal > 0 ? eligibleTotal : originalSum;
-      const discountPool = Math.max(Number.isFinite(totalDiscountValue) ? totalDiscountValue : 0, 0);
-      const proportionalDiscount = Math.min(discountPool, safeEligibleTotal) * (originalSum / safeEligibleTotal);
-      const discountedSum = Math.max(Math.round(originalSum - proportionalDiscount), 0);
+      const discountPool = Math.min(totalDiscount, eligibleTotal);
+      let distributed = 0;
 
-      if (discountedSum === originalSum) {
-        return { originalSum, discountedSum: null };
+      eligibleIndexes.forEach((index) => {
+        const entry = entries[index];
+        const share = Math.round((entry.originalSum / eligibleTotal) * discountPool);
+        entry.discountedSum = Math.max(entry.originalSum - share, 0);
+        distributed += share;
+      });
+
+      const shareDiff = discountPool - distributed;
+      if (shareDiff !== 0) {
+        const adjustIndex = eligibleIndexes[eligibleIndexes.length - 1];
+        const entry = entries[adjustIndex];
+        const adjusted = Math.max(Math.min((entry.discountedSum ?? entry.originalSum) - shareDiff, entry.originalSum), 0);
+        entry.discountedSum = adjusted;
       }
 
-      return { originalSum, discountedSum };
+      const intermediateTotal = entries.reduce((sum, entry) => sum + (entry.discountedSum ?? entry.originalSum), 0);
+      const totalDiff = desiredTotal - intermediateTotal;
+      if (totalDiff !== 0) {
+        const adjustIndex = eligibleIndexes.length ? eligibleIndexes[eligibleIndexes.length - 1] : entries.length - 1;
+        if (adjustIndex >= 0) {
+          const entry = entries[adjustIndex];
+          const baseValue = entry.discountedSum ?? entry.originalSum;
+          const adjustedValue = Math.max(Math.min(baseValue + totalDiff, entry.originalSum), 0);
+          entry.discountedSum = adjustedValue < entry.originalSum ? adjustedValue : null;
+        }
+      }
+
+      return entries.map((entry) => {
+        if (entry.discountedSum === null || entry.discountedSum === undefined || entry.discountedSum >= entry.originalSum) {
+          return { ...entry, discountedSum: null };
+        }
+        return entry;
+      });
     }
 
     function updateAdminLinkVisibility() {
@@ -221,10 +256,15 @@
       cartPanel.style.display = 'grid';
 
       const activePromo = appliedPromo;
-      const eligibleTotal = activePromo ? calculateEligibleTotal(cart.items, activePromo) : 0;
-      const promoDiscountValue = activePromo ? Number(activePromo.discount_amount ?? discountAmount ?? 0) : 0;
+      const baseTotal = Number(cart.total || 0) || cart.items.reduce((sum, item) => {
+        const price = Number(item.price) || 0;
+        const qty = Number(item.qty) || 0;
+        return sum + price * qty;
+      }, 0);
+      const totalToShow = appliedPromo ? Number(finalTotal || baseTotal) || baseTotal : baseTotal;
+      const itemSums = calculateItemSums(cart.items, activePromo, baseTotal, totalToShow);
 
-      cart.items.forEach((item) => {
+      cart.items.forEach((item, index) => {
         const row = document.createElement('tr');
 
         const nameCell = document.createElement('td');
@@ -257,8 +297,8 @@
         qtyCell.appendChild(controls);
 
         const sumCell = document.createElement('td');
-        const { originalSum, discountedSum } = getItemDiscountedSum(item, activePromo, eligibleTotal, promoDiscountValue);
-        if (discountedSum !== null) {
+        const { originalSum, discountedSum } = itemSums[index];
+        if (discountedSum !== null && discountedSum < originalSum) {
           const originalEl = document.createElement('span');
           originalEl.className = 'price-original';
           originalEl.textContent = formatPrice(originalSum);
@@ -276,8 +316,6 @@
         tbody.appendChild(row);
       });
 
-      const baseTotal = cart.total || 0;
-      const totalToShow = appliedPromo ? finalTotal || baseTotal : baseTotal;
       totalEl.textContent = formatPrice(totalToShow || 0);
       if (appliedPromo) {
         promoInfoEl.style.display = 'flex';
