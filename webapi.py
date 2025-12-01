@@ -561,6 +561,7 @@ class AdminPromocodeCreatePayload(BaseModel):
     max_uses: int | None = None
     date_start: str | None = None
     date_end: str | None = None
+    expires_at: str | None = None
     active: bool | None = None
     one_per_user: bool | None = None
 
@@ -576,6 +577,7 @@ class AdminPromocodeUpdatePayload(BaseModel):
     target_id: int | None = None
     date_start: str | None = None
     date_end: str | None = None
+    expires_at: str | None = None
     one_per_user: bool | None = None
 
 
@@ -1215,9 +1217,12 @@ def admin_create_promocode(payload: AdminPromocodeCreatePayload):
 @app.put("/api/admin/promocodes/{promocode_id}")
 def admin_update_promocode(promocode_id: int, payload: AdminPromocodeUpdatePayload):
     _ensure_admin(payload.user_id)
-    update_data = payload.dict()
-    update_data.pop("user_id", None)
-    updated = promocodes_service.update_promocode(promocode_id, update_data)
+    try:
+        update_data = payload.dict()
+        update_data.pop("user_id", None)
+        updated = promocodes_service.update_promocode(promocode_id, update_data)
+    except ValueError as exc:  # noqa: WPS440
+        raise HTTPException(status_code=400, detail=str(exc))
     if not updated:
         raise HTTPException(status_code=404, detail="Promocode not found")
     return updated
