@@ -39,6 +39,48 @@
       padding: 0 18px 48px;
     }
 
+    #toast-container {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 2000;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: none;
+    }
+
+    .toast {
+      min-width: 260px;
+      max-width: 360px;
+      background: rgba(30, 30, 30, 0.95);
+      color: #fff;
+      padding: 12px 16px;
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+      font-size: 14px;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 0.25s ease, transform 0.25s ease;
+      pointer-events: auto;
+    }
+
+    .toast--visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .toast__title {
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .toast__text {
+      font-size: 13px;
+      opacity: 0.85;
+    }
+
     .top-nav { position: sticky; top: 0; z-index: 1100; background: var(--nav); backdrop-filter: blur(10px); border-bottom: 1px solid rgba(255, 255, 255, 0.06); display: flex; align-items: center; justify-content: space-between; padding: 14px 12px; margin: 0 -18px; }
     .brand { display: flex; flex-direction: column; gap: 2px; font-weight: 800; letter-spacing: -0.02em; }
     .brand span { color: var(--muted); font-size: 13px; font-weight: 600; letter-spacing: normal; }
@@ -122,6 +164,7 @@
   </header>
 
   <div class="app-sidebar-overlay"></div>
+  <div id="toast-container"></div>
 
   <main>
     <h1>Корзина</h1>
@@ -163,7 +206,7 @@
     </div>
   </main>
 
-  <script src="js/api.js?v=20241205"></script>
+  <script src="js/api.js?v=20241210"></script>
   <script>
     const sidebar = document.querySelector('.app-sidebar');
     const overlay = document.querySelector('.app-sidebar-overlay');
@@ -373,7 +416,7 @@
           appliedPromo = null;
           await loadCart();
         } catch (e) {
-          alert('Не удалось обновить количество. Попробуйте ещё раз.');
+          showToast('Не удалось обновить количество. Попробуйте ещё раз.');
         }
         return;
       }
@@ -398,7 +441,7 @@
           appliedPromo = null;
           await loadCart();
         } catch (e) {
-          alert('Не удалось очистить корзину. Попробуйте ещё раз.');
+          showToast('Не удалось очистить корзину. Попробуйте ещё раз.');
         }
         return;
       }
@@ -412,14 +455,16 @@
 
     async function applyPromo() {
       if (!profile?.telegram_id) {
-        alert('Промокод можно применить только после входа через Telegram. Перейдите на главную страницу для авторизации.');
-        window.location.href = '/index.html';
+        showToast('Промокод можно применить после входа через Telegram.');
+        setTimeout(() => {
+          window.location.href = '/index.html';
+        }, 1200);
         return;
       }
 
       const code = (promoInput.value || '').trim();
       if (!code) {
-        alert('Введите промокод');
+        showToast('Введите промокод');
         return;
       }
 
@@ -433,15 +478,17 @@
         appliedPromo = null;
         discountAmount = 0;
         finalTotal = currentCart.total || 0;
-        alert('Промокод не подошёл.');
+        showToast('Промокод не подошёл.');
         renderCart(currentCart);
       }
     }
 
     async function checkout() {
       if (!profile?.telegram_id) {
-        alert('Чтобы оформить заказ и сохранить корзину, войдите через Telegram на главной странице.');
-        window.location.href = '/index.html';
+        showToast('Чтобы оформить заказ и сохранить корзину, войдите через Telegram.');
+        setTimeout(() => {
+          window.location.href = '/index.html';
+        }, 1200);
         return;
       }
 
@@ -451,7 +498,7 @@
       const promocode = appliedPromo || (promoInput.value || '').trim() || null;
 
       if (!customerName || !contact) {
-        alert('Укажите имя и способ связи.');
+        showToast('Укажите имя и способ связи.');
         return;
       }
 
@@ -464,7 +511,7 @@
           comment: comment || null,
           promocode,
         });
-        alert(`Заказ оформлен! Номер заказа: ${result.order_id}. Итог: ${formatPrice(result.total)}`);
+        showToast(`Заказ оформлен! Номер заказа: ${result.order_id}. Итог: ${formatPrice(result.total)}`);
         appliedPromo = null;
         discountAmount = 0;
         finalTotal = 0;
@@ -475,11 +522,13 @@
         await loadCart();
       } catch (e) {
         if (e?.status === 401) {
-          alert('Требуется авторизация через Telegram.');
-          window.location.href = '/index.html';
+          showToast('Требуется авторизация через Telegram.');
+          setTimeout(() => {
+            window.location.href = '/index.html';
+          }, 1200);
           return;
         }
-        alert(e?.message || 'Не удалось оформить заказ. Попробуйте ещё раз.');
+        showToast(e?.message || 'Не удалось оформить заказ. Попробуйте ещё раз.');
       }
     }
 

@@ -170,6 +170,35 @@ async function syncGuestCartToServer(profile) {
   clearGuestCart();
 }
 
+function showToast(message, title = "MiniDeN") {
+  const container = document.getElementById("toast-container");
+  if (!container) return;
+
+  const el = document.createElement("div");
+  el.className = "toast";
+  el.innerHTML = `
+      <div class="toast__title">${title}</div>
+      <div class="toast__text">${message}</div>
+    `;
+
+  container.appendChild(el);
+
+  requestAnimationFrame(() => {
+    el.classList.add("toast--visible");
+  });
+
+  function hide() {
+    el.classList.remove("toast--visible");
+    setTimeout(() => el.remove(), 250);
+  }
+
+  const timeout = setTimeout(hide, 2500);
+  el.addEventListener("click", () => {
+    clearTimeout(timeout);
+    hide();
+  });
+}
+
 window.apiGet = apiGet;
 window.apiPost = apiPost;
 window.getCurrentUser = getCurrentUser;
@@ -179,4 +208,5 @@ window.saveGuestCart = saveGuestCart;
 window.addToGuestCart = addToGuestCart;
 window.clearGuestCart = clearGuestCart;
 window.syncGuestCartToServer = syncGuestCartToServer;
+window.showToast = showToast;
 window.API_BASE = API_BASE;
