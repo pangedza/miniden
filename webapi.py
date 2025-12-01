@@ -652,6 +652,9 @@ def api_cart(user_id: int):
 @app.post("/api/checkout")
 def api_checkout(payload: CheckoutPayload):
     """Оформить заказ из текущей корзины WebApp."""
+    if payload.user_id is None or not users_service.get_user_by_telegram_id(int(payload.user_id)):
+        raise HTTPException(status_code=401, detail="Требуется авторизация")
+
     items, removed_ids = cart_service.get_cart_items(payload.user_id)
 
     if not items:

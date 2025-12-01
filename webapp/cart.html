@@ -85,7 +85,7 @@
       <a href="masterclasses.html">Мастер-классы</a>
       <a href="cart.html" class="active">Корзина</a>
       <a href="profile.html">Профиль</a>
-      <a href="admin.html" id="admin-link">Админка</a>
+      <a href="admin.html" id="admin-link" style="display:none;">Админка</a>
     </nav>
   </header>
 
@@ -129,12 +129,6 @@
     </div>
   </main>
 
-  <section class="section" id="unauthorized" style="display:none; text-align:center;">
-    <h2>Вы не авторизованы</h2>
-    <p>Вы не авторизованы. Войдите через Telegram. После входа откройте <a href="index.html">главную страницу</a> и вернитесь сюда.</p>
-    <a class="btn" href="/index.html">Войти через Telegram</a>
-  </section>
-
   <script src="js/api.js"></script>
   <script>
     const toggle = document.querySelector('.menu-toggle');
@@ -150,13 +144,12 @@
     const applyPromoBtn = document.getElementById('apply-promo');
     const clearBtn = document.getElementById('clear-cart');
     const checkoutBtn = document.getElementById('checkout');
-    const unauthorizedBlock = document.getElementById('unauthorized');
     const cartPanel = document.getElementById('cart-panel');
     const nameInput = document.getElementById('customer-name');
     const contactInput = document.getElementById('customer-contact');
     const commentInput = document.getElementById('customer-comment');
 
-    let currentUser = null;
+    let profile = null;
     const isTelegramWebApp = Boolean(window.Telegram?.WebApp);
     if (isTelegramWebApp && window.Telegram?.WebApp?.ready) {
       window.Telegram.WebApp.ready();
@@ -166,28 +159,9 @@
     let discountAmount = 0;
     let finalTotal = 0;
 
-    function showUnauthorized(message) {
-      tbody.innerHTML = '';
-      if (noteEl) noteEl.textContent = message || '';
-      if (unauthorizedBlock) unauthorizedBlock.style.display = 'block';
-      if (cartPanel) cartPanel.style.display = 'none';
-    }
-
-    async function loadCurrentUser() {
-      try {
-        const profile = await getCurrentUserProfile();
-        if (!profile) return null;
-        return profile?.ok === false ? null : profile;
-      } catch (e) {
-        if (e?.status === 401 || e?.status === 404) return null;
-        console.error('Не удалось получить пользователя', e);
-        return null;
-      }
-    }
-
     function updateAdminLinkVisibility() {
       if (!adminLink) return;
-      adminLink.style.display = currentUser?.is_admin ? '' : 'none';
+      adminLink.style.display = profile?.is_admin ? '' : 'none';
     }
 
     function formatPrice(value) {
@@ -271,16 +245,11 @@
       }
     }
 
-    async function loadCart() {
-      if (!currentUser) {
-        showUnauthorized('Вы не авторизованы. Войдите через Telegram.');
-        renderEmpty('Нет данных — пользователь не авторизован');
-        return;
-      }
-
+    async function loadCartFromServer() {
       try {
         noteEl.textContent = '';
-        const cart = await apiGet('/cart', { user_id: currentUser.telegram_id });
+        await syncGuestCartToServer(profile);
+        const cart = await apiGet('/cart', { user_id: profile.telegram_id });
         renderCart(cart);
       } catch (e) {
         noteEl.textContent = 'Не удалось загрузить корзину. Попробуйте обновить страницу.';
@@ -288,32 +257,105 @@
       }
     }
 
-    async function updateQty(productId, qty, type) {
-      if (!currentUser) return;
-
-      try {
-        await apiPost('/cart/update', { user_id: currentUser.telegram_id, product_id: productId, qty, type: type || 'basket' });
-        appliedPromo = null;
-        await loadCart();
-      } catch (e) {
-        alert('Не удалось обновить количество. Попробуйте ещё раз.');
+    async function loadGuestCartView() {
+      const items = loadGuestCart();
+      if (!items.length) {
+        noteEl.textContent = 'Чтобы оформить заказ и сохранить корзину, войдите через Telegram на главной странице.';
+        renderEmpty('Корзина пуста. Добавьте товары на страницах каталога.');
+        return;
       }
+
+      const types = Array.from(new Set(items.map((item) => item.type || 'basket')));
+      const productMaps = {};
+
+      for (const type of types) {
+        try {
+          const products = await apiGet('/products', { type });
+          productMaps[type] = Object.fromEntries(products.map((p) => [Number(p.id), p]));
+        } catch (e) {
+          productMaps[type] = {};
+        }
+      }
+
+      const enriched = items.map((item) => {
+        const map = productMaps[item.type || 'basket'] || {};
+        const product = map[Number(item.product_id)] || {};
+        const price = Number(product.price || 0);
+        return {
+          product_id: item.product_id,
+          type: item.type || 'basket',
+          qty: item.qty || 1,
+          name: product.name || `Товар #${item.product_id}`,
+          price,
+        };
+      });
+
+      const total = enriched.reduce((acc, item) => acc + (Number(item.price) || 0) * (Number(item.qty) || 0), 0);
+      currentCart = { items: enriched, total };
+      cartPanel.style.display = 'grid';
+      appliedPromo = null;
+      discountAmount = 0;
+      finalTotal = total;
+      noteEl.textContent = 'Для оформления заказа войдите через Telegram. После входа корзина сохранится.';
+      renderCart(currentCart);
+    }
+
+    async function loadCart() {
+      if (profile?.telegram_id) {
+        await loadCartFromServer();
+      } else {
+        await loadGuestCartView();
+      }
+    }
+
+    async function updateQty(productId, qty, type) {
+      if (profile?.telegram_id) {
+        try {
+          await apiPost('/cart/update', { user_id: profile.telegram_id, product_id: productId, qty, type: type || 'basket' });
+          appliedPromo = null;
+          await loadCart();
+        } catch (e) {
+          alert('Не удалось обновить количество. Попробуйте ещё раз.');
+        }
+        return;
+      }
+
+      const items = loadGuestCart();
+      const updated = items
+        .map((item) => {
+          if (item.product_id === productId && item.type === type) {
+            return { ...item, qty };
+          }
+          return item;
+        })
+        .filter((item) => (item.product_id === productId && item.type === type ? qty > 0 : true));
+      saveGuestCart(updated);
+      await loadGuestCartView();
     }
 
     async function clearCart() {
-      if (!currentUser) return;
-      try {
-        await apiPost('/cart/clear', { user_id: currentUser.telegram_id });
-        appliedPromo = null;
-        await loadCart();
-      } catch (e) {
-        alert('Не удалось очистить корзину. Попробуйте ещё раз.');
+      if (profile?.telegram_id) {
+        try {
+          await apiPost('/cart/clear', { user_id: profile.telegram_id });
+          appliedPromo = null;
+          await loadCart();
+        } catch (e) {
+          alert('Не удалось очистить корзину. Попробуйте ещё раз.');
+        }
+        return;
       }
+
+      clearGuestCart();
+      appliedPromo = null;
+      discountAmount = 0;
+      finalTotal = 0;
+      await loadGuestCartView();
     }
 
     async function applyPromo() {
-      if (!currentUser) {
-        alert('Промокод можно применить только после входа через Telegram.');
+      if (!profile?.telegram_id) {
+        alert('Промокод можно применить только после входа через Telegram. Перейдите на главную страницу для авторизации.');
+        window.location.href = '/index.html';
         return;
       }
 
@@ -324,7 +366,7 @@
       }
 
       try {
-        const result = await apiPost('/promocode/validate', { telegram_id: currentUser.telegram_id, code, total: currentCart.total || 0 });
+        const result = await apiPost('/promocode/validate', { telegram_id: profile.telegram_id, code, total: currentCart.total || 0 });
         appliedPromo = result.code;
         discountAmount = result.discount_amount || 0;
         finalTotal = result.final_total || currentCart.total || 0;
@@ -339,8 +381,9 @@
     }
 
     async function checkout() {
-      if (!currentUser) {
-        alert('Авторизуйтесь через Telegram, чтобы оформить заказ.');
+      if (!profile?.telegram_id) {
+        alert('Чтобы оформить заказ и сохранить корзину, войдите через Telegram на главной странице.');
+        window.location.href = '/index.html';
         return;
       }
 
@@ -356,8 +399,8 @@
 
       try {
         const result = await apiPost('/checkout', {
-          user_id: currentUser.telegram_id,
-          user_name: currentUser.telegram_username,
+          user_id: profile.telegram_id,
+          user_name: profile.telegram_username,
           customer_name: customerName,
           contact,
           comment: comment || null,
@@ -373,6 +416,11 @@
         commentInput.value = '';
         await loadCart();
       } catch (e) {
+        if (e?.status === 401) {
+          alert('Требуется авторизация через Telegram.');
+          window.location.href = '/index.html';
+          return;
+        }
         alert(e?.message || 'Не удалось оформить заказ. Попробуйте ещё раз.');
       }
     }
@@ -383,15 +431,8 @@
 
     async function initApp() {
       try {
-        currentUser = await loadCurrentUser();
+        profile = await getCurrentUserProfile();
         updateAdminLinkVisibility();
-        if (!currentUser) {
-          showUnauthorized('Вы не авторизованы. Войдите через Telegram.');
-          return;
-        }
-        if (unauthorizedBlock) {
-          unauthorizedBlock.style.display = 'none';
-        }
         await loadCart();
       } catch (e) {
         console.error(e);
