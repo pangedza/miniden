@@ -718,7 +718,7 @@ def update_avatar_url(payload: AvatarUpdatePayload, request: Request):
 
 
 @app.post("/api/profile/avatar")
-def upload_avatar(file: UploadFile = File(...), request: Request | None = None):
+def upload_avatar(request: Request, file: UploadFile = File(...)) -> dict:
     """Загрузка файла аватара текущего пользователя."""
 
     if file.content_type not in ("image/jpeg", "image/png", "image/webp"):
