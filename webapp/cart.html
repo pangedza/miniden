@@ -360,6 +360,51 @@
       renderCart(currentCart);
     }
 
+    async function loadUserProfile() {
+      try {
+        profile = await getCurrentUserProfile();
+        updateAdminLinkVisibility();
+        if (profile?.full_name && nameInput && !nameInput.value) {
+          nameInput.value = profile.full_name;
+        }
+        const contactValue = profile?.phone || (profile?.telegram_username ? `@${profile.telegram_username}` : '');
+        if (contactValue && contactInput && !contactInput.value) {
+          contactInput.value = contactValue;
+        }
+      } catch (e) {
+        console.error('Failed to load profile', e);
+        profile = null;
+      }
+    }
+
+    async function updateProfileIfNeeded(customerName, contact) {
+      if (!profile?.telegram_id) return;
+
+      const updates = {};
+      if (!profile.full_name && customerName) {
+        updates.full_name = customerName;
+      }
+      if (!profile.phone && contact) {
+        updates.phone = contact;
+      }
+
+      if (!Object.keys(updates).length) return;
+
+      try {
+        const res = await fetch('/api/profile/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updates),
+        });
+        const data = await res.json();
+        if (data?.ok && data.user) {
+          profile = data.user;
+        }
+      } catch (e) {
+        console.error('Failed to update profile before checkout', e);
+      }
+    }
+
     async function checkout() {
       if (!profile?.telegram_id) {
         showToast('Чтобы оформить заказ и сохранить корзину, войдите через Telegram.');
@@ -380,6 +425,7 @@
       }
 
       try {
+        await updateProfileIfNeeded(customerName, contact);
         const result = await apiPost('/checkout', {
           user_id: profile.telegram_id,
           user_name: profile.telegram_username,
@@ -415,14 +461,7 @@
     checkoutBtn.addEventListener('click', checkout);
 
     async function initCartPage() {
-      try {
-        profile = await getCurrentUserProfile();
-      } catch (e) {
-        console.error(e);
-        profile = null;
-      }
-
-      updateAdminLinkVisibility();
+      await loadUserProfile();
       await loadCart();
     }
 
