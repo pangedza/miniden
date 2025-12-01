@@ -64,6 +64,20 @@ BOT_TOKEN = SETTINGS.bot_token
 AUTH_SESSION_TTL_SECONDS = 600
 COOKIE_MAX_AGE = 30 * 24 * 60 * 60
 MEDIA_ROOT = Path("/opt/miniden/media")
+REQUIRED_DIRS = [
+    MEDIA_ROOT,
+    MEDIA_ROOT / "users",
+    MEDIA_ROOT / "products",
+    MEDIA_ROOT / "courses",
+    MEDIA_ROOT / "tmp",
+    MEDIA_ROOT / "tmp/products",
+    MEDIA_ROOT / "tmp/courses",
+]
+
+
+def ensure_media_dirs() -> None:
+    for d in REQUIRED_DIRS:
+        d.mkdir(parents=True, exist_ok=True)
 
 
 class AdminImageKind(str, Enum):
@@ -72,7 +86,8 @@ class AdminImageKind(str, Enum):
 
 
 @app.on_event("startup")
-def _startup() -> None:
+def startup_event() -> None:
+    ensure_media_dirs()
     init_db()
 
 
@@ -658,6 +673,7 @@ def update_avatar_url(payload: AvatarUpdatePayload, request: Request):
     Фактический файл аватара должен быть уже размещён владельцем проекта на сервере
     по указанному пути (например, /media/users/<telegram_id>/avatar.jpg).
     """
+    ensure_media_dirs()
     with get_session() as session:
         user = _get_current_user_from_cookie(session, request)
         if not user:
@@ -989,7 +1005,7 @@ def admin_upload_image(
 
     base_folder = "products" if kind == AdminImageKind.product else "courses"
     target_dir = MEDIA_ROOT / base_folder
-    target_dir.mkdir(parents=True, exist_ok=True)
+    ensure_media_dirs()
 
     ext = (file.filename or "jpg").split(".")[-1].lower()
     if ext not in ("jpg", "jpeg", "png", "webp"):
