@@ -22,6 +22,11 @@
 
     * { box-sizing: border-box; }
 
+    html,
+    body {
+      overflow-x: hidden;
+    }
+
     body {
       margin: 0;
       font-family: "Inter", system-ui, -apple-system, sans-serif;
@@ -52,41 +57,24 @@
     .nav-links { display: flex; gap: 12px; align-items: flex-start; flex-direction: column; padding: 0 0 8px; margin: 0; }
 
     .app-sidebar {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 260px;
-      height: 100vh;
-      padding: 78px 18px 24px;
-      background: var(--nav);
+      position: static;
+      width: auto;
+      height: auto;
+      padding: 0;
+      background: transparent;
       display: flex;
       flex-direction: column;
       gap: 8px;
-      transform: translateX(-100%);
-      transition: transform 0.25s ease;
-      z-index: 1050;
-      box-shadow: 12px 0 30px rgba(0, 0, 0, 0.4);
+      transform: none;
+      box-shadow: none;
     }
-
-    .app-sidebar.app-sidebar--open { transform: translateX(0); }
 
     .app-sidebar a { color: var(--muted); text-decoration: none; font-weight: 600; padding: 10px 12px; border-radius: 12px; transition: background 0.15s ease, color 0.15s ease; display: block; }
     .app-sidebar a:hover { color: var(--text); background: rgba(255, 255, 255, 0.06); }
     .app-sidebar a.active { color: var(--text); background: linear-gradient(135deg, rgba(255, 184, 0, 0.18), rgba(123, 216, 255, 0.14)); }
 
     .app-sidebar-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.4);
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.2s ease;
-      z-index: 1000;
-    }
-
-    .app-sidebar-overlay.is-visible {
-      opacity: 1;
-      pointer-events: all;
+      display: none;
     }
 
     .menu-toggle { display: inline-flex; background: transparent; border: 1px solid rgba(255, 255, 255, 0.12); color: var(--text); border-radius: 12px; padding: 10px 12px; cursor: pointer; }
@@ -137,12 +125,46 @@
       .catalog-grid { grid-template-columns: 1fr; }
     }
 
-    @media (min-width: 1024px) {
-      .app-sidebar { position: static; transform: none; height: auto; padding: 0; box-shadow: none; flex-direction: row; align-items: center; background: transparent; gap: 12px; }
+    @media (max-width: 1024px) {
+      .app-sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 260px;
+        height: 100vh;
+        padding: 78px 18px 24px;
+        background: var(--nav);
+        transform: translateX(-100%);
+        transition: transform 0.25s ease;
+        z-index: 1050;
+        box-shadow: 12px 0 30px rgba(0, 0, 0, 0.4);
+      }
+
+      .app-sidebar.app-sidebar--open { transform: translateX(0); }
+
+      .app-sidebar-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.4);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s ease;
+        z-index: 1000;
+        display: block;
+      }
+
+      .app-sidebar-overlay.is-visible {
+        opacity: 1;
+        pointer-events: all;
+      }
+    }
+
+    @media (min-width: 1025px) {
+      .app-sidebar { position: static; transform: none; height: auto; width: auto; padding: 0; box-shadow: none; flex-direction: row; align-items: center; background: transparent; gap: 12px; }
 
       .nav-links { flex-direction: row; align-items: center; padding: 0; }
 
-      .app-sidebar-overlay { display: none; }
+      .app-sidebar-overlay { display: none !important; }
 
       .menu-toggle { display: none; }
     }
