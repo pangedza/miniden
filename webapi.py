@@ -8,11 +8,23 @@ import hmac
 import json
 import time
 from datetime import datetime, timedelta
+from enum import Enum
+from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qsl
 from uuid import uuid4
 
-from fastapi import Cookie, FastAPI, HTTPException, Request, Response
+from fastapi import (
+    Cookie,
+    Depends,
+    FastAPI,
+    File,
+    Form,
+    HTTPException,
+    Request,
+    Response,
+    UploadFile,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field
@@ -51,6 +63,12 @@ SETTINGS = get_settings()
 BOT_TOKEN = SETTINGS.bot_token
 AUTH_SESSION_TTL_SECONDS = 600
 COOKIE_MAX_AGE = 30 * 24 * 60 * 60
+MEDIA_ROOT = Path("/opt/miniden/media")
+
+
+class AdminImageKind(str, Enum):
+    product = "product"
+    course = "course"
 
 
 @app.on_event("startup")
@@ -267,6 +285,14 @@ def _get_current_user_from_cookie(session: Session, request: Request) -> User | 
     return session.query(User).filter(User.telegram_id == telegram_id).first()
 
 
+def get_admin_user(request: Request) -> User:
+    with get_session() as session:
+        user = _get_current_user_from_cookie(session, request)
+        if not user or not getattr(user, "is_admin", False):
+            raise HTTPException(status_code=403, detail="Forbidden")
+        return user
+
+
 def _product_by_type(product_type: str, product_id: int, *, include_inactive: bool = False):
     if product_type == "basket":
         return products_service.get_basket_by_id(product_id, include_inactive=include_inactive)
@@ -472,6 +498,7 @@ class AdminProductsCreatePayload(BaseModel):
     detail_url: str | None = None
     category_id: int | None = None
     image: str | None = None
+    image_url: str | None = None
     wb_url: str | None = None
     ozon_url: str | None = None
     yandex_url: str | None = None
@@ -489,6 +516,7 @@ class AdminProductsUpdatePayload(BaseModel):
     category_id: int | None = None
     is_active: bool | None = None
     image: str | None = None
+    image_url: str | None = None
     wb_url: str | None = None
     ozon_url: str | None = None
     yandex_url: str | None = None
@@ -941,6 +969,45 @@ def healthcheck():
 
 
 # ----------------------------
+# Admin uploads
+# ----------------------------
+
+
+@app.post("/api/admin/upload-image")
+def admin_upload_image(
+    kind: AdminImageKind = Form(...),
+    file: UploadFile = File(...),
+    admin_user=Depends(get_admin_user),
+):
+    """
+    Загрузка изображения для товара/курса из админки.
+    Сохраняет файл в файловой системе и возвращает URL, который потом пишется в image_url.
+    """
+
+    if file.content_type not in ("image/jpeg", "image/png", "image/webp"):
+        raise HTTPException(status_code=400, detail="Неверный формат изображения")
+
+    base_folder = "products" if kind == AdminImageKind.product else "courses"
+    target_dir = MEDIA_ROOT / base_folder
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    ext = (file.filename or "jpg").split(".")[-1].lower()
+    if ext not in ("jpg", "jpeg", "png", "webp"):
+        ext = "jpg"
+
+    filename = f"{uuid4().hex}.{ext}"
+    full_path = target_dir / filename
+
+    with full_path.open("wb") as f:
+        f.write(file.file.read())
+
+    relative = full_path.relative_to(MEDIA_ROOT).as_posix()
+    url = f"/media/{relative}"
+
+    return {"ok": True, "url": url}
+
+
+# ----------------------------
 # Admin endpoints
 # ----------------------------
 
@@ -966,6 +1033,7 @@ def admin_create_product(payload: AdminProductsCreatePayload):
         payload.detail_url,
         payload.category_id,
         image=payload.image,
+        image_url=payload.image_url,
         wb_url=payload.wb_url,
         ozon_url=payload.ozon_url,
         yandex_url=payload.yandex_url,
@@ -989,6 +1057,7 @@ def admin_update_product(product_id: int, payload: AdminProductsUpdatePayload):
         payload.category_id,
         payload.is_active,
         image=payload.image,
+        image_url=payload.image_url,
         wb_url=payload.wb_url,
         ozon_url=payload.ozon_url,
         yandex_url=payload.yandex_url,

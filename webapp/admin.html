@@ -117,6 +117,22 @@
     .pill { padding: 6px 10px; border-radius: 999px; font-size: 12px; border: 1px solid var(--border); color: var(--muted); }
     .pill.active { background: rgba(123, 216, 255, 0.12); color: var(--text); }
 
+    .image-preview-box {
+      width: 200px;
+      height: 200px;
+      border-radius: 16px;
+      border: 1px dashed #ccc;
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      background-color: #f3f3f3;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      color: #888;
+    }
+
     @media (max-width: 1024px) {
       .layout { grid-template-columns: 1fr; }
       aside { position: relative; height: auto; }
@@ -238,8 +254,17 @@
               <input type="text" name="name" required />
               <label>Цена</label>
               <input type="number" name="price" min="0" required />
-              <label>Ссылка на фото</label>
-              <input type="text" name="image" />
+              <div class="form-group">
+                <label>Фото товара</label>
+                <input type="file" id="product-image-file-input" accept="image/*">
+              </div>
+              <div class="form-group">
+                <label>URL изображения (image_url)</label>
+                <input type="text" id="product-image-url-input" name="image_url" placeholder="/media/products/xxx.jpg">
+              </div>
+              <div class="form-group">
+                <div id="product-image-preview" class="image-preview-box">Нет изображения</div>
+              </div>
               <label>Описание</label>
               <textarea name="description"></textarea>
               <label>Ссылка на Wildberries</label>
@@ -306,8 +331,17 @@
               <input type="text" name="name" required />
               <label>Цена (0 — бесплатно)</label>
               <input type="number" name="price" min="0" required />
-              <label>Ссылка на обложку</label>
-              <input type="text" name="image" />
+              <div class="form-group">
+                <label>Фото курса</label>
+                <input type="file" id="course-image-file-input" accept="image/*">
+              </div>
+              <div class="form-group">
+                <label>URL изображения (image_url)</label>
+                <input type="text" id="course-image-url-input" name="image_url" placeholder="/media/courses/xxx.jpg">
+              </div>
+              <div class="form-group">
+                <div id="course-image-preview" class="image-preview-box">Нет изображения</div>
+              </div>
               <label>Описание</label>
               <textarea name="description"></textarea>
               <label>Ссылка на мастер-класс</label>
@@ -352,7 +386,7 @@
     </main>
   </div>
 
-  <script src="js/api.js?v=20241201"></script>
+  <script src="js/api.js?v=20241202"></script>
   <script>
     const statusBox = document.getElementById('status');
     const accessDenied = document.getElementById('access-denied');
@@ -377,6 +411,12 @@
     const coursesStatusFilter = document.getElementById('courses-status');
     const productsTable = document.getElementById('products-table');
     const coursesTable = document.getElementById('courses-table');
+    const productImageFileInput = document.getElementById('product-image-file-input');
+    const productImageUrlInput = document.getElementById('product-image-url-input');
+    const productImagePreview = document.getElementById('product-image-preview');
+    const courseImageFileInput = document.getElementById('course-image-file-input');
+    const courseImageUrlInput = document.getElementById('course-image-url-input');
+    const courseImagePreview = document.getElementById('course-image-preview');
 
     const productForm = document.getElementById('product-form');
     const courseForm = document.getElementById('course-form');
@@ -567,6 +607,78 @@
       return payload;
     }
 
+    function setProductImagePreview(url) {
+      if (!productImagePreview) return;
+      if (url) {
+        productImagePreview.style.backgroundImage = `url(${url})`;
+        productImagePreview.textContent = '';
+      } else {
+        productImagePreview.style.backgroundImage = '';
+        productImagePreview.textContent = 'Нет изображения';
+      }
+    }
+
+    function setCourseImagePreview(url) {
+      if (!courseImagePreview) return;
+      if (url) {
+        courseImagePreview.style.backgroundImage = `url(${url})`;
+        courseImagePreview.textContent = '';
+      } else {
+        courseImagePreview.style.backgroundImage = '';
+        courseImagePreview.textContent = 'Нет изображения';
+      }
+    }
+
+    function resetProductImageInputs() {
+      if (productImageFileInput) productImageFileInput.value = '';
+      if (productImageUrlInput) productImageUrlInput.value = '';
+      setProductImagePreview('');
+    }
+
+    function resetCourseImageInputs() {
+      if (courseImageFileInput) courseImageFileInput.value = '';
+      if (courseImageUrlInput) courseImageUrlInput.value = '';
+      setCourseImagePreview('');
+    }
+
+    async function uploadProductImageFile() {
+      const file = productImageFileInput?.files?.[0];
+      if (!file) return;
+
+      const formData = new FormData();
+      formData.append('kind', 'product');
+      formData.append('file', file);
+
+      const res = await fetch('/api/admin/upload-image', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (!data.ok) {
+        alert('Ошибка загрузки изображения');
+        return;
+      }
+
+      if (productImageUrlInput) productImageUrlInput.value = data.url;
+      setProductImagePreview(data.url);
+    }
+
+    async function uploadCourseImageFile() {
+      const file = courseImageFileInput?.files?.[0];
+      if (!file) return;
+
+      const formData = new FormData();
+      formData.append('kind', 'course');
+      formData.append('file', file);
+
+      const res = await fetch('/api/admin/upload-image', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (!data.ok) {
+        alert('Ошибка загрузки изображения');
+        return;
+      }
+
+      if (courseImageUrlInput) courseImageUrlInput.value = data.url;
+      setCourseImagePreview(data.url);
+    }
+
     function renderProductTable(items, targetTable, type) {
       targetTable.innerHTML = '';
       if (!items || !items.length) {
@@ -601,11 +713,12 @@
           if (type === 'basket') {
             editingProductId = item.id;
             productFormTitle.textContent = `Редактировать товар #${item.id}`;
+            const productImageUrl = item.image_url || item.image || '';
             fillForm(productForm, {
               category_id: item.category_id ?? '',
               name: item.name,
               price: item.price,
-              image: item.image,
+              image_url: productImageUrl,
               description: item.description,
               wb_url: item.wb_url,
               ozon_url: item.ozon_url,
@@ -614,18 +727,23 @@
               masterclass_url: item.masterclass_url,
               detail_url: item.detail_url,
             });
+            if (productImageUrlInput) productImageUrlInput.value = productImageUrl || '';
+            setProductImagePreview(productImageUrl);
           } else {
             editingCourseId = item.id;
             courseFormTitle.textContent = `Редактировать мастер-класс #${item.id}`;
+            const courseImageUrl = item.image_url || item.image || '';
             fillForm(courseForm, {
               category_id: item.category_id ?? '',
               name: item.name,
               price: item.price,
-              image: item.image,
+              image_url: courseImageUrl,
               description: item.description,
               masterclass_url: item.masterclass_url,
               detail_url: item.detail_url,
             });
+            if (courseImageUrlInput) courseImageUrlInput.value = courseImageUrl || '';
+            setCourseImagePreview(courseImageUrl);
           }
         });
         toggleBtn.addEventListener('click', async () => {
@@ -687,6 +805,7 @@
       payload.user_id = currentUser.telegram_id;
       payload.type = 'basket';
       payload.price = payload.price ? Number(payload.price) : 0;
+      payload.image_url = productImageUrlInput?.value.trim() || null;
 
       try {
         if (editingProductId) {
@@ -702,6 +821,7 @@
         editingProductId = null;
         productFormTitle.textContent = 'Создать товар';
         productForm.reset();
+        resetProductImageInputs();
         await loadProducts();
       } catch (e) {
         console.error(e);
@@ -716,6 +836,7 @@
       payload.user_id = currentUser.telegram_id;
       payload.type = 'course';
       payload.price = payload.price ? Number(payload.price) : 0;
+      payload.image_url = courseImageUrlInput?.value.trim() || null;
 
       try {
         if (editingCourseId) {
@@ -731,6 +852,7 @@
         editingCourseId = null;
         courseFormTitle.textContent = 'Создать мастер-класс';
         courseForm.reset();
+        resetCourseImageInputs();
         await loadCourses();
       } catch (e) {
         console.error(e);
@@ -744,22 +866,31 @@
       editingProductId = null;
       productFormTitle.textContent = 'Создать товар';
       productForm.reset();
+      resetProductImageInputs();
     });
     courseCancel.addEventListener('click', () => {
       editingCourseId = null;
       courseFormTitle.textContent = 'Создать мастер-класс';
       courseForm.reset();
+      resetCourseImageInputs();
     });
     productReset.addEventListener('click', () => {
       editingProductId = null;
       productFormTitle.textContent = 'Создать товар';
       productForm.reset();
+      resetProductImageInputs();
     });
     courseReset.addEventListener('click', () => {
       editingCourseId = null;
       courseFormTitle.textContent = 'Создать мастер-класс';
       courseForm.reset();
+      resetCourseImageInputs();
     });
+
+    productImageFileInput?.addEventListener('change', uploadProductImageFile);
+    courseImageFileInput?.addEventListener('change', uploadCourseImageFile);
+    productImageUrlInput?.addEventListener('input', () => setProductImagePreview(productImageUrlInput.value.trim()));
+    courseImageUrlInput?.addEventListener('input', () => setCourseImagePreview(courseImageUrlInput.value.trim()));
 
     productsStatusFilter.addEventListener('change', loadProducts);
     coursesStatusFilter.addEventListener('change', loadCourses);
