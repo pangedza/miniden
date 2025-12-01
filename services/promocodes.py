@@ -29,6 +29,39 @@ def _parse_date(value: Any) -> datetime | None:
         raise ValueError("date_start/date_end must be ISO8601 datetime")
 
 
+def _parse_expires_at(value: Any) -> datetime | None:
+    if not value:
+        return None
+
+    if isinstance(value, datetime):
+        return value
+
+    if isinstance(value, str):
+        value = value.strip()
+        if not value:
+            return None
+
+        formats = [
+            "%Y-%m-%d %H:%M",
+            "%Y-%m-%dT%H:%M",
+            "%d.%m.%Y %H:%M",
+        ]
+        for fmt in formats:
+            try:
+                return datetime.strptime(value, fmt)
+            except ValueError:
+                continue
+
+        try:
+            return datetime.fromisoformat(value)
+        except ValueError:
+            pass
+
+        raise ValueError("expires_at has invalid format")
+
+    raise ValueError("expires_at has invalid type")
+
+
 def _serialize(promo: PromoCode) -> dict[str, Any]:
     return {
         "id": promo.id,
@@ -39,6 +72,7 @@ def _serialize(promo: PromoCode) -> dict[str, Any]:
         "target_id": promo.target_id,
         "date_start": promo.date_start.isoformat() if promo.date_start else None,
         "date_end": promo.date_end.isoformat() if promo.date_end else None,
+        "expires_at": promo.expires_at.isoformat() if promo.expires_at else None,
         "active": bool(promo.active),
         "max_uses": promo.max_uses,
         "used_count": promo.used_count,
@@ -62,6 +96,8 @@ def _apply_updates(promo: PromoCode, data: dict[str, Any]) -> PromoCode:
         promo.date_start = _parse_date(data.get("date_start"))
     if "date_end" in data:
         promo.date_end = _parse_date(data.get("date_end"))
+    if "expires_at" in data:
+        promo.expires_at = _parse_expires_at(data["expires_at"])
     if "active" in data and data["active"] is not None:
         promo.active = bool(data["active"])
     if "max_uses" in data:
@@ -102,6 +138,7 @@ def _validate_payload(data: dict[str, Any]) -> dict[str, Any]:
 
     date_start = _parse_date(data.get("date_start"))
     date_end = _parse_date(data.get("date_end"))
+    expires_at = _parse_expires_at(data.get("expires_at"))
     if date_start and date_end and date_start > date_end:
         raise ValueError("date_start must be before date_end")
 
@@ -113,6 +150,7 @@ def _validate_payload(data: dict[str, Any]) -> dict[str, Any]:
         "target_id": target_id,
         "date_start": date_start,
         "date_end": date_end,
+        "expires_at": expires_at,
         "active": bool(data.get("active", True)),
         "max_uses": int(data.get("max_uses")) if data.get("max_uses") is not None else None,
         "used_count": int(data.get("used_count", 0) or 0),

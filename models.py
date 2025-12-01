@@ -194,6 +194,7 @@ class PromoCode(Base):
     target_id = Column(Integer, nullable=True)
     date_start = Column(DateTime, nullable=True)
     date_end = Column(DateTime, nullable=True)
+    expires_at = Column(DateTime, nullable=True)
     active = Column(Boolean, default=True, nullable=False)
     max_uses = Column(Integer, nullable=True)
     used_count = Column(Integer, default=0, nullable=False)
