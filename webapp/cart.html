@@ -121,6 +121,7 @@
 
     .total-card { background: var(--card); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 16px; box-shadow: var(--shadow); margin-top: 18px; display: grid; gap: 10px; }
     .total-row { display: flex; justify-content: space-between; font-weight: 800; font-size: 18px; }
+    .promo-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 0; }
     .input-row { display: flex; gap: 10px; flex-wrap: wrap; }
     input[type="text"], textarea { flex: 1; min-width: 180px; padding: 12px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.12); background: rgba(255, 255, 255, 0.06); color: var(--text); }
     textarea { min-height: 80px; resize: vertical; }
@@ -187,7 +188,16 @@
 
     <div class="total-card" id="cart-panel" style="display:none;">
       <div class="total-row"><span>Итого</span><span id="cart-total">0 ₽</span></div>
-      <div class="total-row" id="promo-info" style="display:none; color: var(--muted); font-weight:600;"></div>
+      <div class="promo-row" id="promo-info" style="display:none; color: var(--muted); font-weight:600;">
+        <div>
+          <div id="promo-label"></div>
+          <div id="promo-scope" style="font-size:13px; color: var(--muted);"></div>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+          <strong id="promo-discount" style="color: var(--accent);"></strong>
+          <button class="btn secondary" type="button" id="remove-promo">Удалить промокод</button>
+        </div>
+      </div>
       <div class="input-row">
         <input type="text" placeholder="Промокод" id="promo-code" />
         <button class="btn secondary" type="button" id="apply-promo">Применить</button>
@@ -206,7 +216,7 @@
     </div>
   </main>
 
-  <script src="js/api.js?v=20241210"></script>
+  <script src="js/api.js?v=20241215"></script>
   <script>
     const sidebar = document.querySelector('.app-sidebar');
     const overlay = document.querySelector('.app-sidebar-overlay');
@@ -241,6 +251,10 @@
     const tbody = document.getElementById('cart-body');
     const totalEl = document.getElementById('cart-total');
     const promoInfoEl = document.getElementById('promo-info');
+    const promoLabelEl = document.getElementById('promo-label');
+    const promoScopeEl = document.getElementById('promo-scope');
+    const promoDiscountEl = document.getElementById('promo-discount');
+    const removePromoBtn = document.getElementById('remove-promo');
     const promoInput = document.getElementById('promo-code');
     const applyPromoBtn = document.getElementById('apply-promo');
     const clearBtn = document.getElementById('clear-cart');
@@ -326,21 +340,26 @@
         controls.append(minus, qty, plus);
         qtyCell.appendChild(controls);
 
-        const sumCell = document.createElement('td');
-        sumCell.textContent = formatPrice(item.price * item.qty);
+      const sumCell = document.createElement('td');
+      sumCell.textContent = formatPrice(item.price * item.qty);
 
-        row.append(nameCell, categoryCell, priceCell, qtyCell, sumCell);
-        tbody.appendChild(row);
-      });
+      row.append(nameCell, categoryCell, priceCell, qtyCell, sumCell);
+      tbody.appendChild(row);
+    });
 
-      const totalToShow = appliedPromo ? finalTotal : cart.total;
+      const baseTotal = cart.total || 0;
+      const totalToShow = appliedPromo ? finalTotal || baseTotal : baseTotal;
       totalEl.textContent = formatPrice(totalToShow || 0);
       if (appliedPromo) {
         promoInfoEl.style.display = 'flex';
-        promoInfoEl.textContent = `Скидка по промокоду ${appliedPromo}: -${formatPrice(discountAmount)}`;
+        promoLabelEl.textContent = `Промокод ${appliedPromo}`;
+        promoScopeEl.textContent = discountAmount ? `Скидка применена, экономия ${formatPrice(discountAmount)}` : '';
+        promoDiscountEl.textContent = `-${formatPrice(discountAmount)}`;
       } else {
         promoInfoEl.style.display = 'none';
-        promoInfoEl.textContent = '';
+        promoLabelEl.textContent = '';
+        promoScopeEl.textContent = '';
+        promoDiscountEl.textContent = '';
         discountAmount = 0;
         finalTotal = cart.total || 0;
       }
@@ -351,6 +370,11 @@
         noteEl.textContent = '';
         await syncGuestCartToServer(profile);
         const cart = await apiGet('/cart', { user_id: profile.telegram_id });
+        currentCart = cart;
+        if (!appliedPromo) {
+          discountAmount = 0;
+          finalTotal = cart.total || 0;
+        }
         renderCart(cart);
       } catch (e) {
         noteEl.textContent = 'Не удалось загрузить корзину. Попробуйте обновить страницу.';
@@ -469,11 +493,13 @@
       }
 
       try {
-        const result = await apiPost('/promocode/validate', { telegram_id: profile.telegram_id, code, total: currentCart.total || 0 });
+        const result = await apiPost('/cart/apply-promocode', { user_id: profile.telegram_id, code });
         appliedPromo = result.code;
-        discountAmount = result.discount_amount || 0;
-        finalTotal = result.final_total || currentCart.total || 0;
+        discountAmount = Number(result.discount_amount || 0);
+        finalTotal = Number(result.final_total || currentCart.total || 0);
+        currentCart = { ...currentCart, total: result.cart_total ?? currentCart.total };
         renderCart(currentCart);
+        showToast('Промокод применён');
       } catch (e) {
         appliedPromo = null;
         discountAmount = 0;
@@ -481,6 +507,14 @@
         showToast('Промокод не подошёл.');
         renderCart(currentCart);
       }
+    }
+
+    function removePromo() {
+      appliedPromo = null;
+      discountAmount = 0;
+      finalTotal = currentCart.total || 0;
+      promoInput.value = '';
+      renderCart(currentCart);
     }
 
     async function checkout() {
@@ -533,6 +567,7 @@
     }
 
     applyPromoBtn.addEventListener('click', applyPromo);
+    removePromoBtn?.addEventListener('click', removePromo);
     clearBtn.addEventListener('click', clearCart);
     checkoutBtn.addEventListener('click', checkout);
 

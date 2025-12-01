@@ -74,6 +74,60 @@ def init_db() -> None:
 
     _ensure_optional_columns()
 
+    def _ensure_promocodes_table() -> None:
+        create_statement = """
+        CREATE TABLE IF NOT EXISTS promocodes (
+            id SERIAL PRIMARY KEY,
+            code VARCHAR NOT NULL UNIQUE,
+            discount_type VARCHAR NOT NULL,
+            discount_value NUMERIC(10, 2) NOT NULL DEFAULT 0,
+            scope VARCHAR NOT NULL DEFAULT 'all',
+            target_id INTEGER NULL,
+            date_start TIMESTAMP NULL,
+            date_end TIMESTAMP NULL,
+            active BOOLEAN NOT NULL DEFAULT TRUE,
+            max_uses INTEGER NULL,
+            used_count INTEGER NOT NULL DEFAULT 0,
+            one_per_user BOOLEAN NOT NULL DEFAULT FALSE,
+            created_at TIMESTAMP NOT NULL DEFAULT NOW()
+        );
+        """
+
+        alter_statements = [
+            "ALTER TABLE promocodes ADD COLUMN IF NOT EXISTS discount_value NUMERIC(10, 2) NOT NULL DEFAULT 0",
+            "ALTER TABLE promocodes ADD COLUMN IF NOT EXISTS scope VARCHAR NOT NULL DEFAULT 'all'",
+            "ALTER TABLE promocodes ADD COLUMN IF NOT EXISTS target_id INTEGER NULL",
+            "ALTER TABLE promocodes ADD COLUMN IF NOT EXISTS date_start TIMESTAMP NULL",
+            "ALTER TABLE promocodes ADD COLUMN IF NOT EXISTS date_end TIMESTAMP NULL",
+            "ALTER TABLE promocodes ADD COLUMN IF NOT EXISTS one_per_user BOOLEAN NOT NULL DEFAULT FALSE",
+            "ALTER TABLE promocodes ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW()",
+        ]
+
+        with engine.begin() as conn:
+            conn.execute(text(create_statement))
+            for statement in alter_statements:
+                conn.execute(text(statement))
+
+            backfill_discount_value = text(
+                """
+                DO $$
+                BEGIN
+                    IF EXISTS(
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name = 'promocodes' AND column_name = 'value'
+                    ) THEN
+                        UPDATE promocodes
+                        SET discount_value = COALESCE(discount_value, value)
+                        WHERE discount_value IS NULL;
+                    END IF;
+                END
+                $$;
+                """
+            )
+            conn.execute(backfill_discount_value)
+
+    _ensure_promocodes_table()
+
     if ADMIN_IDS_SET:
         with get_session() as session:
             for admin_id in ADMIN_IDS_SET:
