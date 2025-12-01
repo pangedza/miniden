@@ -107,6 +107,10 @@ class ProfileUpdatePayload(BaseModel):
     phone: str | None = None
 
 
+class AvatarUpdatePayload(BaseModel):
+    avatar_url: str
+
+
 class ContactPayload(BaseModel):
     telegram_id: int
     phone: str | None = None
@@ -238,6 +242,7 @@ def _build_user_profile(session: Session, user: User, *, include_notes: bool = F
         "username": user.username,
         "full_name": display_full_name,
         "phone": user.phone,
+        "avatar_url": user.avatar_url,
         "created_at": user.created_at.isoformat() if getattr(user, "created_at", None) else None,
         "is_admin": bool(user.is_admin),
         "orders": orders,
@@ -616,6 +621,29 @@ def api_profile_update(payload: ProfileUpdatePayload, request: Request):
         session.commit()
         session.refresh(user)
         return {"ok": True, "user": _build_user_profile(session, user)}
+
+
+@app.post("/api/profile/avatar-url")
+def update_avatar_url(payload: AvatarUpdatePayload, request: Request):
+    """
+    Обновление avatar_url для текущего пользователя.
+    Фактический файл аватара должен быть уже размещён владельцем проекта на сервере
+    по указанному пути (например, /media/users/<telegram_id>/avatar.jpg).
+    """
+    with get_session() as session:
+        user = _get_current_user_from_cookie(session, request)
+        if not user:
+            raise HTTPException(status_code=401, detail="Not authenticated")
+
+        avatar_url = payload.avatar_url.strip()
+        user.avatar_url = avatar_url or None
+
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+
+        profile = _build_user_profile(session, user)
+        return {"ok": True, "avatar_url": user.avatar_url, "profile": profile}
 
 
 @app.get("/api/categories")
