@@ -23,6 +23,8 @@ def _serialize_product(
 ) -> dict[str, Any]:
     price = int(product.price or 0)
 
+    image_url = getattr(product, "image_url", None) or getattr(product, "image", None)
+
     if product_type == "basket":
         meta = category_meta or {}
         category_slug = meta.get("slug")
@@ -47,6 +49,7 @@ def _serialize_product(
         "detail_url": getattr(product, "detail_url", None),
         "image_file_id": getattr(product, "image", None),
         "image": getattr(product, "image", None),
+        "image_url": image_url,
         "is_active": bool(getattr(product, "is_active", 1)),
         "category_id": getattr(product, "category_id", None),
         "category_name": category_name,
@@ -230,6 +233,7 @@ def create_product(
     avito_url: str | None = None,
     masterclass_url: str | None = None,
     image: str | None = None,
+    image_url: str | None = None,
 ) -> int:
     model = _pick_model(product_type)
     with get_session() as session:
@@ -246,6 +250,7 @@ def create_product(
             avito_url=avito_url,
             masterclass_url=masterclass_url,
             image=image,
+            image_url=image_url,
         )
         session.add(instance)
         session.flush()
@@ -322,6 +327,7 @@ def update_product_full(
     avito_url: str | None = None,
     masterclass_url: str | None = None,
     image: str | None = None,
+    image_url: str | None = None,
 ) -> bool:
     model = _pick_model(product_type)
     with get_session() as session:
@@ -341,6 +347,8 @@ def update_product_full(
         instance.masterclass_url = masterclass_url
         if image is not None:
             instance.image = image
+        if image_url is not None:
+            instance.image_url = image_url
         if is_active is not None:
             instance.is_active = 1 if is_active else 0
         return True

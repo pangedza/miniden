@@ -80,6 +80,7 @@
     .card { background: var(--card); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 16px; padding: 14px; box-shadow: var(--shadow); backdrop-filter: blur(6px); display: flex; flex-direction: column; gap: 10px; }
     .cover { position: relative; overflow: hidden; border-radius: 12px; height: 140px; background: linear-gradient(135deg, rgba(255, 184, 0, 0.16), rgba(123, 216, 255, 0.16)); display: grid; place-items: center; }
     .cover span { font-weight: 800; letter-spacing: -0.01em; color: #0b0c10; }
+    .product-card-image { width: 100%; height: 200px; border-radius: 16px; background-size: cover; background-position: center; background-repeat: no-repeat; background-color: #f3f3f3; margin-bottom: 8px; display: flex; align-items: center; justify-content: center; color: var(--muted); font-weight: 700; }
     .card h3 { margin: 0; letter-spacing: -0.01em; }
     .card p { margin: 0; color: var(--muted); line-height: 1.5; flex: 1; }
     .footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
@@ -121,7 +122,7 @@
     <div class="note" id="note"></div>
   </main>
 
-  <script src="js/api.js?v=20241201"></script>
+  <script src="js/api.js?v=20241202"></script>
   <script>
     const toggle = document.querySelector('.menu-toggle');
     const nav = document.querySelector('.nav-links');
@@ -228,17 +229,13 @@
         card.className = 'card';
 
         const cover = document.createElement('div');
-        cover.className = 'cover';
-        if (item.image) {
-          const img = document.createElement('img');
-          img.src = item.image;
-          img.alt = item.name;
-          img.style.width = '100%';
-          img.style.height = '100%';
-          img.style.objectFit = 'cover';
-          cover.appendChild(img);
+        cover.className = 'product-card-image';
+        const imageUrl = item.image_url || item.image;
+        if (imageUrl) {
+          cover.style.backgroundImage = `url('${imageUrl}')`;
+          cover.textContent = '';
         } else {
-          cover.innerHTML = `<span>${item.category_name || 'Товары'}</span>`;
+          cover.textContent = item.category_name || 'Товары';
         }
 
         const title = document.createElement('h3');
