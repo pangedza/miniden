@@ -751,6 +751,28 @@ footer a {
   align-items: center;
 }
 
+.price-original {
+  position: relative;
+  display: inline-block;
+  color: var(--color-text-muted);
+}
+
+.price-original::after {
+  content: "";
+  position: absolute;
+  left: -6px;
+  right: -6px;
+  top: 50%;
+  border-top: 2px solid var(--color-text-muted);
+  transform: rotate(-12deg);
+  opacity: 0.8;
+}
+
+.price-discounted {
+  font-weight: 800;
+  margin-left: 10px;
+}
+
 .qty-btn {
   padding: 4px 10px;
   border-radius: 10px;
