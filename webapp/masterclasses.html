@@ -312,21 +312,24 @@
       }
     }
 
-    async function initApp() {
-      try {
-        profile = await getCurrentUserProfile();
-        updateAdminLinkVisibility();
-        await loadCategories();
-        await loadCourses();
-        if (!profile) {
-          noteEl.textContent = 'Каталог доступен в режиме просмотра. Чтобы оформить заказ, войдите через Telegram.';
-        }
-      } catch (e) {
-        console.error(e);
+    async function loadMasterclassesCategoriesAndItems(currentProfile) {
+      profile = currentProfile;
+      updateAdminLinkVisibility();
+
+      await loadCategories();
+      await loadCourses();
+
+      if (!profile) {
+        noteEl.textContent = 'Каталог доступен в режиме просмотра. Чтобы оформить заказ, войдите через Telegram.';
       }
     }
 
-    initApp();
+    async function initMasterclassesPage() {
+      const currentProfile = await getCurrentUserProfile();
+      await loadMasterclassesCategoriesAndItems(currentProfile);
+    }
+
+    initMasterclassesPage().catch(console.error);
   </script>
 </body>
 </html>

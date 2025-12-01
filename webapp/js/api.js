@@ -70,9 +70,16 @@ async function getCurrentUser(options = {}) {
 }
 
 async function getCurrentUserProfile(options = {}) {
-  if (window._currentProfile && !options.forceRefresh) {
-    return window._currentProfile;
+  if (options.forceRefresh) {
+    window._currentProfile = undefined;
+    window._currentProfileLoaded = false;
   }
+
+  if (window._currentProfileLoaded && !options.forceRefresh) {
+    return window._currentProfile ?? null;
+  }
+
+  window._currentProfileLoaded = true;
 
   const includeNotes = Boolean(options.includeNotes);
   const telegram = window.Telegram?.WebApp;
@@ -86,17 +93,16 @@ async function getCurrentUserProfile(options = {}) {
     }
 
     const res = await fetch(buildUrl("/auth/session", includeNotes ? { include_notes: true } : undefined));
-    if (res.status === 401 || res.status === 404) {
+    if (!res.ok) {
+      window._currentProfile = null;
       return null;
     }
     const data = await handleResponse(res);
     window._currentProfile = data;
     return data;
   } catch (error) {
-    if (error.status === 401 || error.status === 404) {
-      return null;
-    }
     console.error("Failed to load current user profile", error);
+    window._currentProfile = null;
     return null;
   }
 }

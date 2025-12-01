@@ -308,21 +308,24 @@
       }
     }
 
-    async function initApp() {
-      try {
-        profile = await getCurrentUserProfile();
-        updateAdminLinkVisibility();
-        await loadCategories();
-        await loadProducts();
-        if (!profile) {
-          noteEl.textContent = 'Каталог доступен для просмотра. Чтобы оформить заказ, войдите через Telegram.';
-        }
-      } catch (e) {
-        console.error(e);
+    async function loadProductCategoriesAndItems(currentProfile) {
+      profile = currentProfile;
+      updateAdminLinkVisibility();
+
+      await loadCategories();
+      await loadProducts();
+
+      if (!profile) {
+        noteEl.textContent = 'Каталог доступен для просмотра. Чтобы оформить заказ, войдите через Telegram.';
       }
     }
 
-    initApp();
+    async function initProductsPage() {
+      const currentProfile = await getCurrentUserProfile();
+      await loadProductCategoriesAndItems(currentProfile);
+    }
+
+    initProductsPage().catch(console.error);
   </script>
 </body>
 </html>

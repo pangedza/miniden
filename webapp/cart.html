@@ -429,17 +429,19 @@
     clearBtn.addEventListener('click', clearCart);
     checkoutBtn.addEventListener('click', checkout);
 
-    async function initApp() {
+    async function initCartPage() {
       try {
         profile = await getCurrentUserProfile();
-        updateAdminLinkVisibility();
-        await loadCart();
       } catch (e) {
         console.error(e);
+        profile = null;
       }
+
+      updateAdminLinkVisibility();
+      await loadCart();
     }
 
-    initApp();
+    initCartPage();
   </script>
 </body>
 </html>
