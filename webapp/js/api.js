@@ -97,12 +97,80 @@ async function getCurrentUserProfile(options = {}) {
       return null;
     }
     console.error("Failed to load current user profile", error);
-    throw error;
+    return null;
   }
+}
+
+const GUEST_CART_KEY = "miniden_guest_cart";
+
+function loadGuestCart() {
+  try {
+    const raw = localStorage.getItem(GUEST_CART_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed;
+    return [];
+  } catch (e) {
+    console.warn("Failed to load guest cart", e);
+    return [];
+  }
+}
+
+function saveGuestCart(items) {
+  try {
+    localStorage.setItem(GUEST_CART_KEY, JSON.stringify(items || []));
+  } catch (e) {
+    console.warn("Failed to save guest cart", e);
+  }
+}
+
+function addToGuestCart(product_id, type, qty = 1) {
+  const current = loadGuestCart();
+  const existing = current.find((item) => item.product_id === product_id && item.type === type);
+  if (existing) {
+    existing.qty = (existing.qty || 0) + qty;
+  } else {
+    current.push({ product_id, type, qty });
+  }
+  saveGuestCart(current);
+}
+
+function clearGuestCart() {
+  try {
+    localStorage.removeItem(GUEST_CART_KEY);
+  } catch (e) {
+    console.warn("Failed to clear guest cart", e);
+  }
+}
+
+async function syncGuestCartToServer(profile) {
+  if (!profile?.telegram_id) return;
+  const guestItems = loadGuestCart();
+  if (!guestItems.length) return;
+
+  for (const item of guestItems) {
+    try {
+      await apiPost("/cart/add", {
+        user_id: profile.telegram_id,
+        product_id: item.product_id,
+        qty: item.qty || 1,
+        type: item.type || "basket",
+      });
+    } catch (e) {
+      console.warn("Failed to sync guest cart item", item, e);
+    }
+  }
+
+  clearGuestCart();
 }
 
 window.apiGet = apiGet;
 window.apiPost = apiPost;
 window.getCurrentUser = getCurrentUser;
 window.getCurrentUserProfile = getCurrentUserProfile;
+window.loadGuestCart = loadGuestCart;
+window.saveGuestCart = saveGuestCart;
+window.addToGuestCart = addToGuestCart;
+window.clearGuestCart = clearGuestCart;
+window.syncGuestCartToServer = syncGuestCartToServer;
 window.API_BASE = API_BASE;
