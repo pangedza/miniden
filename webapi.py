@@ -546,6 +546,7 @@ class AdminProductsUpdatePayload(BaseModel):
 
 class AdminTogglePayload(BaseModel):
     user_id: int
+    type: str
 
 
 class AdminOrderStatusPayload(BaseModel):
@@ -1178,7 +1179,8 @@ def admin_update_product(product_id: int, payload: AdminProductsUpdatePayload):
 @app.post("/api/admin/products/{product_id}/toggle")
 def admin_toggle_product(product_id: int, payload: AdminTogglePayload):
     _ensure_admin(payload.user_id)
-    changed = products_service.toggle_product_active(product_id)
+    product_type = _validate_type(payload.type)
+    changed = products_service.toggle_product_active(product_id, product_type)
     if not changed:
         raise HTTPException(status_code=404, detail="Product not found")
     return {"ok": True}

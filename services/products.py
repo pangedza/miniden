@@ -280,8 +280,15 @@ def update_product_image(product_id: int, image_file_id: str | None) -> bool:
     return _update_field(product_id, "image", image_file_id)
 
 
-def toggle_product_active(product_id: int) -> bool:
-    for model in (ProductBasket, ProductCourse):
+def toggle_product_active(product_id: int, product_type: str | None = None) -> bool:
+    models: list[type[ProductBasket] | type[ProductCourse]]
+
+    if product_type:
+        models = [_pick_model(product_type)]
+    else:
+        models = [ProductBasket, ProductCourse]
+
+    for model in models:
         with get_session() as session:
             instance = session.get(model, product_id)
             if instance:

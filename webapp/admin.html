@@ -752,7 +752,7 @@
         });
         toggleBtn.addEventListener('click', async () => {
           try {
-            await apiPost(`/admin/products/${item.id}/toggle`, { user_id: currentUser.telegram_id });
+            await apiPost(`/admin/products/${item.id}/toggle`, { user_id: currentUser.telegram_id, type });
             setStatus('Статус товара обновлён');
             if (type === 'basket') {
               await loadProducts();
