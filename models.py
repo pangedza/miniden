@@ -29,6 +29,7 @@ class ProductBasket(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     title = Column(Text, nullable=False)
+    short_description = Column(Text, nullable=True)
     description = Column(Text, nullable=True)
     price = Column(Numeric(10, 2), nullable=False, default=0)
     image = Column(Text, nullable=True)
@@ -53,6 +54,7 @@ class ProductCourse(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     title = Column(Text, nullable=False)
+    short_description = Column(Text, nullable=True)
     description = Column(Text, nullable=True)
     price = Column(Numeric(10, 2), nullable=False, default=0)
     image = Column(Text, nullable=True)
