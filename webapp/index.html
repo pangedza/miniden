@@ -1,4 +1,4 @@
-<!-- Обновляйте номер версии (?v=20241201) в ссылках на js/css после любых правок фронтенда, чтобы сбрасывать кэш в браузерах. -->
+<!-- Обновляйте номер версии (?v=20241205) в ссылках на js/css после любых правок фронтенда, чтобы сбрасывать кэш в браузерах. -->
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -38,7 +38,7 @@
     .top-nav {
       position: sticky;
       top: 0;
-      z-index: 20;
+      z-index: 1100;
       background: var(--nav);
       backdrop-filter: blur(10px);
       border-bottom: 1px solid rgba(255, 255, 255, 0.06);
@@ -67,23 +67,63 @@
     .nav-links {
       display: flex;
       gap: 12px;
-      align-items: center;
+      align-items: flex-start;
+      flex-direction: column;
+      padding: 0 0 8px;
+      margin: 0;
     }
 
-    .nav-links a {
+    .app-sidebar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 260px;
+      height: 100vh;
+      padding: 78px 18px 24px;
+      background: var(--nav);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      transform: translateX(-100%);
+      transition: transform 0.25s ease;
+      z-index: 1050;
+      box-shadow: 12px 0 30px rgba(0, 0, 0, 0.4);
+    }
+
+    .app-sidebar.app-sidebar--open {
+      transform: translateX(0);
+    }
+
+    .app-sidebar a {
       color: var(--muted);
       text-decoration: none;
       font-weight: 600;
       padding: 10px 12px;
       border-radius: 12px;
       transition: background 0.15s ease, color 0.15s ease;
+      display: block;
     }
 
-    .nav-links a:hover { color: var(--text); background: rgba(255, 255, 255, 0.06); }
-    .nav-links a.active { color: var(--text); background: linear-gradient(135deg, rgba(255, 184, 0, 0.18), rgba(123, 216, 255, 0.14)); }
+    .app-sidebar a:hover { color: var(--text); background: rgba(255, 255, 255, 0.06); }
+    .app-sidebar a.active { color: var(--text); background: linear-gradient(135deg, rgba(255, 184, 0, 0.18), rgba(123, 216, 255, 0.14)); }
+
+    .app-sidebar-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.4);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+      z-index: 1000;
+    }
+
+    .app-sidebar-overlay.is-visible {
+      opacity: 1;
+      pointer-events: all;
+    }
 
     .menu-toggle {
-      display: none;
+      display: inline-flex;
       background: transparent;
       border: 1px solid rgba(255, 255, 255, 0.12);
       color: var(--text);
@@ -216,11 +256,28 @@
 
     footer a { color: var(--accent-2); text-decoration: none; }
 
-    @media (max-width: 780px) {
-      .nav-links { display: none; }
-      .nav-links.open { display: flex; flex-direction: column; align-items: flex-start; width: 100%; margin-top: 10px; }
-      .top-nav { flex-wrap: wrap; }
-      .menu-toggle { display: inline-flex; }
+    @media (min-width: 1024px) {
+      .app-sidebar {
+        position: static;
+        transform: none;
+        height: auto;
+        padding: 0;
+        box-shadow: none;
+        flex-direction: row;
+        align-items: center;
+        background: transparent;
+        gap: 12px;
+      }
+
+      .nav-links {
+        flex-direction: row;
+        align-items: center;
+        padding: 0;
+      }
+
+      .app-sidebar-overlay { display: none; }
+
+      .menu-toggle { display: none; }
     }
   </style>
 </head>
@@ -228,7 +285,7 @@
   <header class="top-nav">
     <div class="brand">MiniDeN<span>уютные корзинки и мастер-классы</span></div>
     <button class="menu-toggle" aria-label="Открыть меню">☰</button>
-    <nav class="nav-links open">
+    <nav class="nav-links app-sidebar">
       <a href="index.html" class="active">Главная</a>
       <a href="products.html">Товары</a>
       <a href="masterclasses.html">Мастер-классы</a>
@@ -237,6 +294,8 @@
       <a href="admin.html" id="admin-link" style="display:none;">Админка</a>
     </nav>
   </header>
+
+  <div class="app-sidebar-overlay"></div>
 
   <main>
     <section class="hero">
@@ -349,16 +408,35 @@
     </div>
   </section>
 
-  <script src="js/api.js?v=20241203"></script>
+  <script src="js/api.js?v=20241205"></script>
   <script>
+    const sidebar = document.querySelector('.app-sidebar');
+    const overlay = document.querySelector('.app-sidebar-overlay');
     const toggle = document.querySelector('.menu-toggle');
-    const nav = document.querySelector('.nav-links');
+    const sidebarLinks = document.querySelectorAll('.app-sidebar a');
 
-    toggle?.addEventListener('click', () => {
-      nav?.classList.toggle('open');
-    });
+    function openSidebar() {
+      sidebar?.classList.add('app-sidebar--open');
+      overlay?.classList.add('is-visible');
+    }
 
-    nav?.classList.add('open');
+    function closeSidebar() {
+      sidebar?.classList.remove('app-sidebar--open');
+      overlay?.classList.remove('is-visible');
+    }
+
+    function toggleSidebar() {
+      if (!sidebar) return;
+      if (sidebar.classList.contains('app-sidebar--open')) {
+        closeSidebar();
+      } else {
+        openSidebar();
+      }
+    }
+
+    toggle?.addEventListener('click', toggleSidebar);
+    overlay?.addEventListener('click', closeSidebar);
+    sidebarLinks.forEach((link) => link.addEventListener('click', closeSidebar));
 
     const loginSection = document.getElementById('telegram-login-section');
     const authStatus = document.getElementById('auth-status');
