@@ -167,11 +167,15 @@ def _serialize_order_item(item: OrderItem, order_status: str | None = None) -> d
     }
 
 
-def get_orders_by_user(user_id: int, limit: int = 20) -> list[dict[str, Any]]:
+def get_orders_by_user(
+    user_id: int, *, limit: int = 20, include_archived: bool = False
+) -> list[dict[str, Any]]:
     with get_session() as session:
-        rows = session.scalars(
-            select(Order).where(Order.user_id == user_id).order_by(Order.id.desc()).limit(limit)
-        ).all()
+        query = select(Order).where(Order.user_id == user_id)
+        if not include_archived:
+            query = query.where(Order.status != STATUS_ARCHIVED)
+
+        rows = session.scalars(query.order_by(Order.id.desc()).limit(limit)).all()
         serialized: list[dict[str, Any]] = []
         for row in rows:
             items = session.scalars(select(OrderItem).where(OrderItem.order_id == row.id)).all()
@@ -238,6 +242,22 @@ def set_order_status(order_id: int, status: str) -> bool:
         if not order:
             return False
         order.status = status
+        session.flush()
+        stats_service.recalc_user_stats(int(order.user_id))
+        return True
+
+
+def archive_order_for_user(order_id: int, user_id: int) -> bool:
+    with get_session() as session:
+        order = session.get(Order, order_id)
+        if not order:
+            return False
+        if int(order.user_id or 0) != int(user_id):
+            return False
+        if order.status == STATUS_ARCHIVED:
+            return True
+
+        order.status = STATUS_ARCHIVED
         session.flush()
         stats_service.recalc_user_stats(int(order.user_id))
         return True

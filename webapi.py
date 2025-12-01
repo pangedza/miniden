@@ -237,7 +237,9 @@ def _build_user_profile(session: Session, user: User, *, include_notes: bool = F
     display_full_name = _full_name(user) or None
 
     try:
-        orders = orders_service.get_orders_by_user(telegram_id) or []
+        orders = orders_service.get_orders_by_user(
+            telegram_id, include_archived=False
+        ) or []
     except Exception:
         orders = []
 
@@ -713,6 +715,61 @@ def update_avatar_url(payload: AvatarUpdatePayload, request: Request):
 
         profile = _build_user_profile(session, user)
         return {"ok": True, "avatar_url": user.avatar_url, "profile": profile}
+
+
+@app.post("/api/profile/avatar")
+def upload_avatar(file: UploadFile = File(...), request: Request | None = None):
+    """Загрузка файла аватара текущего пользователя."""
+
+    if file.content_type not in ("image/jpeg", "image/png", "image/webp"):
+        raise HTTPException(status_code=400, detail="Неверный формат изображения")
+
+    ensure_media_dirs()
+
+    with get_session() as session:
+        user = _get_current_user_from_cookie(session, request)
+        if not user:
+            raise HTTPException(status_code=401, detail="Not authenticated")
+
+        user_dir = MEDIA_ROOT / "users" / str(user.telegram_id)
+        user_dir.mkdir(parents=True, exist_ok=True)
+
+        ext = (file.filename or "jpg").split(".")[-1].lower()
+        if ext not in ("jpg", "jpeg", "png", "webp"):
+            ext = "jpg"
+
+        filename = f"avatar.{ext}"
+        full_path = user_dir / filename
+
+        with full_path.open("wb") as f:
+            f.write(file.file.read())
+
+        relative = full_path.relative_to(MEDIA_ROOT).as_posix()
+        user.avatar_url = f"/media/{relative}"
+
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+
+        profile = _build_user_profile(session, user)
+        return {"ok": True, "avatar_url": user.avatar_url, "profile": profile}
+
+
+@app.post("/api/orders/{order_id}/archive")
+def archive_order(order_id: int, request: Request):
+    with get_session() as session:
+        user = _get_current_user_from_cookie(session, request)
+        if not user:
+            raise HTTPException(status_code=401, detail="Not authenticated")
+
+    archived = orders_service.archive_order_for_user(order_id, int(user.telegram_id))
+    if not archived:
+        order = orders_service.get_order_by_id(order_id)
+        if not order:
+            raise HTTPException(status_code=404, detail="Order not found")
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    return {"ok": True}
 
 
 @app.get("/api/categories")
