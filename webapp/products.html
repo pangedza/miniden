@@ -577,7 +577,7 @@
       }
 
       productModalTitle.textContent = item.name || 'Товар';
-      productModalDescription.textContent = item.description || 'Описание появится позже.';
+      productModalDescription.textContent = item.description || item.short_description || 'Описание появится позже.';
       productModalPrice.textContent = formatPrice(item.price);
 
       if (productModalAdd) {
