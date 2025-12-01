@@ -38,11 +38,9 @@
 
   <main>
     <h1>Мастер-классы</h1>
-    <p>Выберите формат: платные или бесплатные уроки. Карточки и корзина работают через общий REST API MiniDeN.</p>
 
     <div class="tabs" id="tabs"></div>
     <div class="catalog-grid courses-grid" id="cards"></div>
-    <div class="link-row"><a href="courses.html">Открыть старый каталог курсов →</a></div>
     <div class="note" id="note"></div>
   </main>
 
@@ -127,16 +125,30 @@
       return item.masterclass_url || item.detail_url || null;
     }
 
+    function updateActiveTabClasses() {
+      const buttons = tabsEl?.querySelectorAll('.tab');
+      if (!buttons?.length) return;
+
+      buttons.forEach((btn) => {
+        const slug = btn.dataset.slug || null;
+        const isAll = slug === '';
+        const isActive = active ? slug === active : isAll;
+        btn.classList.toggle('active', isActive);
+      });
+    }
+
     function renderTabs() {
       if (!tabsEl) return;
       tabsEl.innerHTML = '';
 
       const allBtn = document.createElement('button');
       allBtn.type = 'button';
-      allBtn.className = `tab${active === null ? ' active' : ''}`;
+      allBtn.className = 'tab';
+      allBtn.dataset.slug = '';
       allBtn.textContent = 'Все';
       allBtn.addEventListener('click', () => {
         active = null;
+        updateActiveTabClasses();
         loadCourses();
       });
       tabsEl.appendChild(allBtn);
@@ -144,14 +156,18 @@
       (categories || []).forEach((cat) => {
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = `tab${active === cat.slug ? ' active' : ''}`;
+        btn.className = 'tab';
+        btn.dataset.slug = cat.slug;
         btn.textContent = cat.name;
         btn.addEventListener('click', () => {
           active = cat.slug;
+          updateActiveTabClasses();
           loadCourses();
         });
         tabsEl.appendChild(btn);
       });
+
+      updateActiveTabClasses();
     }
 
     function renderCards() {
