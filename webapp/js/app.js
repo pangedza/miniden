@@ -1,9 +1,11 @@
 const THEME_KEY = 'miniden.theme';
 const DEFAULT_THEME = 'purple';
+const AVAILABLE_THEMES = ['purple', 'dark', 'light', 'cream'];
 
 function applyTheme(theme) {
-  const value = theme || DEFAULT_THEME;
+  const value = AVAILABLE_THEMES.includes(theme) ? theme : DEFAULT_THEME;
   document.body.dataset.theme = value;
+  document.documentElement.dataset.theme = value;
 }
 
 function initThemeSwitcher() {
@@ -11,11 +13,12 @@ function initThemeSwitcher() {
   if (!select) return;
 
   const saved = localStorage.getItem(THEME_KEY) || DEFAULT_THEME;
-  applyTheme(saved);
-  select.value = saved;
+  const themeToApply = AVAILABLE_THEMES.includes(saved) ? saved : DEFAULT_THEME;
+  applyTheme(themeToApply);
+  select.value = themeToApply;
 
   select.addEventListener('change', () => {
-    const value = select.value || DEFAULT_THEME;
+    const value = AVAILABLE_THEMES.includes(select.value) ? select.value : DEFAULT_THEME;
     applyTheme(value);
     localStorage.setItem(THEME_KEY, value);
   });
