@@ -383,9 +383,83 @@
       </section>
 
       <section id="promocodes" class="card" style="display:none;">
-        <h2>Промокоды</h2>
-        <p class="muted">Существующий функционал промокодов доступен в этой секции без изменений.</p>
-        <p class="muted">Используйте текущие команды бота и REST API для управления промокодами.</p>
+        <div class="section-header">
+          <div>
+            <h2>Промокоды</h2>
+            <p class="muted">Создавайте, редактируйте и отключайте промокоды для корзины и отдельных товаров.</p>
+          </div>
+        </div>
+        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));">
+          <div class="card">
+            <h3 id="promo-form-title">Создать промокод</h3>
+            <form id="promo-form">
+              <label for="promo-code-input">Код</label>
+              <input type="text" id="promo-code-input" required />
+
+              <label for="promo-discount-type">Тип скидки</label>
+              <select id="promo-discount-type" required>
+                <option value="percent">Процент</option>
+                <option value="fixed">Фиксированная</option>
+              </select>
+
+              <label for="promo-discount-value">Значение</label>
+              <input type="number" id="promo-discount-value" min="1" step="1" required />
+
+              <label for="promo-scope">Область применения</label>
+              <select id="promo-scope" required>
+                <option value="all">На весь заказ</option>
+                <option value="basket">Только корзинки</option>
+                <option value="course">Только мастер-классы</option>
+                <option value="product">Определённый товар/курс</option>
+                <option value="category">Категория корзинок</option>
+              </select>
+
+              <label for="promo-target">ID цели (для product/category)</label>
+              <input type="number" id="promo-target" min="0" placeholder="Например, ID товара или категории" />
+
+              <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
+                <div>
+                  <label for="promo-date-start">Дата начала</label>
+                  <input type="datetime-local" id="promo-date-start" />
+                </div>
+                <div>
+                  <label for="promo-date-end">Дата окончания</label>
+                  <input type="datetime-local" id="promo-date-end" />
+                </div>
+              </div>
+
+              <label for="promo-max-uses">Максимум использований</label>
+              <input type="number" id="promo-max-uses" min="0" placeholder="0 — без лимита" />
+
+              <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:6px;">
+                <label style="display:flex; align-items:center; gap:6px; margin:0;"><input type="checkbox" id="promo-active" checked /> Активен</label>
+                <label style="display:flex; align-items:center; gap:6px; margin:0;"><input type="checkbox" id="promo-one-per-user" /> Один раз на пользователя</label>
+              </div>
+
+              <div style="display:flex; gap:8px; margin-top:12px;">
+                <button class="btn primary" type="submit">Сохранить</button>
+                <button class="btn secondary" type="button" id="promo-reset">Сбросить</button>
+              </div>
+            </form>
+          </div>
+
+          <div class="card" style="overflow:auto;">
+            <table aria-label="Промокоды" style="width:100%;">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Код</th>
+                  <th>Скидка</th>
+                  <th>Область</th>
+                  <th>Лимиты</th>
+                  <th>Статус</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="promo-table"></tbody>
+            </table>
+          </div>
+        </div>
       </section>
 
       <section id="stats" class="card" style="display:none;">
@@ -395,7 +469,7 @@
     </main>
   </div>
 
-  <script src="js/api.js?v=20241210"></script>
+  <script src="js/api.js?v=20241215"></script>
   <script>
     const statusBox = document.getElementById('status');
     const accessDenied = document.getElementById('access-denied');
@@ -437,11 +511,26 @@
     const courseCancel = document.getElementById('course-cancel');
     const productReset = document.getElementById('product-reset');
     const courseReset = document.getElementById('course-reset');
+    const promoForm = document.getElementById('promo-form');
+    const promoFormTitle = document.getElementById('promo-form-title');
+    const promoTable = document.getElementById('promo-table');
+    const promoCodeInput = document.getElementById('promo-code-input');
+    const promoDiscountType = document.getElementById('promo-discount-type');
+    const promoDiscountValue = document.getElementById('promo-discount-value');
+    const promoScope = document.getElementById('promo-scope');
+    const promoTarget = document.getElementById('promo-target');
+    const promoDateStart = document.getElementById('promo-date-start');
+    const promoDateEnd = document.getElementById('promo-date-end');
+    const promoMaxUses = document.getElementById('promo-max-uses');
+    const promoActive = document.getElementById('promo-active');
+    const promoOnePerUser = document.getElementById('promo-one-per-user');
+    const promoReset = document.getElementById('promo-reset');
 
     let currentUser = null;
     let selectedOrder = null;
     let editingProductId = null;
     let editingCourseId = null;
+    let editingPromoId = null;
 
     function setStatus(message, isError = false) {
       if (!message) {
@@ -453,6 +542,19 @@
       statusBox.style.display = 'block';
       statusBox.textContent = message;
       statusBox.style.borderColor = isError ? 'rgba(255,99,99,0.7)' : 'var(--border)';
+    }
+
+    async function sendJson(path, method = 'GET', body = null) {
+      const res = await fetch(`${API_BASE}${path}`, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      const text = await res.text();
+      if (!res.ok) {
+        throw new Error(text || 'Ошибка запроса');
+      }
+      return text ? JSON.parse(text) : null;
     }
 
     function showSection(id) {
@@ -809,6 +911,166 @@
       }
     }
 
+    function resetPromoFormFields() {
+      editingPromoId = null;
+      promoFormTitle.textContent = 'Создать промокод';
+      promoForm?.reset();
+      promoActive.checked = true;
+      promoOnePerUser.checked = false;
+      promoTarget.value = '';
+      updatePromoTargetState();
+    }
+
+    function toInputDate(value) {
+      if (!value) return '';
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return '';
+      const offset = date.getTimezoneOffset();
+      const local = new Date(date.getTime() - offset * 60000);
+      return local.toISOString().slice(0, 16);
+    }
+
+    function fromInputDate(value) {
+      if (!value) return null;
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? null : date.toISOString();
+    }
+
+    function updatePromoTargetState() {
+      const needsTarget = ['product', 'category'].includes(promoScope.value);
+      promoTarget.disabled = !needsTarget;
+      promoTarget.placeholder = needsTarget ? 'Например, ID товара или категории' : 'Не требуется для выбранной области';
+      if (!needsTarget) {
+        promoTarget.value = '';
+      }
+    }
+
+    function renderPromocodes(promos) {
+      promoTable.innerHTML = '';
+      if (!promos || !promos.length) {
+        const emptyRow = document.createElement('tr');
+        const cell = document.createElement('td');
+        cell.colSpan = 7;
+        cell.textContent = 'Промокоды отсутствуют';
+        cell.className = 'muted';
+        emptyRow.appendChild(cell);
+        promoTable.appendChild(emptyRow);
+        return;
+      }
+
+      const scopeLabels = {
+        all: 'Весь заказ',
+        basket: 'Корзинки',
+        course: 'Мастер-классы',
+        product: 'Товар/курс',
+        category: 'Категория корзинок',
+      };
+
+      promos.forEach((promo) => {
+        const row = document.createElement('tr');
+        const limitText = `${promo.used_count || 0}/${promo.max_uses || '∞'}`;
+        const discountText =
+          promo.discount_type === 'percent'
+            ? `${promo.discount_value}%`
+            : `${promo.discount_value} ₽`;
+        const dates = [promo.date_start, promo.date_end]
+          .filter(Boolean)
+          .map((d) => new Date(d).toLocaleString('ru-RU'))
+          .join(' — ');
+        const status = promo.active ? 'Активен' : 'Выключен';
+
+        row.innerHTML = `
+          <td>#${promo.id}</td>
+          <td>${promo.code}</td>
+          <td>${discountText}</td>
+          <td>${scopeLabels[promo.scope] || promo.scope}${promo.target_id ? ` #${promo.target_id}` : ''}</td>
+          <td>${limitText}</td>
+          <td>${status}<div class="muted" style="font-size:12px;">${dates || '—'}</div></td>
+          <td style="display:flex; gap:6px;">
+            <button class="btn secondary" type="button" data-edit="${promo.id}">Редактировать</button>
+            <button class="btn secondary" type="button" data-delete="${promo.id}">Удалить</button>
+          </td>
+        `;
+
+        row.querySelector('[data-edit]')?.addEventListener('click', () => editPromocode(promo));
+        row.querySelector('[data-delete]')?.addEventListener('click', () => deletePromocode(promo.id));
+        promoTable.appendChild(row);
+      });
+    }
+
+    async function loadPromocodes() {
+      if (!currentUser) return;
+      try {
+        const data = await apiGet('/admin/promocodes', { user_id: currentUser.telegram_id });
+        renderPromocodes(data.items || []);
+      } catch (e) {
+        console.error(e);
+        setStatus('Не удалось загрузить промокоды', true);
+      }
+    }
+
+    function editPromocode(promo) {
+      editingPromoId = promo.id;
+      promoFormTitle.textContent = `Редактировать промокод #${promo.id}`;
+      promoCodeInput.value = promo.code || '';
+      promoDiscountType.value = promo.discount_type || 'percent';
+      promoDiscountValue.value = promo.discount_value || '';
+      promoScope.value = promo.scope || 'all';
+      promoTarget.value = promo.target_id ?? '';
+      promoDateStart.value = toInputDate(promo.date_start);
+      promoDateEnd.value = toInputDate(promo.date_end);
+      promoMaxUses.value = promo.max_uses ?? '';
+      promoActive.checked = promo.active !== false;
+      promoOnePerUser.checked = Boolean(promo.one_per_user);
+      updatePromoTargetState();
+    }
+
+    async function deletePromocode(id) {
+      if (!currentUser || !id) return;
+      if (!confirm('Удалить промокод?')) return;
+      try {
+        await sendJson(`/admin/promocodes/${id}?user_id=${currentUser.telegram_id}`, 'DELETE');
+        setStatus('Промокод удалён');
+        await loadPromocodes();
+      } catch (e) {
+        console.error(e);
+        setStatus(e?.message || 'Не удалось удалить промокод', true);
+      }
+    }
+
+    async function submitPromocode(event) {
+      event.preventDefault();
+      if (!currentUser) return;
+
+      const payload = {
+        user_id: currentUser.telegram_id,
+        code: promoCodeInput.value.trim(),
+        discount_type: promoDiscountType.value,
+        discount_value: Number(promoDiscountValue.value || 0),
+        scope: promoScope.value,
+        target_id: promoTarget.value ? Number(promoTarget.value) : null,
+        date_start: fromInputDate(promoDateStart.value),
+        date_end: fromInputDate(promoDateEnd.value),
+        max_uses: promoMaxUses.value ? Number(promoMaxUses.value) : null,
+        active: promoActive.checked,
+        one_per_user: promoOnePerUser.checked,
+      };
+
+      try {
+        if (editingPromoId) {
+          await sendJson(`/admin/promocodes/${editingPromoId}`, 'PUT', payload);
+        } else {
+          await sendJson('/admin/promocodes', 'POST', payload);
+        }
+        setStatus('Промокод сохранён');
+        resetPromoFormFields();
+        await loadPromocodes();
+      } catch (e) {
+        console.error(e);
+        setStatus(e?.message || 'Не удалось сохранить промокод', true);
+      }
+    }
+
     async function submitProductForm(event) {
       event.preventDefault();
       if (!currentUser) return;
@@ -871,6 +1133,9 @@
       }
     }
 
+    promoForm.addEventListener('submit', submitPromocode);
+    promoReset.addEventListener('click', resetPromoFormFields);
+    promoScope.addEventListener('change', updatePromoTargetState);
     productForm.addEventListener('submit', submitProductForm);
     courseForm.addEventListener('submit', submitCourseForm);
     productCancel.addEventListener('click', () => {
@@ -920,9 +1185,11 @@
           loadCategories(courseCategorySelect, 'course'),
         ]);
 
+        updatePromoTargetState();
         await loadOrders();
         await loadProducts();
         await loadCourses();
+        await loadPromocodes();
         showSection('orders');
       } catch (e) {
         console.error(e);

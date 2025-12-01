@@ -356,6 +356,7 @@ def _build_cart_response(user_id: int) -> dict[str, Any]:
                 "price": price,
                 "qty": qty,
                 "subtotal": subtotal,
+                "category_id": product_info.get("category_id"),
             }
         )
 
@@ -554,27 +555,47 @@ class AdminPromocodeCreatePayload(BaseModel):
     user_id: int
     code: str
     discount_type: str
-    value: int
-    min_order_total: int | None = None
+    discount_value: float
+    scope: str = "all"
+    target_id: int | None = None
     max_uses: int | None = None
-    expires_at: str | None = None
+    date_start: str | None = None
+    date_end: str | None = None
     active: bool | None = None
+    one_per_user: bool | None = None
 
 
 class AdminPromocodeUpdatePayload(BaseModel):
     user_id: int
+    code: str | None = None
     discount_type: str | None = None
-    value: int | None = None
-    min_order_total: int | None = None
+    discount_value: float | None = None
     max_uses: int | None = None
-    expires_at: str | None = None
     active: bool | None = None
+    scope: str | None = None
+    target_id: int | None = None
+    date_start: str | None = None
+    date_end: str | None = None
+    one_per_user: bool | None = None
+
+
+class PromocodeCartItemPayload(BaseModel):
+    product_id: int
+    qty: int = 1
+    type: str = "basket"
+    price: int | None = None
+    category_id: int | None = None
 
 
 class PromocodeValidatePayload(BaseModel):
     telegram_id: int
     code: str
-    total: int
+    items: list[PromocodeCartItemPayload] | None = None
+
+
+class CartPromocodeApplyPayload(BaseModel):
+    user_id: int
+    code: str
 
 
 @app.post("/api/auth/telegram")
@@ -723,68 +744,44 @@ def api_cart(user_id: int):
     return _build_cart_response(user_id)
 
 
+@app.post("/api/cart/apply-promocode")
+def api_cart_apply_promocode(payload: CartPromocodeApplyPayload):
+    if payload.user_id is None:
+        raise HTTPException(status_code=400, detail="user_id is required")
+
+    cart_data = _build_cart_response(payload.user_id)
+    items = cart_data.get("items") or []
+    if not items:
+        raise HTTPException(status_code=400, detail="Cart is empty")
+
+    result = promocodes_service.validate_promocode(payload.code, payload.user_id, items)
+    if not result:
+        raise HTTPException(status_code=400, detail="Invalid promocode")
+
+    return {
+        "code": result.get("code"),
+        "discount_amount": result.get("discount_amount", 0),
+        "final_total": result.get("final_total", cart_data.get("total", 0)),
+        "scope": result.get("scope"),
+        "target_id": result.get("target_id"),
+        "eligible_items": result.get("eligible_items", []),
+        "cart_total": cart_data.get("total", 0),
+        "used_count": result.get("used_count"),
+        "max_uses": result.get("max_uses"),
+        "one_per_user": result.get("one_per_user"),
+    }
+
+
 @app.post("/api/checkout")
 def api_checkout(payload: CheckoutPayload):
     """Оформить заказ из текущей корзины WebApp."""
     if payload.user_id is None or not users_service.get_user_by_telegram_id(int(payload.user_id)):
         raise HTTPException(status_code=401, detail="Требуется авторизация")
 
-    items, removed_ids = cart_service.get_cart_items(payload.user_id)
-
-    if not items:
-        raise HTTPException(status_code=400, detail="Cart is empty")
-
-    normalized_items: list[dict[str, Any]] = []
-    removed_items: list[dict[str, Any]] = []
-    total = 0
-
-    for item in items:
-        qty = max(int(item.get("qty") or 0), 0)
-        if qty <= 0:
-            continue
-
-        try:
-            product_id_int = int(item.get("product_id"))
-        except (TypeError, ValueError):
-            removed_items.append({"product_id": item.get("product_id"), "type": item.get("type"), "reason": "invalid"})
-            cart_service.remove_from_cart(payload.user_id, int(item.get("product_id") or 0), item.get("type") or "basket")
-            continue
-
-        product_type = item.get("type") or "basket"
-        if product_type not in ALLOWED_TYPES:
-            removed_items.append({"product_id": product_id_int, "type": product_type, "reason": "invalid"})
-            cart_service.remove_from_cart(payload.user_id, product_id_int, product_type)
-            continue
-        product_info = _product_by_type(product_type, product_id_int)
-
-        if not product_info:
-            removed_items.append({"product_id": product_id_int, "type": product_type, "reason": "inactive"})
-            cart_service.remove_from_cart(payload.user_id, product_id_int, product_type)
-            continue
-
-        price = int(product_info.get("price") or 0)
-        subtotal = price * qty
-        total += subtotal
-
-        normalized_items.append(
-            {
-                "product_id": product_id_int,
-                "name": product_info.get("name") or item.get("name"),
-                "price": price,
-                "qty": qty,
-                "type": product_type,
-            }
-        )
-
-    for removed_id in removed_ids:
-        product_info = products_service.get_product_by_id(removed_id, include_inactive=True)
-        removed_items.append(
-            {
-                "product_id": removed_id,
-                "type": product_info.get("type") if product_info else "unknown",
-                "reason": "inactive" if product_info else "not_found",
-            }
-        )
+    cart_data = _build_cart_response(payload.user_id)
+    normalized_items = cart_data.get("items") or []
+    removed_items = cart_data.get("removed_items") or []
+    total = int(cart_data.get("total") or 0)
 
     if not normalized_items:
         cart_service.clear_cart(payload.user_id)
@@ -794,12 +791,14 @@ def api_checkout(payload: CheckoutPayload):
 
     promo_result = None
     if payload.promocode:
-        promo_result = promocodes_service.validate_promocode(payload.promocode, payload.user_id, total)
+        promo_result = promocodes_service.validate_promocode(
+            payload.promocode, payload.user_id, normalized_items
+        )
         if not promo_result:
             raise HTTPException(status_code=400, detail="Invalid promocode")
 
     discount_amount = int(promo_result.get("discount_amount", 0)) if promo_result else 0
-    final_total = max(total - discount_amount, 0)
+    final_total = int(promo_result.get("final_total", total)) if promo_result else total
 
     order_text = format_order_for_admin(
         user_id=payload.user_id,
@@ -966,18 +965,45 @@ def api_favorites_toggle(payload: FavoriteTogglePayload):
 
 @app.post("/api/promocode/validate")
 def api_promocode_validate(payload: PromocodeValidatePayload):
-    result = promocodes_service.validate_promocode(
-        payload.code, payload.telegram_id, payload.total
-    )
+    cart_items: list[dict[str, Any]] = []
+    if payload.items:
+        for item in payload.items:
+            product_type = _validate_type(item.type)
+            qty = max(int(item.qty or 0), 0)
+            if qty <= 0:
+                continue
+            product = _product_by_type(product_type, int(item.product_id))
+            if not product:
+                continue
+            cart_items.append(
+                {
+                    "product_id": int(item.product_id),
+                    "type": product_type,
+                    "qty": qty,
+                    "price": int(product.get("price") or item.price or 0),
+                    "category_id": product.get("category_id"),
+                }
+            )
+    else:
+        cart_data = _build_cart_response(payload.telegram_id)
+        cart_items = cart_data.get("items") or []
+
+    result = promocodes_service.validate_promocode(payload.code, payload.telegram_id, cart_items)
     if not result:
         raise HTTPException(status_code=400, detail="Invalid promocode")
+
+    cart_total = sum(int(item.get("price", 0)) * int(item.get("qty", 0)) for item in cart_items)
 
     return {
         "code": result["code"],
         "discount_type": result["discount_type"],
-        "value": result["value"],
+        "discount_value": result["discount_value"],
         "discount_amount": result["discount_amount"],
         "final_total": result["final_total"],
+        "scope": result.get("scope"),
+        "target_id": result.get("target_id"),
+        "eligible_items": result.get("eligible_items", []),
+        "total": cart_total,
     }
 
 
@@ -1195,4 +1221,13 @@ def admin_update_promocode(promocode_id: int, payload: AdminPromocodeUpdatePaylo
     if not updated:
         raise HTTPException(status_code=404, detail="Promocode not found")
     return updated
+
+
+@app.delete("/api/admin/promocodes/{promocode_id}")
+def admin_delete_promocode(promocode_id: int, user_id: int):
+    _ensure_admin(user_id)
+    deleted = promocodes_service.delete_promocode(promocode_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Promocode not found")
+    return {"ok": True}
 
