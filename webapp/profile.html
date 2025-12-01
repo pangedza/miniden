@@ -60,6 +60,62 @@
     .edit-input { padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.12); background: rgba(255, 255, 255, 0.08); color: var(--text); min-width: 180px; }
     .edit-save { cursor: pointer; border: none; border-radius: 10px; padding: 8px 10px; background: rgba(255, 255, 255, 0.12); color: var(--text); font-weight: 700; }
 
+    .profile-avatar-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .profile-avatar {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      background-color: #f0e5ff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 3px solid #e3c1ff;
+      box-shadow: 0 0 8px rgba(0,0,0,0.15);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .profile-avatar-initials {
+      font-size: 36px;
+      font-weight: 600;
+      color: #6b3fa0;
+    }
+
+    .profile-avatar-edit-row {
+      display: flex;
+      gap: 8px;
+      width: 100%;
+      max-width: 320px;
+    }
+
+    #profile-avatar-url-input {
+      flex: 1;
+      padding: 6px 8px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      font-size: 14px;
+    }
+
+    #profile-avatar-url-save-btn {
+      padding: 6px 10px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+      background-color: #8b5cf6;
+      color: #fff;
+    }
+
     .btn { cursor: pointer; border: none; border-radius: 12px; padding: 12px 14px; background: linear-gradient(135deg, #ffb800, #ff8f3f); color: #0b0c10; font-weight: 700; font-size: 15px; box-shadow: 0 10px 30px rgba(255, 184, 0, 0.25); transition: transform 0.1s ease, box-shadow 0.1s ease; margin-top: 10px; }
     .btn:hover { transform: translateY(-1px); box-shadow: 0 12px 32px rgba(255, 184, 0, 0.35); }
 
@@ -93,6 +149,16 @@
     <p>Данные берутся из вашего Telegram-профиля MiniDeN и заказов.</p>
 
     <div id="status" class="message" style="display:none"></div>
+
+    <div class="profile-avatar-wrapper" id="profile-avatar-wrapper" style="display:none;">
+      <div id="profile-avatar" class="profile-avatar">
+        <span id="profile-avatar-initials" class="profile-avatar-initials"></span>
+      </div>
+      <div class="profile-avatar-edit-row">
+        <input type="text" id="profile-avatar-url-input" placeholder="/media/users/&lt;tg_id&gt;/avatar.jpg">
+        <button id="profile-avatar-url-save-btn">Сохранить аватар</button>
+      </div>
+    </div>
 
     <div class="grid" id="profile-grid" style="display:none">
       <div class="card">
@@ -150,6 +216,11 @@
     const statusEl = document.getElementById('status');
     const loginHint = document.getElementById('login-hint');
     const profileGrid = document.getElementById('profile-grid');
+    const profileAvatarWrapper = document.getElementById('profile-avatar-wrapper');
+    const avatarDiv = document.getElementById('profile-avatar');
+    const avatarInitialsSpan = document.getElementById('profile-avatar-initials');
+    const avatarUrlInput = document.getElementById('profile-avatar-url-input');
+    const avatarSaveBtn = document.getElementById('profile-avatar-url-save-btn');
     const fullNameEl = document.getElementById('full-name');
     const usernameEl = document.getElementById('username');
     const telegramIdEl = document.getElementById('telegram-id');
@@ -352,12 +423,75 @@
       });
     }
 
+    function updateAvatar(profile) {
+      if (avatarUrlInput) {
+        avatarUrlInput.value = profile.avatar_url || '';
+      }
+
+      if (avatarDiv) {
+        if (profile.avatar_url) {
+          avatarDiv.style.backgroundImage = `url(${profile.avatar_url})`;
+        } else {
+          avatarDiv.style.backgroundImage = 'none';
+        }
+      }
+
+      if (avatarInitialsSpan) {
+        let initials = '';
+        if (profile.full_name) {
+          const parts = profile.full_name.trim().split(' ');
+          if (parts.length >= 2) {
+            initials = (parts[0][0] + parts[1][0]).toUpperCase();
+          } else {
+            initials = parts[0][0].toUpperCase();
+          }
+        } else if (profile.username) {
+          initials = profile.username[0].toUpperCase();
+        } else {
+          initials = '🙂';
+        }
+        avatarInitialsSpan.textContent = initials;
+      }
+
+      if (profileAvatarWrapper) {
+        profileAvatarWrapper.style.display = 'flex';
+      }
+    }
+
+    async function saveAvatarUrl() {
+      if (!avatarUrlInput) return;
+      const avatarUrl = avatarUrlInput.value.trim();
+      if (!avatarUrl) {
+        alert('Введите URL аватара, например /media/users/<tg_id>/avatar.jpg');
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/profile/avatar-url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ avatar_url: avatarUrl }),
+        });
+        const data = await res.json();
+        if (!data.ok) {
+          alert('Не удалось сохранить аватар');
+          return;
+        }
+        currentUser = data.profile || currentUser;
+        updateAvatar(currentUser);
+      } catch (e) {
+        console.error(e);
+        alert('Ошибка при сохранении аватара');
+      }
+    }
+
     function renderProfile(profile) {
       fullNameEl.textContent = profile.full_name || '—';
       usernameEl.textContent = profile.telegram_username ? `@${profile.telegram_username}` : '—';
       telegramIdEl.textContent = profile.telegram_id ?? '—';
       phoneEl.textContent = profile.phone || '—';
       createdAtEl.textContent = profile.created_at ? new Date(profile.created_at).toLocaleDateString('ru-RU') : '—';
+      updateAvatar(profile);
       renderOrders(profile.orders || []);
       renderCourses(profile.courses || []);
       renderFavorites(profile.favorites || []);
@@ -405,6 +539,7 @@
     switchUserBtn?.addEventListener('click', logout);
     editFullNameBtn?.addEventListener('click', () => startEditing('full_name'));
     editPhoneBtn?.addEventListener('click', () => startEditing('phone'));
+    avatarSaveBtn?.addEventListener('click', saveAvatarUrl);
     loginButton?.addEventListener('click', () => {
       window.location.href = '/index.html';
     });
