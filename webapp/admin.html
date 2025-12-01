@@ -265,6 +265,8 @@
               <div class="form-group">
                 <div id="product-image-preview" class="image-preview-box">Нет изображения</div>
               </div>
+              <label>Краткое описание</label>
+              <textarea name="short_description" rows="2" placeholder="Кратко, до ~100–150 символов. Показывается на карточке товара."></textarea>
               <label>Описание</label>
               <textarea name="description"></textarea>
               <label>Ссылка на Wildberries</label>
@@ -342,6 +344,8 @@
               <div class="form-group">
                 <div id="course-image-preview" class="image-preview-box">Нет изображения</div>
               </div>
+              <label>Краткое описание</label>
+              <textarea name="short_description" rows="2" placeholder="Кратко, до ~100–150 символов. Показывается на карточке курса."></textarea>
               <label>Описание</label>
               <textarea name="description"></textarea>
               <label>Ссылка на мастер-класс</label>
@@ -714,16 +718,17 @@
             editingProductId = item.id;
             productFormTitle.textContent = `Редактировать товар #${item.id}`;
             const productImageUrl = item.image_url || item.image || '';
-            fillForm(productForm, {
-              category_id: item.category_id ?? '',
-              name: item.name,
-              price: item.price,
-              image_url: productImageUrl,
-              description: item.description,
-              wb_url: item.wb_url,
-              ozon_url: item.ozon_url,
-              yandex_url: item.yandex_url,
-              avito_url: item.avito_url,
+              fillForm(productForm, {
+                category_id: item.category_id ?? '',
+                name: item.name,
+                price: item.price,
+                image_url: productImageUrl,
+                short_description: item.short_description,
+                description: item.description,
+                wb_url: item.wb_url,
+                ozon_url: item.ozon_url,
+                yandex_url: item.yandex_url,
+                avito_url: item.avito_url,
               masterclass_url: item.masterclass_url,
               detail_url: item.detail_url,
             });
@@ -733,15 +738,16 @@
             editingCourseId = item.id;
             courseFormTitle.textContent = `Редактировать мастер-класс #${item.id}`;
             const courseImageUrl = item.image_url || item.image || '';
-            fillForm(courseForm, {
-              category_id: item.category_id ?? '',
-              name: item.name,
-              price: item.price,
-              image_url: courseImageUrl,
-              description: item.description,
-              masterclass_url: item.masterclass_url,
-              detail_url: item.detail_url,
-            });
+              fillForm(courseForm, {
+                category_id: item.category_id ?? '',
+                name: item.name,
+                price: item.price,
+                image_url: courseImageUrl,
+                short_description: item.short_description,
+                description: item.description,
+                masterclass_url: item.masterclass_url,
+                detail_url: item.detail_url,
+              });
             if (courseImageUrlInput) courseImageUrlInput.value = courseImageUrl || '';
             setCourseImagePreview(courseImageUrl);
           }

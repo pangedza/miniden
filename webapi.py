@@ -509,6 +509,7 @@ class AdminProductsCreatePayload(BaseModel):
     type: str
     name: str
     price: int
+    short_description: str | None = ""
     description: str | None = ""
     detail_url: str | None = None
     category_id: int | None = None
@@ -526,6 +527,7 @@ class AdminProductsUpdatePayload(BaseModel):
     type: str
     name: str
     price: int
+    short_description: str | None = ""
     description: str | None = ""
     detail_url: str | None = None
     category_id: int | None = None
@@ -1045,6 +1047,7 @@ def admin_create_product(payload: AdminProductsCreatePayload):
         product_type,
         payload.name,
         payload.price,
+        payload.short_description or None,
         payload.description or "",
         payload.detail_url,
         payload.category_id,
@@ -1068,6 +1071,7 @@ def admin_update_product(product_id: int, payload: AdminProductsUpdatePayload):
         product_type,
         payload.name,
         payload.price,
+        payload.short_description or None,
         payload.description or "",
         payload.detail_url,
         payload.category_id,

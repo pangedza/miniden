@@ -109,6 +109,7 @@
     .catalog-card-body { padding: 16px 16px 20px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
     .catalog-card-title { margin: 0; letter-spacing: -0.01em; font-size: 18px; }
     .catalog-card-description { margin: 0; color: var(--muted); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+    .course-card__short-desc { max-height: 3.6em; overflow: hidden; text-overflow: ellipsis; }
     .meta { font-size: 13px; color: var(--muted); }
 
     .catalog-card-actions { margin-top: auto; display: flex; flex-direction: column; gap: 10px; }
@@ -124,6 +125,29 @@
     .link-row a { color: var(--accent-2); text-decoration: none; font-weight: 700; }
 
     .note { margin: 18px 0 8px; font-size: 14px; color: var(--muted); }
+
+    .course-card__footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+    .course-card__buttons { display: flex; gap: 8px; flex-wrap: wrap; width: 100%; }
+    .course-card__buttons .btn { flex: 1 1 140px; padding: 10px 12px; }
+
+    .course-modal { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 1200; }
+    .course-modal.hidden { display: none; }
+    .course-modal__backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.55); backdrop-filter: blur(4px); }
+    .course-modal__content { position: relative; background: #111118; border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 18px; max-width: 760px; width: min(760px, 94vw); max-height: 90vh; overflow: auto; box-shadow: 0 18px 60px rgba(0,0,0,0.4); display: grid; gap: 14px; grid-template-columns: 240px 1fr; }
+    .course-modal__close { position: absolute; top: 12px; right: 12px; border: none; background: rgba(255,255,255,0.08); color: var(--text); border-radius: 50%; width: 32px; height: 32px; cursor: pointer; }
+    .course-modal__media { width: 100%; height: 220px; background: rgba(255,255,255,0.04); border-radius: 12px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+    .course-modal__media img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .course-modal__info { display: flex; flex-direction: column; gap: 12px; }
+    .course-modal__description { color: var(--muted); line-height: 1.6; margin: 0; white-space: pre-wrap; }
+    .course-modal__price-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .course-modal__price { font-weight: 800; color: #c1e9ff; font-size: 20px; }
+    .course-modal__actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .course-modal__actions .btn { flex: 1 1 180px; }
+
+    @media (max-width: 900px) {
+      .course-modal__content { grid-template-columns: 1fr; }
+      .course-modal__media { height: 180px; }
+    }
 
     @media (max-width: 1200px) {
       .catalog-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -174,6 +198,26 @@
     <div class="note" id="note"></div>
   </main>
 
+  <div id="course-modal" class="course-modal hidden" aria-hidden="true">
+    <div class="course-modal__backdrop" id="course-modal-backdrop"></div>
+    <div class="course-modal__content" role="dialog" aria-modal="true">
+      <button class="course-modal__close" type="button" id="course-modal-close" aria-label="Закрыть">×</button>
+      <div class="course-modal__media">
+        <img id="course-modal-image" alt="" />
+        <div id="course-modal-placeholder" style="display:none; color: var(--muted); padding: 12px; text-align:center;">Нет изображения</div>
+      </div>
+      <div class="course-modal__info">
+        <h3 id="course-modal-title" style="margin:0;"></h3>
+        <div class="meta" id="course-modal-meta"></div>
+        <p class="course-modal__description" id="course-modal-description"></p>
+        <div class="course-modal__price-row">
+          <div class="course-modal__price" id="course-modal-price"></div>
+        </div>
+        <div class="course-modal__actions" id="course-modal-actions"></div>
+      </div>
+    </div>
+  </div>
+
   <script src="js/api.js?v=20241205"></script>
   <script>
     const sidebar = document.querySelector('.app-sidebar');
@@ -208,11 +252,23 @@
     const tabsEl = document.getElementById('tabs');
     const cardsEl = document.getElementById('cards');
     const noteEl = document.getElementById('note');
+    const courseModal = document.getElementById('course-modal');
+    const courseModalClose = document.getElementById('course-modal-close');
+    const courseModalBackdrop = document.getElementById('course-modal-backdrop');
+    const courseModalImage = document.getElementById('course-modal-image');
+    const courseModalPlaceholder = document.getElementById('course-modal-placeholder');
+    const courseModalTitle = document.getElementById('course-modal-title');
+    const courseModalMeta = document.getElementById('course-modal-meta');
+    const courseModalDescription = document.getElementById('course-modal-description');
+    const courseModalPrice = document.getElementById('course-modal-price');
+    const courseModalActions = document.getElementById('course-modal-actions');
 
     let profile = null;
     let categories = [];
     let courses = [];
     let active = null;
+    let courseMap = new Map();
+    let currentCourse = null;
 
     const isTelegramWebApp = Boolean(window.Telegram?.WebApp);
     if (isTelegramWebApp && window.Telegram?.WebApp?.ready) {
@@ -233,6 +289,12 @@
     function truncateText(text, limit = 160) {
       if (!text) return '';
       return text.length > limit ? `${text.slice(0, limit)}…` : text;
+    }
+
+    function shortDescription(item) {
+      if (item?.short_description) return item.short_description;
+      const fallback = item?.description ? truncateText(item.description, 140) : '';
+      return fallback || 'Описание появится позже.';
     }
 
     function updateAdminLinkVisibility() {
@@ -307,11 +369,11 @@
         meta.textContent = metaBySlug[item.category_slug] || '';
 
         const desc = document.createElement('p');
-        desc.className = 'catalog-card-description';
-        desc.textContent = truncateText(item.description || 'Описание появится позже.');
+        desc.className = 'catalog-card-description course-card__short-desc';
+        desc.textContent = shortDescription(item);
 
         const footer = document.createElement('div');
-        footer.className = 'footer';
+        footer.className = 'course-card__footer';
 
         const price = document.createElement('div');
         price.className = 'price';
@@ -320,55 +382,50 @@
         const hasAccess = profile?.courses?.some((c) => c.id === item.id) ?? false;
         const linkHref = courseLink(item);
 
-        const primaryBtn = document.createElement('a');
-        primaryBtn.className = 'btn';
-        primaryBtn.textContent = 'Перейти к мастер-классу';
-        primaryBtn.style.textAlign = 'center';
+        const actions = document.createElement('div');
+        actions.className = 'catalog-card-actions';
 
-        const actionRow = document.createElement('div');
-        actionRow.className = 'action-row';
+        const buttonsRow = document.createElement('div');
+        buttonsRow.className = 'course-card__buttons';
 
-        if (Number(item.price || 0) === 0) {
-          primaryBtn.href = linkHref || '#';
-          primaryBtn.target = linkHref ? '_blank' : '';
-          primaryBtn.rel = linkHref ? 'noopener' : '';
-          primaryBtn.addEventListener('click', (e) => {
+        const detailsBtn = document.createElement('button');
+        detailsBtn.type = 'button';
+        detailsBtn.className = 'btn secondary';
+        detailsBtn.textContent = 'Подробнее';
+        detailsBtn.addEventListener('click', () => openCourseModal(item.id));
+
+        if (Number(item.price || 0) === 0 || hasAccess) {
+          const openBtn = document.createElement('a');
+          openBtn.className = 'btn';
+          openBtn.textContent = 'Перейти к мастер-классу';
+          openBtn.style.textAlign = 'center';
+          openBtn.href = linkHref || '#';
+          openBtn.target = linkHref ? '_blank' : '';
+          openBtn.rel = linkHref ? 'noopener' : '';
+          openBtn.addEventListener('click', (e) => {
             if (!linkHref) {
               e.preventDefault();
               alert('Ссылка появится позже.');
             }
           });
-          actionRow.appendChild(primaryBtn);
-        } else if (hasAccess) {
-          primaryBtn.href = linkHref || '#';
-          primaryBtn.target = linkHref ? '_blank' : '';
-          primaryBtn.rel = linkHref ? 'noopener' : '';
-          primaryBtn.addEventListener('click', (e) => {
-            if (!linkHref) {
-              e.preventDefault();
-              alert('Ссылка появится позже.');
-            }
-          });
-          actionRow.appendChild(primaryBtn);
+          buttonsRow.append(detailsBtn, openBtn);
         } else {
-          const accessText = document.createElement('div');
-          accessText.style.color = 'var(--muted)';
-          accessText.textContent = profile ? 'Доступ появится после оплаты' : 'Для доступа войдите и оплатите заказ';
-
           const addBtn = document.createElement('button');
           addBtn.type = 'button';
           addBtn.className = 'btn';
           addBtn.textContent = 'Добавить в корзину';
           addBtn.addEventListener('click', () => handleAddToCart(item));
 
-          actionRow.append(accessText, addBtn);
+          const note = document.createElement('div');
+          note.style.color = 'var(--muted)';
+          note.textContent = profile ? 'Доступ появится после оплаты' : 'Войдите и оплатите, чтобы открыть уроки';
+
+          buttonsRow.append(detailsBtn, addBtn);
+          actions.appendChild(note);
         }
 
         footer.append(price);
-
-        const actions = document.createElement('div');
-        actions.className = 'catalog-card-actions';
-        actions.append(footer, actionRow);
+        actions.append(footer, buttonsRow);
 
         body.append(title, meta, desc, actions);
         card.append(cover, body);
@@ -393,12 +450,86 @@
         const params = { type: 'course' };
         if (active) params.category_slug = active;
         courses = await apiGet('/products', params);
+        courseMap = new Map(courses.map((c) => [c.id, c]));
         renderCards();
       } catch (e) {
         noteEl.textContent = 'Не удалось загрузить курсы. Попробуйте обновить страницу.';
         cardsEl.innerHTML = '';
       }
     }
+
+    function closeCourseModal() {
+      if (!courseModal) return;
+      courseModal.classList.add('hidden');
+      courseModal.setAttribute('aria-hidden', 'true');
+      currentCourse = null;
+      if (courseModalActions) courseModalActions.innerHTML = '';
+    }
+
+    function openCourseModal(courseId) {
+      if (!courseModal) return;
+      const item = courseMap.get(courseId);
+      if (!item) return;
+      currentCourse = item;
+
+      const imageUrl = item.image_url || item.image;
+      if (imageUrl) {
+        courseModalImage.src = imageUrl;
+        courseModalImage.style.display = 'block';
+        courseModalPlaceholder.style.display = 'none';
+      } else {
+        courseModalImage.removeAttribute('src');
+        courseModalImage.style.display = 'none';
+        courseModalPlaceholder.style.display = 'block';
+      }
+
+      courseModalTitle.textContent = item.name || 'Мастер-класс';
+      courseModalMeta.textContent = metaBySlug[item.category_slug] || '';
+      courseModalDescription.textContent = item.description || 'Описание появится позже.';
+      courseModalPrice.textContent = formatPrice(item.price);
+
+      if (courseModalActions) {
+        courseModalActions.innerHTML = '';
+        const detailsAccess = profile?.courses?.some((c) => c.id === item.id) ?? false;
+        const linkHref = courseLink(item);
+        if (Number(item.price || 0) === 0 || detailsAccess) {
+          const openBtn = document.createElement('a');
+          openBtn.className = 'btn';
+          openBtn.textContent = 'Открыть урок';
+          openBtn.href = linkHref || '#';
+          openBtn.target = linkHref ? '_blank' : '';
+          openBtn.rel = linkHref ? 'noopener' : '';
+          openBtn.addEventListener('click', (e) => {
+            if (!linkHref) {
+              e.preventDefault();
+              alert('Ссылка появится позже.');
+            }
+          });
+          courseModalActions.appendChild(openBtn);
+        } else {
+          const addBtn = document.createElement('button');
+          addBtn.type = 'button';
+          addBtn.className = 'btn';
+          addBtn.textContent = 'Добавить в корзину';
+          addBtn.addEventListener('click', () => handleAddToCart(item));
+
+          const infoBtn = document.createElement('button');
+          infoBtn.type = 'button';
+          infoBtn.className = 'btn secondary';
+          infoBtn.textContent = 'Закрыть';
+          infoBtn.addEventListener('click', closeCourseModal);
+
+          courseModalActions.append(addBtn, infoBtn);
+        }
+      }
+
+      courseModal.classList.remove('hidden');
+      courseModal.setAttribute('aria-hidden', 'false');
+    }
+
+    [courseModalClose, courseModalBackdrop].forEach((el) => {
+      el?.addEventListener('click', closeCourseModal);
+    });
 
     async function handleAddToCart(course) {
       const currentProfile = await getCurrentUserProfile();

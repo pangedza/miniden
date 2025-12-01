@@ -130,6 +130,7 @@
     .catalog-card-body { padding: 16px 16px 20px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
     .catalog-card-title { margin: 0; letter-spacing: -0.01em; font-size: 18px; }
     .catalog-card-description { margin: 0; color: var(--muted); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+    .product-card__short-desc { max-height: 3.6em; overflow: hidden; text-overflow: ellipsis; }
 
     .market-links { display: flex; gap: 8px; flex-wrap: wrap; }
 
@@ -141,7 +142,31 @@
 
     .catalog-card-actions { margin-top: auto; display: flex; flex-direction: column; gap: 10px; }
 
+    .product-card__footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+    .product-card__buttons { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; width: 100%; }
+    .product-card__buttons .btn { flex: 1 1 140px; padding: 10px 12px; }
+    .product-card__buttons .btn.secondary { background: rgba(255, 255, 255, 0.08); color: var(--text); border: 1px solid rgba(255, 255, 255, 0.12); box-shadow: none; }
+
     .note { margin: 18px 0 8px; font-size: 14px; color: var(--muted); }
+
+    .product-modal { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 1200; }
+    .product-modal.hidden { display: none; }
+    .product-modal__backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.55); backdrop-filter: blur(4px); }
+    .product-modal__content { position: relative; background: #111118; border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 18px; max-width: 760px; width: min(760px, 94vw); max-height: 90vh; overflow: auto; box-shadow: 0 18px 60px rgba(0,0,0,0.4); display: grid; gap: 14px; grid-template-columns: 240px 1fr; }
+    .product-modal__close { position: absolute; top: 12px; right: 12px; border: none; background: rgba(255,255,255,0.08); color: var(--text); border-radius: 50%; width: 32px; height: 32px; cursor: pointer; }
+    .product-modal__media { width: 100%; height: 220px; background: rgba(255,255,255,0.04); border-radius: 12px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+    .product-modal__media img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .product-modal__info { display: flex; flex-direction: column; gap: 12px; }
+    .product-modal__description { color: var(--muted); line-height: 1.6; margin: 0; white-space: pre-wrap; }
+    .product-modal__price-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .product-modal__price { font-weight: 800; color: #ffdf80; font-size: 20px; }
+    .product-modal__actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .product-modal__actions .btn { flex: 1 1 180px; }
+
+    @media (max-width: 900px) {
+      .product-modal__content { grid-template-columns: 1fr; }
+      .product-modal__media { height: 180px; }
+    }
 
     @media (max-width: 1200px) {
       .catalog-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -205,6 +230,28 @@
     <div class="note" id="note"></div>
   </main>
 
+  <div id="product-modal" class="product-modal hidden" aria-hidden="true">
+    <div class="product-modal__backdrop" id="product-modal-backdrop"></div>
+    <div class="product-modal__content" role="dialog" aria-modal="true">
+      <button class="product-modal__close" type="button" id="product-modal-close" aria-label="Закрыть">×</button>
+      <div class="product-modal__media" id="product-modal-media">
+        <img id="product-modal-image" alt="" />
+        <div id="product-modal-placeholder" style="display:none; color: var(--muted); padding: 12px; text-align:center;">Нет изображения</div>
+      </div>
+      <div class="product-modal__info">
+        <h3 id="product-modal-title" style="margin:0;"></h3>
+        <p class="product-modal__description" id="product-modal-description"></p>
+        <div class="product-modal__price-row">
+          <div class="product-modal__price" id="product-modal-price"></div>
+        </div>
+        <div class="product-modal__actions">
+          <button class="btn" type="button" id="product-modal-add">Добавить в корзину</button>
+          <button class="btn secondary" type="button" id="product-modal-close-btn">Закрыть</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="js/api.js?v=20241205"></script>
   <script>
     const sidebar = document.querySelector('.app-sidebar');
@@ -239,11 +286,23 @@
     const tabsEl = document.getElementById('tabs');
     const cardsEl = document.getElementById('cards');
     const noteEl = document.getElementById('note');
+    const productModal = document.getElementById('product-modal');
+    const productModalClose = document.getElementById('product-modal-close');
+    const productModalCloseBtn = document.getElementById('product-modal-close-btn');
+    const productModalBackdrop = document.getElementById('product-modal-backdrop');
+    const productModalTitle = document.getElementById('product-modal-title');
+    const productModalDescription = document.getElementById('product-modal-description');
+    const productModalPrice = document.getElementById('product-modal-price');
+    const productModalAdd = document.getElementById('product-modal-add');
+    const productModalImage = document.getElementById('product-modal-image');
+    const productModalPlaceholder = document.getElementById('product-modal-placeholder');
 
     let profile = null;
     let categories = [];
     let products = [];
     let active = null;
+    let productMap = new Map();
+    let currentProduct = null;
 
     const isTelegramWebApp = Boolean(window.Telegram?.WebApp);
     if (isTelegramWebApp && window.Telegram?.WebApp?.ready) {
@@ -259,6 +318,12 @@
     function truncateText(text, limit = 160) {
       if (!text) return '';
       return text.length > limit ? `${text.slice(0, limit)}…` : text;
+    }
+
+    function shortDescription(item) {
+      if (item?.short_description) return item.short_description;
+      const fallback = item?.description ? truncateText(item.description, 140) : '';
+      return fallback || 'Описание появится позже.';
     }
 
     function updateAdminLinkVisibility() {
@@ -351,28 +416,39 @@
         title.textContent = item.name;
 
         const desc = document.createElement('p');
-        desc.className = 'catalog-card-description';
-        desc.textContent = truncateText(item.description || 'Описание появится позже.');
+        desc.className = 'catalog-card-description product-card__short-desc';
+        desc.textContent = shortDescription(item);
 
         const marketLinks = createMarketLinks(item);
 
         const footer = document.createElement('div');
-        footer.className = 'footer';
+        footer.className = 'product-card__footer';
 
         const price = document.createElement('div');
         price.className = 'price';
         price.textContent = formatPrice(item.price);
 
-        const btn = document.createElement('button');
-        btn.className = 'btn';
-        btn.textContent = 'Добавить в корзину';
-        btn.addEventListener('click', () => handleAddToCart(item));
-
-        footer.append(price, btn);
-
         const actions = document.createElement('div');
         actions.className = 'catalog-card-actions';
-        actions.appendChild(footer);
+
+        const buttonsRow = document.createElement('div');
+        buttonsRow.className = 'product-card__buttons';
+
+        const detailsBtn = document.createElement('button');
+        detailsBtn.type = 'button';
+        detailsBtn.className = 'btn secondary';
+        detailsBtn.textContent = 'Подробнее';
+        detailsBtn.addEventListener('click', () => openProductModal(item.id));
+
+        const btn = document.createElement('button');
+        btn.className = 'btn';
+        btn.textContent = 'В корзину';
+        btn.addEventListener('click', () => handleAddToCart(item));
+
+        buttonsRow.append(detailsBtn, btn);
+        footer.append(price);
+        actions.append(footer, buttonsRow);
+
         body.append(title, desc);
         if (marketLinks.childElementCount) {
           body.appendChild(marketLinks);
@@ -401,6 +477,7 @@
         const params = { type: 'basket' };
         if (active) params.category_slug = active;
         products = await apiGet('/products', params);
+        productMap = new Map(products.map((p) => [p.id, p]));
         renderTabs();
         renderCards();
       } catch (e) {
@@ -408,6 +485,46 @@
         cardsEl.innerHTML = '';
       }
     }
+
+    function closeProductModal() {
+      if (!productModal) return;
+      productModal.classList.add('hidden');
+      productModal.setAttribute('aria-hidden', 'true');
+      currentProduct = null;
+    }
+
+    function openProductModal(productId) {
+      if (!productModal) return;
+      const item = productMap.get(productId);
+      if (!item) return;
+      currentProduct = item;
+
+      const imageUrl = item.image_url || item.image;
+      if (imageUrl) {
+        productModalImage.src = imageUrl;
+        productModalImage.style.display = 'block';
+        productModalPlaceholder.style.display = 'none';
+      } else {
+        productModalImage.removeAttribute('src');
+        productModalImage.style.display = 'none';
+        productModalPlaceholder.style.display = 'block';
+      }
+
+      productModalTitle.textContent = item.name || 'Товар';
+      productModalDescription.textContent = item.description || 'Описание появится позже.';
+      productModalPrice.textContent = formatPrice(item.price);
+
+      if (productModalAdd) {
+        productModalAdd.onclick = () => handleAddToCart(item);
+      }
+
+      productModal.classList.remove('hidden');
+      productModal.setAttribute('aria-hidden', 'false');
+    }
+
+    [productModalClose, productModalCloseBtn, productModalBackdrop].forEach((el) => {
+      el?.addEventListener('click', closeProductModal);
+    });
 
     async function handleAddToCart(product) {
       const currentProfile = await getCurrentUserProfile();

@@ -63,6 +63,8 @@ def init_db() -> None:
             "ALTER TABLE products_baskets ADD COLUMN IF NOT EXISTS yandex_url TEXT",
             "ALTER TABLE products_baskets ADD COLUMN IF NOT EXISTS avito_url TEXT",
             "ALTER TABLE products_baskets ADD COLUMN IF NOT EXISTS masterclass_url TEXT",
+            "ALTER TABLE products_baskets ADD COLUMN IF NOT EXISTS short_description TEXT",
+            "ALTER TABLE products_courses ADD COLUMN IF NOT EXISTS short_description TEXT",
             "ALTER TABLE products_courses ADD COLUMN IF NOT EXISTS masterclass_url TEXT",
         ]
 

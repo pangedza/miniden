@@ -45,6 +45,7 @@ def _serialize_product(
         "type": product_type,
         "name": product.name,
         "price": price,
+        "short_description": getattr(product, "short_description", None),
         "description": product.description or "",
         "detail_url": getattr(product, "detail_url", None),
         "image_file_id": getattr(product, "image", None),
@@ -224,6 +225,7 @@ def create_product(
     name: str,
     price: int,
     description: str = "",
+    short_description: str | None = None,
     detail_url: str | None = None,
     category_id: int | None = None,
     *,
@@ -240,6 +242,7 @@ def create_product(
         instance = model(
             title=name,
             description=description,
+            short_description=short_description,
             price=price,
             detail_url=detail_url,
             is_active=1,
@@ -317,6 +320,7 @@ def update_product_full(
     name: str,
     price: int,
     description: str = "",
+    short_description: str | None = None,
     detail_url: str | None = None,
     category_id: int | None = None,
     is_active: bool | None = None,
@@ -337,6 +341,7 @@ def update_product_full(
 
         instance.title = name
         instance.description = description
+        instance.short_description = short_description
         instance.price = price
         instance.detail_url = detail_url
         instance.category_id = category_id
@@ -413,6 +418,7 @@ def seed_products_from_json() -> None:
                     ProductBasket(
                         id=item.get("id"),
                         title=item.get("name") or "",
+                        short_description=item.get("short_description"),
                         description=item.get("description"),
                         price=item.get("price", 0),
                         detail_url=item.get("detail_url"),
@@ -426,6 +432,7 @@ def seed_products_from_json() -> None:
                     ProductCourse(
                         id=item.get("id"),
                         title=item.get("name") or "",
+                        short_description=item.get("short_description"),
                         description=item.get("description"),
                         price=item.get("price", 0),
                         detail_url=item.get("detail_url"),
