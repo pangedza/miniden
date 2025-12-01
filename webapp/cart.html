@@ -175,16 +175,9 @@
 
     async function loadCurrentUser() {
       try {
-        if (isTelegramWebApp && window.Telegram?.WebApp?.initData) {
-          const profile = await apiPost('/auth/telegram', { initData: window.Telegram.WebApp.initData });
-          return profile?.ok ? profile : null;
-        }
-        const res = await fetch('/api/auth/session');
-        if (res.status === 401 || res.status === 404) {
-          return null;
-        }
-        const data = await handleResponse(res);
-        return data?.ok ? data : null;
+        const profile = await getCurrentUserProfile();
+        if (!profile) return null;
+        return profile?.ok === false ? null : profile;
       } catch (e) {
         if (e?.status === 401 || e?.status === 404) return null;
         console.error('Не удалось получить пользователя', e);
@@ -235,7 +228,8 @@
         const categoryCell = document.createElement('td');
         const badge = document.createElement('span');
         badge.className = 'badge';
-        badge.textContent = item.category_name || (item.type === 'course' ? 'Курс' : 'Товар');
+        const typeLabel = item.type === 'course' ? 'Мастер-класс' : 'Товар';
+        badge.textContent = typeLabel;
         categoryCell.appendChild(badge);
 
         const priceCell = document.createElement('td');

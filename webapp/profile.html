@@ -114,7 +114,7 @@
       </div>
 
       <div class="card">
-        <div class="label">Доступные мастер-классы</div>
+        <div class="label">Мои мастер-классы</div>
         <ul class="list" id="courses-list"></ul>
       </div>
 
@@ -278,13 +278,13 @@
         (order.items || []).forEach((item) => {
           const itemLi = document.createElement('li');
           const prefix = item.type === 'course' ? '🎓' : '🧺';
-          const hasAccess = item.type === 'course' ? Boolean(item.can_access || order.status === 'paid' || (item.price ?? 0) <= 0) : true;
-          const link = item.masterclass_url || item.detail_url || item.product?.masterclass_url || item.product?.detail_url;
           const baseText = `${prefix} ${item.name || 'Товар'} — ${item.qty} × ${item.price ?? 0} ₽`;
-          if (item.type === 'course' && hasAccess && link) {
-            itemLi.innerHTML = `${baseText} • <a href="${link}" target="_blank">Перейти к мастер-классу</a>`;
-          } else if (item.type === 'course' && !hasAccess) {
-            itemLi.textContent = `${baseText} • Ссылка появится после оплаты`;
+          if (item.type === 'course') {
+            if ((order.status || '').toLowerCase() !== 'paid') {
+              itemLi.textContent = `${baseText} • Ссылка появится после оплаты`;
+            } else {
+              itemLi.textContent = `${baseText} • Доступ открыт в разделе «Мои мастер-классы»`;
+            }
           } else {
             itemLi.textContent = baseText;
           }
@@ -303,19 +303,18 @@
       coursesList.innerHTML = '';
       if (!courses || !courses.length) {
         const li = document.createElement('li');
-        li.textContent = 'Доступных мастер-классов пока нет';
+        li.textContent = 'У вас пока нет доступных мастер-классов';
         coursesList.appendChild(li);
         return;
       }
 
       courses.forEach((course) => {
         const li = document.createElement('li');
-        const statusText = course.is_paid ? 'Оплаченный доступ' : 'Бесплатный';
-        if (course.masterclass_url) {
-          li.innerHTML = `🎓 ${course.name || 'Мастер-класс'} • ${statusText} — <a href="${course.masterclass_url}" target="_blank">Перейти</a>`;
-        } else {
-          li.textContent = `🎓 ${course.name || 'Мастер-класс'} • ${statusText}`;
-        }
+        const statusText = course.is_paid ? 'Оплачен' : 'Бесплатный';
+        const linkText = course.masterclass_url
+          ? ` — <a href="${course.masterclass_url}" target="_blank">Перейти</a>`
+          : '';
+        li.innerHTML = `🎓 ${course.name || 'Мастер-класс'} • ${statusText}${linkText}`;
         coursesList.appendChild(li);
       });
     }
@@ -386,30 +385,11 @@
       }
     }
 
-    async function loadProfileFromSession() {
-      const res = await fetch('/api/auth/session?include_notes=true');
-      if (res.status === 401 || res.status === 404) {
-        showLoginHint('Вы не авторизованы. Перейдите на главную страницу и выполните вход через Telegram.');
-        return null;
-      }
-      const data = await handleResponse(res);
-      return data?.ok ? data : null;
-    }
-
-    async function loadProfileFromWebApp() {
-      const initData = window.Telegram?.WebApp?.initData;
-      if (!initData) {
-        showLoginHint('Не удалось получить данные Telegram WebApp. Откройте профиль из бота.');
-        return null;
-      }
-      const profile = await apiPost('/auth/telegram', { initData, include_notes: true });
-      return profile?.ok ? profile : null;
-    }
-
     async function initProfile() {
       try {
-        currentUser = isTelegramWebApp ? await loadProfileFromWebApp() : await loadProfileFromSession();
+        currentUser = await getCurrentUserProfile({ includeNotes: true });
         if (!currentUser) {
+          showLoginHint('Вы не авторизованы. Перейдите на главную страницу и выполните вход через Telegram.');
           return;
         }
         updateAdminLinkVisibility();
