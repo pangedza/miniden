@@ -7,144 +7,13 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
-  <style>
-    :root {
-      color-scheme: light;
-      --bg: #0b0c10;
-      --panel: rgba(255, 255, 255, 0.06);
-      --text: #f6f7fb;
-      --muted: #c7c9d3;
-      --accent: #ffb800;
-      --accent-2: #7bd8ff;
-      --border: rgba(255, 255, 255, 0.08);
-      --shadow: 0 14px 50px rgba(0, 0, 0, 0.35);
-    }
+  <link rel="stylesheet" href="css/theme.css?v=20241215" />
 
-    * { box-sizing: border-box; }
-
-    body {
-      margin: 0;
-      font-family: "Inter", system-ui, -apple-system, sans-serif;
-      background: radial-gradient(circle at 10% 20%, rgba(255, 184, 0, 0.06), transparent 35%),
-        radial-gradient(circle at 80% 10%, rgba(123, 216, 255, 0.08), transparent 30%),
-        radial-gradient(circle at 60% 80%, rgba(255, 184, 0, 0.05), transparent 32%),
-        #0b0c10;
-      color: var(--text);
-      min-height: 100vh;
-    }
-
-    a { color: var(--accent-2); }
-
-    .layout {
-      display: grid;
-      grid-template-columns: 260px 1fr;
-      min-height: 100vh;
-    }
-
-    aside {
-      background: rgba(17, 17, 19, 0.85);
-      border-right: 1px solid var(--border);
-      padding: 24px 18px;
-      position: sticky;
-      top: 0;
-      height: 100vh;
-    }
-
-    .brand { font-weight: 800; letter-spacing: -0.02em; margin-bottom: 14px; }
-    .brand span { color: var(--muted); font-size: 13px; }
-
-    .nav-btn {
-      width: 100%;
-      display: block;
-      text-align: left;
-      padding: 12px 14px;
-      margin: 6px 0;
-      border-radius: 12px;
-      border: 1px solid transparent;
-      background: rgba(255, 255, 255, 0.04);
-      color: var(--muted);
-      font-weight: 700;
-      cursor: pointer;
-    }
-
-    .nav-btn.active {
-      color: var(--text);
-      border-color: rgba(255, 255, 255, 0.12);
-      background: linear-gradient(135deg, rgba(255, 184, 0, 0.2), rgba(123, 216, 255, 0.16));
-    }
-
-    main {
-      padding: 24px;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-
-    .card {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 16px;
-      box-shadow: var(--shadow);
-    }
-
-    .section-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
-    .muted { color: var(--muted); }
-    .btn { cursor: pointer; border: none; border-radius: 12px; padding: 10px 12px; font-weight: 700; }
-    .btn.primary { background: linear-gradient(135deg, #ffb800, #ff8f3f); color: #0b0c10; box-shadow: 0 10px 30px rgba(255, 184, 0, 0.25); }
-    .btn.secondary { background: rgba(255, 255, 255, 0.08); color: var(--text); border: 1px solid var(--border); }
-    .admin-back-to-main { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; }
-    .admin-top-row h1 { margin: 0; }
-
-    label { display: block; font-weight: 700; margin: 8px 0 4px; }
-    input, textarea, select {
-      width: 100%;
-      padding: 10px 12px;
-      border-radius: 12px;
-      border: 1px solid var(--border);
-      background: rgba(255, 255, 255, 0.06);
-      color: var(--text);
-    }
-
-    textarea { min-height: 80px; resize: vertical; }
-
-    table { width: 100%; border-collapse: collapse; }
-    th, td { padding: 10px 8px; border-bottom: 1px solid var(--border); text-align: left; }
-    th { color: var(--muted); font-weight: 700; }
-
-    .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
-    .status-box { padding: 12px; border-radius: 12px; border: 1px solid var(--border); background: rgba(255,255,255,0.07); }
-    .tag { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 10px; background: rgba(255,255,255,0.08); border: 1px solid var(--border); }
-
-    .pill { padding: 6px 10px; border-radius: 999px; font-size: 12px; border: 1px solid var(--border); color: var(--muted); }
-    .pill.active { background: rgba(123, 216, 255, 0.12); color: var(--text); }
-
-    .image-preview-box {
-      width: 200px;
-      height: 200px;
-      border-radius: 16px;
-      border: 1px dashed #ccc;
-      background-size: cover;
-      background-position: center;
-      background-repeat: no-repeat;
-      background-color: #f3f3f3;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 12px;
-      color: #888;
-    }
-
-    @media (max-width: 1024px) {
-      .layout { grid-template-columns: 1fr; }
-      aside { position: relative; height: auto; }
-    }
-  </style>
 </head>
-<body>
-  <div class="layout">
-    <aside>
-      <div class="brand">MiniDeN<br /><span>админ-панель</span></div>
+<body data-theme="purple" class="page-admin">
+  <div class="admin-layout">
+    <aside class="admin-sidebar">
+      <div class="admin-brand">MiniDeN<br /><span>админ-панель</span></div>
       <button class="nav-btn active" data-section="orders">Заказы</button>
       <button class="nav-btn" data-section="products">Товары</button>
       <button class="nav-btn" data-section="courses">Мастер-классы</button>
@@ -153,10 +22,20 @@
       <div class="muted" style="margin-top:16px; font-size:13px;">Выйдите в профиль, чтобы проверить статус авторизации.</div>
     </aside>
 
-    <main>
+    <main class="admin-main">
       <div class="section-header admin-top-row">
         <h1>Админка</h1>
-        <a href="/webapp/index.html" class="btn secondary admin-back-to-main">Вернуться на главную</a>
+        <div class="header-actions">
+          <div class="theme-switcher">
+            <label for="theme-select">Тема</label>
+            <select id="theme-select">
+              <option value="purple">Фиолетовая</option>
+              <option value="dark">Тёмная</option>
+              <option value="light">Светлая</option>
+            </select>
+          </div>
+          <a href="/webapp/index.html" class="admin-btn secondary admin-back-to-main">Вернуться на главную</a>
+        </div>
       </div>
       <div id="status" class="status-box" style="display:none"></div>
 
@@ -469,6 +348,7 @@
     </main>
   </div>
 
+  <script src="js/app.js?v=20241215"></script>
   <script src="js/api.js?v=20241215"></script>
   <script>
     const statusBox = document.getElementById('status');
