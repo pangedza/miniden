@@ -39,6 +39,48 @@
       padding: 0 18px 48px;
     }
 
+    #toast-container {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 2000;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: none;
+    }
+
+    .toast {
+      min-width: 260px;
+      max-width: 360px;
+      background: rgba(30, 30, 30, 0.95);
+      color: #fff;
+      padding: 12px 16px;
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+      font-size: 14px;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 0.25s ease, transform 0.25s ease;
+      pointer-events: auto;
+    }
+
+    .toast--visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .toast__title {
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .toast__text {
+      font-size: 13px;
+      opacity: 0.85;
+    }
+
     .top-nav { position: sticky; top: 0; z-index: 1100; background: var(--nav); backdrop-filter: blur(10px); border-bottom: 1px solid rgba(255, 255, 255, 0.06); display: flex; align-items: center; justify-content: space-between; padding: 14px 12px; margin: 0 -18px; }
     .brand { display: flex; flex-direction: column; gap: 2px; font-weight: 800; letter-spacing: -0.02em; }
     .brand span { color: var(--muted); font-size: 13px; font-weight: 600; letter-spacing: normal; }
@@ -177,6 +219,7 @@
   </header>
 
   <div class="app-sidebar-overlay"></div>
+  <div id="toast-container"></div>
 
   <main>
     <h1>Профиль</h1>
@@ -241,7 +284,7 @@
     <a class="btn" href="products.html">Перейти в каталог</a>
   </div>
 
-  <script src="js/api.js?v=20241205"></script>
+  <script src="js/api.js?v=20241210"></script>
   <script>
     const sidebar = document.querySelector('.app-sidebar');
     const overlay = document.querySelector('.app-sidebar-overlay');
@@ -378,7 +421,7 @@
           editBtn.style.display = '';
           renderProfile(updated);
         } catch (e) {
-          alert(e?.message || 'Не удалось сохранить изменения');
+          showToast(e?.message || 'Не удалось сохранить изменения');
           container.replaceChild(valueEl, input);
           if (saveBtn.parentElement === container) container.removeChild(saveBtn);
           editBtn.style.display = '';
@@ -520,7 +563,7 @@
       if (!avatarUrlInput) return;
       const avatarUrl = avatarUrlInput.value.trim();
       if (!avatarUrl) {
-        alert('Введите URL аватара, например /media/users/<tg_id>/avatar.jpg');
+        showToast('Введите URL аватара, например /media/users/<tg_id>/avatar.jpg');
         return;
       }
 
@@ -532,14 +575,15 @@
         });
         const data = await res.json();
         if (!data.ok) {
-          alert('Не удалось сохранить аватар');
+          showToast('Не удалось сохранить аватар');
           return;
         }
         currentUser = data.profile || currentUser;
         updateAvatar(currentUser);
+        showToast('Аватар сохранён');
       } catch (e) {
         console.error(e);
-        alert('Ошибка при сохранении аватара');
+        showToast('Ошибка при сохранении аватара');
       }
     }
 
