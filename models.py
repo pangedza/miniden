@@ -112,6 +112,18 @@ class MasterclassImage(Base):
     masterclass = relationship("ProductCourse", back_populates="masterclass_images")
 
 
+class ProductCategory(Base):
+    __tablename__ = "product_categories"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(Text, nullable=False)
+    slug = Column(String, nullable=True, unique=True)
+    sort_order = Column(Integer, nullable=False, default=0)
+    is_active = Column(Boolean, default=True, nullable=False)
+    type = Column(String, nullable=False, default="basket")
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 class User(Base):
     __tablename__ = "users"
 

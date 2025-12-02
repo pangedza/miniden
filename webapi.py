@@ -592,6 +592,24 @@ class AdminProductsUpdatePayload(BaseModel):
     masterclass_url: str | None = None
 
 
+class AdminProductCategoryPayload(BaseModel):
+    user_id: int
+    name: str
+    slug: str | None = None
+    sort_order: int = 0
+    is_active: bool | None = True
+    type: str = "basket"
+
+
+class AdminProductCategoryUpdatePayload(BaseModel):
+    user_id: int
+    name: str | None = None
+    slug: str | None = None
+    sort_order: int | None = None
+    is_active: bool | None = None
+    type: str | None = None
+
+
 class AdminTogglePayload(BaseModel):
     user_id: int
     type: str
@@ -1397,6 +1415,45 @@ def admin_toggle_product(product_id: int, payload: AdminTogglePayload):
     changed = products_service.toggle_product_active(product_id, product_type)
     if not changed:
         raise HTTPException(status_code=404, detail="Product not found")
+    return {"ok": True}
+
+
+@app.get("/api/admin/product-categories")
+def admin_product_categories(user_id: int, type: str = "basket"):
+    _ensure_admin(user_id)
+    product_type = _validate_type(type)
+    items = products_service.list_product_categories_admin(product_type)
+    return {"items": items}
+
+
+@app.post("/api/admin/product-categories")
+def admin_create_product_category(payload: AdminProductCategoryPayload):
+    _ensure_admin(payload.user_id)
+    product_type = _validate_type(payload.type)
+    new_id = products_service.create_product_category(
+        payload.name,
+        slug=payload.slug,
+        sort_order=payload.sort_order,
+        is_active=payload.is_active if payload.is_active is not None else True,
+        product_type=product_type,
+    )
+    return {"id": new_id}
+
+
+@app.put("/api/admin/product-categories/{category_id}")
+def admin_update_product_category(category_id: int, payload: AdminProductCategoryUpdatePayload):
+    _ensure_admin(payload.user_id)
+    product_type = _validate_type(payload.type) if payload.type else None
+    updated = products_service.update_product_category(
+        category_id,
+        name=payload.name,
+        slug=payload.slug,
+        sort_order=payload.sort_order,
+        is_active=payload.is_active,
+        product_type=product_type,
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Category not found")
     return {"ok": True}
 
 

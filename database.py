@@ -74,6 +74,33 @@ def init_db() -> None:
 
     _ensure_optional_columns()
 
+    def _ensure_product_categories_table() -> None:
+        create_statement = """
+        CREATE TABLE IF NOT EXISTS product_categories (
+            id SERIAL PRIMARY KEY,
+            name TEXT NOT NULL,
+            slug VARCHAR NULL UNIQUE,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            is_active BOOLEAN NOT NULL DEFAULT TRUE,
+            type VARCHAR NOT NULL DEFAULT 'basket',
+            created_at TIMESTAMP NOT NULL DEFAULT NOW()
+        );
+        """
+
+        alter_statements = [
+            "ALTER TABLE product_categories ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE product_categories ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE",
+            "ALTER TABLE product_categories ADD COLUMN IF NOT EXISTS type VARCHAR NOT NULL DEFAULT 'basket'",
+            "ALTER TABLE product_categories ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW()",
+        ]
+
+        with engine.begin() as conn:
+            conn.execute(text(create_statement))
+            for statement in alter_statements:
+                conn.execute(text(statement))
+
+    _ensure_product_categories_table()
+
     def _ensure_promocodes_table() -> None:
         create_statement = """
         CREATE TABLE IF NOT EXISTS promocodes (
