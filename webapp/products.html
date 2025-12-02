@@ -64,6 +64,55 @@
           <button class="btn" type="button" id="product-modal-add">Добавить в корзину</button>
           <button class="btn secondary" type="button" id="product-modal-close-btn">Закрыть</button>
         </div>
+
+        <section class="product-reviews" id="product-reviews-section">
+          <div class="product-reviews__header">
+            <h4 style="margin: 0;">Отзывы</h4>
+            <div class="product-reviews__summary" id="product-reviews-summary">Пока нет отзывов, будьте первым!</div>
+          </div>
+
+          <div class="product-reviews__list" id="product-reviews-list"></div>
+          <button class="btn secondary" type="button" id="product-reviews-more" style="display:none;">Показать ещё</button>
+
+          <div class="product-reviews__login-hint" id="product-reviews-login-hint" style="display:none;">
+            Чтобы оставить отзыв, войдите через Telegram. После авторизации вернитесь к карточке товара.
+          </div>
+
+          <div class="product-reviews__form" id="product-reviews-form" style="display:none;">
+            <h5 style="margin: 0;">Оставить отзыв</h5>
+
+            <div class="review-form__field">
+              <label for="review-rating-stars">Ваша оценка</label>
+              <div class="rating-stars" id="review-rating-stars" role="radiogroup" aria-label="Ваша оценка">
+                <button type="button" class="rating-stars__item" data-value="1" aria-label="1 звезда">★</button>
+                <button type="button" class="rating-stars__item" data-value="2" aria-label="2 звезды">★</button>
+                <button type="button" class="rating-stars__item" data-value="3" aria-label="3 звезды">★</button>
+                <button type="button" class="rating-stars__item" data-value="4" aria-label="4 звезды">★</button>
+                <button type="button" class="rating-stars__item" data-value="5" aria-label="5 звезд">★</button>
+              </div>
+              <div class="form-error" id="review-rating-error" aria-live="polite"></div>
+            </div>
+
+            <div class="review-form__field">
+              <label for="review-text">Ваш отзыв</label>
+              <textarea id="review-text" placeholder="Расскажите, что понравилось или что можно улучшить"></textarea>
+              <div class="form-error" id="review-text-error" aria-live="polite"></div>
+            </div>
+
+            <div class="review-form__field">
+              <label for="review-photos">Загрузить фото (до 3 шт)</label>
+              <input type="file" id="review-photos" accept="image/*" multiple />
+              <div class="review-photos-preview" id="review-photos-preview"></div>
+            </div>
+
+            <div class="review-form__actions">
+              <button class="btn" type="button" id="review-submit">Отправить отзыв</button>
+              <div class="muted">Ваш отзыв отправится на модерацию. Мы покажем его после одобрения.</div>
+            </div>
+
+            <div class="form-error" id="review-form-status" aria-live="polite"></div>
+          </div>
+        </section>
       </div>
     </div>
   </div>
@@ -85,6 +134,26 @@
     const productModalAdd = document.getElementById('product-modal-add');
     const productModalImage = document.getElementById('product-modal-image');
     const productModalPlaceholder = document.getElementById('product-modal-placeholder');
+
+    const productReviewsSection = document.getElementById('product-reviews-section');
+    const productReviewsSummary = document.getElementById('product-reviews-summary');
+    const productReviewsList = document.getElementById('product-reviews-list');
+    const productReviewsMoreBtn = document.getElementById('product-reviews-more');
+    const productReviewsForm = document.getElementById('product-reviews-form');
+    const productReviewsLoginHint = document.getElementById('product-reviews-login-hint');
+    const reviewRatingStars = document.getElementById('review-rating-stars');
+    const reviewRatingError = document.getElementById('review-rating-error');
+    const reviewTextInput = document.getElementById('review-text');
+    const reviewTextError = document.getElementById('review-text-error');
+    const reviewPhotosInput = document.getElementById('review-photos');
+    const reviewPhotosPreview = document.getElementById('review-photos-preview');
+    const reviewSubmitBtn = document.getElementById('review-submit');
+    const reviewFormStatus = document.getElementById('review-form-status');
+
+    const REVIEWS_INITIAL_LIMIT = 5;
+    let selectedReviewRating = 0;
+    let selectedReviewFiles = [];
+    const productReviewsCache = new Map();
 
     let profile = null;
     let categories = [];
@@ -113,6 +182,49 @@
       if (item?.short_description) return item.short_description;
       const fallback = item?.description ? truncateText(item.description, 140) : '';
       return fallback || 'Описание появится позже.';
+    }
+
+    function formatReviewDate(value) {
+      if (!value) return '';
+      const date = new Date(value);
+      return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+    }
+
+    function getReviewWord(count) {
+      const abs = Math.abs(count) % 100;
+      const last = abs % 10;
+      if (abs > 10 && abs < 20) return 'отзывов';
+      if (last > 1 && last < 5) return 'отзыва';
+      if (last === 1) return 'отзыв';
+      return 'отзывов';
+    }
+
+    function getReviewState(productId) {
+      if (!productReviewsCache.has(productId)) {
+        productReviewsCache.set(productId, {
+          items: [],
+          rating: { average_rating: 0, reviews_count: 0 },
+          visibleCount: REVIEWS_INITIAL_LIMIT,
+        });
+      }
+      return productReviewsCache.get(productId);
+    }
+
+    function starsFromRating(value) {
+      const rating = Math.max(0, Math.min(5, Number(value) || 0));
+      return `${'★'.repeat(Math.round(rating))}${'☆'.repeat(5 - Math.round(rating))}`;
+    }
+
+    function computeRatingFromReviews(items) {
+      if (!items?.length) return { average_rating: 0, reviews_count: 0 };
+      const total = items.reduce((sum, item) => sum + (Number(item.rating) || 0), 0);
+      const avg = total / items.length;
+      return { average_rating: Math.round(avg * 10) / 10, reviews_count: items.length };
+    }
+
+    function formatRating(value) {
+      const num = Number(value) || 0;
+      return (Math.round(num * 10) / 10).toFixed(1);
     }
 
     function updateAdminLinkVisibility() {
@@ -288,6 +400,15 @@
       if (!item) return;
       currentProduct = item;
 
+      resetReviewForm();
+      updateReviewFormVisibility();
+      if (productReviewsSection) {
+        showReviewsPlaceholder('Загружаем отзывы...');
+        renderRatingSummary(item.id);
+        renderReviewsList(item.id);
+        loadProductReviews(item.id);
+      }
+
       const imageUrl = item.image_url || item.image;
       if (imageUrl) {
         productModalImage.src = imageUrl;
@@ -315,6 +436,24 @@
       el?.addEventListener('click', closeProductModal);
     });
 
+    reviewRatingStars?.addEventListener('click', (event) => {
+      const target = event.target.closest('.rating-stars__item');
+      if (!target) return;
+      selectedReviewRating = Number(target.dataset.value) || 0;
+      renderRatingSelection();
+      if (reviewRatingError) reviewRatingError.textContent = '';
+    });
+
+    productReviewsMoreBtn?.addEventListener('click', () => {
+      if (!currentProduct) return;
+      const state = getReviewState(currentProduct.id);
+      state.visibleCount = Math.min(state.items.length, (state.visibleCount || REVIEWS_INITIAL_LIMIT) + REVIEWS_INITIAL_LIMIT);
+      renderReviewsList(currentProduct.id);
+    });
+
+    reviewSubmitBtn?.addEventListener('click', handleReviewSubmit);
+    reviewPhotosInput?.addEventListener('change', handleReviewFilesChange);
+
     async function handleAddToCart(product) {
       const currentProfile = await getCurrentUserProfile();
 
@@ -329,6 +468,264 @@
       } catch (e) {
         showToast('Не удалось добавить товар в корзину. Попробуйте ещё раз.');
       }
+    }
+
+    function renderRatingSelection() {
+      if (!reviewRatingStars) return;
+      reviewRatingStars.querySelectorAll('.rating-stars__item').forEach((btn) => {
+        const value = Number(btn.dataset.value) || 0;
+        const isActive = value <= selectedReviewRating;
+        btn.classList.toggle('is-active', isActive);
+        btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+      });
+    }
+
+    function resetReviewFormErrors() {
+      if (reviewRatingError) reviewRatingError.textContent = '';
+      if (reviewTextError) reviewTextError.textContent = '';
+      if (reviewFormStatus) reviewFormStatus.textContent = '';
+    }
+
+    function resetReviewForm() {
+      selectedReviewRating = 0;
+      selectedReviewFiles = [];
+      if (reviewTextInput) reviewTextInput.value = '';
+      if (reviewPhotosInput) reviewPhotosInput.value = '';
+      resetReviewFormErrors();
+      renderReviewPhotosPreview();
+      renderRatingSelection();
+    }
+
+    function renderReviewPhotosPreview() {
+      if (!reviewPhotosPreview) return;
+      reviewPhotosPreview.innerHTML = '';
+      if (!selectedReviewFiles.length) return;
+
+      selectedReviewFiles.forEach((file, idx) => {
+        const holder = document.createElement('div');
+        holder.className = 'review-photo-chip';
+        holder.setAttribute('title', file.name || `Фото ${idx + 1}`);
+
+        const reader = new FileReader();
+        reader.onload = () => {
+          const img = document.createElement('img');
+          img.src = reader.result;
+          img.alt = file.name || `Фото ${idx + 1}`;
+          holder.appendChild(img);
+        };
+        reader.readAsDataURL(file);
+        reviewPhotosPreview.appendChild(holder);
+      });
+    }
+
+    function updateReviewFormVisibility() {
+      const isAuthorized = Boolean(profile?.telegram_id);
+      if (productReviewsForm) {
+        productReviewsForm.style.display = isAuthorized ? 'grid' : 'none';
+      }
+      if (productReviewsLoginHint) {
+        productReviewsLoginHint.style.display = isAuthorized ? 'none' : 'block';
+      }
+    }
+
+    function renderRatingSummary(productId) {
+      if (!productReviewsSummary) return;
+      const state = getReviewState(productId);
+      const count = state.rating?.reviews_count ?? state.items.length;
+      if (!count) {
+        productReviewsSummary.textContent = 'Пока нет отзывов, будьте первым!';
+        return;
+      }
+      const avg = formatRating(state.rating?.average_rating ?? 0);
+      productReviewsSummary.textContent = `⭐ ${avg} (${count} ${getReviewWord(count)})`;
+    }
+
+    function createReviewCard(review) {
+      const card = document.createElement('article');
+      card.className = 'review-card';
+
+      const header = document.createElement('div');
+      header.className = 'review-card__header';
+
+      const author = document.createElement('div');
+      author.className = 'review-card__author';
+      author.textContent = review.user_name || 'Покупатель';
+
+      const rating = document.createElement('div');
+      rating.className = 'review-card__rating';
+      rating.textContent = `${starsFromRating(review.rating)} ${review.rating || ''}`.trim();
+
+      const date = document.createElement('div');
+      date.className = 'review-card__date';
+      date.textContent = formatReviewDate(review.created_at);
+
+      header.append(author, rating, date);
+
+      const text = document.createElement('p');
+      text.className = 'review-card__text';
+      text.textContent = review.text || '';
+
+      card.append(header, text);
+
+      const photos = review.photos || review.photos_json || [];
+      if (photos.length) {
+        const photoRow = document.createElement('div');
+        photoRow.className = 'review-card__photos';
+        photos.forEach((url, idx) => {
+          const link = document.createElement('a');
+          link.href = url;
+          link.target = '_blank';
+          link.rel = 'noopener';
+          link.className = 'review-card__photo';
+          link.title = `Фото ${idx + 1}`;
+
+          const img = document.createElement('img');
+          img.src = url;
+          img.alt = `Фото отзыва ${idx + 1}`;
+          link.appendChild(img);
+          photoRow.appendChild(link);
+        });
+        card.appendChild(photoRow);
+      }
+
+      return card;
+    }
+
+    function renderReviewsList(productId) {
+      if (!productReviewsList) return;
+      const state = getReviewState(productId);
+      const visible = Math.max(state.visibleCount || REVIEWS_INITIAL_LIMIT, REVIEWS_INITIAL_LIMIT);
+      productReviewsList.innerHTML = '';
+
+      if (!state.items.length) {
+        const empty = document.createElement('div');
+        empty.className = 'muted';
+        empty.textContent = 'Отзывов пока нет. Будьте первым!';
+        productReviewsList.appendChild(empty);
+        if (productReviewsMoreBtn) productReviewsMoreBtn.style.display = 'none';
+        return;
+      }
+
+      state.items.slice(0, visible).forEach((review) => {
+        productReviewsList.appendChild(createReviewCard(review));
+      });
+
+      const hasMore = state.items.length > visible;
+      if (productReviewsMoreBtn) {
+        productReviewsMoreBtn.style.display = hasMore ? '' : 'none';
+        productReviewsMoreBtn.textContent = 'Показать ещё';
+      }
+    }
+
+    function showReviewsPlaceholder(message = 'Загружаем отзывы...') {
+      if (productReviewsList) {
+        productReviewsList.innerHTML = '';
+        if (message) {
+          const placeholder = document.createElement('div');
+          placeholder.className = 'muted';
+          placeholder.textContent = message;
+          productReviewsList.appendChild(placeholder);
+        }
+      }
+      if (productReviewsMoreBtn) productReviewsMoreBtn.style.display = 'none';
+    }
+
+    async function loadProductReviews(productId) {
+      if (!productId || !productReviewsSection) return;
+      const state = getReviewState(productId);
+      state.visibleCount = REVIEWS_INITIAL_LIMIT;
+      renderRatingSummary(productId);
+      showReviewsPlaceholder();
+
+      try {
+        const [ratingResponse, reviewsResponse] = await Promise.all([
+          apiGet(`/products/${productId}/rating`).catch(() => null),
+          apiGet(`/products/${productId}/reviews`, { page: 1, limit: 20 }).catch(() => ({ items: [] })),
+        ]);
+
+        state.items = (reviewsResponse?.items || []).filter((item) => !item.is_deleted);
+        state.rating = ratingResponse || computeRatingFromReviews(state.items);
+
+        renderRatingSummary(productId);
+        renderReviewsList(productId);
+      } catch (e) {
+        renderRatingSummary(productId);
+        showReviewsPlaceholder('Не удалось загрузить отзывы. Попробуйте обновить страницу.');
+      }
+    }
+
+    async function handleReviewSubmit() {
+      if (!currentProduct) return;
+      if (!profile?.telegram_id) {
+        if (reviewFormStatus) reviewFormStatus.textContent = 'Чтобы оставить отзыв, войдите через Telegram.';
+        updateReviewFormVisibility();
+        return;
+      }
+
+      resetReviewFormErrors();
+      const ratingValue = Number(selectedReviewRating) || 0;
+      const textValue = (reviewTextInput?.value || '').trim();
+      let hasError = false;
+
+      if (!ratingValue || ratingValue < 1 || ratingValue > 5) {
+        reviewRatingError.textContent = 'Поставьте оценку от 1 до 5.';
+        hasError = true;
+      }
+
+      if (!textValue) {
+        reviewTextError.textContent = 'Напишите пару слов об опыте использования.';
+        hasError = true;
+      }
+
+      if (hasError) return;
+
+      if (reviewSubmitBtn) {
+        reviewSubmitBtn.disabled = true;
+        reviewSubmitBtn.textContent = 'Отправляем...';
+      }
+
+      try {
+        const payload = { rating: ratingValue, text: textValue };
+        // TODO: проверять наличие оплаченных заказов с товаром на бэкенде
+        const res = await apiPost(`/products/${currentProduct.id}/reviews`, payload);
+        const reviewId = res?.review_id;
+
+        if (reviewId && selectedReviewFiles.length) {
+          for (const file of selectedReviewFiles.slice(0, 3)) {
+            const formData = new FormData();
+            formData.append('file', file);
+            const uploadRes = await fetch(`/api/reviews/${reviewId}/photos`, { method: 'POST', body: formData });
+            if (!uploadRes.ok) {
+              throw new Error('Не удалось загрузить фото отзыва.');
+            }
+          }
+        }
+
+        showToast('Спасибо! Ваш отзыв отправлен на модерацию.');
+        resetReviewForm();
+      } catch (e) {
+        if (reviewFormStatus) {
+          if (e?.status === 401) {
+            reviewFormStatus.textContent = 'Сессия истекла. Войдите через Telegram и попробуйте ещё раз.';
+          } else {
+            reviewFormStatus.textContent = e?.message || 'Не удалось отправить отзыв. Попробуйте позже.';
+          }
+        }
+      } finally {
+        if (reviewSubmitBtn) {
+          reviewSubmitBtn.disabled = false;
+          reviewSubmitBtn.textContent = 'Отправить отзыв';
+        }
+      }
+    }
+
+    function handleReviewFilesChange(event) {
+      const files = Array.from(event.target?.files || []).filter((file) => file?.type?.startsWith('image/'));
+      if (files.length > 3) {
+        showToast('Можно загрузить не более 3 фото к отзыву.');
+      }
+      selectedReviewFiles = files.slice(0, 3);
+      renderReviewPhotosPreview();
     }
 
     async function loadProductCategoriesAndItems(currentProfile) {
