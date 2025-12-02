@@ -582,6 +582,17 @@
     const productImagePreview = document.getElementById('product-image-preview');
     const productGalleryInput = document.getElementById('product-gallery-input');
     const productImagesList = document.getElementById('product-images-list');
+    const productEditModal = document.getElementById('product-edit-modal');
+    const productEditForm = document.getElementById('product-edit-form');
+    const productEditTitle = document.getElementById('product-edit-title');
+    const productEditCategorySelect = document.getElementById('product-edit-category-select');
+    const productEditImageFileInput = document.getElementById('product-edit-image-file-input');
+    const productEditImageUrlInput = document.getElementById('product-edit-image-url-input');
+    const productEditImagePreview = document.getElementById('product-edit-image-preview');
+    const productEditGalleryInput = document.getElementById('product-edit-gallery-input');
+    const productEditImagesList = document.getElementById('product-edit-images-list');
+    const productEditClose = document.getElementById('product-edit-close');
+    const productEditCancel = document.getElementById('product-edit-cancel');
     const courseImageFileInput = document.getElementById('course-image-file-input');
     const courseImageUrlInput = document.getElementById('course-image-url-input');
     const courseImagePreview = document.getElementById('course-image-preview');
@@ -703,6 +714,15 @@
     navLinks.forEach((btn) => {
       btn.addEventListener('click', () => {
         showSection(btn.dataset.view);
+        if (btn.dataset.view === 'product-create') {
+          resetProductCreateForm();
+        }
+        if (btn.dataset.view === 'product-categories') {
+          loadProductCategories();
+        }
+        if (btn.dataset.view === 'course-categories') {
+          loadCourseCategories();
+        }
       });
     });
 
@@ -1095,6 +1115,17 @@
       }
     }
 
+    function setProductEditImagePreview(url) {
+      if (!productEditImagePreview) return;
+      if (url) {
+        productEditImagePreview.style.backgroundImage = `url(${url})`;
+        productEditImagePreview.textContent = '';
+      } else {
+        productEditImagePreview.style.backgroundImage = '';
+        productEditImagePreview.textContent = 'Нет изображения';
+      }
+    }
+
     function setCourseImagePreview(url) {
       if (!courseImagePreview) return;
       if (url) {
@@ -1110,6 +1141,12 @@
       if (productImageFileInput) productImageFileInput.value = '';
       if (productImageUrlInput) productImageUrlInput.value = '';
       setProductImagePreview('');
+    }
+
+    function resetProductEditImageInputs() {
+      if (productEditImageFileInput) productEditImageFileInput.value = '';
+      if (productEditImageUrlInput) productEditImageUrlInput.value = '';
+      setProductEditImagePreview('');
     }
 
     function resetCourseImageInputs() {
@@ -1137,6 +1174,25 @@
       setProductImagePreview(data.url);
     }
 
+    async function uploadProductEditImageFile() {
+      const file = productEditImageFileInput?.files?.[0];
+      if (!file) return;
+
+      const formData = new FormData();
+      formData.append('kind', 'product');
+      formData.append('file', file);
+
+      const res = await fetch('/api/admin/upload-image', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (!data.ok) {
+        alert('Ошибка загрузки изображения');
+        return;
+      }
+
+      if (productEditImageUrlInput) productEditImageUrlInput.value = data.url;
+      setProductEditImagePreview(data.url);
+    }
+
     async function uploadCourseImageFile() {
       const file = courseImageFileInput?.files?.[0];
       if (!file) return;
@@ -1156,7 +1212,7 @@
       setCourseImagePreview(data.url);
     }
 
-    function renderImageRow(image, type) {
+    function renderImageRow(image, type, reloadFn) {
       const row = document.createElement('div');
       row.className = 'image-row';
 
@@ -1187,7 +1243,7 @@
       deleteBtn.type = 'button';
       deleteBtn.className = 'btn secondary danger';
       deleteBtn.textContent = 'Удалить';
-      deleteBtn.addEventListener('click', () => deleteGalleryImage(image.id, type));
+      deleteBtn.addEventListener('click', () => deleteGalleryImage(image.id, type, reloadFn));
 
       actions.appendChild(previewBtn);
       actions.appendChild(deleteBtn);
@@ -1203,7 +1259,7 @@
       return row;
     }
 
-    function renderImagesList(items, target, type) {
+    function renderImagesList(items, target, type, reloadFn) {
       if (!target) return;
       target.innerHTML = '';
       target.classList.remove('muted');
@@ -1212,41 +1268,43 @@
         return;
       }
       items.forEach((image) => {
-        target.appendChild(renderImageRow(image, type));
+        target.appendChild(renderImageRow(image, type, reloadFn));
       });
     }
 
-    async function loadProductImages(productId) {
-      if (!productImagesList) return;
+    async function loadProductImages(productId, target = productImagesList) {
+      const reloadFn = () => loadProductImages(productId, target);
+      if (!target) return;
       if (!productId) {
-        showImageListPlaceholder(productImagesList, 'Сохраните товар, чтобы добавить фото.');
+        showImageListPlaceholder(target, 'Сохраните товар, чтобы добавить фото.');
         return;
       }
       try {
         const data = await apiGet(`/admin/products/${productId}/images`, { user_id: currentUser.telegram_id });
-        renderImagesList(data.items || data || [], productImagesList, 'product');
+        renderImagesList(data.items || data || [], target, 'product', reloadFn);
       } catch (e) {
         console.error(e);
-        showImageListPlaceholder(productImagesList, 'Не удалось загрузить фотографии товара');
+        showImageListPlaceholder(target, 'Не удалось загрузить фотографии товара');
       }
     }
 
-    async function loadCourseImages(courseId) {
-      if (!courseImagesList) return;
+    async function loadCourseImages(courseId, target = courseImagesList) {
+      const reloadFn = () => loadCourseImages(courseId, target);
+      if (!target) return;
       if (!courseId) {
-        showImageListPlaceholder(courseImagesList, 'Сохраните мастер-класс, чтобы добавить фото.');
+        showImageListPlaceholder(target, 'Сохраните мастер-класс, чтобы добавить фото.');
         return;
       }
       try {
         const data = await apiGet(`/admin/masterclasses/${courseId}/images`, { user_id: currentUser.telegram_id });
-        renderImagesList(data.items || data || [], courseImagesList, 'course');
+        renderImagesList(data.items || data || [], target, 'course', reloadFn);
       } catch (e) {
         console.error(e);
-        showImageListPlaceholder(courseImagesList, 'Не удалось загрузить фотографии мастер-класса');
+        showImageListPlaceholder(target, 'Не удалось загрузить фотографии мастер-класса');
       }
     }
 
-    async function uploadProductGalleryFiles(event) {
+    async function uploadProductGalleryFiles(event, target = productImagesList) {
       const files = Array.from(event.target?.files || []);
       if (!files.length) return;
       if (!editingProductId) {
@@ -1262,13 +1320,59 @@
           body: formData,
         });
         const data = await handleResponse(res);
-        renderImagesList(data.items || data || [], productImagesList, 'product');
+        renderImagesList(data.items || data || [], target, 'product', () => loadProductImages(editingProductId, target));
         setStatus('Фото товара добавлены');
       } catch (e) {
         console.error(e);
         setStatus('Не удалось загрузить фото товара', true);
       }
       event.target.value = '';
+    }
+
+    function openProductEditModal(item) {
+      if (!item) return;
+      editingProductId = item.id;
+      productEditTitle.textContent = `Редактировать товар #${item.id}`;
+      const productImageUrl = item.image_url || item.image || item.images?.[0]?.image_url || '';
+      fillForm(productEditForm, {
+        category_id: item.category_id ?? '',
+        name: item.name,
+        price: item.price,
+        image_url: productImageUrl,
+        short_description: item.short_description,
+        description: item.description,
+        wb_url: item.wb_url,
+        ozon_url: item.ozon_url,
+        yandex_url: item.yandex_url,
+        avito_url: item.avito_url,
+        masterclass_url: item.masterclass_url,
+        detail_url: item.detail_url,
+      });
+      if (productEditCategorySelect && item.category_id) {
+        const hasOption = Array.from(productEditCategorySelect.options || []).some(
+          (opt) => String(opt.value) === String(item.category_id)
+        );
+        if (!hasOption) {
+          const opt = document.createElement('option');
+          opt.value = item.category_id;
+          opt.textContent = item.category_name || `Категория ${item.category_id}`;
+          productEditCategorySelect.appendChild(opt);
+        }
+      }
+      if (productEditImageUrlInput) productEditImageUrlInput.value = productImageUrl || '';
+      setProductEditImagePreview(productImageUrl);
+      showImageListPlaceholder(productEditImagesList, 'Сохраните товар, чтобы добавить фото.');
+      productEditModal?.classList.remove('hidden');
+      loadProductImages(editingProductId, productEditImagesList);
+    }
+
+    function closeProductEditModal() {
+      editingProductId = null;
+      productEditModal?.classList.add('hidden');
+      productEditForm?.reset();
+      if (productEditGalleryInput) productEditGalleryInput.value = '';
+      resetProductEditImageInputs();
+      showImageListPlaceholder(productEditImagesList, 'Загрузите фото после сохранения.');
     }
 
     async function uploadCourseGalleryFiles(event) {
@@ -1296,22 +1400,66 @@
       event.target.value = '';
     }
 
-    async function deleteGalleryImage(imageId, type) {
+    async function deleteGalleryImage(imageId, type, reloadFn) {
       if (!currentUser) return;
       const basePath = type === 'product' ? '/admin/products/images/' : '/admin/masterclasses/images/';
       try {
         await fetch(`${API_BASE}${basePath}${imageId}?user_id=${currentUser.telegram_id}`, {
           method: 'DELETE',
         }).then(handleResponse);
-        if (type === 'product') {
-          await loadProductImages(editingProductId);
+        if (reloadFn) {
+          await reloadFn();
+        } else if (type === 'product') {
+          await loadProductImages(editingProductId, productImagesList);
         } else {
-          await loadCourseImages(editingCourseId);
+          await loadCourseImages(editingCourseId, courseImagesList);
         }
       } catch (e) {
         console.error(e);
         setStatus('Не удалось удалить изображение', true);
       }
+    }
+
+    function renderCategories(items, targetTable, onEdit) {
+      targetTable.innerHTML = '';
+      if (!items || !items.length) {
+        const row = document.createElement('tr');
+        const cell = document.createElement('td');
+        cell.colSpan = 5;
+        cell.textContent = 'Категорий нет';
+        cell.className = 'muted';
+        row.appendChild(cell);
+        targetTable.appendChild(row);
+        return;
+      }
+
+      items.forEach((cat) => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>#${cat.id}</td>
+          <td>${cat.name}</td>
+          <td>${cat.sort_order ?? 0}</td>
+          <td>${cat.is_active ? 'Да' : 'Нет'}</td>
+          <td><button class="btn secondary" type="button" data-edit="${cat.id}">Редактировать</button></td>
+        `;
+        const editBtn = row.querySelector('button[data-edit]');
+        editBtn?.addEventListener('click', () => onEdit?.(cat));
+        targetTable.appendChild(row);
+      });
+    }
+
+    function fillCategoryForm(form, category) {
+      if (!form || !category) return;
+      form.elements.name.value = category.name || '';
+      form.elements.slug.value = category.slug || '';
+      form.elements.sort_order.value = category.sort_order ?? 0;
+      form.elements.is_active.checked = !!category.is_active;
+    }
+
+    function resetCategoryForm(form, titleEl, defaultTitle) {
+      form?.reset();
+      if (form?.elements?.is_active) form.elements.is_active.checked = true;
+      if (titleEl) titleEl.textContent = defaultTitle;
     }
 
     function renderProductTable(items, targetTable, type) {
@@ -1346,26 +1494,7 @@
         const toggleBtn = row.querySelector('[data-action="toggle"]');
         editBtn.addEventListener('click', () => {
           if (type === 'basket') {
-            editingProductId = item.id;
-            productFormTitle.textContent = `Редактировать товар #${item.id}`;
-            const productImageUrl = item.image_url || item.image || item.images?.[0]?.image_url || '';
-            fillForm(productForm, {
-              category_id: item.category_id ?? '',
-              name: item.name,
-              price: item.price,
-              image_url: productImageUrl,
-                short_description: item.short_description,
-                description: item.description,
-                wb_url: item.wb_url,
-                ozon_url: item.ozon_url,
-                yandex_url: item.yandex_url,
-                avito_url: item.avito_url,
-              masterclass_url: item.masterclass_url,
-              detail_url: item.detail_url,
-            });
-            if (productImageUrlInput) productImageUrlInput.value = productImageUrl || '';
-            setProductImagePreview(productImageUrl);
-            loadProductImages(editingProductId);
+            openProductEditModal(item);
           } else {
             editingCourseId = item.id;
             courseFormTitle.textContent = `Редактировать мастер-класс #${item.id}`;
@@ -1401,6 +1530,103 @@
         });
         targetTable.appendChild(row);
       });
+    }
+
+    async function loadProductCategories() {
+      if (!currentUser) return;
+      try {
+        const data = await apiGet('/admin/product-categories', { user_id: currentUser.telegram_id, type: 'basket' });
+        renderCategories(data.items || [], productCategoriesTable, (cat) => {
+          editingProductCategoryId = cat.id;
+          productCategoryFormTitle.textContent = `Редактировать категорию #${cat.id}`;
+          fillCategoryForm(productCategoryForm, cat);
+        });
+      } catch (e) {
+        console.error(e);
+        setStatus('Не удалось загрузить категории товаров', true);
+      }
+    }
+
+    async function loadCourseCategories() {
+      if (!currentUser) return;
+      try {
+        const data = await apiGet('/admin/product-categories', { user_id: currentUser.telegram_id, type: 'course' });
+        renderCategories(data.items || [], courseCategoriesTable, (cat) => {
+          editingCourseCategoryId = cat.id;
+          courseCategoryFormTitle.textContent = `Редактировать категорию #${cat.id}`;
+          fillCategoryForm(courseCategoryForm, cat);
+        });
+      } catch (e) {
+        console.error(e);
+        setStatus('Не удалось загрузить категории мастер-классов', true);
+      }
+    }
+
+    async function submitProductCategoryForm(event) {
+      event.preventDefault();
+      if (!currentUser) return;
+      const form = productCategoryForm;
+      const payload = {
+        user_id: currentUser.telegram_id,
+        name: form.elements.name.value.trim(),
+        slug: form.elements.slug.value.trim() || null,
+        sort_order: form.elements.sort_order.value ? Number(form.elements.sort_order.value) : 0,
+        is_active: form.elements.is_active.checked,
+        type: 'basket',
+      };
+
+      try {
+        if (editingProductCategoryId) {
+          await sendJson(`/admin/product-categories/${editingProductCategoryId}`, 'PUT', payload);
+        } else {
+          await sendJson('/admin/product-categories', 'POST', payload);
+        }
+        setStatus('Категория сохранена');
+        editingProductCategoryId = null;
+        resetCategoryForm(productCategoryForm, productCategoryFormTitle, 'Создать категорию');
+        await Promise.all([
+          loadProductCategories(),
+          loadCategories(productCategorySelect, 'basket'),
+          loadCategories(productCategoryFilter, 'basket'),
+          loadCategories(productEditCategorySelect, 'basket'),
+        ]);
+      } catch (e) {
+        console.error(e);
+        setStatus('Не удалось сохранить категорию товара', true);
+      }
+    }
+
+    async function submitCourseCategoryForm(event) {
+      event.preventDefault();
+      if (!currentUser) return;
+      const form = courseCategoryForm;
+      const payload = {
+        user_id: currentUser.telegram_id,
+        name: form.elements.name.value.trim(),
+        slug: form.elements.slug.value.trim() || null,
+        sort_order: form.elements.sort_order.value ? Number(form.elements.sort_order.value) : 0,
+        is_active: form.elements.is_active.checked,
+        type: 'course',
+      };
+
+      try {
+        if (editingCourseCategoryId) {
+          await sendJson(`/admin/product-categories/${editingCourseCategoryId}`, 'PUT', payload);
+        } else {
+          await sendJson('/admin/product-categories', 'POST', payload);
+        }
+        setStatus('Категория сохранена');
+        editingCourseCategoryId = null;
+        resetCategoryForm(courseCategoryForm, courseCategoryFormTitle, 'Создать категорию');
+        await Promise.all([
+          loadCourseCategories(),
+          loadCategories(courseCategorySelect, 'course'),
+          loadCategories(courseCategoryFilter, 'course'),
+        ]);
+      } catch (e) {
+        console.error(e);
+        setStatus('Не удалось сохранить категорию мастер-класса', true);
+      }
     }
 
     async function loadProducts() {
@@ -1607,25 +1833,46 @@
       payload.image_url = productImageUrlInput?.value.trim() || null;
 
       try {
-        if (editingProductId) {
-          await fetch(`${API_BASE}/admin/products/${editingProductId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-          }).then(handleResponse);
-        } else {
-          await apiPost('/admin/products', payload);
-        }
-        setStatus('Товар сохранён');
-        editingProductId = null;
-        productFormTitle.textContent = 'Создать товар';
-        productForm.reset();
-        resetProductImageInputs();
+        await apiPost('/admin/products', payload);
+        setStatus('Товар создан');
+        resetProductCreateForm();
         await loadProducts();
       } catch (e) {
         console.error(e);
         setStatus('Не удалось сохранить товар', true);
       }
+    }
+
+    async function submitProductEditForm(event) {
+      event.preventDefault();
+      if (!currentUser || !editingProductId) return;
+      const payload = serializeForm(productEditForm);
+      payload.user_id = currentUser.telegram_id;
+      payload.type = 'basket';
+      payload.price = payload.price ? Number(payload.price) : 0;
+      payload.image_url = productEditImageUrlInput?.value.trim() || null;
+
+      try {
+        await fetch(`${API_BASE}/admin/products/${editingProductId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        }).then(handleResponse);
+        setStatus('Товар сохранён');
+        closeProductEditModal();
+        await loadProducts();
+      } catch (e) {
+        console.error(e);
+        setStatus('Не удалось сохранить товар', true);
+      }
+    }
+
+    function resetProductCreateForm() {
+      editingProductId = null;
+      productFormTitle.textContent = 'Создать товар';
+      productForm.reset();
+      resetProductImageInputs();
+      showImageListPlaceholder(productImagesList, 'Сохраните товар, чтобы добавить фото.');
     }
 
     async function submitCourseForm(event) {
@@ -1663,13 +1910,12 @@
     promoReset.addEventListener('click', resetPromoFormFields);
     promoScope.addEventListener('change', updatePromoTargetState);
     productForm.addEventListener('submit', submitProductForm);
+    productEditForm?.addEventListener('submit', submitProductEditForm);
     courseForm.addEventListener('submit', submitCourseForm);
+    productCategoryForm?.addEventListener('submit', submitProductCategoryForm);
+    courseCategoryForm?.addEventListener('submit', submitCourseCategoryForm);
     productCancel.addEventListener('click', () => {
-      editingProductId = null;
-      productFormTitle.textContent = 'Создать товар';
-      productForm.reset();
-      resetProductImageInputs();
-      showImageListPlaceholder(productImagesList, 'Сохраните товар, чтобы добавить фото.');
+      resetProductCreateForm();
     });
     courseCancel.addEventListener('click', () => {
       editingCourseId = null;
@@ -1679,11 +1925,8 @@
       showImageListPlaceholder(courseImagesList, 'Сохраните мастер-класс, чтобы добавить фото.');
     });
     productReset.addEventListener('click', () => {
-      editingProductId = null;
-      productFormTitle.textContent = 'Создать товар';
-      productForm.reset();
-      resetProductImageInputs();
-      showImageListPlaceholder(productImagesList, 'Сохраните товар, чтобы добавить фото.');
+      resetProductCreateForm();
+      showSection('product-create');
     });
     courseReset.addEventListener('click', () => {
       editingCourseId = null;
@@ -1692,16 +1935,32 @@
       resetCourseImageInputs();
       showImageListPlaceholder(courseImagesList, 'Сохраните мастер-класс, чтобы добавить фото.');
     });
+    productCategoryReset?.addEventListener('click', () => {
+      editingProductCategoryId = null;
+      resetCategoryForm(productCategoryForm, productCategoryFormTitle, 'Создать категорию');
+    });
+    courseCategoryReset?.addEventListener('click', () => {
+      editingCourseCategoryId = null;
+      resetCategoryForm(courseCategoryForm, courseCategoryFormTitle, 'Создать категорию');
+    });
 
     productImageFileInput?.addEventListener('change', uploadProductImageFile);
+    productEditImageFileInput?.addEventListener('change', uploadProductEditImageFile);
     courseImageFileInput?.addEventListener('change', uploadCourseImageFile);
     productGalleryInput?.addEventListener('change', uploadProductGalleryFiles);
+    productEditGalleryInput?.addEventListener('change', (event) => uploadProductGalleryFiles(event, productEditImagesList));
     courseGalleryInput?.addEventListener('change', uploadCourseGalleryFiles);
     productImageUrlInput?.addEventListener('input', () => setProductImagePreview(productImageUrlInput.value.trim()));
+    productEditImageUrlInput?.addEventListener('input', () => setProductEditImagePreview(productEditImageUrlInput.value.trim()));
     courseImageUrlInput?.addEventListener('input', () => setCourseImagePreview(courseImageUrlInput.value.trim()));
     imageModalClose?.addEventListener('click', closeImageModal);
     imageModal?.addEventListener('click', (event) => {
       if (event.target.id === 'image-modal') closeImageModal();
+    });
+    productEditClose?.addEventListener('click', closeProductEditModal);
+    productEditCancel?.addEventListener('click', closeProductEditModal);
+    productEditModal?.addEventListener('click', (event) => {
+      if (event.target.id === 'product-edit-modal') closeProductEditModal();
     });
 
     reviewStatusFilter?.addEventListener('change', loadReviews);
@@ -1734,9 +1993,12 @@
         await Promise.all([
           loadCategories(productCategoryFilter, 'basket'),
           loadCategories(productCategorySelect, 'basket'),
+          loadCategories(productEditCategorySelect, 'basket'),
           loadCategories(courseCategoryFilter, 'course'),
           loadCategories(courseCategorySelect, 'course'),
         ]);
+
+        await Promise.all([loadProductCategories(), loadCourseCategories()]);
 
         updatePromoTargetState();
         await loadOrders();
@@ -1763,6 +2025,66 @@
       </div>
       <div class="admin-modal__body image-modal__body">
         <img id="image-modal-picture" src="" alt="Просмотр изображения">
+      </div>
+    </div>
+  </div>
+
+  <div id="product-edit-modal" class="admin-modal hidden">
+    <div class="admin-modal__content">
+      <div class="admin-modal__header">
+        <h3 id="product-edit-title">Редактировать товар</h3>
+        <button class="btn secondary" type="button" id="product-edit-close">Закрыть</button>
+      </div>
+      <div class="admin-modal__body" style="max-height:70vh; overflow:auto;">
+        <form id="product-edit-form" class="stacked-form">
+          <div class="form-grid">
+            <label>Категория</label>
+            <select name="category_id" id="product-edit-category-select"></select>
+            <label>Название</label>
+            <input type="text" name="name" required />
+            <label>Цена</label>
+            <input type="number" name="price" min="0" required />
+            <label>Краткое описание</label>
+            <textarea name="short_description" rows="2"></textarea>
+            <label>Описание</label>
+            <textarea name="description"></textarea>
+            <label>Ссылка на Wildberries</label>
+            <input type="text" name="wb_url" />
+            <label>Ссылка на Ozon</label>
+            <input type="text" name="ozon_url" />
+            <label>Ссылка на Яндекс.Маркет</label>
+            <input type="text" name="yandex_url" />
+            <label>Ссылка на Авито</label>
+            <input type="text" name="avito_url" />
+            <label>Ссылка на мастер-класс</label>
+            <input type="text" name="masterclass_url" />
+            <label>Ссылка на подробности</label>
+            <input type="text" name="detail_url" />
+          </div>
+          <div class="form-group">
+            <label>Фото товара</label>
+            <input type="file" id="product-edit-image-file-input" accept="image/*">
+          </div>
+          <div class="form-group">
+            <label>URL изображения (image_url)</label>
+            <input type="text" id="product-edit-image-url-input" name="image_url" placeholder="/media/products/xxx.jpg">
+          </div>
+          <div class="form-group">
+            <div id="product-edit-image-preview" class="image-preview-box">Нет изображения</div>
+          </div>
+          <div class="form-group">
+            <label>Фотографии товара</label>
+            <div class="image-upload-row">
+              <input type="file" id="product-edit-gallery-input" accept="image/*" multiple>
+              <div class="muted" style="font-size:13px;">Можно выбрать несколько файлов одновременно.</div>
+            </div>
+            <div id="product-edit-images-list" class="image-list muted">Загрузите фото после сохранения.</div>
+          </div>
+          <div class="form-actions">
+            <button class="btn primary" type="submit">Сохранить</button>
+            <button class="btn secondary" type="button" id="product-edit-cancel">Отмена</button>
+          </div>
+        </form>
       </div>
     </div>
   </div>

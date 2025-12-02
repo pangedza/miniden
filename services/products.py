@@ -7,7 +7,13 @@ from typing import Any
 from sqlalchemy import func, select
 
 from database import get_session
-from models import MasterclassImage, ProductBasket, ProductCourse, ProductImage
+from models import (
+    MasterclassImage,
+    ProductBasket,
+    ProductCategory,
+    ProductCourse,
+    ProductImage,
+)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 LEGACY_DATA_DIR = BASE_DIR / "docs" / "legacy-data"
@@ -91,7 +97,41 @@ BASKET_CATEGORY_PRESETS: list[dict[str, Any]] = [
 ]
 
 
-def _basket_category_from_id(category_id: int | None) -> dict[str, Any]:
+def _load_category_maps(product_type: str):
+    map_by_id: dict[int, dict[str, Any]] = {}
+    map_by_slug: dict[str, dict[str, Any]] = {}
+
+    with get_session() as session:
+        rows = (
+            session.execute(
+                select(ProductCategory)
+                .where(ProductCategory.type == product_type)
+                .order_by(ProductCategory.sort_order, ProductCategory.id)
+            )
+            .scalars()
+            .all()
+        )
+
+    for row in rows:
+        meta = {
+            "id": int(row.id),
+            "slug": row.slug or f"cat-{row.id}",
+            "name": row.name,
+            "type": row.type,
+            "sort_order": int(row.sort_order or 0),
+            "is_active": bool(row.is_active),
+        }
+        map_by_id[meta["id"]] = meta
+        map_by_slug[meta["slug"]] = meta
+
+    return map_by_id, map_by_slug
+
+
+def _basket_category_from_id(category_id: int | None, *, map_by_id: dict[int, dict[str, Any]] | None = None) -> dict[str, Any]:
+    map_by_id = map_by_id or {}
+    if category_id in map_by_id:
+        return map_by_id[category_id]
+
     presets_map = {item["id"]: item for item in BASKET_CATEGORY_PRESETS if item.get("id") is not None}
     if category_id in presets_map:
         return presets_map[category_id]
@@ -105,7 +145,11 @@ def _basket_category_from_id(category_id: int | None) -> dict[str, Any]:
     }
 
 
-def _basket_category_by_slug(slug: str) -> dict[str, Any] | None:
+def _basket_category_by_slug(slug: str, *, map_by_slug: dict[str, dict[str, Any]] | None = None) -> dict[str, Any] | None:
+    map_by_slug = map_by_slug or {}
+    if slug in map_by_slug:
+        return map_by_slug[slug]
+
     for item in BASKET_CATEGORY_PRESETS:
         if item.get("slug") == slug:
             return item
@@ -253,26 +297,110 @@ def delete_masterclass_image(image_id: int) -> str | None:
 def list_categories(product_type: str) -> list[dict[str, Any]]:
     """Вернёт список категорий для корзинок или курсов."""
 
+    categories: dict[str, dict[str, Any]] = {}
+
+    map_by_id, map_by_slug = _load_category_maps(product_type)
     if product_type == "course":
-        return [
-            {"slug": "paid", "name": "Платные курсы", "type": "course"},
-            {"slug": "free", "name": "Бесплатные уроки", "type": "course"},
-        ]
+        categories.update(map_by_slug)
+        categories.setdefault("paid", {"slug": "paid", "name": "Платные курсы", "type": "course"})
+        categories.setdefault("free", {"slug": "free", "name": "Бесплатные уроки", "type": "course"})
+        return [item for item in categories.values() if item.get("is_active", True)]
 
     if product_type != "basket":
         return []
 
-    categories: dict[str, dict[str, Any]] = {
-        item["slug"]: item for item in BASKET_CATEGORY_PRESETS
-    }
+    for item in BASKET_CATEGORY_PRESETS:
+        categories.setdefault(item["slug"], item)
 
     with get_session() as session:
         rows = session.execute(select(func.distinct(ProductBasket.category_id))).scalars().all()
         for cat_id in rows:
-            meta = _basket_category_from_id(cat_id)
+            meta = _basket_category_from_id(cat_id, map_by_id=map_by_id)
             categories.setdefault(meta["slug"], meta)
 
-    return list(categories.values())
+    for _, meta in map_by_id.items():
+        categories.setdefault(meta["slug"], meta)
+
+    return [item for item in categories.values() if item.get("is_active", True)]
+
+
+def list_product_categories_admin(product_type: str = "basket") -> list[dict[str, Any]]:
+    map_by_id, _ = _load_category_maps(product_type)
+    categories = [
+        {
+            "id": meta.get("id"),
+            "name": meta.get("name"),
+            "slug": meta.get("slug"),
+            "sort_order": meta.get("sort_order", 0),
+            "is_active": meta.get("is_active", True),
+            "type": meta.get("type"),
+        }
+        for meta in map_by_id.values()
+    ]
+    return sorted(categories, key=lambda item: (item.get("sort_order", 0), item.get("id") or 0))
+
+
+def create_product_category(
+    name: str,
+    *,
+    slug: str | None = None,
+    sort_order: int = 0,
+    is_active: bool = True,
+    product_type: str = "basket",
+) -> int:
+    with get_session() as session:
+        category = ProductCategory(
+            name=name,
+            slug=slug,
+            sort_order=sort_order,
+            is_active=is_active,
+            type=product_type,
+        )
+        session.add(category)
+        session.flush()
+        return int(category.id)
+
+
+def update_product_category(
+    category_id: int,
+    *,
+    name: str | None = None,
+    slug: str | None = None,
+    sort_order: int | None = None,
+    is_active: bool | None = None,
+    product_type: str | None = None,
+) -> bool:
+    with get_session() as session:
+        category = session.get(ProductCategory, category_id)
+        if not category:
+            return False
+
+        if name is not None:
+            category.name = name
+        if slug is not None:
+            category.slug = slug
+        if sort_order is not None:
+            category.sort_order = sort_order
+        if is_active is not None:
+            category.is_active = is_active
+        if product_type is not None:
+            category.type = product_type
+        return True
+
+
+def get_product_category_by_id(category_id: int) -> dict[str, Any] | None:
+    with get_session() as session:
+        category = session.get(ProductCategory, category_id)
+        if not category:
+            return None
+        return {
+            "id": int(category.id),
+            "name": category.name,
+            "slug": category.slug or f"cat-{category.id}",
+            "sort_order": int(category.sort_order or 0),
+            "is_active": bool(category.is_active),
+            "type": category.type,
+        }
 
 
 def list_products(
@@ -290,6 +418,11 @@ def list_products(
     else:
         models = [(ProductBasket, "basket"), (ProductCourse, "course")]
 
+    basket_map_by_id, basket_map_by_slug = ({}
+        if product_type == "course"
+        else _load_category_maps("basket")
+    )
+
     results: list[dict[str, Any]] = []
     for model, p_type in models:
         with get_session() as session:
@@ -301,7 +434,7 @@ def list_products(
             category_meta = None
 
             if p_type == "basket" and category_slug:
-                category_info = _basket_category_by_slug(category_slug)
+                category_info = _basket_category_by_slug(category_slug, map_by_slug=basket_map_by_slug)
                 if category_info is None:
                     # неизвестная категория — вернём пустой список
                     continue
@@ -325,7 +458,7 @@ def list_products(
             for row in rows:
                 meta = category_meta
                 if p_type == "basket" and meta is None:
-                    meta = _basket_category_from_id(getattr(row, "category_id", None))
+                    meta = _basket_category_from_id(getattr(row, "category_id", None), map_by_id=basket_map_by_id)
                 results.append(_serialize_product(row, p_type, category_meta=meta))
     return results
 
