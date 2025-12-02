@@ -33,7 +33,13 @@
           </div>
         </div>
         <button class="nav-btn" data-view="reviews">Отзывы</button>
-        <button class="nav-btn" data-view="promocodes">Промокоды</button>
+        <div class="nav-group" data-group="promocodes">
+          <button class="nav-btn nav-parent" data-group-toggle="promocodes" data-default-view="promocode-list">Промокоды</button>
+          <div class="nav-submenu">
+            <button class="nav-btn nav-sub" data-view="promocode-create">Создать промокод</button>
+            <button class="nav-btn nav-sub" data-view="promocode-list">Список промокодов</button>
+          </div>
+        </div>
         <button class="nav-btn" data-view="stats">Статистика</button>
       </nav>
       <div class="muted" style="margin-top:16px; font-size:13px;">Выйдите в профиль, чтобы проверить статус авторизации.</div>
@@ -405,85 +411,101 @@
         </div>
       </section>
 
-      <section id="promocodes" class="card admin-view" data-view="promocodes" style="display:none;">
+      <section id="promocode-create" class="card admin-view" data-view="promocode-create" style="display:none;">
         <div class="section-header">
           <div>
-            <h2>Промокоды</h2>
-            <p class="muted">Создавайте, редактируйте и отключайте промокоды для корзины и отдельных товаров.</p>
+            <h2 id="promo-create-title">Создать промокод</h2>
+            <p class="muted">Заполните параметры и сохраните, чтобы добавить новый промокод.</p>
+          </div>
+          <button class="btn secondary" type="button" data-view="promocode-list">К списку</button>
+        </div>
+        <div class="card" style="max-width:720px; margin:0 auto;">
+          <form id="promo-create-form" class="stacked-form">
+            <label for="promo-create-code">Код</label>
+            <input type="text" id="promo-create-code" required />
+
+            <label for="promo-create-discount-type">Тип скидки</label>
+            <select id="promo-create-discount-type" required>
+              <option value="percent">Процент</option>
+              <option value="fixed">Фиксированная</option>
+            </select>
+
+            <label for="promo-create-discount-value">Значение</label>
+            <input type="number" id="promo-create-discount-value" min="1" step="1" required />
+
+            <label for="promo-create-scope">Область применения</label>
+            <select id="promo-create-scope" required>
+              <option value="all">На весь заказ</option>
+              <option value="basket">Только корзинки</option>
+              <option value="course">Только мастер-классы</option>
+              <option value="product">Определённый товар/курс</option>
+              <option value="category">Категория корзинок</option>
+            </select>
+
+            <label for="promo-create-target">ID цели (для product/category)</label>
+            <input type="number" id="promo-create-target" min="0" placeholder="Например, ID товара или категории" />
+
+            <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+              <div>
+                <label for="promo-create-date-start">Дата начала</label>
+                <input type="datetime-local" id="promo-create-date-start" />
+              </div>
+              <div>
+                <label for="promo-create-date-end">Дата окончания</label>
+                <input type="datetime-local" id="promo-create-date-end" />
+              </div>
+            </div>
+
+            <label for="promo-create-max-uses">Максимум использований</label>
+            <input type="number" id="promo-create-max-uses" min="0" placeholder="0 — без лимита" />
+
+            <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:6px;">
+              <label style="display:flex; align-items:center; gap:6px; margin:0;"><input type="checkbox" id="promo-create-active" checked /> Активен</label>
+              <label style="display:flex; align-items:center; gap:6px; margin:0;"><input type="checkbox" id="promo-create-one-per-user" /> Один раз на пользователя</label>
+            </div>
+
+            <div class="form-actions">
+              <button class="btn primary" type="submit">Сохранить</button>
+              <button class="btn secondary" type="button" id="promo-create-reset">Сбросить</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <section id="promocode-list" class="card admin-view" data-view="promocode-list" style="display:none;">
+        <div class="section-header">
+          <div>
+            <h2>Список промокодов</h2>
+            <p class="muted">Все созданные промокоды с возможностью фильтрации и редактирования.</p>
+          </div>
+          <div class="filters-row">
+            <select id="promo-status-filter">
+              <option value="all">Все</option>
+              <option value="active">Активные</option>
+              <option value="inactive">Не активные</option>
+            </select>
+            <button class="btn primary" type="button" data-view="promocode-create">Создать промокод</button>
           </div>
         </div>
-        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));">
-          <div class="card">
-            <h3 id="promo-form-title">Создать промокод</h3>
-            <form id="promo-form">
-              <label for="promo-code-input">Код</label>
-              <input type="text" id="promo-code-input" required />
-
-              <label for="promo-discount-type">Тип скидки</label>
-              <select id="promo-discount-type" required>
-                <option value="percent">Процент</option>
-                <option value="fixed">Фиксированная</option>
-              </select>
-
-              <label for="promo-discount-value">Значение</label>
-              <input type="number" id="promo-discount-value" min="1" step="1" required />
-
-              <label for="promo-scope">Область применения</label>
-              <select id="promo-scope" required>
-                <option value="all">На весь заказ</option>
-                <option value="basket">Только корзинки</option>
-                <option value="course">Только мастер-классы</option>
-                <option value="product">Определённый товар/курс</option>
-                <option value="category">Категория корзинок</option>
-              </select>
-
-              <label for="promo-target">ID цели (для product/category)</label>
-              <input type="number" id="promo-target" min="0" placeholder="Например, ID товара или категории" />
-
-              <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
-                <div>
-                  <label for="promo-date-start">Дата начала</label>
-                  <input type="datetime-local" id="promo-date-start" />
-                </div>
-                <div>
-                  <label for="promo-date-end">Дата окончания</label>
-                  <input type="datetime-local" id="promo-date-end" />
-                </div>
-              </div>
-
-              <label for="promo-max-uses">Максимум использований</label>
-              <input type="number" id="promo-max-uses" min="0" placeholder="0 — без лимита" />
-
-              <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:6px;">
-                <label style="display:flex; align-items:center; gap:6px; margin:0;"><input type="checkbox" id="promo-active" checked /> Активен</label>
-                <label style="display:flex; align-items:center; gap:6px; margin:0;"><input type="checkbox" id="promo-one-per-user" /> Один раз на пользователя</label>
-              </div>
-
-              <div style="display:flex; gap:8px; margin-top:12px;">
-                <button class="btn primary" type="submit">Сохранить</button>
-                <button class="btn secondary" type="button" id="promo-reset">Сбросить</button>
-              </div>
-            </form>
-          </div>
-
-          <div class="card" style="overflow:auto;">
-            <table aria-label="Промокоды" style="width:100%;">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Код</th>
-                  <th>Скидка</th>
-                  <th>Область</th>
-                  <th>Лимиты</th>
-                  <th>Статус</th>
-                  <th></th>
-                </tr>
-              </thead>
-          <tbody id="promo-table"></tbody>
-        </table>
-      </div>
-    </div>
-  </section>
+        <div class="card" style="overflow:auto;">
+          <table aria-label="Промокоды" style="width:100%; min-width:760px;">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Код</th>
+                <th>Тип скидки</th>
+                <th>Значение</th>
+                <th>Область / цель</th>
+                <th>Период действия</th>
+                <th>Статус</th>
+                <th>Использовано</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="promo-table"></tbody>
+          </table>
+        </div>
+      </section>
 
       <section id="reviews" class="card admin-view" data-view="reviews" style="display:none;">
         <div class="section-header" style="align-items:flex-start; gap:12px;">
@@ -623,20 +645,36 @@
     const courseCancel = document.getElementById('course-cancel');
     const productReset = document.getElementById('product-reset');
     const courseReset = document.getElementById('course-reset');
-    const promoForm = document.getElementById('promo-form');
-    const promoFormTitle = document.getElementById('promo-form-title');
     const promoTable = document.getElementById('promo-table');
-    const promoCodeInput = document.getElementById('promo-code-input');
-    const promoDiscountType = document.getElementById('promo-discount-type');
-    const promoDiscountValue = document.getElementById('promo-discount-value');
-    const promoScope = document.getElementById('promo-scope');
-    const promoTarget = document.getElementById('promo-target');
-    const promoDateStart = document.getElementById('promo-date-start');
-    const promoDateEnd = document.getElementById('promo-date-end');
-    const promoMaxUses = document.getElementById('promo-max-uses');
-    const promoActive = document.getElementById('promo-active');
-    const promoOnePerUser = document.getElementById('promo-one-per-user');
-    const promoReset = document.getElementById('promo-reset');
+    const promoStatusFilter = document.getElementById('promo-status-filter');
+    const promoCreateForm = document.getElementById('promo-create-form');
+    const promoCreateTitle = document.getElementById('promo-create-title');
+    const promoCreateCode = document.getElementById('promo-create-code');
+    const promoCreateDiscountType = document.getElementById('promo-create-discount-type');
+    const promoCreateDiscountValue = document.getElementById('promo-create-discount-value');
+    const promoCreateScope = document.getElementById('promo-create-scope');
+    const promoCreateTarget = document.getElementById('promo-create-target');
+    const promoCreateDateStart = document.getElementById('promo-create-date-start');
+    const promoCreateDateEnd = document.getElementById('promo-create-date-end');
+    const promoCreateMaxUses = document.getElementById('promo-create-max-uses');
+    const promoCreateActive = document.getElementById('promo-create-active');
+    const promoCreateOnePerUser = document.getElementById('promo-create-one-per-user');
+    const promoCreateReset = document.getElementById('promo-create-reset');
+    const promoEditModal = document.getElementById('promo-edit-modal');
+    const promoEditForm = document.getElementById('promo-edit-form');
+    const promoEditTitle = document.getElementById('promo-edit-title');
+    const promoEditCode = document.getElementById('promo-edit-code');
+    const promoEditDiscountType = document.getElementById('promo-edit-discount-type');
+    const promoEditDiscountValue = document.getElementById('promo-edit-discount-value');
+    const promoEditScope = document.getElementById('promo-edit-scope');
+    const promoEditTarget = document.getElementById('promo-edit-target');
+    const promoEditDateStart = document.getElementById('promo-edit-date-start');
+    const promoEditDateEnd = document.getElementById('promo-edit-date-end');
+    const promoEditMaxUses = document.getElementById('promo-edit-max-uses');
+    const promoEditActive = document.getElementById('promo-edit-active');
+    const promoEditOnePerUser = document.getElementById('promo-edit-one-per-user');
+    const promoEditClose = document.getElementById('promo-edit-close');
+    const promoEditCancel = document.getElementById('promo-edit-cancel');
     const productCategoriesTable = document.getElementById('product-categories-table');
     const courseCategoriesTable = document.getElementById('course-categories-table');
     const productCategoryForm = document.getElementById('product-category-form');
@@ -653,6 +691,7 @@
     let editingPromoId = null;
     let editingProductCategoryId = null;
     let editingCourseCategoryId = null;
+    let promocodeItems = [];
     let reviewItems = [];
 
     function setStatus(message, isError = false) {
@@ -722,19 +761,34 @@
       });
     }
 
+    function handleViewNavigation(view) {
+      showSection(view);
+      if (view === 'product-create') {
+        resetProductCreateForm();
+      }
+      if (view === 'product-categories') {
+        loadProductCategories();
+      }
+      if (view === 'course-categories') {
+        loadCourseCategories();
+      }
+      if (view === 'promocode-create') {
+        resetPromoCreateForm();
+      }
+      if (view === 'promocode-list') {
+        loadPromocodes();
+      }
+    }
+
     navLinks.forEach((btn) => {
       btn.addEventListener('click', () => {
-        showSection(btn.dataset.view);
-        if (btn.dataset.view === 'product-create') {
-          resetProductCreateForm();
-        }
-        if (btn.dataset.view === 'product-categories') {
-          loadProductCategories();
-        }
-        if (btn.dataset.view === 'course-categories') {
-          loadCourseCategories();
-        }
+        handleViewNavigation(btn.dataset.view);
       });
+    });
+
+    document.querySelectorAll('[data-view]').forEach((btn) => {
+      if (btn.classList.contains('nav-btn')) return;
+      btn.addEventListener('click', () => handleViewNavigation(btn.dataset.view));
     });
 
     navParents.forEach((parent) => {
@@ -742,6 +796,10 @@
         const groupName = parent.dataset.groupToggle;
         const group = document.querySelector(`.nav-group[data-group="${groupName}"]`);
         group?.classList.toggle('open');
+        const defaultView = parent.dataset.defaultView;
+        if (defaultView) {
+          handleViewNavigation(defaultView);
+        }
       });
     });
 
@@ -1739,16 +1797,6 @@
       }
     }
 
-    function resetPromoFormFields() {
-      editingPromoId = null;
-      promoFormTitle.textContent = 'Создать промокод';
-      promoForm?.reset();
-      promoActive.checked = true;
-      promoOnePerUser.checked = false;
-      promoTarget.value = '';
-      updatePromoTargetState();
-    }
-
     function toInputDate(value) {
       if (!value) return '';
       const date = new Date(value);
@@ -1764,13 +1812,21 @@
       return Number.isNaN(date.getTime()) ? null : date.toISOString();
     }
 
-    function updatePromoTargetState() {
-      const needsTarget = ['product', 'category'].includes(promoScope.value);
-      promoTarget.disabled = !needsTarget;
-      promoTarget.placeholder = needsTarget ? 'Например, ID товара или категории' : 'Не требуется для выбранной области';
+    function updatePromoTargetState(scopeSelect, targetInput) {
+      if (!scopeSelect || !targetInput) return;
+      const needsTarget = ['product', 'category'].includes(scopeSelect.value);
+      targetInput.disabled = !needsTarget;
+      targetInput.placeholder = needsTarget ? 'Например, ID товара или категории' : 'Не требуется для выбранной области';
       if (!needsTarget) {
-        promoTarget.value = '';
+        targetInput.value = '';
       }
+    }
+
+    function applyPromocodeFilters(items) {
+      const statusFilter = promoStatusFilter?.value || 'all';
+      if (statusFilter === 'active') return items.filter((p) => p.active);
+      if (statusFilter === 'inactive') return items.filter((p) => !p.active);
+      return items;
     }
 
     function renderPromocodes(promos) {
@@ -1778,7 +1834,7 @@
       if (!promos || !promos.length) {
         const emptyRow = document.createElement('tr');
         const cell = document.createElement('td');
-        cell.colSpan = 7;
+        cell.colSpan = 9;
         cell.textContent = 'Промокоды отсутствуют';
         cell.className = 'muted';
         emptyRow.appendChild(cell);
@@ -1796,32 +1852,33 @@
 
       promos.forEach((promo) => {
         const row = document.createElement('tr');
-        const limitText = `${promo.used_count || 0}/${promo.max_uses || '∞'}`;
-        const discountText =
-          promo.discount_type === 'percent'
-            ? `${promo.discount_value}%`
-            : `${promo.discount_value} ₽`;
-        const dates = [promo.date_start, promo.date_end]
+        const discountText = promo.discount_type === 'percent' ? `${promo.discount_value}%` : `${promo.discount_value} ₽`;
+        const period = [promo.date_start, promo.date_end]
           .filter(Boolean)
           .map((d) => new Date(d).toLocaleString('ru-RU'))
           .join(' — ');
-        const status = promo.active ? 'Активен' : 'Выключен';
+        const statusText = promo.active ? 'Активен' : 'Не активен';
+        const usageText = `${promo.used_count || 0}/${promo.max_uses || '∞'}`;
 
         row.innerHTML = `
           <td>#${promo.id}</td>
           <td>${promo.code}</td>
+          <td>${promo.discount_type === 'percent' ? 'Процент' : 'Фиксированная'}</td>
           <td>${discountText}</td>
           <td>${scopeLabels[promo.scope] || promo.scope}${promo.target_id ? ` #${promo.target_id}` : ''}</td>
-          <td>${limitText}</td>
-          <td>${status}<div class="muted" style="font-size:12px;">${dates || '—'}</div></td>
-          <td style="display:flex; gap:6px;">
+          <td>${period || '—'}</td>
+          <td>${statusText}</td>
+          <td>${usageText}</td>
+          <td style="display:flex; gap:6px; flex-wrap:wrap;">
+            <button class="btn secondary" type="button" data-toggle="${promo.id}">${promo.active ? 'Выключить' : 'Активировать'}</button>
             <button class="btn secondary" type="button" data-edit="${promo.id}">Редактировать</button>
             <button class="btn secondary" type="button" data-delete="${promo.id}">Удалить</button>
           </td>
         `;
 
-        row.querySelector('[data-edit]')?.addEventListener('click', () => editPromocode(promo));
+        row.querySelector('[data-edit]')?.addEventListener('click', () => openPromocodeEdit(promo));
         row.querySelector('[data-delete]')?.addEventListener('click', () => deletePromocode(promo.id));
+        row.querySelector('[data-toggle]')?.addEventListener('click', () => togglePromocodeActive(promo));
         promoTable.appendChild(row);
       });
     }
@@ -1830,27 +1887,43 @@
       if (!currentUser) return;
       try {
         const data = await apiGet('/admin/promocodes', { user_id: currentUser.telegram_id });
-        renderPromocodes(data.items || []);
+        const items = (data.items || []).sort((a, b) => {
+          const aDate = a.created_at ? new Date(a.created_at).getTime() : 0;
+          const bDate = b.created_at ? new Date(b.created_at).getTime() : 0;
+          return bDate !== aDate ? bDate - aDate : (b.id || 0) - (a.id || 0);
+        });
+        promocodeItems = items;
+        renderPromocodes(applyPromocodeFilters(items));
       } catch (e) {
         console.error(e);
         setStatus('Не удалось загрузить промокоды', true);
       }
     }
 
-    function editPromocode(promo) {
+    function openPromocodeEdit(promo) {
       editingPromoId = promo.id;
-      promoFormTitle.textContent = `Редактировать промокод #${promo.id}`;
-      promoCodeInput.value = promo.code || '';
-      promoDiscountType.value = promo.discount_type || 'percent';
-      promoDiscountValue.value = promo.discount_value || '';
-      promoScope.value = promo.scope || 'all';
-      promoTarget.value = promo.target_id ?? '';
-      promoDateStart.value = toInputDate(promo.date_start);
-      promoDateEnd.value = toInputDate(promo.date_end);
-      promoMaxUses.value = promo.max_uses ?? '';
-      promoActive.checked = promo.active !== false;
-      promoOnePerUser.checked = Boolean(promo.one_per_user);
-      updatePromoTargetState();
+      promoEditTitle.textContent = `Редактировать промокод #${promo.id}`;
+      promoEditCode.value = promo.code || '';
+      promoEditDiscountType.value = promo.discount_type || 'percent';
+      promoEditDiscountValue.value = promo.discount_value || '';
+      promoEditScope.value = promo.scope || 'all';
+      promoEditTarget.value = promo.target_id ?? '';
+      promoEditDateStart.value = toInputDate(promo.date_start);
+      promoEditDateEnd.value = toInputDate(promo.date_end);
+      promoEditMaxUses.value = promo.max_uses ?? '';
+      promoEditActive.checked = promo.active !== false;
+      promoEditOnePerUser.checked = Boolean(promo.one_per_user);
+      updatePromoTargetState(promoEditScope, promoEditTarget);
+      promoEditModal?.classList.remove('hidden');
+    }
+
+    function closePromocodeEdit() {
+      editingPromoId = null;
+      promoEditForm?.reset();
+      promoEditActive.checked = false;
+      promoEditOnePerUser.checked = false;
+      updatePromoTargetState(promoEditScope, promoEditTarget);
+      promoEditModal?.classList.add('hidden');
     }
 
     async function deletePromocode(id) {
@@ -1866,32 +1939,82 @@
       }
     }
 
-    async function submitPromocode(event) {
+    async function togglePromocodeActive(promo) {
+      if (!currentUser || !promo?.id) return;
+      try {
+        await sendJson(`/admin/promocodes/${promo.id}`, 'PUT', {
+          user_id: currentUser.telegram_id,
+          active: !promo.active,
+        });
+        setStatus(promo.active ? 'Промокод выключен' : 'Промокод активирован');
+        await loadPromocodes();
+      } catch (e) {
+        console.error(e);
+        setStatus('Не удалось обновить статус промокода', true);
+      }
+    }
+
+    function resetPromoCreateForm() {
+      promoCreateTitle.textContent = 'Создать промокод';
+      promoCreateForm?.reset();
+      promoCreateActive.checked = true;
+      promoCreateOnePerUser.checked = false;
+      promoCreateTarget.value = '';
+      updatePromoTargetState(promoCreateScope, promoCreateTarget);
+    }
+
+    async function submitPromocodeCreate(event) {
       event.preventDefault();
       if (!currentUser) return;
 
       const payload = {
         user_id: currentUser.telegram_id,
-        code: promoCodeInput.value.trim(),
-        discount_type: promoDiscountType.value,
-        discount_value: Number(promoDiscountValue.value || 0),
-        scope: promoScope.value,
-        target_id: promoTarget.value ? Number(promoTarget.value) : null,
-        date_start: fromInputDate(promoDateStart.value),
-        date_end: fromInputDate(promoDateEnd.value),
-        max_uses: promoMaxUses.value ? Number(promoMaxUses.value) : null,
-        active: promoActive.checked,
-        one_per_user: promoOnePerUser.checked,
+        code: (promoCreateCode.value || '').trim(),
+        discount_type: promoCreateDiscountType.value,
+        discount_value: Number(promoCreateDiscountValue.value || 0),
+        scope: promoCreateScope.value,
+        target_id: promoCreateTarget.value ? Number(promoCreateTarget.value) : null,
+        date_start: fromInputDate(promoCreateDateStart.value),
+        date_end: fromInputDate(promoCreateDateEnd.value),
+        max_uses: promoCreateMaxUses.value ? Number(promoCreateMaxUses.value) : null,
+        active: promoCreateActive.checked,
+        one_per_user: promoCreateOnePerUser.checked,
       };
 
       try {
-        if (editingPromoId) {
-          await sendJson(`/admin/promocodes/${editingPromoId}`, 'PUT', payload);
-        } else {
-          await sendJson('/admin/promocodes', 'POST', payload);
-        }
+        await sendJson('/admin/promocodes', 'POST', payload);
+        setStatus('Промокод создан');
+        resetPromoCreateForm();
+        await loadPromocodes();
+        showSection('promocode-list');
+      } catch (e) {
+        console.error(e);
+        setStatus(e?.message || 'Не удалось сохранить промокод', true);
+      }
+    }
+
+    async function submitPromocodeEdit(event) {
+      event.preventDefault();
+      if (!currentUser || !editingPromoId) return;
+
+      const payload = {
+        user_id: currentUser.telegram_id,
+        code: (promoEditCode.value || '').trim(),
+        discount_type: promoEditDiscountType.value,
+        discount_value: Number(promoEditDiscountValue.value || 0),
+        scope: promoEditScope.value,
+        target_id: promoEditTarget.value ? Number(promoEditTarget.value) : null,
+        date_start: fromInputDate(promoEditDateStart.value),
+        date_end: fromInputDate(promoEditDateEnd.value),
+        max_uses: promoEditMaxUses.value ? Number(promoEditMaxUses.value) : null,
+        active: promoEditActive.checked,
+        one_per_user: promoEditOnePerUser.checked,
+      };
+
+      try {
+        await sendJson(`/admin/promocodes/${editingPromoId}`, 'PUT', payload);
         setStatus('Промокод сохранён');
-        resetPromoFormFields();
+        closePromocodeEdit();
         await loadPromocodes();
       } catch (e) {
         console.error(e);
@@ -1998,9 +2121,11 @@
       }
     }
 
-    promoForm.addEventListener('submit', submitPromocode);
-    promoReset.addEventListener('click', resetPromoFormFields);
-    promoScope.addEventListener('change', updatePromoTargetState);
+    promoCreateForm?.addEventListener('submit', submitPromocodeCreate);
+    promoEditForm?.addEventListener('submit', submitPromocodeEdit);
+    promoCreateReset?.addEventListener('click', resetPromoCreateForm);
+    promoCreateScope?.addEventListener('change', () => updatePromoTargetState(promoCreateScope, promoCreateTarget));
+    promoEditScope?.addEventListener('change', () => updatePromoTargetState(promoEditScope, promoEditTarget));
     productForm.addEventListener('submit', submitProductForm);
     productEditForm?.addEventListener('submit', submitProductEditForm);
     courseForm.addEventListener('submit', submitCourseForm);
@@ -2065,6 +2190,15 @@
       if (event.target.id === 'course-edit-modal') closeCourseEditModal();
     });
 
+    promoEditClose?.addEventListener('click', closePromocodeEdit);
+    promoEditCancel?.addEventListener('click', closePromocodeEdit);
+    promoEditModal?.addEventListener('click', (event) => {
+      if (event.target.id === 'promo-edit-modal') closePromocodeEdit();
+    });
+    promoStatusFilter?.addEventListener('change', () => {
+      renderPromocodes(applyPromocodeFilters(promocodeItems));
+    });
+
     reviewStatusFilter?.addEventListener('change', loadReviews);
     reviewProductFilter?.addEventListener('change', loadReviews);
     reviewUserFilter?.addEventListener('input', () => {
@@ -2103,7 +2237,8 @@
 
         await Promise.all([loadProductCategories(), loadCourseCategories()]);
 
-        updatePromoTargetState();
+        resetPromoCreateForm();
+        updatePromoTargetState(promoEditScope, promoEditTarget);
         await loadOrders();
         await loadProducts();
         await loadCourses();
@@ -2238,6 +2373,66 @@
           <div class="form-actions">
             <button class="btn primary" type="submit">Сохранить</button>
             <button class="btn secondary" type="button" id="course-edit-cancel">Отмена</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div id="promo-edit-modal" class="admin-modal hidden">
+    <div class="admin-modal__content">
+      <div class="admin-modal__header">
+        <h3 id="promo-edit-title">Редактировать промокод</h3>
+        <button class="btn secondary" type="button" id="promo-edit-close">Закрыть</button>
+      </div>
+      <div class="admin-modal__body" style="max-height:70vh; overflow:auto;">
+        <form id="promo-edit-form" class="stacked-form">
+          <label for="promo-edit-code">Код</label>
+          <input type="text" id="promo-edit-code" required />
+
+          <label for="promo-edit-discount-type">Тип скидки</label>
+          <select id="promo-edit-discount-type" required>
+            <option value="percent">Процент</option>
+            <option value="fixed">Фиксированная</option>
+          </select>
+
+          <label for="promo-edit-discount-value">Значение</label>
+          <input type="number" id="promo-edit-discount-value" min="1" step="1" required />
+
+          <label for="promo-edit-scope">Область применения</label>
+          <select id="promo-edit-scope" required>
+            <option value="all">На весь заказ</option>
+            <option value="basket">Только корзинки</option>
+            <option value="course">Только мастер-классы</option>
+            <option value="product">Определённый товар/курс</option>
+            <option value="category">Категория корзинок</option>
+          </select>
+
+          <label for="promo-edit-target">ID цели (для product/category)</label>
+          <input type="number" id="promo-edit-target" min="0" placeholder="Например, ID товара или категории" />
+
+          <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+            <div>
+              <label for="promo-edit-date-start">Дата начала</label>
+              <input type="datetime-local" id="promo-edit-date-start" />
+            </div>
+            <div>
+              <label for="promo-edit-date-end">Дата окончания</label>
+              <input type="datetime-local" id="promo-edit-date-end" />
+            </div>
+          </div>
+
+          <label for="promo-edit-max-uses">Максимум использований</label>
+          <input type="number" id="promo-edit-max-uses" min="0" placeholder="0 — без лимита" />
+
+          <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:6px;">
+            <label style="display:flex; align-items:center; gap:6px; margin:0;"><input type="checkbox" id="promo-edit-active" /> Активен</label>
+            <label style="display:flex; align-items:center; gap:6px; margin:0;"><input type="checkbox" id="promo-edit-one-per-user" /> Один раз на пользователя</label>
+          </div>
+
+          <div class="form-actions">
+            <button class="btn primary" type="submit">Сохранить</button>
+            <button class="btn secondary" type="button" id="promo-edit-cancel">Отмена</button>
           </div>
         </form>
       </div>
