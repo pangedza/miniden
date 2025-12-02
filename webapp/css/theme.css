@@ -978,6 +978,63 @@ footer a {
   color: var(--color-text-muted);
 }
 
+.review-form-accordion {
+  border: 1px solid var(--color-border-subtle);
+  background: var(--color-bg-card);
+  border-radius: 12px;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.05);
+}
+
+.review-form-accordion__header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  background: transparent;
+  border: none;
+  color: var(--color-text-main);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.review-form-accordion__icon {
+  transition: transform 0.2s ease;
+  color: var(--color-text-muted);
+}
+
+.review-form-accordion.is-open .review-form-accordion__icon {
+  transform: rotate(180deg);
+}
+
+.review-form-accordion__body {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.25s ease, opacity 0.25s ease, padding 0.2s ease;
+  opacity: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 12px;
+}
+
+.review-form-accordion.is-open .review-form-accordion__body {
+  max-height: 1200px;
+  opacity: 1;
+  padding: 12px;
+}
+
+.review-form-accordion .product-reviews__form {
+  border: none;
+  background: transparent;
+  padding: 0;
+}
+
+.review-form-accordion .product-reviews__login-hint {
+  margin: 0;
+}
+
 .product-reviews__form {
   display: grid;
   gap: 12px;

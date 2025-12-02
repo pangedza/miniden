@@ -897,7 +897,7 @@ def get_product_rating(product_id: int):
 
 
 @app.post("/api/reviews/{review_id}/photos")
-def upload_review_photo(review_id: int, request: Request, file: UploadFile = File(...)):
+def upload_review_photo(review_id: int, request: Request, file: list[UploadFile] = File(...)):
     with get_session() as session:
         user = _get_current_user_from_cookie(session, request)
         if not user:
