@@ -97,9 +97,44 @@ BASKET_CATEGORY_PRESETS: list[dict[str, Any]] = [
 ]
 
 
+def _ensure_default_categories(product_type: str) -> None:
+    if product_type != "basket":
+        return
+
+    with get_session() as session:
+        existing = (
+            session.execute(
+                select(ProductCategory).where(
+                    ProductCategory.slug.in_([item["slug"] for item in BASKET_CATEGORY_PRESETS]),
+                    ProductCategory.type == product_type,
+                )
+            )
+            .scalars()
+            .all()
+        )
+        existing_by_slug = {row.slug: row for row in existing}
+
+        for sort_order, preset in enumerate(BASKET_CATEGORY_PRESETS):
+            slug = preset.get("slug")
+            if not slug or slug in existing_by_slug:
+                continue
+
+            category = ProductCategory(
+                id=preset.get("id"),
+                name=preset.get("name"),
+                slug=slug,
+                sort_order=sort_order,
+                is_active=True,
+                type=product_type,
+            )
+            session.add(category)
+
+
 def _load_category_maps(product_type: str):
     map_by_id: dict[int, dict[str, Any]] = {}
     map_by_slug: dict[str, dict[str, Any]] = {}
+
+    _ensure_default_categories(product_type)
 
     with get_session() as session:
         rows = (
