@@ -537,6 +537,10 @@ footer a {
   overflow: hidden;
 }
 
+.product-card {
+  min-height: 420px;
+}
+
 .product-card__image-wrapper,
 .course-card__image-wrapper {
   background: var(--color-bg-card);
@@ -561,6 +565,22 @@ footer a {
   align-items: center;
   justify-content: center;
   padding: 12px;
+}
+
+.product-card__image-wrapper {
+  height: 260px;
+}
+
+@media (max-width: 1024px) {
+  .product-card__image-wrapper {
+    height: 240px;
+  }
+}
+
+@media (max-width: 640px) {
+  .product-card__image-wrapper {
+    height: 220px;
+  }
 }
 
 .product-card__nav,
@@ -629,6 +649,24 @@ footer a {
   max-height: 3.6em;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.product-card-body {
+  gap: 12px;
+}
+
+.product-card__actions {
+  margin-top: auto;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  align-items: stretch;
+  flex-wrap: wrap;
+}
+
+.product-card__actions .btn {
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 .market-links {
@@ -886,6 +924,11 @@ footer a {
   font-weight: 800;
   color: #ffdf80;
   font-size: 20px;
+}
+
+.product-modal__markets {
+  color: var(--color-text-muted);
+  font-size: 14px;
 }
 
 .product-modal__actions,
