@@ -195,26 +195,44 @@ def _generate_review_photo_path(media_root: Path, review_id: int, filename: str)
 
 
 def add_review_photo(review_id: int, file, media_root: Path) -> list[str]:
-    allowed_types = {"image/jpeg", "image/png", "image/webp"}
-    content_type = getattr(file, "content_type", None) or mimetypes.guess_type(file.filename or "")[0]
-    if content_type not in allowed_types:
+    files = []
+    if isinstance(file, (list, tuple)):
+        files = [f for f in file if f is not None]
+    elif file is not None:
+        files = [file]
+
+    if not files:
         raise ValueError("Неверный формат изображения")
+
+    allowed_types = {"image/jpeg", "image/png", "image/webp"}
 
     with get_session() as session:
         review = session.get(ProductReview, review_id)
         if not review or review.is_deleted:
             raise ValueError("review_not_found")
 
-        filename = file.filename or "image.jpg"
-        full_path = _generate_review_photo_path(media_root, review_id, filename)
+        existing = list(review.photos_json or [])
+        remaining_slots = max(0, 3 - len(existing))
 
-        with full_path.open("wb") as f:
-            f.write(file.file.read())
+        for upload in files:
+            if remaining_slots <= 0:
+                break
 
-        existing = review.photos_json or []
-        relative = full_path.relative_to(media_root).as_posix()
-        url = f"/media/{relative}"
-        existing.append(url)
+            content_type = getattr(upload, "content_type", None) or mimetypes.guess_type(upload.filename or "")[0]
+            if content_type not in allowed_types:
+                raise ValueError("Неверный формат изображения")
+
+            filename = upload.filename or "image.jpg"
+            full_path = _generate_review_photo_path(media_root, review_id, filename)
+
+            with full_path.open("wb") as f:
+                f.write(upload.file.read())
+
+            relative = full_path.relative_to(media_root).as_posix()
+            url = f"/media/{relative}"
+            existing.append(url)
+            remaining_slots -= 1
+
         review.photos_json = existing
         session.add(review)
         session.flush()

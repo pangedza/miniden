@@ -69,52 +69,60 @@
         </div>
 
         <section class="product-reviews" id="product-reviews-section">
-          <div class="product-reviews__header">
-            <h4 style="margin: 0;">Отзывы</h4>
-            <div class="product-reviews__summary" id="product-reviews-summary">Пока нет отзывов, будьте первым!</div>
+        <div class="product-reviews__header">
+          <h4 style="margin: 0;">Отзывы</h4>
+          <div class="product-reviews__summary" id="product-reviews-summary">Пока нет отзывов, будьте первым!</div>
+        </div>
+
+        <div class="review-form-accordion" id="product-reviews-accordion">
+          <button class="review-form-accordion__header" type="button" id="review-form-toggle" aria-expanded="false">
+            <span>Оставить отзыв</span>
+            <span class="review-form-accordion__icon" aria-hidden="true">▼</span>
+          </button>
+          <div class="review-form-accordion__body" id="review-form-body">
+            <div class="product-reviews__login-hint" id="product-reviews-login-hint" style="display:none;">
+              Чтобы оставить отзыв, войдите через Telegram. После авторизации вернитесь к карточке товара.
+            </div>
+
+            <div class="product-reviews__form" id="product-reviews-form" style="display:none;">
+              <h5 style="margin: 0;">Оставить отзыв</h5>
+
+              <div class="review-form__field">
+                <label for="review-rating-stars">Ваша оценка</label>
+                <div class="rating-stars" id="review-rating-stars" role="radiogroup" aria-label="Ваша оценка">
+                  <button type="button" class="rating-stars__item" data-value="1" aria-label="1 звезда">★</button>
+                  <button type="button" class="rating-stars__item" data-value="2" aria-label="2 звезды">★</button>
+                  <button type="button" class="rating-stars__item" data-value="3" aria-label="3 звезды">★</button>
+                  <button type="button" class="rating-stars__item" data-value="4" aria-label="4 звезды">★</button>
+                  <button type="button" class="rating-stars__item" data-value="5" aria-label="5 звезд">★</button>
+                </div>
+                <div class="form-error" id="review-rating-error" aria-live="polite"></div>
+              </div>
+
+              <div class="review-form__field">
+                <label for="review-text">Ваш отзыв</label>
+                <textarea id="review-text" placeholder="Расскажите, что понравилось или что можно улучшить"></textarea>
+                <div class="form-error" id="review-text-error" aria-live="polite"></div>
+              </div>
+
+              <div class="review-form__field">
+                <label for="review-photos">Загрузить фото (до 3 шт)</label>
+                <input type="file" id="review-photos" accept="image/*" multiple />
+                <div class="review-photos-preview" id="review-photos-preview"></div>
+              </div>
+
+              <div class="review-form__actions">
+                <button class="btn" type="button" id="review-submit">Отправить отзыв</button>
+                <div class="muted">Ваш отзыв отправится на модерацию. Мы покажем его после одобрения.</div>
+              </div>
+
+              <div class="form-error" id="review-form-status" aria-live="polite"></div>
+            </div>
           </div>
+        </div>
 
           <div class="product-reviews__list" id="product-reviews-list"></div>
           <button class="btn secondary" type="button" id="product-reviews-more" style="display:none;">Показать ещё</button>
-
-          <div class="product-reviews__login-hint" id="product-reviews-login-hint" style="display:none;">
-            Чтобы оставить отзыв, войдите через Telegram. После авторизации вернитесь к карточке товара.
-          </div>
-
-          <div class="product-reviews__form" id="product-reviews-form" style="display:none;">
-            <h5 style="margin: 0;">Оставить отзыв</h5>
-
-            <div class="review-form__field">
-              <label for="review-rating-stars">Ваша оценка</label>
-              <div class="rating-stars" id="review-rating-stars" role="radiogroup" aria-label="Ваша оценка">
-                <button type="button" class="rating-stars__item" data-value="1" aria-label="1 звезда">★</button>
-                <button type="button" class="rating-stars__item" data-value="2" aria-label="2 звезды">★</button>
-                <button type="button" class="rating-stars__item" data-value="3" aria-label="3 звезды">★</button>
-                <button type="button" class="rating-stars__item" data-value="4" aria-label="4 звезды">★</button>
-                <button type="button" class="rating-stars__item" data-value="5" aria-label="5 звезд">★</button>
-              </div>
-              <div class="form-error" id="review-rating-error" aria-live="polite"></div>
-            </div>
-
-            <div class="review-form__field">
-              <label for="review-text">Ваш отзыв</label>
-              <textarea id="review-text" placeholder="Расскажите, что понравилось или что можно улучшить"></textarea>
-              <div class="form-error" id="review-text-error" aria-live="polite"></div>
-            </div>
-
-            <div class="review-form__field">
-              <label for="review-photos">Загрузить фото (до 3 шт)</label>
-              <input type="file" id="review-photos" accept="image/*" multiple />
-              <div class="review-photos-preview" id="review-photos-preview"></div>
-            </div>
-
-            <div class="review-form__actions">
-              <button class="btn" type="button" id="review-submit">Отправить отзыв</button>
-              <div class="muted">Ваш отзыв отправится на модерацию. Мы покажем его после одобрения.</div>
-            </div>
-
-            <div class="form-error" id="review-form-status" aria-live="polite"></div>
-          </div>
         </section>
       </div>
     </div>
@@ -155,6 +163,9 @@
 
       const productReviewsSection = document.getElementById('product-reviews-section');
       const productReviewsSummary = document.getElementById('product-reviews-summary');
+      const productReviewsAccordion = document.getElementById('product-reviews-accordion');
+      const reviewFormToggle = document.getElementById('review-form-toggle');
+      const reviewFormBody = document.getElementById('review-form-body');
     const productReviewsList = document.getElementById('product-reviews-list');
     const productReviewsMoreBtn = document.getElementById('product-reviews-more');
     const productReviewsForm = document.getElementById('product-reviews-form');
@@ -171,6 +182,7 @@
     const REVIEWS_INITIAL_LIMIT = 5;
     let selectedReviewRating = 0;
     let selectedReviewFiles = [];
+    let isReviewFormOpen = false;
     const productReviewsCache = new Map();
 
     let profile = null;
@@ -522,6 +534,7 @@
       productModalIndex = Math.max(0, Math.min(startIndex || 0, (item.images?.length || 1) - 1));
 
       resetReviewForm();
+      setReviewFormOpen(false);
       updateReviewFormVisibility();
       if (productReviewsSection) {
         showReviewsPlaceholder('Загружаем отзывы...');
@@ -591,9 +604,15 @@
         const target = event.target.closest('.rating-stars__item');
         if (!target) return;
         selectedReviewRating = Number(target.dataset.value) || 0;
-      renderRatingSelection();
-      if (reviewRatingError) reviewRatingError.textContent = '';
+        renderRatingSelection();
+        if (reviewRatingError) reviewRatingError.textContent = '';
+      });
+
+    reviewFormToggle?.addEventListener('click', () => {
+      setReviewFormOpen(!isReviewFormOpen);
     });
+
+    window.addEventListener('resize', refreshReviewAccordionHeight);
 
     productReviewsMoreBtn?.addEventListener('click', () => {
       if (!currentProduct) return;
@@ -667,6 +686,28 @@
         reader.readAsDataURL(file);
         reviewPhotosPreview.appendChild(holder);
       });
+
+      if (isReviewFormOpen) {
+        requestAnimationFrame(refreshReviewAccordionHeight);
+      }
+    }
+
+    function refreshReviewAccordionHeight() {
+      if (!reviewFormBody) return;
+      if (!isReviewFormOpen) {
+        reviewFormBody.style.maxHeight = '0px';
+        return;
+      }
+      reviewFormBody.style.maxHeight = `${reviewFormBody.scrollHeight}px`;
+    }
+
+    function setReviewFormOpen(isOpen) {
+      isReviewFormOpen = Boolean(isOpen);
+      productReviewsAccordion?.classList.toggle('is-open', isReviewFormOpen);
+      if (reviewFormToggle) {
+        reviewFormToggle.setAttribute('aria-expanded', isReviewFormOpen ? 'true' : 'false');
+      }
+      requestAnimationFrame(refreshReviewAccordionHeight);
     }
 
     function updateReviewFormVisibility() {
@@ -677,6 +718,7 @@
       if (productReviewsLoginHint) {
         productReviewsLoginHint.style.display = isAuthorized ? 'none' : 'block';
       }
+      requestAnimationFrame(refreshReviewAccordionHeight);
     }
 
     function renderRatingSummary(productId) {

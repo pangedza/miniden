@@ -755,21 +755,20 @@
     function renderReviewPhotosCell(photos) {
       const container = document.createElement('div');
       container.className = 'review-photos';
-      const count = Array.isArray(photos) ? photos.length : 0;
-      if (!count) {
+      const images = Array.isArray(photos) ? photos.filter(Boolean) : [];
+      if (!images.length) {
         container.textContent = '—';
         container.classList.add('muted');
         return container;
       }
-      const first = photos[0];
-      const thumb = document.createElement('div');
-      thumb.className = 'review-photo-thumb';
-      thumb.style.backgroundImage = `url(${first})`;
-      const badge = document.createElement('span');
-      badge.className = 'review-photo-count';
-      badge.textContent = `${count}`;
-      thumb.appendChild(badge);
-      container.appendChild(thumb);
+
+      images.forEach((url, idx) => {
+        const thumb = document.createElement('img');
+        thumb.className = 'review-photo-thumb';
+        thumb.src = url;
+        thumb.alt = `Фото отзыва ${idx + 1}`;
+        container.appendChild(thumb);
+      });
       return container;
     }
 
