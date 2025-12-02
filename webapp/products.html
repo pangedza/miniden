@@ -62,6 +62,7 @@
         <div class="product-modal__price-row">
           <div class="product-modal__price" id="product-modal-price"></div>
         </div>
+        <div class="product-modal__markets" id="product-modal-markets"></div>
         <div class="product-modal__actions">
           <button class="btn" type="button" id="product-modal-add">Добавить в корзину</button>
           <button class="btn secondary" type="button" id="product-modal-close-btn">Закрыть</button>
@@ -141,6 +142,7 @@
     const productModalTitle = document.getElementById('product-modal-title');
     const productModalDescription = document.getElementById('product-modal-description');
     const productModalPrice = document.getElementById('product-modal-price');
+    const productModalMarkets = document.getElementById('product-modal-markets');
     const productModalAdd = document.getElementById('product-modal-add');
       const productModalImage = document.getElementById('product-modal-image');
       const productModalPlaceholder = document.getElementById('product-modal-placeholder');
@@ -320,18 +322,18 @@
       });
     }
 
+    const MARKETPLACES = [
+      { key: 'wb_url', label: 'WB' },
+      { key: 'ozon_url', label: 'Ozon' },
+      { key: 'yandex_url', label: 'Яндекс' },
+      { key: 'avito_url', label: 'Авито' },
+    ];
+
     function createMarketLinks(item) {
       const links = document.createElement('div');
       links.className = 'market-links';
 
-      const marketplaces = [
-        { key: 'wb_url', label: 'WB' },
-        { key: 'ozon_url', label: 'Ozon' },
-        { key: 'yandex_url', label: 'Яндекс' },
-        { key: 'avito_url', label: 'Авито' },
-      ];
-
-      marketplaces.forEach(({ key, label }) => {
+      MARKETPLACES.forEach(({ key, label }) => {
         if (!item[key]) return;
         const link = document.createElement('a');
         link.href = item[key];
@@ -344,6 +346,12 @@
       });
 
       return links;
+    }
+
+    function getMarketLabels(item) {
+      return MARKETPLACES.filter(({ key }) => Boolean(item[key]))
+        .map(({ label }) => label)
+        .join(', ');
     }
 
     function renderCards() {
@@ -424,24 +432,12 @@
         title.className = 'catalog-card-title';
         title.textContent = item.name;
 
-        const desc = document.createElement('p');
-        desc.className = 'catalog-card-description product-card__short-desc';
-        desc.textContent = shortDescription(item);
-
-        const marketLinks = createMarketLinks(item);
-
-        const footer = document.createElement('div');
-        footer.className = 'product-card__footer';
-
         const price = document.createElement('div');
         price.className = 'price';
         price.textContent = formatPrice(item.price);
 
         const actions = document.createElement('div');
-        actions.className = 'catalog-card-actions';
-
-        const buttonsRow = document.createElement('div');
-        buttonsRow.className = 'product-card__buttons';
+        actions.className = 'product-card__actions';
 
         const detailsBtn = document.createElement('button');
         detailsBtn.type = 'button';
@@ -454,15 +450,9 @@
         btn.textContent = 'В корзину';
         btn.addEventListener('click', () => handleAddToCart(item));
 
-        buttonsRow.append(detailsBtn, btn);
-        footer.append(price);
-        actions.append(footer, buttonsRow);
+        actions.append(detailsBtn, btn);
 
-        body.append(title, desc);
-        if (marketLinks.childElementCount) {
-          body.appendChild(marketLinks);
-        }
-        body.appendChild(actions);
+        body.append(title, price, actions);
 
         card.append(cover, body);
         cardsEl.appendChild(card);
@@ -544,6 +534,17 @@
       productModalTitle.textContent = item.name || 'Товар';
       productModalDescription.textContent = item.description || item.short_description || 'Описание появится позже.';
       productModalPrice.textContent = formatPrice(item.price);
+
+      if (productModalMarkets) {
+        const marketText = getMarketLabels(item);
+        if (marketText) {
+          productModalMarkets.textContent = `Площадки: ${marketText}`;
+          productModalMarkets.style.display = '';
+        } else {
+          productModalMarkets.textContent = '';
+          productModalMarkets.style.display = 'none';
+        }
+      }
 
       if (productModalAdd) {
         productModalAdd.onclick = () => handleAddToCart(item);
