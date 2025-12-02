@@ -418,10 +418,11 @@ def list_products(
     else:
         models = [(ProductBasket, "basket"), (ProductCourse, "course")]
 
-    basket_map_by_id, basket_map_by_slug = ({}
-        if product_type == "course"
-        else _load_category_maps("basket")
-    )
+    basket_map_by_id: dict[int, dict[str, Any]] = {}
+    basket_map_by_slug: dict[str, dict[str, Any]] = {}
+
+    if product_type != "course":
+        basket_map_by_id, basket_map_by_slug = _load_category_maps("basket")
 
     results: list[dict[str, Any]] = []
     for model, p_type in models:
