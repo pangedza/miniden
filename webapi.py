@@ -39,6 +39,7 @@ from services import favorites as favorites_service
 from services import orders as orders_service
 from services import products as products_service
 from services import promocodes as promocodes_service
+from services import reviews as reviews_service
 from services import stats as stats_service
 from services import user_admin as user_admin_service
 from services import user_stats as user_stats_service
@@ -69,6 +70,7 @@ REQUIRED_DIRS = [
     MEDIA_ROOT / "users",
     MEDIA_ROOT / "products",
     MEDIA_ROOT / "courses",
+    MEDIA_ROOT / "reviews",
     MEDIA_ROOT / "tmp",
     MEDIA_ROOT / "tmp/products",
     MEDIA_ROOT / "tmp/courses",
@@ -153,6 +155,18 @@ class FavoriteTogglePayload(BaseModel):
     telegram_id: int
     product_id: int
     type: str
+
+
+class ReviewCreatePayload(BaseModel):
+    rating: int = Field(..., ge=1, le=5)
+    text: str
+    photos: list[str] | None = None
+    order_id: int | None = None
+
+
+class ReviewStatusUpdatePayload(BaseModel):
+    status: str
+    is_deleted: bool | None = None
 
 
 def _ensure_admin(user_id: int | None) -> int:
@@ -798,6 +812,82 @@ def api_products(type: str, category_slug: str | None = None):
     return products_service.list_products(product_type, category_slug=category_slug, is_active=True)
 
 
+@app.post("/api/products/{product_id}/reviews")
+def create_product_review(product_id: int, payload: ReviewCreatePayload, request: Request):
+    with get_session() as session:
+        user = _get_current_user_from_cookie(session, request)
+        if not user:
+            raise HTTPException(status_code=401, detail="Not authenticated")
+
+    product = products_service.get_product_by_id(product_id)
+    if not product or not product.get("is_active", True):
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    try:
+        review_id = reviews_service.create_review(
+            product_id,
+            user,
+            payload.rating,
+            payload.text,
+            payload.photos,
+            payload.order_id,
+        )
+    except ValueError as exc:  # pragma: no cover - defensive
+        detail = "Invalid payload"
+        if str(exc) == "product_not_found":
+            detail = "Product not found"
+        elif str(exc) == "rating must be between 1 and 5":
+            detail = str(exc)
+        raise HTTPException(status_code=400, detail=detail)
+
+    return {"success": True, "review_id": review_id, "status": "pending"}
+
+
+@app.get("/api/products/{product_id}/reviews")
+def get_product_reviews(product_id: int, page: int = 1, limit: int = 20):
+    product = products_service.get_product_by_id(product_id)
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    reviews = reviews_service.get_reviews_for_product(product_id, page=page, limit=limit)
+    return {"items": reviews, "page": page, "limit": limit}
+
+
+@app.get("/api/products/{product_id}/rating")
+def get_product_rating(product_id: int):
+    product = products_service.get_product_by_id(product_id)
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    return reviews_service.get_rating_summary(product_id)
+
+
+@app.post("/api/reviews/{review_id}/photos")
+def upload_review_photo(review_id: int, request: Request, file: UploadFile = File(...)):
+    with get_session() as session:
+        user = _get_current_user_from_cookie(session, request)
+        if not user:
+            raise HTTPException(status_code=401, detail="Not authenticated")
+
+    review = reviews_service.get_review_by_id(review_id)
+    if not review or review.is_deleted:
+        raise HTTPException(status_code=404, detail="Review not found")
+
+    if review.user_id != user.telegram_id and not user.is_admin:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    ensure_media_dirs()
+    try:
+        photos = reviews_service.add_review_photo(review_id, file, MEDIA_ROOT)
+    except ValueError as exc:  # pragma: no cover - defensive
+        detail = str(exc)
+        if detail == "review_not_found":
+            raise HTTPException(status_code=404, detail="Review not found")
+        raise HTTPException(status_code=400, detail=detail)
+
+    return {"ok": True, "photos": photos}
+
+
 @app.get("/api/cart")
 def api_cart(user_id: int):
     """Вернуть содержимое корзины пользователя и сумму заказа."""
@@ -1109,6 +1199,38 @@ def admin_upload_image(
     url = f"/media/{relative}"
 
     return {"ok": True, "url": url}
+
+
+@app.get("/api/admin/reviews")
+def admin_reviews(
+    status: str | None = None,
+    product_id: int | None = None,
+    user_id: int | None = None,
+    page: int = 1,
+    limit: int = 50,
+    admin_user=Depends(get_admin_user),
+):
+    reviews = reviews_service.admin_list_reviews(
+        status=status, product_id=product_id, user_id=user_id, page=page, limit=limit
+    )
+    return {"items": reviews, "page": page, "limit": limit}
+
+
+@app.post("/api/admin/reviews/{review_id}/status")
+def admin_update_review_status(
+    review_id: int, payload: ReviewStatusUpdatePayload, admin_user=Depends(get_admin_user)
+):
+    try:
+        review = reviews_service.admin_update_review_status(
+            review_id, new_status=payload.status, is_deleted=payload.is_deleted
+        )
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid status")
+
+    if not review:
+        raise HTTPException(status_code=404, detail="Review not found")
+
+    return {"ok": True, "status": review.status, "is_deleted": review.is_deleted}
 
 
 # ----------------------------

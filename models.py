@@ -16,9 +16,11 @@ from sqlalchemy import (
     Index,
     Integer,
     Numeric,
+    SmallInteger,
     String,
     Text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
 from database import Base
@@ -183,6 +185,26 @@ class OrderItem(Base):
     order = relationship("Order", back_populates="items")
 
 
+class ProductReview(Base):
+    __tablename__ = "product_reviews"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    product_id = Column(Integer, ForeignKey("products_baskets.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(BigInteger, ForeignKey("users.telegram_id", ondelete="SET NULL"), nullable=True)
+    order_id = Column(Integer, ForeignKey("orders.id", ondelete="SET NULL"), nullable=True)
+    rating = Column(SmallInteger, nullable=False)
+    text = Column(Text, nullable=False)
+    photos_json = Column(JSONB, nullable=True)
+    status = Column(String, nullable=False, default="pending")
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    is_deleted = Column(Boolean, default=False, nullable=False)
+
+    user = relationship("User", foreign_keys=[user_id])
+    product = relationship("ProductBasket", foreign_keys=[product_id])
+    order = relationship("Order", foreign_keys=[order_id])
+
+
 class PromoCode(Base):
     __tablename__ = "promocodes"
 
@@ -217,6 +239,7 @@ __all__ = [
     "Favorite",
     "Order",
     "OrderItem",
+    "ProductReview",
     "PromoCode",
     "AuthSession",
     "ProductBasket",
