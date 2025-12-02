@@ -17,6 +17,7 @@
       <button class="nav-btn active" data-section="orders">Заказы</button>
       <button class="nav-btn" data-section="products">Товары</button>
       <button class="nav-btn" data-section="courses">Мастер-классы</button>
+      <button class="nav-btn" data-section="reviews">Отзывы</button>
       <button class="nav-btn" data-section="promocodes">Промокоды</button>
       <button class="nav-btn" data-section="stats">Статистика</button>
       <div class="muted" style="margin-top:16px; font-size:13px;">Выйдите в профиль, чтобы проверить статус авторизации.</div>
@@ -336,9 +337,57 @@
                   <th></th>
                 </tr>
               </thead>
-              <tbody id="promo-table"></tbody>
-            </table>
+          <tbody id="promo-table"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+      <section id="reviews" class="card" style="display:none;">
+        <div class="section-header" style="align-items:flex-start; gap:12px;">
+          <div>
+            <h2>Отзывы</h2>
+            <p class="muted">Модерируйте отзывы покупателей, просматривайте текст и фото, меняйте статусы.</p>
+            <div class="review-counters" id="review-counters">
+              <span class="tag">Всего: <strong id="reviews-count-total">0</strong></span>
+              <span class="tag">На модерации: <strong id="reviews-count-pending">0</strong></span>
+              <span class="tag">Одобрено: <strong id="reviews-count-approved">0</strong></span>
+              <span class="tag">Отклонено: <strong id="reviews-count-rejected">0</strong></span>
+            </div>
           </div>
+          <div class="review-filters">
+            <label class="muted">Статус</label>
+            <select id="review-status-filter">
+              <option value="all">Все</option>
+              <option value="pending">На модерации</option>
+              <option value="approved">Одобрено</option>
+              <option value="rejected">Отклонено</option>
+            </select>
+            <label class="muted">Товар</label>
+            <select id="review-product-filter"></select>
+            <label class="muted">Пользователь</label>
+            <input type="text" id="review-user-filter" placeholder="ID или имя" />
+            <button class="btn secondary" type="button" id="review-reset-btn">Сбросить</button>
+          </div>
+        </div>
+
+        <div class="card" style="overflow:auto;">
+          <table aria-label="Отзывы" class="reviews-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Товар</th>
+                <th>Пользователь</th>
+                <th>Рейтинг</th>
+                <th>Текст</th>
+                <th>Фото</th>
+                <th>Статус</th>
+                <th>Дата</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="reviews-table-body"></tbody>
+          </table>
         </div>
       </section>
 
@@ -368,6 +417,16 @@
     const detailComment = document.getElementById('detail-comment');
     const detailItems = document.getElementById('detail-items');
     const detailTotal = document.getElementById('detail-total');
+
+    const reviewStatusFilter = document.getElementById('review-status-filter');
+    const reviewProductFilter = document.getElementById('review-product-filter');
+    const reviewUserFilter = document.getElementById('review-user-filter');
+    const reviewResetBtn = document.getElementById('review-reset-btn');
+    const reviewsTableBody = document.getElementById('reviews-table-body');
+    const reviewsCountTotal = document.getElementById('reviews-count-total');
+    const reviewsCountPending = document.getElementById('reviews-count-pending');
+    const reviewsCountApproved = document.getElementById('reviews-count-approved');
+    const reviewsCountRejected = document.getElementById('reviews-count-rejected');
 
     const productCategoryFilter = document.getElementById('products-category');
     const courseCategoryFilter = document.getElementById('courses-category');
@@ -412,6 +471,7 @@
     let editingProductId = null;
     let editingCourseId = null;
     let editingPromoId = null;
+    let reviewItems = [];
 
     function setStatus(message, isError = false) {
       if (!message) {
@@ -470,6 +530,229 @@
       }
       accessDenied.style.display = 'none';
       return true;
+    }
+
+    function renderReviewCounters(items) {
+      const stats = items.reduce(
+        (acc, item) => {
+          acc.total += 1;
+          if (item.status === 'approved') acc.approved += 1;
+          if (item.status === 'pending') acc.pending += 1;
+          if (item.status === 'rejected') acc.rejected += 1;
+          return acc;
+        },
+        { total: 0, approved: 0, pending: 0, rejected: 0 }
+      );
+      reviewsCountTotal.textContent = stats.total;
+      reviewsCountPending.textContent = stats.pending;
+      reviewsCountApproved.textContent = stats.approved;
+      reviewsCountRejected.textContent = stats.rejected;
+    }
+
+    function getProductLabel(product) {
+      if (!product) return '—';
+      return product.title || product.name || product.short_name || `Товар #${product.id}`;
+    }
+
+    function getProductLink(product) {
+      if (!product) return null;
+      return product.detail_url || `/webapp/products.html#${product.id || ''}`;
+    }
+
+    function renderReviewPhotosCell(photos) {
+      const container = document.createElement('div');
+      container.className = 'review-photos';
+      const count = Array.isArray(photos) ? photos.length : 0;
+      if (!count) {
+        container.textContent = '—';
+        container.classList.add('muted');
+        return container;
+      }
+      const first = photos[0];
+      const thumb = document.createElement('div');
+      thumb.className = 'review-photo-thumb';
+      thumb.style.backgroundImage = `url(${first})`;
+      const badge = document.createElement('span');
+      badge.className = 'review-photo-count';
+      badge.textContent = `${count}`;
+      thumb.appendChild(badge);
+      container.appendChild(thumb);
+      return container;
+    }
+
+    function renderReviewActionsCell(review) {
+      const cell = document.createElement('td');
+      cell.className = 'review-actions-cell';
+
+      const approveBtn = document.createElement('button');
+      approveBtn.className = 'btn secondary';
+      approveBtn.textContent = 'Одобрить';
+      approveBtn.disabled = review.status === 'approved';
+      approveBtn.addEventListener('click', () => updateReviewStatus(review, 'approved'));
+
+      const rejectBtn = document.createElement('button');
+      rejectBtn.className = 'btn secondary';
+      rejectBtn.textContent = 'Отклонить';
+      rejectBtn.disabled = review.status === 'rejected';
+      rejectBtn.addEventListener('click', () => updateReviewStatus(review, 'rejected'));
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.className = 'btn secondary danger';
+      deleteBtn.textContent = review.is_deleted ? 'Удалено' : 'Удалить';
+      deleteBtn.disabled = review.is_deleted;
+      deleteBtn.addEventListener('click', () => updateReviewStatus(review, review.status, true));
+
+      const detailsBtn = document.createElement('button');
+      detailsBtn.className = 'btn secondary';
+      detailsBtn.textContent = 'Подробнее';
+      detailsBtn.addEventListener('click', () => openReviewModal(review));
+
+      [approveBtn, rejectBtn, deleteBtn, detailsBtn].forEach((btn) => cell.appendChild(btn));
+      return cell;
+    }
+
+    function renderReviewsTable(items) {
+      reviewsTableBody.innerHTML = '';
+      if (!items.length) {
+        const row = document.createElement('tr');
+        const cell = document.createElement('td');
+        cell.colSpan = 9;
+        cell.textContent = 'Отзывы не найдены';
+        cell.className = 'muted';
+        row.appendChild(cell);
+        reviewsTableBody.appendChild(row);
+        renderReviewCounters(items);
+        return;
+      }
+
+      items.forEach((review) => {
+        const row = document.createElement('tr');
+        if (review.is_deleted) {
+          row.classList.add('muted');
+        }
+        const date = review.created_at ? new Date(review.created_at).toLocaleString('ru-RU') : '—';
+        const productLink = getProductLink(review.product);
+        const textPreview = document.createElement('div');
+        textPreview.className = 'review-text-preview';
+        textPreview.textContent = review.text || '—';
+
+        row.innerHTML = `
+          <td>#${review.id}</td>
+          <td>
+            <div class="review-product">
+              <span>${getProductLabel(review.product)}</span>
+              ${productLink ? `<a href="${productLink}" target="_blank" rel="noopener" title="Открыть товар">🔗</a>` : ''}
+            </div>
+          </td>
+          <td>${review.user_name || '—'}${review.user_id ? ` (#${review.user_id})` : ''}</td>
+          <td>${review.rating ? `${'★'.repeat(review.rating)}${'☆'.repeat(5 - review.rating)}` : '—'}</td>
+          <td></td>
+          <td></td>
+          <td><span class="admin-pill review-status-${review.status}">${review.status}</span>${review.is_deleted ? '<div class="muted" style="font-size:12px;">Удалён</div>' : ''}</td>
+          <td>${date}</td>
+        `;
+
+        row.children[4].appendChild(textPreview);
+        row.children[5].appendChild(renderReviewPhotosCell(review.photos || review.photos_json || []));
+        row.appendChild(renderReviewActionsCell(review));
+        reviewsTableBody.appendChild(row);
+      });
+      renderReviewCounters(items);
+    }
+
+    function applyReviewSearchFilter(items) {
+      const query = (reviewUserFilter.value || '').trim().toLowerCase();
+      if (!query) return items;
+      const isNumeric = /^\d+$/.test(query);
+      return items.filter((item) => {
+        const userName = (item.user_name || '').toLowerCase();
+        const userIdMatch = item.user_id ? String(item.user_id).includes(query) : false;
+        if (isNumeric) return userIdMatch;
+        return userName.includes(query) || userIdMatch;
+      });
+    }
+
+    async function loadReviewProducts() {
+      try {
+        const data = await apiGet('/admin/products', { user_id: currentUser.telegram_id, type: 'basket', status: 'all' });
+        reviewProductFilter.innerHTML = '';
+        const allOption = document.createElement('option');
+        allOption.value = '';
+        allOption.textContent = 'Все товары';
+        reviewProductFilter.appendChild(allOption);
+        (data.items || []).forEach((product) => {
+          const option = document.createElement('option');
+          option.value = product.id;
+          option.textContent = `${product.id} — ${product.name}`;
+          reviewProductFilter.appendChild(option);
+        });
+      } catch (e) {
+        console.error('Не удалось загрузить товары для фильтра отзывов', e);
+      }
+    }
+
+    async function loadReviews() {
+      if (!currentUser) return;
+      try {
+        const status = reviewStatusFilter.value === 'all' ? undefined : reviewStatusFilter.value;
+        const productId = reviewProductFilter.value ? Number(reviewProductFilter.value) : undefined;
+        const userQuery = (reviewUserFilter.value || '').trim();
+        const params = { status, product_id: productId, page: 1, limit: 100 };
+        if (/^\d+$/.test(userQuery)) {
+          params.user_id = Number(userQuery);
+        }
+
+        const data = await apiGet('/admin/reviews', params);
+        reviewItems = data.items || [];
+        const filtered = applyReviewSearchFilter(reviewItems);
+        renderReviewsTable(filtered);
+        setStatus('');
+      } catch (e) {
+        console.error(e);
+        setStatus('Не удалось загрузить отзывы', true);
+      }
+    }
+
+    async function updateReviewStatus(review, newStatus, isDeleted = false) {
+      try {
+        const payload = { status: newStatus, is_deleted: Boolean(isDeleted) };
+        const res = await apiPost(`/admin/reviews/${review.id}/status`, payload);
+        review.status = res.status;
+        review.is_deleted = res.is_deleted;
+        if (reviewStatusFilter.value !== 'all' && reviewStatusFilter.value !== res.status) {
+          reviewItems = reviewItems.filter((item) => item.id !== review.id);
+        }
+        renderReviewsTable(applyReviewSearchFilter(reviewItems));
+        showToast('Статус отзыва обновлён');
+      } catch (e) {
+        console.error(e);
+        setStatus('Не удалось обновить статус отзыва', true);
+      }
+    }
+
+    function openReviewModal(review) {
+      const modal = document.getElementById('review-modal');
+      const titleEl = document.getElementById('review-modal-title');
+      const textEl = document.getElementById('review-modal-text');
+      const galleryEl = document.getElementById('review-modal-photos');
+
+      titleEl.textContent = `${getProductLabel(review.product)} • ${review.user_name || '—'} • ${review.rating || '-'}★`;
+      textEl.textContent = review.text || '—';
+
+      galleryEl.innerHTML = '';
+      (review.photos || review.photos_json || []).forEach((url) => {
+        const img = document.createElement('img');
+        img.src = url;
+        img.alt = 'Фото отзыва';
+        galleryEl.appendChild(img);
+      });
+
+      modal.classList.remove('hidden');
+    }
+
+    function closeReviewModal() {
+      const modal = document.getElementById('review-modal');
+      modal.classList.add('hidden');
     }
 
     function renderOrders(orders) {
@@ -1059,6 +1342,23 @@
     productImageUrlInput?.addEventListener('input', () => setProductImagePreview(productImageUrlInput.value.trim()));
     courseImageUrlInput?.addEventListener('input', () => setCourseImagePreview(courseImageUrlInput.value.trim()));
 
+    reviewStatusFilter?.addEventListener('change', loadReviews);
+    reviewProductFilter?.addEventListener('change', loadReviews);
+    reviewUserFilter?.addEventListener('input', () => {
+      const filtered = applyReviewSearchFilter(reviewItems);
+      renderReviewsTable(filtered);
+    });
+    reviewResetBtn?.addEventListener('click', () => {
+      reviewStatusFilter.value = 'all';
+      reviewProductFilter.value = '';
+      reviewUserFilter.value = '';
+      loadReviews();
+    });
+    document.getElementById('review-modal-close')?.addEventListener('click', closeReviewModal);
+    document.getElementById('review-modal')?.addEventListener('click', (event) => {
+      if (event.target.id === 'review-modal') closeReviewModal();
+    });
+
     productsStatusFilter.addEventListener('change', loadProducts);
     coursesStatusFilter.addEventListener('change', loadCourses);
     productCategoryFilter.addEventListener('change', loadProducts);
@@ -1081,6 +1381,8 @@
         await loadProducts();
         await loadCourses();
         await loadPromocodes();
+        await loadReviewProducts();
+        await loadReviews();
         showSection('orders');
       } catch (e) {
         console.error(e);
@@ -1090,5 +1392,18 @@
 
     initApp();
   </script>
+
+  <div id="review-modal" class="admin-modal hidden">
+    <div class="admin-modal__content">
+      <div class="admin-modal__header">
+        <h3 id="review-modal-title"></h3>
+        <button class="btn secondary" type="button" id="review-modal-close">Закрыть</button>
+      </div>
+      <div class="admin-modal__body">
+        <p id="review-modal-text" class="review-modal-text"></p>
+        <div id="review-modal-photos" class="review-modal-gallery"></div>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
