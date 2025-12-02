@@ -46,7 +46,7 @@
     <div class="note" id="note"></div>
   </main>
 
-  <div id="product-modal" class="product-modal hidden" aria-hidden="true">
+    <div id="product-modal" class="product-modal hidden" aria-hidden="true">
     <div class="product-modal__backdrop" id="product-modal-backdrop"></div>
     <div class="product-modal__content" role="dialog" aria-modal="true">
       <button class="product-modal__close" type="button" id="product-modal-close" aria-label="Закрыть">×</button>
@@ -115,10 +115,18 @@
         </section>
       </div>
     </div>
-  </div>
+    </div>
 
-  <script src="js/app.js?v=20241216"></script>
-  <script src="js/api.js?v=20241216"></script>
+    <div id="review-photo-modal" class="review-photo-modal hidden" aria-hidden="true">
+      <div class="review-photo-modal__backdrop" id="review-photo-modal-backdrop"></div>
+      <div class="review-photo-modal__content" role="dialog" aria-modal="true" aria-label="Фото отзыва">
+        <button class="review-photo-modal__close" type="button" id="review-photo-modal-close" aria-label="Закрыть">×</button>
+        <img class="review-photo-modal__image" id="review-photo-modal-image" src="" alt="" />
+      </div>
+    </div>
+
+    <script src="js/app.js?v=20241216"></script>
+    <script src="js/api.js?v=20241216"></script>
   <script>
     const adminLink = document.getElementById('admin-link');
     const tabsEl = document.getElementById('tabs');
@@ -132,11 +140,15 @@
     const productModalDescription = document.getElementById('product-modal-description');
     const productModalPrice = document.getElementById('product-modal-price');
     const productModalAdd = document.getElementById('product-modal-add');
-    const productModalImage = document.getElementById('product-modal-image');
-    const productModalPlaceholder = document.getElementById('product-modal-placeholder');
+      const productModalImage = document.getElementById('product-modal-image');
+      const productModalPlaceholder = document.getElementById('product-modal-placeholder');
+      const reviewPhotoModal = document.getElementById('review-photo-modal');
+      const reviewPhotoModalBackdrop = document.getElementById('review-photo-modal-backdrop');
+      const reviewPhotoModalClose = document.getElementById('review-photo-modal-close');
+      const reviewPhotoModalImage = document.getElementById('review-photo-modal-image');
 
-    const productReviewsSection = document.getElementById('product-reviews-section');
-    const productReviewsSummary = document.getElementById('product-reviews-summary');
+      const productReviewsSection = document.getElementById('product-reviews-section');
+      const productReviewsSummary = document.getElementById('product-reviews-summary');
     const productReviewsList = document.getElementById('product-reviews-list');
     const productReviewsMoreBtn = document.getElementById('product-reviews-more');
     const productReviewsForm = document.getElementById('product-reviews-form');
@@ -222,15 +234,33 @@
       return { average_rating: Math.round(avg * 10) / 10, reviews_count: items.length };
     }
 
-    function formatRating(value) {
-      const num = Number(value) || 0;
-      return (Math.round(num * 10) / 10).toFixed(1);
-    }
+      function formatRating(value) {
+        const num = Number(value) || 0;
+        return (Math.round(num * 10) / 10).toFixed(1);
+      }
 
-    function updateAdminLinkVisibility() {
-      if (!adminLink) return;
-      adminLink.style.display = profile?.is_admin ? '' : 'none';
-    }
+      function openReviewPhotoModal(url, altText = 'Фото отзыва') {
+        if (!reviewPhotoModal || !reviewPhotoModalImage) return;
+        reviewPhotoModalImage.src = url;
+        reviewPhotoModalImage.alt = altText;
+        reviewPhotoModal.classList.remove('hidden');
+        reviewPhotoModal.setAttribute('aria-hidden', 'false');
+      }
+
+      function closeReviewPhotoModal() {
+        if (!reviewPhotoModal) return;
+        reviewPhotoModal.classList.add('hidden');
+        reviewPhotoModal.setAttribute('aria-hidden', 'true');
+        if (reviewPhotoModalImage) {
+          reviewPhotoModalImage.src = '';
+          reviewPhotoModalImage.alt = '';
+        }
+      }
+
+      function updateAdminLinkVisibility() {
+        if (!adminLink) return;
+        adminLink.style.display = profile?.is_admin ? '' : 'none';
+      }
 
     function renderTabs() {
       if (!tabsEl) return;
@@ -432,14 +462,33 @@
       productModal.setAttribute('aria-hidden', 'false');
     }
 
-    [productModalClose, productModalCloseBtn, productModalBackdrop].forEach((el) => {
-      el?.addEventListener('click', closeProductModal);
-    });
+      [productModalClose, productModalCloseBtn, productModalBackdrop].forEach((el) => {
+        el?.addEventListener('click', closeProductModal);
+      });
 
-    reviewRatingStars?.addEventListener('click', (event) => {
-      const target = event.target.closest('.rating-stars__item');
-      if (!target) return;
-      selectedReviewRating = Number(target.dataset.value) || 0;
+      [reviewPhotoModalClose, reviewPhotoModalBackdrop].forEach((el) => {
+        el?.addEventListener('click', closeReviewPhotoModal);
+      });
+
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && !reviewPhotoModal?.classList.contains('hidden')) {
+          closeReviewPhotoModal();
+        }
+      });
+
+      productReviewsList?.addEventListener('click', (event) => {
+        const target = event.target instanceof HTMLElement ? event.target.closest('.review-photo-thumb') : null;
+        if (!target) return;
+        const fullUrl = target.dataset.fullUrl || target.getAttribute('src');
+        if (!fullUrl) return;
+        const altText = target.getAttribute('alt') || 'Фото отзыва';
+        openReviewPhotoModal(fullUrl, altText);
+      });
+
+      reviewRatingStars?.addEventListener('click', (event) => {
+        const target = event.target.closest('.rating-stars__item');
+        if (!target) return;
+        selectedReviewRating = Number(target.dataset.value) || 0;
       renderRatingSelection();
       if (reviewRatingError) reviewRatingError.textContent = '';
     });
@@ -561,32 +610,27 @@
 
       header.append(author, rating, date);
 
-      const text = document.createElement('p');
-      text.className = 'review-card__text';
-      text.textContent = review.text || '';
+        const text = document.createElement('p');
+        text.className = 'review-card__text';
+        text.textContent = review.text || '';
 
-      card.append(header, text);
-
-      const photos = review.photos || review.photos_json || [];
-      if (photos.length) {
-        const photoRow = document.createElement('div');
-        photoRow.className = 'review-card__photos';
-        photos.forEach((url, idx) => {
-          const link = document.createElement('a');
-          link.href = url;
-          link.target = '_blank';
-          link.rel = 'noopener';
-          link.className = 'review-card__photo';
-          link.title = `Фото ${idx + 1}`;
-
-          const img = document.createElement('img');
-          img.src = url;
-          img.alt = `Фото отзыва ${idx + 1}`;
-          link.appendChild(img);
-          photoRow.appendChild(link);
-        });
-        card.appendChild(photoRow);
-      }
+        card.append(header, text);
+        
+        const photos = review.photos || review.photos_json || [];
+        if (photos.length) {
+          const photoRow = document.createElement('div');
+          photoRow.className = 'review-card__photos review-photos';
+          photos.forEach((url, idx) => {
+            const img = document.createElement('img');
+            img.src = url;
+            img.alt = `Фото отзыва ${idx + 1}`;
+            img.className = 'review-photo-thumb';
+            img.loading = 'lazy';
+            img.dataset.fullUrl = url;
+            photoRow.appendChild(img);
+          });
+          card.appendChild(photoRow);
+        }
 
       return card;
     }
