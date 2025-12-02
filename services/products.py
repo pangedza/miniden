@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import insert
 
 from database import get_session
 from models import (
@@ -102,32 +104,24 @@ def _ensure_default_categories(product_type: str) -> None:
         return
 
     with get_session() as session:
-        existing = (
-            session.execute(
-                select(ProductCategory).where(
-                    ProductCategory.slug.in_([item["slug"] for item in BASKET_CATEGORY_PRESETS]),
-                    ProductCategory.type == product_type,
-                )
-            )
-            .scalars()
-            .all()
-        )
-        existing_by_slug = {row.slug: row for row in existing}
-
         for sort_order, preset in enumerate(BASKET_CATEGORY_PRESETS):
             slug = preset.get("slug")
-            if not slug or slug in existing_by_slug:
+            if not slug:
                 continue
 
-            category = ProductCategory(
-                id=preset.get("id"),
-                name=preset.get("name"),
-                slug=slug,
-                sort_order=sort_order,
-                is_active=True,
-                type=product_type,
+            statement = (
+                insert(ProductCategory)
+                .values(
+                    name=preset.get("name"),
+                    slug=slug,
+                    sort_order=sort_order,
+                    is_active=True,
+                    type=product_type,
+                    created_at=datetime.utcnow(),
+                )
+                .on_conflict_do_nothing(index_elements=["slug"])
             )
-            session.add(category)
+            session.execute(statement)
 
 
 def _load_category_maps(product_type: str):
