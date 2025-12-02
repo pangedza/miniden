@@ -598,6 +598,17 @@
     const courseImagePreview = document.getElementById('course-image-preview');
     const courseGalleryInput = document.getElementById('course-gallery-input');
     const courseImagesList = document.getElementById('course-images-list');
+    const courseEditModal = document.getElementById('course-edit-modal');
+    const courseEditForm = document.getElementById('course-edit-form');
+    const courseEditTitle = document.getElementById('course-edit-title');
+    const courseEditCategorySelect = document.getElementById('course-edit-category-select');
+    const courseEditImageFileInput = document.getElementById('course-edit-image-file-input');
+    const courseEditImageUrlInput = document.getElementById('course-edit-image-url-input');
+    const courseEditImagePreview = document.getElementById('course-edit-image-preview');
+    const courseEditGalleryInput = document.getElementById('course-edit-gallery-input');
+    const courseEditImagesList = document.getElementById('course-edit-images-list');
+    const courseEditClose = document.getElementById('course-edit-close');
+    const courseEditCancel = document.getElementById('course-edit-cancel');
     const imageModal = document.getElementById('image-modal');
     const imageModalClose = document.getElementById('image-modal-close');
     const imageModalPicture = document.getElementById('image-modal-picture');
@@ -1137,6 +1148,17 @@
       }
     }
 
+    function setCourseEditImagePreview(url) {
+      if (!courseEditImagePreview) return;
+      if (url) {
+        courseEditImagePreview.style.backgroundImage = `url(${url})`;
+        courseEditImagePreview.textContent = '';
+      } else {
+        courseEditImagePreview.style.backgroundImage = '';
+        courseEditImagePreview.textContent = 'Нет изображения';
+      }
+    }
+
     function resetProductImageInputs() {
       if (productImageFileInput) productImageFileInput.value = '';
       if (productImageUrlInput) productImageUrlInput.value = '';
@@ -1153,6 +1175,12 @@
       if (courseImageFileInput) courseImageFileInput.value = '';
       if (courseImageUrlInput) courseImageUrlInput.value = '';
       setCourseImagePreview('');
+    }
+
+    function resetCourseEditImageInputs() {
+      if (courseEditImageFileInput) courseEditImageFileInput.value = '';
+      if (courseEditImageUrlInput) courseEditImageUrlInput.value = '';
+      setCourseEditImagePreview('');
     }
 
     async function uploadProductImageFile() {
@@ -1210,6 +1238,25 @@
 
       if (courseImageUrlInput) courseImageUrlInput.value = data.url;
       setCourseImagePreview(data.url);
+    }
+
+    async function uploadCourseEditImageFile() {
+      const file = courseEditImageFileInput?.files?.[0];
+      if (!file) return;
+
+      const formData = new FormData();
+      formData.append('kind', 'course');
+      formData.append('file', file);
+
+      const res = await fetch('/api/admin/upload-image', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (!data.ok) {
+        alert('Ошибка загрузки изображения');
+        return;
+      }
+
+      if (courseEditImageUrlInput) courseEditImageUrlInput.value = data.url;
+      setCourseEditImagePreview(data.url);
     }
 
     function renderImageRow(image, type, reloadFn) {
@@ -1375,7 +1422,51 @@
       showImageListPlaceholder(productEditImagesList, 'Загрузите фото после сохранения.');
     }
 
-    async function uploadCourseGalleryFiles(event) {
+    function openCourseEditModal(item) {
+      if (!item) return;
+      editingCourseId = item.id;
+      courseEditTitle.textContent = `Редактировать мастер-класс #${item.id}`;
+      const courseImageUrl = item.image_url || item.image || item.images?.[0]?.image_url || '';
+      fillForm(courseEditForm, {
+        category_id: item.category_id ?? '',
+        name: item.name,
+        price: item.price,
+        image_url: courseImageUrl,
+        short_description: item.short_description,
+        description: item.description,
+        masterclass_url: item.masterclass_url,
+        detail_url: item.detail_url,
+      });
+
+      if (courseEditCategorySelect && item.category_id) {
+        const hasOption = Array.from(courseEditCategorySelect.options || []).some(
+          (opt) => String(opt.value) === String(item.category_id)
+        );
+        if (!hasOption) {
+          const opt = document.createElement('option');
+          opt.value = item.category_id;
+          opt.textContent = item.category_name || `Категория ${item.category_id}`;
+          courseEditCategorySelect.appendChild(opt);
+        }
+      }
+
+      if (courseEditImageUrlInput) courseEditImageUrlInput.value = courseImageUrl || '';
+      setCourseEditImagePreview(courseImageUrl);
+      showImageListPlaceholder(courseEditImagesList, 'Загрузите фото после сохранения.');
+      courseEditModal?.classList.remove('hidden');
+      loadCourseImages(editingCourseId, courseEditImagesList);
+    }
+
+    function closeCourseEditModal() {
+      editingCourseId = null;
+      courseEditModal?.classList.add('hidden');
+      courseEditForm?.reset();
+      if (courseEditGalleryInput) courseEditGalleryInput.value = '';
+      resetCourseEditImageInputs();
+      showImageListPlaceholder(courseEditImagesList, 'Загрузите фото после сохранения.');
+    }
+
+    async function uploadCourseGalleryFiles(event, target = courseImagesList) {
       const files = Array.from(event.target?.files || []);
       if (!files.length) return;
       if (!editingCourseId) {
@@ -1391,7 +1482,7 @@
           body: formData,
         });
         const data = await handleResponse(res);
-        renderImagesList(data.items || data || [], courseImagesList, 'course');
+        renderImagesList(data.items || data || [], target, 'course', () => loadCourseImages(editingCourseId, target));
         setStatus('Фото мастер-класса добавлены');
       } catch (e) {
         console.error(e);
@@ -1496,22 +1587,7 @@
           if (type === 'basket') {
             openProductEditModal(item);
           } else {
-            editingCourseId = item.id;
-            courseFormTitle.textContent = `Редактировать мастер-класс #${item.id}`;
-            const courseImageUrl = item.image_url || item.image || item.images?.[0]?.image_url || '';
-            fillForm(courseForm, {
-              category_id: item.category_id ?? '',
-              name: item.name,
-              price: item.price,
-                image_url: courseImageUrl,
-                short_description: item.short_description,
-                description: item.description,
-                masterclass_url: item.masterclass_url,
-              detail_url: item.detail_url,
-            });
-            if (courseImageUrlInput) courseImageUrlInput.value = courseImageUrl || '';
-            setCourseImagePreview(courseImageUrl);
-            loadCourseImages(editingCourseId);
+            openCourseEditModal(item);
           }
         });
         toggleBtn.addEventListener('click', async () => {
@@ -1885,20 +1961,36 @@
       payload.image_url = courseImageUrlInput?.value.trim() || null;
 
       try {
-        if (editingCourseId) {
-          await fetch(`${API_BASE}/admin/products/${editingCourseId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-          }).then(handleResponse);
-        } else {
-          await apiPost('/admin/products', payload);
-        }
+        await apiPost('/admin/products', payload);
         setStatus('Мастер-класс сохранён');
-        editingCourseId = null;
         courseFormTitle.textContent = 'Создать мастер-класс';
         courseForm.reset();
         resetCourseImageInputs();
+        showImageListPlaceholder(courseImagesList, 'Сохраните мастер-класс, чтобы добавить фото.');
+        await loadCourses();
+      } catch (e) {
+        console.error(e);
+        setStatus('Не удалось сохранить мастер-класс', true);
+      }
+    }
+
+    async function submitCourseEditForm(event) {
+      event.preventDefault();
+      if (!currentUser || !editingCourseId) return;
+      const payload = serializeForm(courseEditForm);
+      payload.user_id = currentUser.telegram_id;
+      payload.type = 'course';
+      payload.price = payload.price ? Number(payload.price) : 0;
+      payload.image_url = courseEditImageUrlInput?.value.trim() || null;
+
+      try {
+        await fetch(`${API_BASE}/admin/products/${editingCourseId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        }).then(handleResponse);
+        setStatus('Мастер-класс сохранён');
+        closeCourseEditModal();
         await loadCourses();
       } catch (e) {
         console.error(e);
@@ -1912,6 +2004,7 @@
     productForm.addEventListener('submit', submitProductForm);
     productEditForm?.addEventListener('submit', submitProductEditForm);
     courseForm.addEventListener('submit', submitCourseForm);
+    courseEditForm?.addEventListener('submit', submitCourseEditForm);
     productCategoryForm?.addEventListener('submit', submitProductCategoryForm);
     courseCategoryForm?.addEventListener('submit', submitCourseCategoryForm);
     productCancel.addEventListener('click', () => {
@@ -1950,9 +2043,12 @@
     productGalleryInput?.addEventListener('change', uploadProductGalleryFiles);
     productEditGalleryInput?.addEventListener('change', (event) => uploadProductGalleryFiles(event, productEditImagesList));
     courseGalleryInput?.addEventListener('change', uploadCourseGalleryFiles);
+    courseEditGalleryInput?.addEventListener('change', (event) => uploadCourseGalleryFiles(event, courseEditImagesList));
     productImageUrlInput?.addEventListener('input', () => setProductImagePreview(productImageUrlInput.value.trim()));
     productEditImageUrlInput?.addEventListener('input', () => setProductEditImagePreview(productEditImageUrlInput.value.trim()));
     courseImageUrlInput?.addEventListener('input', () => setCourseImagePreview(courseImageUrlInput.value.trim()));
+    courseEditImageFileInput?.addEventListener('change', uploadCourseEditImageFile);
+    courseEditImageUrlInput?.addEventListener('input', () => setCourseEditImagePreview(courseEditImageUrlInput.value.trim()));
     imageModalClose?.addEventListener('click', closeImageModal);
     imageModal?.addEventListener('click', (event) => {
       if (event.target.id === 'image-modal') closeImageModal();
@@ -1961,6 +2057,12 @@
     productEditCancel?.addEventListener('click', closeProductEditModal);
     productEditModal?.addEventListener('click', (event) => {
       if (event.target.id === 'product-edit-modal') closeProductEditModal();
+    });
+
+    courseEditClose?.addEventListener('click', closeCourseEditModal);
+    courseEditCancel?.addEventListener('click', closeCourseEditModal);
+    courseEditModal?.addEventListener('click', (event) => {
+      if (event.target.id === 'course-edit-modal') closeCourseEditModal();
     });
 
     reviewStatusFilter?.addEventListener('change', loadReviews);
@@ -1994,6 +2096,7 @@
           loadCategories(productCategoryFilter, 'basket'),
           loadCategories(productCategorySelect, 'basket'),
           loadCategories(productEditCategorySelect, 'basket'),
+          loadCategories(courseEditCategorySelect, 'course'),
           loadCategories(courseCategoryFilter, 'course'),
           loadCategories(courseCategorySelect, 'course'),
         ]);
@@ -2083,6 +2186,58 @@
           <div class="form-actions">
             <button class="btn primary" type="submit">Сохранить</button>
             <button class="btn secondary" type="button" id="product-edit-cancel">Отмена</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div id="course-edit-modal" class="admin-modal hidden">
+    <div class="admin-modal__content">
+      <div class="admin-modal__header">
+        <h3 id="course-edit-title">Редактировать мастер-класс</h3>
+        <button class="btn secondary" type="button" id="course-edit-close">Закрыть</button>
+      </div>
+      <div class="admin-modal__body" style="max-height:70vh; overflow:auto;">
+        <form id="course-edit-form" class="stacked-form">
+          <div class="form-grid">
+            <label>Категория</label>
+            <select name="category_id" id="course-edit-category-select"></select>
+            <label>Название</label>
+            <input type="text" name="name" required />
+            <label>Цена (0 — бесплатно)</label>
+            <input type="number" name="price" min="0" required />
+            <label>Краткое описание</label>
+            <textarea name="short_description" rows="2"></textarea>
+            <label>Описание</label>
+            <textarea name="description"></textarea>
+            <label>Ссылка на мастер-класс</label>
+            <input type="text" name="masterclass_url" />
+            <label>Ссылка на подробности</label>
+            <input type="text" name="detail_url" />
+          </div>
+          <div class="form-group">
+            <label>Фото курса</label>
+            <input type="file" id="course-edit-image-file-input" accept="image/*" />
+          </div>
+          <div class="form-group">
+            <label>URL изображения (image_url)</label>
+            <input type="text" id="course-edit-image-url-input" name="image_url" placeholder="/media/courses/xxx.jpg" />
+          </div>
+          <div class="form-group">
+            <div id="course-edit-image-preview" class="image-preview-box">Нет изображения</div>
+          </div>
+          <div class="form-group">
+            <label>Фотографии мастер-класса</label>
+            <div class="image-upload-row">
+              <input type="file" id="course-edit-gallery-input" accept="image/*" multiple />
+              <div class="muted" style="font-size:13px;">Добавьте одно или несколько изображений.</div>
+            </div>
+            <div id="course-edit-images-list" class="image-list muted">Загрузите фото после сохранения.</div>
+          </div>
+          <div class="form-actions">
+            <button class="btn primary" type="submit">Сохранить</button>
+            <button class="btn secondary" type="button" id="course-edit-cancel">Отмена</button>
           </div>
         </form>
       </div>
