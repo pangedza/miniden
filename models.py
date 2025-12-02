@@ -46,6 +46,13 @@ class ProductBasket(Base):
     category_id = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
+    product_images = relationship(
+        "ProductImage",
+        back_populates="product",
+        cascade="all, delete-orphan",
+        order_by="ProductImage.position",
+    )
+
     @property
     def name(self) -> str:
         return self.title
@@ -67,9 +74,42 @@ class ProductCourse(Base):
     category_id = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
+    masterclass_images = relationship(
+        "MasterclassImage",
+        back_populates="masterclass",
+        cascade="all, delete-orphan",
+        order_by="MasterclassImage.position",
+    )
+
     @property
     def name(self) -> str:
         return self.title
+
+
+class ProductImage(Base):
+    __tablename__ = "product_images"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    product_id = Column(Integer, ForeignKey("products_baskets.id", ondelete="CASCADE"), nullable=False)
+    image_url = Column(Text, nullable=False)
+    position = Column(Integer, nullable=False, default=0)
+    is_main = Column(Boolean, default=False, nullable=False)
+
+    product = relationship("ProductBasket", back_populates="product_images")
+
+
+class MasterclassImage(Base):
+    __tablename__ = "masterclass_images"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    masterclass_id = Column(
+        Integer, ForeignKey("products_courses.id", ondelete="CASCADE"), nullable=False
+    )
+    image_url = Column(Text, nullable=False)
+    position = Column(Integer, nullable=False, default=0)
+    is_main = Column(Boolean, default=False, nullable=False)
+
+    masterclass = relationship("ProductCourse", back_populates="masterclass_images")
 
 
 class User(Base):
@@ -239,6 +279,8 @@ __all__ = [
     "Favorite",
     "Order",
     "OrderItem",
+    "ProductImage",
+    "MasterclassImage",
     "ProductReview",
     "PromoCode",
     "AuthSession",

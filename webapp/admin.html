@@ -151,6 +151,14 @@
               <div class="form-group">
                 <div id="product-image-preview" class="image-preview-box">Нет изображения</div>
               </div>
+              <div class="form-group">
+                <label>Фотографии товара</label>
+                <div class="image-upload-row">
+                  <input type="file" id="product-gallery-input" accept="image/*" multiple>
+                  <div class="muted" style="font-size:13px;">Можно выбрать несколько файлов одновременно.</div>
+                </div>
+                <div id="product-images-list" class="image-list muted">Сохраните товар, чтобы добавить фото.</div>
+              </div>
               <label>Краткое описание</label>
               <textarea name="short_description" rows="2" placeholder="Кратко, до ~100–150 символов. Показывается на карточке товара."></textarea>
               <label>Описание</label>
@@ -229,6 +237,14 @@
               </div>
               <div class="form-group">
                 <div id="course-image-preview" class="image-preview-box">Нет изображения</div>
+              </div>
+              <div class="form-group">
+                <label>Фотографии мастер-класса</label>
+                <div class="image-upload-row">
+                  <input type="file" id="course-gallery-input" accept="image/*" multiple>
+                  <div class="muted" style="font-size:13px;">Добавьте одно или несколько изображений.</div>
+                </div>
+                <div id="course-images-list" class="image-list muted">Сохраните мастер-класс, чтобы добавить фото.</div>
               </div>
               <label>Краткое описание</label>
               <textarea name="short_description" rows="2" placeholder="Кратко, до ~100–150 символов. Показывается на карточке курса."></textarea>
@@ -437,9 +453,16 @@
     const productImageFileInput = document.getElementById('product-image-file-input');
     const productImageUrlInput = document.getElementById('product-image-url-input');
     const productImagePreview = document.getElementById('product-image-preview');
+    const productGalleryInput = document.getElementById('product-gallery-input');
+    const productImagesList = document.getElementById('product-images-list');
     const courseImageFileInput = document.getElementById('course-image-file-input');
     const courseImageUrlInput = document.getElementById('course-image-url-input');
     const courseImagePreview = document.getElementById('course-image-preview');
+    const courseGalleryInput = document.getElementById('course-gallery-input');
+    const courseImagesList = document.getElementById('course-images-list');
+    const imageModal = document.getElementById('image-modal');
+    const imageModalClose = document.getElementById('image-modal-close');
+    const imageModalPicture = document.getElementById('image-modal-picture');
 
     const productForm = document.getElementById('product-form');
     const courseForm = document.getElementById('course-form');
@@ -483,6 +506,24 @@
       statusBox.style.display = 'block';
       statusBox.textContent = message;
       statusBox.style.borderColor = isError ? 'rgba(255,99,99,0.7)' : 'var(--border)';
+    }
+
+    function showImageListPlaceholder(target, message) {
+      if (!target) return;
+      target.classList.add('muted');
+      target.innerHTML = `<div class="muted small">${message}</div>`;
+    }
+
+    function openImageModal(url) {
+      if (!imageModal || !imageModalPicture) return;
+      imageModalPicture.src = url;
+      imageModal.classList.remove('hidden');
+    }
+
+    function closeImageModal() {
+      if (!imageModal || !imageModalPicture) return;
+      imageModalPicture.src = '';
+      imageModal.classList.add('hidden');
     }
 
     async function sendJson(path, method = 'GET', body = null) {
@@ -964,6 +1005,164 @@
       setCourseImagePreview(data.url);
     }
 
+    function renderImageRow(image, type) {
+      const row = document.createElement('div');
+      row.className = 'image-row';
+
+      const thumb = document.createElement('img');
+      thumb.src = image.image_url;
+      thumb.alt = 'preview';
+      thumb.className = 'image-thumb';
+
+      const info = document.createElement('div');
+      info.className = 'image-url-text';
+      info.title = image.image_url;
+      info.textContent = image.image_url;
+
+      const meta = document.createElement('div');
+      meta.className = 'image-meta muted';
+      meta.textContent = `#${image.id} · позиция ${image.position}`;
+
+      const actions = document.createElement('div');
+      actions.className = 'image-row-actions';
+
+      const previewBtn = document.createElement('button');
+      previewBtn.type = 'button';
+      previewBtn.className = 'btn secondary';
+      previewBtn.textContent = 'Просмотр';
+      previewBtn.addEventListener('click', () => openImageModal(image.image_url));
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.type = 'button';
+      deleteBtn.className = 'btn secondary danger';
+      deleteBtn.textContent = 'Удалить';
+      deleteBtn.addEventListener('click', () => deleteGalleryImage(image.id, type));
+
+      actions.appendChild(previewBtn);
+      actions.appendChild(deleteBtn);
+
+      const infoWrapper = document.createElement('div');
+      infoWrapper.className = 'image-row-info';
+      infoWrapper.appendChild(info);
+      infoWrapper.appendChild(meta);
+
+      row.appendChild(thumb);
+      row.appendChild(infoWrapper);
+      row.appendChild(actions);
+      return row;
+    }
+
+    function renderImagesList(items, target, type) {
+      if (!target) return;
+      target.innerHTML = '';
+      target.classList.remove('muted');
+      if (!items || !items.length) {
+        showImageListPlaceholder(target, 'Нет изображений');
+        return;
+      }
+      items.forEach((image) => {
+        target.appendChild(renderImageRow(image, type));
+      });
+    }
+
+    async function loadProductImages(productId) {
+      if (!productImagesList) return;
+      if (!productId) {
+        showImageListPlaceholder(productImagesList, 'Сохраните товар, чтобы добавить фото.');
+        return;
+      }
+      try {
+        const data = await apiGet(`/admin/products/${productId}/images`, { user_id: currentUser.telegram_id });
+        renderImagesList(data.items || data || [], productImagesList, 'product');
+      } catch (e) {
+        console.error(e);
+        showImageListPlaceholder(productImagesList, 'Не удалось загрузить фотографии товара');
+      }
+    }
+
+    async function loadCourseImages(courseId) {
+      if (!courseImagesList) return;
+      if (!courseId) {
+        showImageListPlaceholder(courseImagesList, 'Сохраните мастер-класс, чтобы добавить фото.');
+        return;
+      }
+      try {
+        const data = await apiGet(`/admin/masterclasses/${courseId}/images`, { user_id: currentUser.telegram_id });
+        renderImagesList(data.items || data || [], courseImagesList, 'course');
+      } catch (e) {
+        console.error(e);
+        showImageListPlaceholder(courseImagesList, 'Не удалось загрузить фотографии мастер-класса');
+      }
+    }
+
+    async function uploadProductGalleryFiles(event) {
+      const files = Array.from(event.target?.files || []);
+      if (!files.length) return;
+      if (!editingProductId) {
+        alert('Сначала сохраните товар.');
+        event.target.value = '';
+        return;
+      }
+      const formData = new FormData();
+      files.forEach((file) => formData.append('files', file));
+      try {
+        const res = await fetch(`${API_BASE}/admin/products/${editingProductId}/images`, {
+          method: 'POST',
+          body: formData,
+        });
+        const data = await handleResponse(res);
+        renderImagesList(data.items || data || [], productImagesList, 'product');
+        setStatus('Фото товара добавлены');
+      } catch (e) {
+        console.error(e);
+        setStatus('Не удалось загрузить фото товара', true);
+      }
+      event.target.value = '';
+    }
+
+    async function uploadCourseGalleryFiles(event) {
+      const files = Array.from(event.target?.files || []);
+      if (!files.length) return;
+      if (!editingCourseId) {
+        alert('Сначала сохраните мастер-класс.');
+        event.target.value = '';
+        return;
+      }
+      const formData = new FormData();
+      files.forEach((file) => formData.append('files', file));
+      try {
+        const res = await fetch(`${API_BASE}/admin/masterclasses/${editingCourseId}/images`, {
+          method: 'POST',
+          body: formData,
+        });
+        const data = await handleResponse(res);
+        renderImagesList(data.items || data || [], courseImagesList, 'course');
+        setStatus('Фото мастер-класса добавлены');
+      } catch (e) {
+        console.error(e);
+        setStatus('Не удалось загрузить фото мастер-класса', true);
+      }
+      event.target.value = '';
+    }
+
+    async function deleteGalleryImage(imageId, type) {
+      if (!currentUser) return;
+      const basePath = type === 'product' ? '/admin/products/images/' : '/admin/masterclasses/images/';
+      try {
+        await fetch(`${API_BASE}${basePath}${imageId}?user_id=${currentUser.telegram_id}`, {
+          method: 'DELETE',
+        }).then(handleResponse);
+        if (type === 'product') {
+          await loadProductImages(editingProductId);
+        } else {
+          await loadCourseImages(editingCourseId);
+        }
+      } catch (e) {
+        console.error(e);
+        setStatus('Не удалось удалить изображение', true);
+      }
+    }
+
     function renderProductTable(items, targetTable, type) {
       targetTable.innerHTML = '';
       if (!items || !items.length) {
@@ -998,12 +1197,12 @@
           if (type === 'basket') {
             editingProductId = item.id;
             productFormTitle.textContent = `Редактировать товар #${item.id}`;
-            const productImageUrl = item.image_url || item.image || '';
-              fillForm(productForm, {
-                category_id: item.category_id ?? '',
-                name: item.name,
-                price: item.price,
-                image_url: productImageUrl,
+            const productImageUrl = item.image_url || item.image || item.images?.[0]?.image_url || '';
+            fillForm(productForm, {
+              category_id: item.category_id ?? '',
+              name: item.name,
+              price: item.price,
+              image_url: productImageUrl,
                 short_description: item.short_description,
                 description: item.description,
                 wb_url: item.wb_url,
@@ -1015,22 +1214,24 @@
             });
             if (productImageUrlInput) productImageUrlInput.value = productImageUrl || '';
             setProductImagePreview(productImageUrl);
+            loadProductImages(editingProductId);
           } else {
             editingCourseId = item.id;
             courseFormTitle.textContent = `Редактировать мастер-класс #${item.id}`;
-            const courseImageUrl = item.image_url || item.image || '';
-              fillForm(courseForm, {
-                category_id: item.category_id ?? '',
-                name: item.name,
-                price: item.price,
+            const courseImageUrl = item.image_url || item.image || item.images?.[0]?.image_url || '';
+            fillForm(courseForm, {
+              category_id: item.category_id ?? '',
+              name: item.name,
+              price: item.price,
                 image_url: courseImageUrl,
                 short_description: item.short_description,
                 description: item.description,
                 masterclass_url: item.masterclass_url,
-                detail_url: item.detail_url,
-              });
+              detail_url: item.detail_url,
+            });
             if (courseImageUrlInput) courseImageUrlInput.value = courseImageUrl || '';
             setCourseImagePreview(courseImageUrl);
+            loadCourseImages(editingCourseId);
           }
         });
         toggleBtn.addEventListener('click', async () => {
@@ -1317,30 +1518,40 @@
       productFormTitle.textContent = 'Создать товар';
       productForm.reset();
       resetProductImageInputs();
+      showImageListPlaceholder(productImagesList, 'Сохраните товар, чтобы добавить фото.');
     });
     courseCancel.addEventListener('click', () => {
       editingCourseId = null;
       courseFormTitle.textContent = 'Создать мастер-класс';
       courseForm.reset();
       resetCourseImageInputs();
+      showImageListPlaceholder(courseImagesList, 'Сохраните мастер-класс, чтобы добавить фото.');
     });
     productReset.addEventListener('click', () => {
       editingProductId = null;
       productFormTitle.textContent = 'Создать товар';
       productForm.reset();
       resetProductImageInputs();
+      showImageListPlaceholder(productImagesList, 'Сохраните товар, чтобы добавить фото.');
     });
     courseReset.addEventListener('click', () => {
       editingCourseId = null;
       courseFormTitle.textContent = 'Создать мастер-класс';
       courseForm.reset();
       resetCourseImageInputs();
+      showImageListPlaceholder(courseImagesList, 'Сохраните мастер-класс, чтобы добавить фото.');
     });
 
     productImageFileInput?.addEventListener('change', uploadProductImageFile);
     courseImageFileInput?.addEventListener('change', uploadCourseImageFile);
+    productGalleryInput?.addEventListener('change', uploadProductGalleryFiles);
+    courseGalleryInput?.addEventListener('change', uploadCourseGalleryFiles);
     productImageUrlInput?.addEventListener('input', () => setProductImagePreview(productImageUrlInput.value.trim()));
     courseImageUrlInput?.addEventListener('input', () => setCourseImagePreview(courseImageUrlInput.value.trim()));
+    imageModalClose?.addEventListener('click', closeImageModal);
+    imageModal?.addEventListener('click', (event) => {
+      if (event.target.id === 'image-modal') closeImageModal();
+    });
 
     reviewStatusFilter?.addEventListener('change', loadReviews);
     reviewProductFilter?.addEventListener('change', loadReviews);
@@ -1392,6 +1603,18 @@
 
     initApp();
   </script>
+
+  <div id="image-modal" class="admin-modal hidden">
+    <div class="admin-modal__content image-modal__content">
+      <div class="admin-modal__header">
+        <h3>Предпросмотр</h3>
+        <button class="btn secondary" type="button" id="image-modal-close">Закрыть</button>
+      </div>
+      <div class="admin-modal__body image-modal__body">
+        <img id="image-modal-picture" src="" alt="Просмотр изображения">
+      </div>
+    </div>
+  </div>
 
   <div id="review-modal" class="admin-modal hidden">
     <div class="admin-modal__content">
