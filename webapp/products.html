@@ -51,8 +51,10 @@
     <div class="product-modal__content" role="dialog" aria-modal="true">
       <button class="product-modal__close" type="button" id="product-modal-close" aria-label="Закрыть">×</button>
       <div class="product-modal__media" id="product-modal-media">
+        <button class="product-modal__nav product-modal__nav--prev" type="button" id="product-modal-prev" aria-label="Предыдущее изображение">‹</button>
         <img id="product-modal-image" alt="" />
         <div id="product-modal-placeholder" style="display:none; color: var(--muted); padding: 12px; text-align:center;">Нет изображения</div>
+        <button class="product-modal__nav product-modal__nav--next" type="button" id="product-modal-next" aria-label="Следующее изображение">›</button>
       </div>
       <div class="product-modal__info">
         <h3 id="product-modal-title" style="margin:0;"></h3>
@@ -142,6 +144,8 @@
     const productModalAdd = document.getElementById('product-modal-add');
       const productModalImage = document.getElementById('product-modal-image');
       const productModalPlaceholder = document.getElementById('product-modal-placeholder');
+      const productModalPrev = document.getElementById('product-modal-prev');
+      const productModalNext = document.getElementById('product-modal-next');
       const reviewPhotoModal = document.getElementById('review-photo-modal');
       const reviewPhotoModalBackdrop = document.getElementById('review-photo-modal-backdrop');
       const reviewPhotoModalClose = document.getElementById('review-photo-modal-close');
@@ -173,6 +177,7 @@
     let active = null;
     let productMap = new Map();
     let currentProduct = null;
+    let productModalIndex = 0;
 
     const isTelegramWebApp = Boolean(window.Telegram?.WebApp);
     if (isTelegramWebApp && window.Telegram?.WebApp?.ready) {
@@ -194,6 +199,32 @@
       if (item?.short_description) return item.short_description;
       const fallback = item?.description ? truncateText(item.description, 140) : '';
       return fallback || 'Описание появится позже.';
+    }
+
+    function normalizeImages(item, extraFields = []) {
+      const urls = [];
+      const pushUrl = (value) => {
+        if (!value) return;
+        if (typeof value === 'string') {
+          urls.push(value);
+          return;
+        }
+        if (typeof value === 'object') {
+          const maybe = value.image_url || value.url || value.path;
+          if (maybe) urls.push(maybe);
+        }
+      };
+
+      pushUrl(item.image_url || item.image);
+      (Array.isArray(item.images) ? item.images : []).forEach(pushUrl);
+      (extraFields || []).forEach((field) => {
+        const value = item[field];
+        if (Array.isArray(value)) value.forEach(pushUrl);
+      });
+
+      const unique = Array.from(new Set(urls.filter(Boolean)));
+      item.images = unique;
+      return item;
     }
 
     function formatReviewDate(value) {
@@ -330,14 +361,61 @@
         card.className = 'catalog-card product-card';
 
         const cover = document.createElement('div');
-        cover.className = 'product-card-image catalog-card-image';
-        const imageUrl = item.image_url || item.image;
-        if (imageUrl) {
-          cover.style.backgroundImage = `url('${imageUrl}')`;
-          cover.textContent = '';
-        } else {
-          cover.textContent = item.category_name || 'Товары';
+        cover.className = 'product-card__image-wrapper catalog-card-image';
+        const coverImage = document.createElement('img');
+        coverImage.className = 'product-card__image';
+        const coverPlaceholder = document.createElement('div');
+        coverPlaceholder.className = 'product-card__placeholder';
+        coverPlaceholder.textContent = item.category_name || 'Товары';
+        cover.append(coverImage, coverPlaceholder);
+
+        const images = item.images && item.images.length ? item.images : [];
+        let currentImageIndex = 0;
+
+        const prevBtn = document.createElement('button');
+        prevBtn.type = 'button';
+        prevBtn.className = 'product-card__nav product-card__nav--prev';
+        prevBtn.textContent = '‹';
+
+        const nextBtn = document.createElement('button');
+        nextBtn.type = 'button';
+        nextBtn.className = 'product-card__nav product-card__nav--next';
+        nextBtn.textContent = '›';
+
+        if (images.length > 1) {
+          cover.append(prevBtn, nextBtn);
         }
+
+        const updateCardImage = () => {
+          if (images.length) {
+            currentImageIndex = (currentImageIndex + images.length) % images.length;
+            coverImage.src = images[currentImageIndex];
+            coverImage.style.display = 'block';
+            coverPlaceholder.style.display = 'none';
+          } else {
+            coverImage.removeAttribute('src');
+            coverImage.style.display = 'none';
+            coverPlaceholder.style.display = 'flex';
+          }
+
+          const showNav = images.length > 1;
+          prevBtn.style.display = showNav ? '' : 'none';
+          nextBtn.style.display = showNav ? '' : 'none';
+        };
+
+        prevBtn.addEventListener('click', () => {
+          if (!images.length) return;
+          currentImageIndex = (currentImageIndex - 1 + images.length) % images.length;
+          updateCardImage();
+        });
+
+        nextBtn.addEventListener('click', () => {
+          if (!images.length) return;
+          currentImageIndex = (currentImageIndex + 1) % images.length;
+          updateCardImage();
+        });
+
+        updateCardImage();
 
         const body = document.createElement('div');
         body.className = 'catalog-card-body product-card-body';
@@ -369,7 +447,7 @@
         detailsBtn.type = 'button';
         detailsBtn.className = 'btn secondary';
         detailsBtn.textContent = 'Подробнее';
-        detailsBtn.addEventListener('click', () => openProductModal(item.id));
+        detailsBtn.addEventListener('click', () => openProductModal(item.id, currentImageIndex));
 
         const btn = document.createElement('button');
         btn.className = 'btn';
@@ -407,7 +485,7 @@
       try {
         const params = { type: 'basket' };
         if (active) params.category_slug = active;
-        products = await apiGet('/products', params);
+        products = (await apiGet('/products', params)).map((item) => normalizeImages(item, ['product_images']));
         productMap = new Map(products.map((p) => [p.id, p]));
         renderTabs();
         renderCards();
@@ -422,13 +500,36 @@
       productModal.classList.add('hidden');
       productModal.setAttribute('aria-hidden', 'true');
       currentProduct = null;
+      productModalIndex = 0;
     }
 
-    function openProductModal(productId) {
+    function setProductModalImage() {
+      if (!productModalImage) return;
+      const images = currentProduct?.images || [];
+
+      if (images.length) {
+        productModalIndex = (productModalIndex + images.length) % images.length;
+        productModalImage.src = images[productModalIndex];
+        productModalImage.style.display = 'block';
+        productModalPlaceholder.style.display = 'none';
+      } else {
+        productModalImage.removeAttribute('src');
+        productModalImage.style.display = 'none';
+        productModalPlaceholder.style.display = 'block';
+      }
+
+      const showNav = images.length > 1;
+      [productModalPrev, productModalNext].forEach((btn) => {
+        if (btn) btn.style.display = showNav ? '' : 'none';
+      });
+    }
+
+    function openProductModal(productId, startIndex = 0) {
       if (!productModal) return;
       const item = productMap.get(productId);
       if (!item) return;
       currentProduct = item;
+      productModalIndex = Math.max(0, Math.min(startIndex || 0, (item.images?.length || 1) - 1));
 
       resetReviewForm();
       updateReviewFormVisibility();
@@ -438,17 +539,7 @@
         renderReviewsList(item.id);
         loadProductReviews(item.id);
       }
-
-      const imageUrl = item.image_url || item.image;
-      if (imageUrl) {
-        productModalImage.src = imageUrl;
-        productModalImage.style.display = 'block';
-        productModalPlaceholder.style.display = 'none';
-      } else {
-        productModalImage.removeAttribute('src');
-        productModalImage.style.display = 'none';
-        productModalPlaceholder.style.display = 'block';
-      }
+      setProductModalImage();
 
       productModalTitle.textContent = item.name || 'Товар';
       productModalDescription.textContent = item.description || item.short_description || 'Описание появится позже.';
@@ -461,6 +552,16 @@
       productModal.classList.remove('hidden');
       productModal.setAttribute('aria-hidden', 'false');
     }
+
+      [productModalPrev, productModalNext].forEach((btn, index) => {
+        btn?.addEventListener('click', () => {
+          const images = currentProduct?.images || [];
+          if (!images.length) return;
+          const step = index === 0 ? -1 : 1;
+          productModalIndex = (productModalIndex + step + images.length) % images.length;
+          setProductModalImage();
+        });
+      });
 
       [productModalClose, productModalCloseBtn, productModalBackdrop].forEach((el) => {
         el?.addEventListener('click', closeProductModal);

@@ -51,8 +51,10 @@
     <div class="course-modal__content" role="dialog" aria-modal="true">
       <button class="course-modal__close" type="button" id="course-modal-close" aria-label="Закрыть">×</button>
       <div class="course-modal__media">
+        <button class="course-modal__nav course-modal__nav--prev" type="button" id="course-modal-prev" aria-label="Предыдущее изображение">‹</button>
         <img id="course-modal-image" alt="" />
         <div id="course-modal-placeholder" style="display:none; color: var(--muted); padding: 12px; text-align:center;">Нет изображения</div>
+        <button class="course-modal__nav course-modal__nav--next" type="button" id="course-modal-next" aria-label="Следующее изображение">›</button>
       </div>
       <div class="course-modal__info">
         <h3 id="course-modal-title" style="margin:0;"></h3>
@@ -78,6 +80,8 @@
     const courseModalBackdrop = document.getElementById('course-modal-backdrop');
     const courseModalImage = document.getElementById('course-modal-image');
     const courseModalPlaceholder = document.getElementById('course-modal-placeholder');
+    const courseModalPrev = document.getElementById('course-modal-prev');
+    const courseModalNext = document.getElementById('course-modal-next');
     const courseModalTitle = document.getElementById('course-modal-title');
     const courseModalMeta = document.getElementById('course-modal-meta');
     const courseModalDescription = document.getElementById('course-modal-description');
@@ -90,6 +94,7 @@
     let active = null;
     let courseMap = new Map();
     let currentCourse = null;
+    let courseModalIndex = 0;
 
     const isTelegramWebApp = Boolean(window.Telegram?.WebApp);
     if (isTelegramWebApp && window.Telegram?.WebApp?.ready) {
@@ -116,6 +121,32 @@
       if (item?.short_description) return item.short_description;
       const fallback = item?.description ? truncateText(item.description, 140) : '';
       return fallback || 'Описание появится позже.';
+    }
+
+    function normalizeImages(item, extraFields = []) {
+      const urls = [];
+      const pushUrl = (value) => {
+        if (!value) return;
+        if (typeof value === 'string') {
+          urls.push(value);
+          return;
+        }
+        if (typeof value === 'object') {
+          const maybe = value.image_url || value.url || value.path;
+          if (maybe) urls.push(maybe);
+        }
+      };
+
+      pushUrl(item.image_url || item.image);
+      (Array.isArray(item.images) ? item.images : []).forEach(pushUrl);
+      (extraFields || []).forEach((field) => {
+        const value = item[field];
+        if (Array.isArray(value)) value.forEach(pushUrl);
+      });
+
+      const unique = Array.from(new Set(urls.filter(Boolean)));
+      item.images = unique;
+      return item;
     }
 
     function updateAdminLinkVisibility() {
@@ -187,14 +218,61 @@
         card.className = 'catalog-card course-card';
 
         const cover = document.createElement('div');
-        cover.className = 'course-card-image catalog-card-image';
-        const imageUrl = item.image_url || item.image;
-        if (imageUrl) {
-          cover.style.backgroundImage = `url('${imageUrl}')`;
-          cover.textContent = '';
-        } else {
-          cover.textContent = item.category_name || 'Мастер-классы';
+        cover.className = 'course-card__image-wrapper catalog-card-image';
+        const coverImage = document.createElement('img');
+        coverImage.className = 'course-card__image';
+        const coverPlaceholder = document.createElement('div');
+        coverPlaceholder.className = 'course-card__placeholder';
+        coverPlaceholder.textContent = item.category_name || 'Мастер-классы';
+        cover.append(coverImage, coverPlaceholder);
+
+        const images = item.images && item.images.length ? item.images : [];
+        let currentImageIndex = 0;
+
+        const prevBtn = document.createElement('button');
+        prevBtn.type = 'button';
+        prevBtn.className = 'course-card__nav course-card__nav--prev';
+        prevBtn.textContent = '‹';
+
+        const nextBtn = document.createElement('button');
+        nextBtn.type = 'button';
+        nextBtn.className = 'course-card__nav course-card__nav--next';
+        nextBtn.textContent = '›';
+
+        if (images.length > 1) {
+          cover.append(prevBtn, nextBtn);
         }
+
+        const updateCardImage = () => {
+          if (images.length) {
+            currentImageIndex = (currentImageIndex + images.length) % images.length;
+            coverImage.src = images[currentImageIndex];
+            coverImage.style.display = 'block';
+            coverPlaceholder.style.display = 'none';
+          } else {
+            coverImage.removeAttribute('src');
+            coverImage.style.display = 'none';
+            coverPlaceholder.style.display = 'flex';
+          }
+
+          const showNav = images.length > 1;
+          prevBtn.style.display = showNav ? '' : 'none';
+          nextBtn.style.display = showNav ? '' : 'none';
+        };
+
+        prevBtn.addEventListener('click', () => {
+          if (!images.length) return;
+          currentImageIndex = (currentImageIndex - 1 + images.length) % images.length;
+          updateCardImage();
+        });
+
+        nextBtn.addEventListener('click', () => {
+          if (!images.length) return;
+          currentImageIndex = (currentImageIndex + 1) % images.length;
+          updateCardImage();
+        });
+
+        updateCardImage();
 
         const body = document.createElement('div');
         body.className = 'catalog-card-body course-card-body';
@@ -231,7 +309,7 @@
         detailsBtn.type = 'button';
         detailsBtn.className = 'btn secondary';
         detailsBtn.textContent = 'Подробнее';
-        detailsBtn.addEventListener('click', () => openCourseModal(item.id));
+        detailsBtn.addEventListener('click', () => openCourseModal(item.id, currentImageIndex));
 
         if (Number(item.price || 0) === 0 || hasAccess) {
           const openBtn = document.createElement('a');
@@ -288,7 +366,7 @@
       try {
         const params = { type: 'course' };
         if (active) params.category_slug = active;
-        courses = await apiGet('/products', params);
+        courses = (await apiGet('/products', params)).map((item) => normalizeImages(item, ['masterclass_images']));
         courseMap = new Map(courses.map((c) => [c.id, c]));
         renderCards();
       } catch (e) {
@@ -302,18 +380,17 @@
       courseModal.classList.add('hidden');
       courseModal.setAttribute('aria-hidden', 'true');
       currentCourse = null;
+      courseModalIndex = 0;
       if (courseModalActions) courseModalActions.innerHTML = '';
     }
 
-    function openCourseModal(courseId) {
-      if (!courseModal) return;
-      const item = courseMap.get(courseId);
-      if (!item) return;
-      currentCourse = item;
+    function setCourseModalImage() {
+      if (!courseModalImage) return;
+      const images = currentCourse?.images || [];
 
-      const imageUrl = item.image_url || item.image;
-      if (imageUrl) {
-        courseModalImage.src = imageUrl;
+      if (images.length) {
+        courseModalIndex = (courseModalIndex + images.length) % images.length;
+        courseModalImage.src = images[courseModalIndex];
         courseModalImage.style.display = 'block';
         courseModalPlaceholder.style.display = 'none';
       } else {
@@ -321,6 +398,21 @@
         courseModalImage.style.display = 'none';
         courseModalPlaceholder.style.display = 'block';
       }
+
+      const showNav = images.length > 1;
+      [courseModalPrev, courseModalNext].forEach((btn) => {
+        if (btn) btn.style.display = showNav ? '' : 'none';
+      });
+    }
+
+    function openCourseModal(courseId, startIndex = 0) {
+      if (!courseModal) return;
+      const item = courseMap.get(courseId);
+      if (!item) return;
+      currentCourse = item;
+      courseModalIndex = Math.max(0, Math.min(startIndex || 0, (item.images?.length || 1) - 1));
+
+      setCourseModalImage();
 
       courseModalTitle.textContent = item.name || 'Мастер-класс';
       courseModalMeta.textContent = metaBySlug[item.category_slug] || '';
@@ -365,6 +457,16 @@
       courseModal.classList.remove('hidden');
       courseModal.setAttribute('aria-hidden', 'false');
     }
+
+    [courseModalPrev, courseModalNext].forEach((btn, index) => {
+      btn?.addEventListener('click', () => {
+        const images = currentCourse?.images || [];
+        if (!images.length) return;
+        const step = index === 0 ? -1 : 1;
+        courseModalIndex = (courseModalIndex + step + images.length) % images.length;
+        setCourseModalImage();
+      });
+    });
 
     [courseModalClose, courseModalBackdrop].forEach((el) => {
       el?.addEventListener('click', closeCourseModal);
