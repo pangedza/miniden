@@ -56,7 +56,10 @@ def _serialize_product(
         category_slug = meta.get("slug")
         category_name = meta.get("name")
     elif product_type == "course":
-        if price > 0:
+        if category_meta:
+            category_slug = category_meta.get("slug")
+            category_name = category_meta.get("name")
+        elif price > 0:
             category_slug = "paid"
             category_name = "Платные курсы"
         else:
@@ -98,13 +101,24 @@ BASKET_CATEGORY_PRESETS: list[dict[str, Any]] = [
     {"id": 4, "slug": "decor", "name": "Декор", "type": "basket"},
 ]
 
+COURSE_CATEGORY_PRESETS: list[dict[str, Any]] = [
+    {"slug": "paid", "name": "Платные курсы", "type": "course"},
+    {"slug": "free", "name": "Бесплатные уроки", "type": "course"},
+]
+
 
 def _ensure_default_categories(product_type: str) -> None:
-    if product_type != "basket":
+    presets_by_type = {
+        "basket": BASKET_CATEGORY_PRESETS,
+        "course": COURSE_CATEGORY_PRESETS,
+    }
+
+    presets = presets_by_type.get(product_type)
+    if not presets:
         return
 
     with get_session() as session:
-        for sort_order, preset in enumerate(BASKET_CATEGORY_PRESETS):
+        for sort_order, preset in enumerate(presets):
             slug = preset.get("slug")
             if not slug:
                 continue
@@ -114,9 +128,9 @@ def _ensure_default_categories(product_type: str) -> None:
                 .values(
                     name=preset.get("name"),
                     slug=slug,
-                    sort_order=sort_order,
-                    is_active=True,
-                    type=product_type,
+                    sort_order=preset.get("sort_order", sort_order),
+                    is_active=preset.get("is_active", True),
+                    type=preset.get("type", product_type),
                     created_at=datetime.utcnow(),
                 )
                 .on_conflict_do_nothing(index_elements=["slug"])
@@ -330,10 +344,7 @@ def list_categories(product_type: str) -> list[dict[str, Any]]:
 
     map_by_id, map_by_slug = _load_category_maps(product_type)
     if product_type == "course":
-        categories.update(map_by_slug)
-        categories.setdefault("paid", {"slug": "paid", "name": "Платные курсы", "type": "course"})
-        categories.setdefault("free", {"slug": "free", "name": "Бесплатные уроки", "type": "course"})
-        return [item for item in categories.values() if item.get("is_active", True)]
+        return [item for item in map_by_id.values() if item.get("is_active", True)]
 
     if product_type != "basket":
         return []
@@ -449,9 +460,13 @@ def list_products(
 
     basket_map_by_id: dict[int, dict[str, Any]] = {}
     basket_map_by_slug: dict[str, dict[str, Any]] = {}
+    course_map_by_id: dict[int, dict[str, Any]] = {}
+    course_map_by_slug: dict[str, dict[str, Any]] = {}
 
     if product_type != "course":
         basket_map_by_id, basket_map_by_slug = _load_category_maps("basket")
+    if product_type != "basket":
+        course_map_by_id, course_map_by_slug = _load_category_maps("course")
 
     results: list[dict[str, Any]] = []
     for model, p_type in models:
@@ -478,17 +493,31 @@ def list_products(
             if current_category_id is not None and p_type == "basket" and category_meta is None:
                 category_meta = _basket_category_from_id(current_category_id)
 
+            course_category_meta = None
             if p_type == "course" and category_slug:
-                if category_slug == "paid":
-                    query = query.where(model.price > 0)
-                elif category_slug == "free":
-                    query = query.where(model.price <= 0)
+                if category_slug in {"paid", "free"}:
+                    if category_slug == "paid":
+                        query = query.where(model.price > 0)
+                    elif category_slug == "free":
+                        query = query.where(model.price <= 0)
+                    course_category_meta = course_map_by_slug.get(category_slug)
+                else:
+                    course_category_meta = course_map_by_slug.get(category_slug)
+                    if course_category_meta is None:
+                        continue
+                    current_category_id = course_category_meta.get("id")
+                    if current_category_id is not None:
+                        query = query.where(model.category_id == current_category_id)
+                    else:
+                        query = query.where(model.category_id.is_(None))
 
             rows = session.scalars(query.order_by(model.id)).all()
             for row in rows:
                 meta = category_meta
                 if p_type == "basket" and meta is None:
                     meta = _basket_category_from_id(getattr(row, "category_id", None), map_by_id=basket_map_by_id)
+                if p_type == "course":
+                    meta = course_category_meta or course_map_by_id.get(getattr(row, "category_id", None))
                 results.append(_serialize_product(row, p_type, category_meta=meta))
     return results
 
