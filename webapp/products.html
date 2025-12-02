@@ -418,24 +418,30 @@
         updateCardImage();
 
         const body = document.createElement('div');
-        body.className = 'catalog-card-body product-card__body';
+        body.className = 'catalog-card-body product-card-body';
 
         const title = document.createElement('h3');
-        title.className = 'product-card__title catalog-card-title';
+        title.className = 'catalog-card-title';
         title.textContent = item.name;
 
-        const priceRow = document.createElement('div');
-        priceRow.className = 'product-card__price-row';
-
-        const price = document.createElement('div');
-        price.className = 'product-card__price price';
-        price.textContent = formatPrice(item.price);
-        priceRow.appendChild(price);
+        const desc = document.createElement('p');
+        desc.className = 'catalog-card-description product-card__short-desc';
+        desc.textContent = shortDescription(item);
 
         const marketLinks = createMarketLinks(item);
 
+        const footer = document.createElement('div');
+        footer.className = 'product-card__footer';
+
+        const price = document.createElement('div');
+        price.className = 'price';
+        price.textContent = formatPrice(item.price);
+
         const actions = document.createElement('div');
-        actions.className = 'product-card__actions';
+        actions.className = 'catalog-card-actions';
+
+        const buttonsRow = document.createElement('div');
+        buttonsRow.className = 'product-card__buttons';
 
         const detailsBtn = document.createElement('button');
         detailsBtn.type = 'button';
@@ -443,11 +449,17 @@
         detailsBtn.textContent = 'Подробнее';
         detailsBtn.addEventListener('click', () => openProductModal(item.id, currentImageIndex));
 
-        actions.appendChild(detailsBtn);
+        const btn = document.createElement('button');
+        btn.className = 'btn';
+        btn.textContent = 'В корзину';
+        btn.addEventListener('click', () => handleAddToCart(item));
 
-        body.append(title, priceRow);
+        buttonsRow.append(detailsBtn, btn);
+        footer.append(price);
+        actions.append(footer, buttonsRow);
+
+        body.append(title, desc);
         if (marketLinks.childElementCount) {
-          marketLinks.classList.add('product-card__market-links');
           body.appendChild(marketLinks);
         }
         body.appendChild(actions);
