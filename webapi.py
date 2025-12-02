@@ -82,6 +82,40 @@ def ensure_media_dirs() -> None:
         d.mkdir(parents=True, exist_ok=True)
 
 
+def _save_uploaded_image(file: UploadFile, base_folder: str) -> str:
+    if file.content_type not in ("image/jpeg", "image/png", "image/webp"):
+        raise HTTPException(status_code=400, detail="Неверный формат изображения")
+
+    ensure_media_dirs()
+
+    ext = (file.filename or "jpg").split(".")[-1].lower()
+    if ext not in ("jpg", "jpeg", "png", "webp"):
+        ext = "jpg"
+
+    filename = f"{uuid4().hex}.{ext}"
+    full_path = MEDIA_ROOT / base_folder / filename
+
+    with full_path.open("wb") as f:
+        f.write(file.file.read())
+
+    relative = full_path.relative_to(MEDIA_ROOT).as_posix()
+    return f"/media/{relative}"
+
+
+def _delete_media_file(url: str | None) -> None:
+    if not url or not url.startswith("/media/"):
+        return
+
+    relative = url.split("/media/", 1)[1]
+    target_path = MEDIA_ROOT / relative
+    try:
+        if target_path.is_file():
+            target_path.unlink()
+    except OSError:
+        # тихо игнорируем ошибки удаления, чтобы не ломать основной поток
+        pass
+
+
 class AdminImageKind(str, Enum):
     product = "product"
     course = "course"
@@ -1177,28 +1211,86 @@ def admin_upload_image(
     Загрузка изображения для товара/курса из админки.
     Сохраняет файл в файловой системе и возвращает URL, который потом пишется в image_url.
     """
-
-    if file.content_type not in ("image/jpeg", "image/png", "image/webp"):
-        raise HTTPException(status_code=400, detail="Неверный формат изображения")
-
     base_folder = "products" if kind == AdminImageKind.product else "courses"
-    target_dir = MEDIA_ROOT / base_folder
-    ensure_media_dirs()
-
-    ext = (file.filename or "jpg").split(".")[-1].lower()
-    if ext not in ("jpg", "jpeg", "png", "webp"):
-        ext = "jpg"
-
-    filename = f"{uuid4().hex}.{ext}"
-    full_path = target_dir / filename
-
-    with full_path.open("wb") as f:
-        f.write(file.file.read())
-
-    relative = full_path.relative_to(MEDIA_ROOT).as_posix()
-    url = f"/media/{relative}"
+    url = _save_uploaded_image(file, base_folder)
 
     return {"ok": True, "url": url}
+
+
+@app.get("/api/admin/products/{product_id}/images")
+def admin_product_images(product_id: int, user_id: int):
+    _ensure_admin(user_id)
+    try:
+        images = products_service.list_product_images(product_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Product not found")
+    return {"items": images}
+
+
+@app.post("/api/admin/products/{product_id}/images")
+def admin_upload_product_images(
+    product_id: int,
+    files: list[UploadFile] = File(...),
+    admin_user=Depends(get_admin_user),
+):
+    if not files:
+        raise HTTPException(status_code=400, detail="Нет файлов для загрузки")
+
+    urls = [_save_uploaded_image(file, "products") for file in files]
+    try:
+        images = products_service.add_product_images(product_id, urls)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Product not found")
+    return {"items": images}
+
+
+@app.delete("/api/admin/products/images/{image_id}")
+def admin_delete_product_image(image_id: int, user_id: int):
+    _ensure_admin(user_id)
+    image_url = products_service.delete_product_image(image_id)
+    if not image_url:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    _delete_media_file(image_url)
+    return {"ok": True}
+
+
+@app.get("/api/admin/masterclasses/{masterclass_id}/images")
+def admin_masterclass_images(masterclass_id: int, user_id: int):
+    _ensure_admin(user_id)
+    try:
+        images = products_service.list_masterclass_images(masterclass_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Masterclass not found")
+    return {"items": images}
+
+
+@app.post("/api/admin/masterclasses/{masterclass_id}/images")
+def admin_upload_masterclass_images(
+    masterclass_id: int,
+    files: list[UploadFile] = File(...),
+    admin_user=Depends(get_admin_user),
+):
+    if not files:
+        raise HTTPException(status_code=400, detail="Нет файлов для загрузки")
+
+    urls = [_save_uploaded_image(file, "courses") for file in files]
+    try:
+        images = products_service.add_masterclass_images(masterclass_id, urls)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Masterclass not found")
+    return {"items": images}
+
+
+@app.delete("/api/admin/masterclasses/images/{image_id}")
+def admin_delete_masterclass_image(image_id: int, user_id: int):
+    _ensure_admin(user_id)
+    image_url = products_service.delete_masterclass_image(image_id)
+    if not image_url:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    _delete_media_file(image_url)
+    return {"ok": True}
 
 
 @app.get("/api/admin/reviews")

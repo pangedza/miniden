@@ -7,7 +7,7 @@ from typing import Any
 from sqlalchemy import func, select
 
 from database import get_session
-from models import ProductBasket, ProductCourse
+from models import MasterclassImage, ProductBasket, ProductCourse, ProductImage
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 LEGACY_DATA_DIR = BASE_DIR / "docs" / "legacy-data"
@@ -23,7 +23,25 @@ def _serialize_product(
 ) -> dict[str, Any]:
     price = int(product.price or 0)
 
+    def _serialize_image_item(item: ProductImage | MasterclassImage) -> dict[str, Any]:
+        return {
+            "id": int(item.id),
+            "image_url": item.image_url,
+            "position": int(item.position or 0),
+            "is_main": bool(getattr(item, "is_main", False)),
+        }
+
+    if product_type == "basket":
+        raw_images = getattr(product, "product_images", []) or []
+    else:
+        raw_images = getattr(product, "masterclass_images", []) or []
+
+    images = [_serialize_image_item(item) for item in raw_images]
+
     image_url = getattr(product, "image_url", None) or getattr(product, "image", None)
+    if not image_url and images:
+        # TODO: синхронизировать image_url с основным фото.
+        image_url = images[0]["image_url"]
 
     if product_type == "basket":
         meta = category_meta or {}
@@ -51,6 +69,7 @@ def _serialize_product(
         "image_file_id": getattr(product, "image", None),
         "image": getattr(product, "image", None),
         "image_url": image_url,
+        "images": images,
         "is_active": bool(getattr(product, "is_active", 1)),
         "category_id": getattr(product, "category_id", None),
         "category_name": category_name,
@@ -107,6 +126,128 @@ def _pick_model(product_type: str):
     if product_type == "course":
         return ProductCourse
     raise ValueError("Unknown product type")
+
+
+def _serialize_image(record: ProductImage | MasterclassImage) -> dict[str, Any]:
+    return {
+        "id": int(record.id),
+        "image_url": record.image_url,
+        "position": int(record.position or 0),
+        "is_main": bool(getattr(record, "is_main", False)),
+    }
+
+
+def _next_position(session, model, field, entity_id: int) -> int:
+    max_position = session.scalar(select(func.max(model.position)).where(field == entity_id))
+    return int(max_position or 0) + 1
+
+
+def list_product_images(product_id: int) -> list[dict[str, Any]]:
+    with get_session() as session:
+        product = session.get(ProductBasket, product_id)
+        if not product:
+            raise ValueError("product_not_found")
+        images = (
+            session.execute(
+                select(ProductImage)
+                .where(ProductImage.product_id == product_id)
+                .order_by(ProductImage.position, ProductImage.id)
+            )
+            .scalars()
+            .all()
+        )
+        return [_serialize_image(img) for img in images]
+
+
+def list_masterclass_images(masterclass_id: int) -> list[dict[str, Any]]:
+    with get_session() as session:
+        masterclass = session.get(ProductCourse, masterclass_id)
+        if not masterclass:
+            raise ValueError("masterclass_not_found")
+        images = (
+            session.execute(
+                select(MasterclassImage)
+                .where(MasterclassImage.masterclass_id == masterclass_id)
+                .order_by(MasterclassImage.position, MasterclassImage.id)
+            )
+            .scalars()
+            .all()
+        )
+        return [_serialize_image(img) for img in images]
+
+
+def add_product_images(product_id: int, image_urls: list[str]) -> list[dict[str, Any]]:
+    with get_session() as session:
+        product = session.get(ProductBasket, product_id)
+        if not product:
+            raise ValueError("product_not_found")
+
+        position = _next_position(session, ProductImage, ProductImage.product_id, product_id)
+        created: list[ProductImage] = []
+        for url in image_urls:
+            image = ProductImage(
+                product_id=product_id,
+                image_url=url,
+                position=position,
+                is_main=False,
+            )
+            position += 1
+            session.add(image)
+            created.append(image)
+
+        if not product.image_url and created:
+            product.image_url = created[0].image_url
+
+        session.flush()
+        return [_serialize_image(item) for item in created]
+
+
+def add_masterclass_images(masterclass_id: int, image_urls: list[str]) -> list[dict[str, Any]]:
+    with get_session() as session:
+        masterclass = session.get(ProductCourse, masterclass_id)
+        if not masterclass:
+            raise ValueError("masterclass_not_found")
+
+        position = _next_position(
+            session, MasterclassImage, MasterclassImage.masterclass_id, masterclass_id
+        )
+        created: list[MasterclassImage] = []
+        for url in image_urls:
+            image = MasterclassImage(
+                masterclass_id=masterclass_id,
+                image_url=url,
+                position=position,
+                is_main=False,
+            )
+            position += 1
+            session.add(image)
+            created.append(image)
+
+        if not masterclass.image_url and created:
+            masterclass.image_url = created[0].image_url
+
+        session.flush()
+        return [_serialize_image(item) for item in created]
+
+
+def delete_product_image(image_id: int) -> str | None:
+    with get_session() as session:
+        image = session.get(ProductImage, image_id)
+        if not image:
+            return None
+        image_url = image.image_url
+        session.delete(image)
+        return image_url
+
+
+def delete_masterclass_image(image_id: int) -> str | None:
+    with get_session() as session:
+        image = session.get(MasterclassImage, image_id)
+        if not image:
+            return None
+        image_url = image.image_url
+        session.delete(image)
+        return image_url
 
 
 def list_categories(product_type: str) -> list[dict[str, Any]]:
