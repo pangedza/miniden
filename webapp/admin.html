@@ -14,12 +14,28 @@
   <div class="admin-layout">
     <aside class="admin-sidebar">
       <div class="admin-brand">MiniDeN<br /><span>админ-панель</span></div>
-      <button class="nav-btn active" data-section="orders">Заказы</button>
-      <button class="nav-btn" data-section="products">Товары</button>
-      <button class="nav-btn" data-section="courses">Мастер-классы</button>
-      <button class="nav-btn" data-section="reviews">Отзывы</button>
-      <button class="nav-btn" data-section="promocodes">Промокоды</button>
-      <button class="nav-btn" data-section="stats">Статистика</button>
+      <nav class="admin-nav">
+        <button class="nav-btn active" data-view="orders">Заказы</button>
+        <div class="nav-group" data-group="products">
+          <button class="nav-btn nav-parent" data-group-toggle="products">Товары</button>
+          <div class="nav-submenu">
+            <button class="nav-btn nav-sub" data-view="product-create">Создать товар</button>
+            <button class="nav-btn nav-sub" data-view="product-list">Список товаров</button>
+            <button class="nav-btn nav-sub" data-view="product-categories">Категории товаров</button>
+          </div>
+        </div>
+        <div class="nav-group" data-group="courses">
+          <button class="nav-btn nav-parent" data-group-toggle="courses">Мастер-классы</button>
+          <div class="nav-submenu">
+            <button class="nav-btn nav-sub" data-view="course-create">Создать мастер-класс</button>
+            <button class="nav-btn nav-sub" data-view="course-list">Список мастер-классов</button>
+            <button class="nav-btn nav-sub" data-view="course-categories">Категории мастер-классов</button>
+          </div>
+        </div>
+        <button class="nav-btn" data-view="reviews">Отзывы</button>
+        <button class="nav-btn" data-view="promocodes">Промокоды</button>
+        <button class="nav-btn" data-view="stats">Статистика</button>
+      </nav>
       <div class="muted" style="margin-top:16px; font-size:13px;">Выйдите в профиль, чтобы проверить статус авторизации.</div>
     </aside>
 
@@ -46,7 +62,7 @@
         <p class="muted">Админка доступна только администраторам. Авторизуйтесь через Telegram WebApp или войдите в профиль с правами администратора.</p>
       </div>
 
-      <section id="orders" class="card">
+      <section id="orders" class="card admin-view" data-view="orders">
         <div class="section-header">
           <div>
             <h2>Заказы</h2>
@@ -113,52 +129,70 @@
         </div>
       </section>
 
-      <section id="products" class="card" style="display:none;">
+      <section id="product-categories" class="card admin-view" data-view="product-categories" style="display:none;">
+        <div class="section-header">
+          <div>
+            <h2>Категории товаров</h2>
+            <p class="muted">Управляйте группами корзинок и аксессуаров.</p>
+          </div>
+        </div>
+        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));">
+          <div class="card" style="background: rgba(255,255,255,0.03);">
+            <h3 id="product-category-form-title">Создать категорию</h3>
+            <form id="product-category-form" class="stacked-form">
+              <label>Название</label>
+              <input type="text" name="name" required />
+              <label>Slug/код</label>
+              <input type="text" name="slug" placeholder="basket" />
+              <label>Порядок сортировки</label>
+              <input type="number" name="sort_order" min="0" value="0" />
+              <label style="display:flex; gap:8px; align-items:center; margin-top:8px;">
+                <input type="checkbox" name="is_active" checked /> Активна
+              </label>
+              <div class="form-actions">
+                <button class="btn primary" type="submit">Сохранить</button>
+                <button class="btn secondary" type="button" id="product-category-reset">Сбросить</button>
+              </div>
+            </form>
+          </div>
+          <div class="table-wrapper">
+            <table aria-label="Категории товаров">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Название</th>
+                  <th>Порядок</th>
+                  <th>Активна</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="product-categories-table"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="product-create" class="card admin-view" data-view="product-create" style="display:none;">
         <div class="section-header">
           <div>
             <h2>Товары</h2>
             <p class="muted">Категории корзинок и аксессуаров.</p>
           </div>
-          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-            <select id="products-category"></select>
-            <select id="products-status">
-              <option value="all">Все</option>
-              <option value="active">Активные</option>
-              <option value="hidden">Скрытые</option>
-            </select>
-            <button class="btn primary" type="button" id="product-reset">Новый товар</button>
+          <div class="pill-row">
+            <span class="admin-pill active">Создать товар</span>
           </div>
         </div>
 
-        <div class="grid">
-          <div class="card" style="background: rgba(255,255,255,0.03);">
-            <h3 id="product-form-title">Создать товар</h3>
-            <form id="product-form">
+        <div class="card" style="background: rgba(255,255,255,0.03);">
+          <h3 id="product-form-title">Создать товар</h3>
+          <form id="product-form" class="stacked-form">
+            <div class="form-grid">
               <label>Категория</label>
               <select name="category_id" id="product-category-select"></select>
               <label>Название</label>
               <input type="text" name="name" required />
               <label>Цена</label>
               <input type="number" name="price" min="0" required />
-              <div class="form-group">
-                <label>Фото товара</label>
-                <input type="file" id="product-image-file-input" accept="image/*">
-              </div>
-              <div class="form-group">
-                <label>URL изображения (image_url)</label>
-                <input type="text" id="product-image-url-input" name="image_url" placeholder="/media/products/xxx.jpg">
-              </div>
-              <div class="form-group">
-                <div id="product-image-preview" class="image-preview-box">Нет изображения</div>
-              </div>
-              <div class="form-group">
-                <label>Фотографии товара</label>
-                <div class="image-upload-row">
-                  <input type="file" id="product-gallery-input" accept="image/*" multiple>
-                  <div class="muted" style="font-size:13px;">Можно выбрать несколько файлов одновременно.</div>
-                </div>
-                <div id="product-images-list" class="image-list muted">Сохраните товар, чтобы добавить фото.</div>
-              </div>
               <label>Краткое описание</label>
               <textarea name="short_description" rows="2" placeholder="Кратко, до ~100–150 символов. Показывается на карточке товара."></textarea>
               <label>Описание</label>
@@ -175,38 +209,176 @@
               <input type="text" name="masterclass_url" />
               <label>Ссылка на подробности</label>
               <input type="text" name="detail_url" />
-              <div style="display:flex; gap:8px; margin-top:10px;">
+            </div>
+
+            <div class="form-group">
+              <label>Фото товара</label>
+              <input type="file" id="product-image-file-input" accept="image/*">
+            </div>
+            <div class="form-group">
+              <label>URL изображения (image_url)</label>
+              <input type="text" id="product-image-url-input" name="image_url" placeholder="/media/products/xxx.jpg">
+            </div>
+            <div class="form-group">
+              <div id="product-image-preview" class="image-preview-box">Нет изображения</div>
+            </div>
+            <div class="form-group">
+              <label>Фотографии товара</label>
+              <div class="image-upload-row">
+                <input type="file" id="product-gallery-input" accept="image/*" multiple>
+                <div class="muted" style="font-size:13px;">Можно выбрать несколько файлов одновременно.</div>
+              </div>
+              <div id="product-images-list" class="image-list muted">Сохраните товар, чтобы добавить фото.</div>
+            </div>
+            <div class="form-actions">
+              <button class="btn primary" type="submit">Сохранить</button>
+              <button class="btn secondary" type="button" id="product-cancel">Отмена</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <section id="course-categories" class="card admin-view" data-view="course-categories" style="display:none;">
+        <div class="section-header">
+          <div>
+            <h2>Категории мастер-классов</h2>
+            <p class="muted">Типы курсов и уроков.</p>
+          </div>
+        </div>
+        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));">
+          <div class="card" style="background: rgba(255,255,255,0.03);">
+            <h3 id="course-category-form-title">Создать категорию</h3>
+            <form id="course-category-form" class="stacked-form">
+              <label>Название</label>
+              <input type="text" name="name" required />
+              <label>Slug/код</label>
+              <input type="text" name="slug" placeholder="free" />
+              <label>Порядок сортировки</label>
+              <input type="number" name="sort_order" min="0" value="0" />
+              <label style="display:flex; gap:8px; align-items:center; margin-top:8px;">
+                <input type="checkbox" name="is_active" checked /> Активна
+              </label>
+              <div class="form-actions">
                 <button class="btn primary" type="submit">Сохранить</button>
-                <button class="btn secondary" type="button" id="product-cancel">Отмена</button>
+                <button class="btn secondary" type="button" id="course-category-reset">Сбросить</button>
               </div>
             </form>
           </div>
-
-          <div class="card" style="overflow:auto;">
-            <table aria-label="Товары">
+          <div class="table-wrapper">
+            <table aria-label="Категории мастер-классов">
               <thead>
                 <tr>
                   <th>ID</th>
                   <th>Название</th>
-                  <th>Категория</th>
-                  <th>Цена</th>
-                  <th>Активен</th>
+                  <th>Порядок</th>
+                  <th>Активна</th>
                   <th></th>
                 </tr>
               </thead>
-              <tbody id="products-table"></tbody>
+              <tbody id="course-categories-table"></tbody>
             </table>
           </div>
         </div>
       </section>
 
-      <section id="courses" class="card" style="display:none;">
+      <section id="product-list" class="card admin-view" data-view="product-list" style="display:none;">
+        <div class="section-header">
+          <div>
+            <h2>Список товаров</h2>
+            <p class="muted">Все корзинки и аксессуары.</p>
+          </div>
+          <div class="filters-row">
+            <select id="products-category"></select>
+            <select id="products-status">
+              <option value="all">Все</option>
+              <option value="active">Активные</option>
+              <option value="hidden">Скрытые</option>
+            </select>
+            <button class="btn primary" type="button" id="product-reset">Новый товар</button>
+          </div>
+        </div>
+
+        <div class="table-wrapper">
+          <table aria-label="Товары">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Название</th>
+                <th>Категория</th>
+                <th>Цена</th>
+                <th>Активен</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="products-table"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="course-create" class="card admin-view" data-view="course-create" style="display:none;">
         <div class="section-header">
           <div>
             <h2>Мастер-классы</h2>
             <p class="muted">Онлайн уроки. Бесплатные доступны сразу, платные — после оплаты заказа.</p>
           </div>
-          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+          <div class="pill-row">
+            <span class="admin-pill active">Создать мастер-класс</span>
+          </div>
+        </div>
+
+        <div class="card" style="background: rgba(255,255,255,0.03);">
+          <h3 id="course-form-title">Создать мастер-класс</h3>
+          <form id="course-form" class="stacked-form">
+            <div class="form-grid">
+              <label>Категория</label>
+              <select name="category_id" id="course-category-select"></select>
+              <label>Название</label>
+              <input type="text" name="name" required />
+              <label>Цена (0 — бесплатно)</label>
+              <input type="number" name="price" min="0" required />
+              <label>Краткое описание</label>
+              <textarea name="short_description" rows="2" placeholder="Кратко, до ~100–150 символов. Показывается на карточке курса."></textarea>
+              <label>Описание</label>
+              <textarea name="description"></textarea>
+              <label>Ссылка на мастер-класс</label>
+              <input type="text" name="masterclass_url" />
+              <label>Ссылка на подробности</label>
+              <input type="text" name="detail_url" />
+            </div>
+            <div class="form-group">
+              <label>Фото курса</label>
+              <input type="file" id="course-image-file-input" accept="image/*">
+            </div>
+            <div class="form-group">
+              <label>URL изображения (image_url)</label>
+              <input type="text" id="course-image-url-input" name="image_url" placeholder="/media/courses/xxx.jpg">
+            </div>
+            <div class="form-group">
+              <div id="course-image-preview" class="image-preview-box">Нет изображения</div>
+            </div>
+            <div class="form-group">
+              <label>Фотографии мастер-класса</label>
+              <div class="image-upload-row">
+                <input type="file" id="course-gallery-input" accept="image/*" multiple>
+                <div class="muted" style="font-size:13px;">Добавьте одно или несколько изображений.</div>
+              </div>
+              <div id="course-images-list" class="image-list muted">Сохраните мастер-класс, чтобы добавить фото.</div>
+            </div>
+            <div class="form-actions">
+              <button class="btn primary" type="submit">Сохранить</button>
+              <button class="btn secondary" type="button" id="course-cancel">Отмена</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <section id="course-list" class="card admin-view" data-view="course-list" style="display:none;">
+        <div class="section-header">
+          <div>
+            <h2>Список мастер-классов</h2>
+            <p class="muted">Все уроки.</p>
+          </div>
+          <div class="filters-row">
             <select id="courses-category"></select>
             <select id="courses-status">
               <option value="all">Все</option>
@@ -216,70 +388,24 @@
             <button class="btn primary" type="button" id="course-reset">Новый мастер-класс</button>
           </div>
         </div>
-
-        <div class="grid">
-          <div class="card" style="background: rgba(255,255,255,0.03);">
-            <h3 id="course-form-title">Создать мастер-класс</h3>
-            <form id="course-form">
-              <label>Категория</label>
-              <select name="category_id" id="course-category-select"></select>
-              <label>Название</label>
-              <input type="text" name="name" required />
-              <label>Цена (0 — бесплатно)</label>
-              <input type="number" name="price" min="0" required />
-              <div class="form-group">
-                <label>Фото курса</label>
-                <input type="file" id="course-image-file-input" accept="image/*">
-              </div>
-              <div class="form-group">
-                <label>URL изображения (image_url)</label>
-                <input type="text" id="course-image-url-input" name="image_url" placeholder="/media/courses/xxx.jpg">
-              </div>
-              <div class="form-group">
-                <div id="course-image-preview" class="image-preview-box">Нет изображения</div>
-              </div>
-              <div class="form-group">
-                <label>Фотографии мастер-класса</label>
-                <div class="image-upload-row">
-                  <input type="file" id="course-gallery-input" accept="image/*" multiple>
-                  <div class="muted" style="font-size:13px;">Добавьте одно или несколько изображений.</div>
-                </div>
-                <div id="course-images-list" class="image-list muted">Сохраните мастер-класс, чтобы добавить фото.</div>
-              </div>
-              <label>Краткое описание</label>
-              <textarea name="short_description" rows="2" placeholder="Кратко, до ~100–150 символов. Показывается на карточке курса."></textarea>
-              <label>Описание</label>
-              <textarea name="description"></textarea>
-              <label>Ссылка на мастер-класс</label>
-              <input type="text" name="masterclass_url" />
-              <label>Ссылка на подробности</label>
-              <input type="text" name="detail_url" />
-              <div style="display:flex; gap:8px; margin-top:10px;">
-                <button class="btn primary" type="submit">Сохранить</button>
-                <button class="btn secondary" type="button" id="course-cancel">Отмена</button>
-              </div>
-            </form>
-          </div>
-
-          <div class="card" style="overflow:auto;">
-            <table aria-label="Мастер-классы">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Название</th>
-                  <th>Категория</th>
-                  <th>Цена</th>
-                  <th>Активен</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody id="courses-table"></tbody>
-            </table>
-          </div>
+        <div class="table-wrapper">
+          <table aria-label="Мастер-классы">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Название</th>
+                <th>Категория</th>
+                <th>Цена</th>
+                <th>Активен</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="courses-table"></tbody>
+          </table>
         </div>
       </section>
 
-      <section id="promocodes" class="card" style="display:none;">
+      <section id="promocodes" class="card admin-view" data-view="promocodes" style="display:none;">
         <div class="section-header">
           <div>
             <h2>Промокоды</h2>
@@ -359,7 +485,7 @@
     </div>
   </section>
 
-      <section id="reviews" class="card" style="display:none;">
+      <section id="reviews" class="card admin-view" data-view="reviews" style="display:none;">
         <div class="section-header" style="align-items:flex-start; gap:12px;">
           <div>
             <h2>Отзывы</h2>
@@ -407,7 +533,7 @@
         </div>
       </section>
 
-      <section id="stats" class="card" style="display:none;">
+      <section id="stats" class="card admin-view" data-view="stats" style="display:none;">
         <h2>Статистика</h2>
         <p class="muted">Статистика заказов и продаж остаётся доступной через существующий API. Эта вкладка — заглушка для будущего UI.</p>
       </section>
@@ -419,7 +545,8 @@
   <script>
     const statusBox = document.getElementById('status');
     const accessDenied = document.getElementById('access-denied');
-    const navButtons = document.querySelectorAll('.nav-btn');
+    const navLinks = document.querySelectorAll('.nav-btn[data-view]');
+    const navParents = document.querySelectorAll('[data-group-toggle]');
 
     const ordersBody = document.getElementById('orders-body');
     const statusFilter = document.getElementById('status-filter');
@@ -488,12 +615,22 @@
     const promoActive = document.getElementById('promo-active');
     const promoOnePerUser = document.getElementById('promo-one-per-user');
     const promoReset = document.getElementById('promo-reset');
+    const productCategoriesTable = document.getElementById('product-categories-table');
+    const courseCategoriesTable = document.getElementById('course-categories-table');
+    const productCategoryForm = document.getElementById('product-category-form');
+    const courseCategoryForm = document.getElementById('course-category-form');
+    const productCategoryFormTitle = document.getElementById('product-category-form-title');
+    const courseCategoryFormTitle = document.getElementById('course-category-form-title');
+    const productCategoryReset = document.getElementById('product-category-reset');
+    const courseCategoryReset = document.getElementById('course-category-reset');
 
     let currentUser = null;
     let selectedOrder = null;
     let editingProductId = null;
     let editingCourseId = null;
     let editingPromoId = null;
+    let editingProductCategoryId = null;
+    let editingCourseCategoryId = null;
     let reviewItems = [];
 
     function setStatus(message, isError = false) {
@@ -550,15 +687,30 @@
     }
 
     function showSection(id) {
-      document.querySelectorAll('section.card').forEach((el) => {
-        el.style.display = el.id === id ? 'block' : 'none';
+      document.querySelectorAll('.admin-view').forEach((el) => {
+        el.style.display = el.dataset.view === id ? 'block' : 'none';
       });
-      navButtons.forEach((btn) => btn.classList.toggle('active', btn.dataset.section === id));
+      navLinks.forEach((btn) => {
+        const isActive = btn.dataset.view === id;
+        btn.classList.toggle('active', isActive);
+        const group = btn.closest('.nav-group');
+        if (isActive && group) {
+          group.classList.add('open');
+        }
+      });
     }
 
-    navButtons.forEach((btn) => {
+    navLinks.forEach((btn) => {
       btn.addEventListener('click', () => {
-        showSection(btn.dataset.section);
+        showSection(btn.dataset.view);
+      });
+    });
+
+    navParents.forEach((parent) => {
+      parent.addEventListener('click', () => {
+        const groupName = parent.dataset.groupToggle;
+        const group = document.querySelector(`.nav-group[data-group="${groupName}"]`);
+        group?.classList.toggle('open');
       });
     });
 
@@ -566,7 +718,7 @@
       if (!profile || !profile.is_admin) {
         setStatus('Доступ запрещён', true);
         accessDenied.style.display = 'block';
-        document.querySelectorAll('section.card').forEach((el) => (el.style.display = 'none'));
+        document.querySelectorAll('.admin-view').forEach((el) => (el.style.display = 'none'));
         return false;
       }
       accessDenied.style.display = 'none';
