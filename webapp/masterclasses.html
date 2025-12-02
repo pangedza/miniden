@@ -252,7 +252,7 @@
           } else {
             coverImage.removeAttribute('src');
             coverImage.style.display = 'none';
-            coverPlaceholder.style.display = 'block';
+            coverPlaceholder.style.display = 'flex';
           }
 
           const showNav = images.length > 1;
@@ -275,33 +275,35 @@
         updateCardImage();
 
         const body = document.createElement('div');
-        body.className = 'catalog-card-body course-card__body';
+        body.className = 'catalog-card-body course-card-body';
 
         const title = document.createElement('h3');
-        title.className = 'course-card__title catalog-card-title';
+        title.className = 'catalog-card-title';
         title.textContent = item.name;
 
         const meta = document.createElement('div');
-        meta.className = 'meta course-card__meta';
+        meta.className = 'meta';
         meta.textContent = metaBySlug[item.category_slug] || '';
 
-        const priceRow = document.createElement('div');
-        priceRow.className = 'course-card__price-row';
+        const desc = document.createElement('p');
+        desc.className = 'catalog-card-description course-card__short-desc';
+        desc.textContent = shortDescription(item);
 
-        if (Number(item.price || 0) === 0) {
-          const badge = document.createElement('span');
-          badge.className = 'course-card__badge course-card__badge--free';
-          badge.textContent = 'Бесплатно';
-          priceRow.appendChild(badge);
-        } else {
-          const price = document.createElement('div');
-          price.className = 'course-card__price price';
-          price.textContent = formatPrice(item.price);
-          priceRow.appendChild(price);
-        }
+        const footer = document.createElement('div');
+        footer.className = 'course-card__footer';
+
+        const price = document.createElement('div');
+        price.className = 'price';
+        price.textContent = formatPrice(item.price);
+
+        const hasAccess = profile?.courses?.some((c) => c.id === item.id) ?? false;
+        const linkHref = courseLink(item);
 
         const actions = document.createElement('div');
-        actions.className = 'course-card__actions';
+        actions.className = 'catalog-card-actions';
+
+        const buttonsRow = document.createElement('div');
+        buttonsRow.className = 'course-card__buttons';
 
         const detailsBtn = document.createElement('button');
         detailsBtn.type = 'button';
@@ -309,13 +311,40 @@
         detailsBtn.textContent = 'Подробнее';
         detailsBtn.addEventListener('click', () => openCourseModal(item.id, currentImageIndex));
 
-        actions.appendChild(detailsBtn);
+        if (Number(item.price || 0) === 0 || hasAccess) {
+          const openBtn = document.createElement('a');
+          openBtn.className = 'btn';
+          openBtn.textContent = 'Перейти к мастер-классу';
+          openBtn.style.textAlign = 'center';
+          openBtn.href = linkHref || '#';
+          openBtn.target = linkHref ? '_blank' : '';
+          openBtn.rel = linkHref ? 'noopener' : '';
+          openBtn.addEventListener('click', (e) => {
+            if (!linkHref) {
+              e.preventDefault();
+              alert('Ссылка появится позже.');
+            }
+          });
+          buttonsRow.append(detailsBtn, openBtn);
+        } else {
+          const addBtn = document.createElement('button');
+          addBtn.type = 'button';
+          addBtn.className = 'btn';
+          addBtn.textContent = 'Добавить в корзину';
+          addBtn.addEventListener('click', () => handleAddToCart(item));
 
-        body.append(title);
-        if (meta.textContent) {
-          body.appendChild(meta);
+          const note = document.createElement('div');
+          note.style.color = 'var(--muted)';
+          note.textContent = profile ? 'Доступ появится после оплаты' : 'Войдите и оплатите, чтобы открыть уроки';
+
+          buttonsRow.append(detailsBtn, addBtn);
+          actions.appendChild(note);
         }
-        body.append(priceRow, actions);
+
+        footer.append(price);
+        actions.append(footer, buttonsRow);
+
+        body.append(title, meta, desc, actions);
         card.append(cover, body);
         cardsEl.appendChild(card);
       });

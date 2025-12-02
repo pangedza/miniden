@@ -519,7 +519,7 @@ footer a {
 
 .catalog-card-image {
   width: 100%;
-  height: 220px;
+  height: 180px;
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -607,17 +607,6 @@ footer a {
   flex: 1;
 }
 
-.product-card__body,
-.course-card__body {
-  gap: 12px;
-  height: 100%;
-}
-
-.product-card__title,
-.course-card__title {
-  margin: 0;
-}
-
 .catalog-card-title {
   margin: 0;
   letter-spacing: -0.01em;
@@ -641,18 +630,6 @@ footer a {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.product-card__price-row,
-.course-card__price-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.product-card__price,
-.course-card__price {
-  margin: 0;
-}
 
 .market-links {
   display: flex;
@@ -660,8 +637,9 @@ footer a {
   flex-wrap: wrap;
 }
 
-
-.footer-row {
+.footer-row,
+.product-card__footer,
+.course-card__footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -675,62 +653,32 @@ footer a {
   white-space: nowrap;
 }
 
-.product-card__actions,
-.course-card__actions {
+.catalog-card-actions {
   margin-top: auto;
   display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 10px;
 }
 
-.product-card__actions .btn,
-.course-card__actions .btn {
+.product-card__buttons,
+.course-card__buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  width: 100%;
+  justify-content: flex-end;
+}
+
+.product-card__buttons .btn,
+.course-card__buttons .btn {
   flex: 1 1 140px;
   padding: 10px 12px;
-}
-
-.product-card__market-links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.course-card__badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  border-radius: 999px;
-  font-weight: 700;
-  font-size: 13px;
-  background: rgba(108, 99, 255, 0.14);
-  color: var(--color-accent-secondary-strong);
-}
-
-.course-card__badge--free {
-  background: rgba(0, 200, 83, 0.12);
-  color: #00b276;
-}
-
-.course-card__meta {
-  color: var(--color-text-muted);
 }
 
 .note {
   margin: 18px 0 8px;
   font-size: 14px;
   color: var(--color-text-muted);
-}
-
-@media (max-width: 767px) {
-  .catalog-card-image {
-    height: 190px;
-  }
-
-  .product-card__actions .btn,
-  .course-card__actions .btn {
-    flex-basis: 120px;
-  }
 }
 
 .link-row {
