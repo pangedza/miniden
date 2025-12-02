@@ -36,6 +36,7 @@
   </header>
 
   <div class="app-sidebar-overlay"></div>
+  <div id="toast-container"></div>
 
   <main>
     <h1>Мастер-классы</h1>
@@ -375,13 +376,13 @@
       try {
         if (currentProfile?.telegram_id) {
           await apiPost('/cart/add', { user_id: currentProfile.telegram_id, product_id: course.id, qty: 1, type: 'course' });
-          alert('Курс добавлен в корзину');
+          showToast('Курс добавлен в корзину');
         } else {
           addToGuestCart(course.id, 'course', 1);
-          alert('Курс добавлен в корзину. Оформить заказ можно после входа через Telegram.');
+          showToast('Курс добавлен в корзину. Оформить заказ можно после входа через Telegram.');
         }
       } catch (e) {
-        alert('Не удалось добавить курс. Попробуйте ещё раз.');
+        showToast('Не удалось добавить курс. Попробуйте ещё раз.');
       }
     }
 
