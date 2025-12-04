@@ -778,6 +778,18 @@
       if (view === 'promocode-list') {
         loadPromocodes();
       }
+      if (view === 'product-list') {
+        loadProducts();
+      }
+      if (view === 'course-list') {
+        loadCourses();
+      }
+      if (view === 'orders') {
+        loadOrders();
+      }
+      if (view === 'reviews') {
+        loadReviews();
+      }
     }
 
     navLinks.forEach((btn) => {
@@ -1262,15 +1274,18 @@
       formData.append('kind', 'product');
       formData.append('file', file);
 
-      const res = await fetch('/api/admin/upload-image', { method: 'POST', body: formData });
-      const data = await res.json();
-      if (!data.ok) {
-        alert('Ошибка загрузки изображения');
-        return;
-      }
+      try {
+        const res = await fetch('/api/admin/upload-image', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (!data.ok) {
+          throw new Error('Ошибка загрузки изображения');
+        }
 
-      if (productImageUrlInput) productImageUrlInput.value = data.url;
-      setProductImagePreview(data.url);
+        if (productImageUrlInput) productImageUrlInput.value = data.url;
+        setProductImagePreview(data.url);
+      } catch (e) {
+        handleError(e, 'Не удалось загрузить изображение товара');
+      }
     }
 
     async function uploadProductEditImageFile() {
@@ -1281,15 +1296,18 @@
       formData.append('kind', 'product');
       formData.append('file', file);
 
-      const res = await fetch('/api/admin/upload-image', { method: 'POST', body: formData });
-      const data = await res.json();
-      if (!data.ok) {
-        alert('Ошибка загрузки изображения');
-        return;
-      }
+      try {
+        const res = await fetch('/api/admin/upload-image', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (!data.ok) {
+          throw new Error('Ошибка загрузки изображения');
+        }
 
-      if (productEditImageUrlInput) productEditImageUrlInput.value = data.url;
-      setProductEditImagePreview(data.url);
+        if (productEditImageUrlInput) productEditImageUrlInput.value = data.url;
+        setProductEditImagePreview(data.url);
+      } catch (e) {
+        handleError(e, 'Не удалось загрузить изображение товара');
+      }
     }
 
     async function uploadCourseImageFile() {
@@ -1300,15 +1318,18 @@
       formData.append('kind', 'course');
       formData.append('file', file);
 
-      const res = await fetch('/api/admin/upload-image', { method: 'POST', body: formData });
-      const data = await res.json();
-      if (!data.ok) {
-        alert('Ошибка загрузки изображения');
-        return;
-      }
+      try {
+        const res = await fetch('/api/admin/upload-image', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (!data.ok) {
+          throw new Error('Ошибка загрузки изображения');
+        }
 
-      if (courseImageUrlInput) courseImageUrlInput.value = data.url;
-      setCourseImagePreview(data.url);
+        if (courseImageUrlInput) courseImageUrlInput.value = data.url;
+        setCourseImagePreview(data.url);
+      } catch (e) {
+        handleError(e, 'Не удалось загрузить изображение мастер-класса');
+      }
     }
 
     async function uploadCourseEditImageFile() {
@@ -1319,15 +1340,18 @@
       formData.append('kind', 'course');
       formData.append('file', file);
 
-      const res = await fetch('/api/admin/upload-image', { method: 'POST', body: formData });
-      const data = await res.json();
-      if (!data.ok) {
-        alert('Ошибка загрузки изображения');
-        return;
-      }
+      try {
+        const res = await fetch('/api/admin/upload-image', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (!data.ok) {
+          throw new Error('Ошибка загрузки изображения');
+        }
 
-      if (courseEditImageUrlInput) courseEditImageUrlInput.value = data.url;
-      setCourseEditImagePreview(data.url);
+        if (courseEditImageUrlInput) courseEditImageUrlInput.value = data.url;
+        setCourseEditImagePreview(data.url);
+      } catch (e) {
+        handleError(e, 'Не удалось загрузить изображение мастер-класса');
+      }
     }
 
     function renderImageRow(image, type, reloadFn) {
