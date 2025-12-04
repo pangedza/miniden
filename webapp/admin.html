@@ -1611,7 +1611,7 @@
       if (titleEl) titleEl.textContent = defaultTitle;
     }
 
-    function renderProductTable(items, targetTable, type) {
+    async function renderProductTable(items, targetTable, type) {
       targetTable.innerHTML = '';
       if (!items || !items.length) {
         const row = document.createElement('tr');
