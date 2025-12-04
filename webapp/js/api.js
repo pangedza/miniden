@@ -15,9 +15,10 @@ async function handleResponse(res) {
   const text = await res.text();
   const data = text ? JSON.parse(text) : null;
   if (!res.ok) {
-    const message = (data && data.detail) || text || "Ошибка API";
+    const message = (data && (data.detail || data.message)) || text || "Ошибка API";
     const error = new Error(message);
     error.status = res.status;
+    error.data = data;
     throw error;
   }
   return data;

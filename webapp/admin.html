@@ -706,6 +706,20 @@
       statusBox.style.borderColor = isError ? 'rgba(255,99,99,0.7)' : 'var(--border)';
     }
 
+    function getErrorMessage(error, fallback = 'Произошла ошибка') {
+      if (!error) return fallback;
+      if (error.data?.detail) return error.data.detail;
+      if (error.data?.message) return error.data.message;
+      if (error.message) return error.message;
+      if (typeof error === 'string') return error;
+      return fallback;
+    }
+
+    function handleError(error, fallback = 'Произошла ошибка') {
+      console.error(error);
+      setStatus(getErrorMessage(error, fallback), true);
+    }
+
     function showImageListPlaceholder(target, message) {
       if (!target) return;
       target.classList.add('muted');
@@ -730,21 +744,7 @@
         headers: { 'Content-Type': 'application/json' },
         body: body ? JSON.stringify(body) : undefined,
       });
-      const text = await res.text();
-      let data = null;
-      if (text) {
-        try {
-          data = JSON.parse(text);
-        } catch (_) {
-          data = null;
-        }
-      }
-      if (!res.ok) {
-        const message = (data && (data.detail || data.message)) || text || 'Ошибка запроса';
-        throw new Error(message);
-      }
-      if (!text) return null;
-      return data ?? text;
+      return handleResponse(res);
     }
 
     function showSection(id) {
@@ -989,8 +989,7 @@
         renderReviewsTable(filtered);
         setStatus('');
       } catch (e) {
-        console.error(e);
-        setStatus('Не удалось загрузить отзывы', true);
+        handleError(e, 'Не удалось загрузить отзывы');
       }
     }
 
@@ -1006,8 +1005,7 @@
         renderReviewsTable(applyReviewSearchFilter(reviewItems));
         showToast('Статус отзыва обновлён');
       } catch (e) {
-        console.error(e);
-        setStatus('Не удалось обновить статус отзыва', true);
+        handleError(e, 'Не удалось обновить статус отзыва');
       }
     }
 
@@ -1095,8 +1093,7 @@
         renderOrders(data.items || []);
         setStatus('');
       } catch (e) {
-        console.error(e);
-        setStatus('Не удалось загрузить заказы', true);
+        handleError(e, 'Не удалось загрузить заказы');
       }
     }
 
@@ -1105,8 +1102,7 @@
         const order = await apiGet(`/admin/orders/${orderId}`, { user_id: currentUser.telegram_id });
         renderOrderDetail(order);
       } catch (e) {
-        console.error(e);
-        setStatus('Не удалось загрузить заказ', true);
+        handleError(e, 'Не удалось загрузить заказ');
       }
     }
 
@@ -1119,8 +1115,7 @@
         renderOrderDetail(updated);
         await loadOrders();
       } catch (e) {
-        console.error(e);
-        setStatus('Не удалось обновить статус заказа', true);
+        handleError(e, 'Не удалось обновить статус заказа');
       }
     }
 
@@ -1129,7 +1124,9 @@
 
     async function loadCategories(targetSelect, type) {
       try {
-        const categories = await apiGet('/categories', { type });
+        if (!targetSelect) return;
+        const categoriesRes = await apiGet('/categories', { type });
+        const categories = Array.isArray(categoriesRes) ? categoriesRes : categoriesRes?.items || [];
         targetSelect.innerHTML = '';
         const allOption = document.createElement('option');
         allOption.value = '';
@@ -1142,14 +1139,24 @@
           targetSelect.appendChild(option);
         });
       } catch (e) {
-        console.error('Не удалось загрузить категории', e);
+        handleError(e, 'Не удалось загрузить категории');
       }
     }
 
     function fillForm(form, data = {}) {
+      if (!form) return;
       Object.entries(data).forEach(([key, value]) => {
         const el = form.elements.namedItem(key);
         if (!el) return;
+        if (el.type === 'checkbox') {
+          el.checked = Boolean(value);
+          return;
+        }
+        if (el.type === 'radio') {
+          const radio = form.querySelector(`input[name="${key}"][value="${value}"]`);
+          if (radio) radio.checked = true;
+          return;
+        }
         if (el.tagName === 'SELECT' || el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
           el.value = value ?? '';
         }
@@ -1160,14 +1167,20 @@
       const payload = {};
       Array.from(form.elements).forEach((el) => {
         if (!el.name) return;
+        const value = typeof el.value === 'string' ? el.value.trim() : el.value;
+        if (el.type === 'checkbox') {
+          payload[el.name] = el.checked;
+          return;
+        }
         if (el.name === 'category_id') {
-          payload[el.name] = el.value && !Number.isNaN(Number(el.value)) ? Number(el.value) : null;
+          payload[el.name] = value && !Number.isNaN(Number(value)) ? Number(value) : null;
           return;
         }
         if (el.type === 'number') {
-          payload[el.name] = el.value ? Number(el.value) : null;
+          const numberValue = value === '' || value === null ? null : Number(value);
+          payload[el.name] = Number.isNaN(numberValue) ? null : numberValue;
         } else {
-          payload[el.name] = el.value || null;
+          payload[el.name] = value === '' ? null : value;
         }
       });
       return payload;
@@ -1428,8 +1441,7 @@
         renderImagesList(data.items || data || [], target, 'product', () => loadProductImages(editingProductId, target));
         setStatus('Фото товара добавлены');
       } catch (e) {
-        console.error(e);
-        setStatus('Не удалось загрузить фото товара', true);
+        handleError(e, 'Не удалось загрузить фото товара');
       }
       event.target.value = '';
     }
@@ -1543,8 +1555,7 @@
         renderImagesList(data.items || data || [], target, 'course', () => loadCourseImages(editingCourseId, target));
         setStatus('Фото мастер-класса добавлены');
       } catch (e) {
-        console.error(e);
-        setStatus('Не удалось загрузить фото мастер-класса', true);
+        handleError(e, 'Не удалось загрузить фото мастер-класса');
       }
       event.target.value = '';
     }
@@ -1564,8 +1575,7 @@
           await loadCourseImages(editingCourseId, courseImagesList);
         }
       } catch (e) {
-        console.error(e);
-        setStatus('Не удалось удалить изображение', true);
+        handleError(e, 'Не удалось удалить изображение');
       }
     }
 
@@ -1658,8 +1668,7 @@
               await loadCourses();
             }
           } catch (e) {
-            console.error(e);
-            setStatus('Не удалось переключить активность', true);
+            handleError(e, 'Не удалось переключить активность');
           }
         });
         targetTable.appendChild(row);
@@ -1676,8 +1685,7 @@
           fillCategoryForm(productCategoryForm, cat);
         });
       } catch (e) {
-        console.error(e);
-        setStatus('Не удалось загрузить категории товаров', true);
+        handleError(e, 'Не удалось загрузить категории товаров');
       }
     }
 
@@ -1691,8 +1699,7 @@
           fillCategoryForm(courseCategoryForm, cat);
         });
       } catch (e) {
-        console.error(e);
-        setStatus('Не удалось загрузить категории мастер-классов', true);
+        handleError(e, 'Не удалось загрузить категории мастер-классов');
       }
     }
 
@@ -1725,8 +1732,7 @@
           loadCategories(productEditCategorySelect, 'basket'),
         ]);
       } catch (e) {
-        console.error(e);
-        setStatus('Не удалось сохранить категорию товара', true);
+        handleError(e, 'Не удалось сохранить категорию товара');
       }
     }
 
@@ -1758,8 +1764,7 @@
           loadCategories(courseCategoryFilter, 'course'),
         ]);
       } catch (e) {
-        console.error(e);
-        setStatus('Не удалось сохранить категорию мастер-класса', true);
+        handleError(e, 'Не удалось сохранить категорию мастер-класса');
       }
     }
 
@@ -1775,8 +1780,7 @@
         }
         renderProductTable(items, productsTable, 'basket');
       } catch (e) {
-        console.error(e);
-        setStatus('Не удалось загрузить товары', true);
+        handleError(e, 'Не удалось загрузить товары');
       }
     }
 
@@ -1792,8 +1796,7 @@
         }
         renderProductTable(items, coursesTable, 'course');
       } catch (e) {
-        console.error(e);
-        setStatus('Не удалось загрузить мастер-классы', true);
+        handleError(e, 'Не удалось загрузить мастер-классы');
       }
     }
 
@@ -1895,8 +1898,7 @@
         promocodeItems = items;
         renderPromocodes(applyPromocodeFilters(items));
       } catch (e) {
-        console.error(e);
-        setStatus('Не удалось загрузить промокоды', true);
+        handleError(e, 'Не удалось загрузить промокоды');
       }
     }
 
@@ -1934,8 +1936,7 @@
         setStatus('Промокод удалён');
         await loadPromocodes();
       } catch (e) {
-        console.error(e);
-        setStatus(e?.message || 'Не удалось удалить промокод', true);
+        handleError(e, 'Не удалось удалить промокод');
       }
     }
 
@@ -1949,8 +1950,7 @@
         setStatus(promo.active ? 'Промокод выключен' : 'Промокод активирован');
         await loadPromocodes();
       } catch (e) {
-        console.error(e);
-        setStatus('Не удалось обновить статус промокода', true);
+        handleError(e, 'Не удалось обновить статус промокода');
       }
     }
 
@@ -1971,7 +1971,8 @@
         user_id: currentUser.telegram_id,
         code: (promoCreateCode.value || '').trim(),
         discount_type: promoCreateDiscountType.value,
-        discount_value: Number(promoCreateDiscountValue.value || 0),
+        discount_value:
+          promoCreateDiscountValue.value === '' ? null : Number(promoCreateDiscountValue.value || 0),
         scope: promoCreateScope.value,
         target_id: promoCreateTarget.value ? Number(promoCreateTarget.value) : null,
         date_start: fromInputDate(promoCreateDateStart.value),
@@ -1988,8 +1989,7 @@
         await loadPromocodes();
         showSection('promocode-list');
       } catch (e) {
-        console.error(e);
-        setStatus(e?.message || 'Не удалось сохранить промокод', true);
+        handleError(e, 'Не удалось сохранить промокод');
       }
     }
 
@@ -2001,7 +2001,7 @@
         user_id: currentUser.telegram_id,
         code: (promoEditCode.value || '').trim(),
         discount_type: promoEditDiscountType.value,
-        discount_value: Number(promoEditDiscountValue.value || 0),
+        discount_value: promoEditDiscountValue.value === '' ? null : Number(promoEditDiscountValue.value || 0),
         scope: promoEditScope.value,
         target_id: promoEditTarget.value ? Number(promoEditTarget.value) : null,
         date_start: fromInputDate(promoEditDateStart.value),
@@ -2017,8 +2017,7 @@
         closePromocodeEdit();
         await loadPromocodes();
       } catch (e) {
-        console.error(e);
-        setStatus(e?.message || 'Не удалось сохранить промокод', true);
+        handleError(e, 'Не удалось сохранить промокод');
       }
     }
 
@@ -2037,8 +2036,7 @@
         resetProductCreateForm();
         await loadProducts();
       } catch (e) {
-        console.error(e);
-        setStatus('Не удалось сохранить товар', true);
+        handleError(e, 'Не удалось сохранить товар');
       }
     }
 
@@ -2061,8 +2059,7 @@
         closeProductEditModal();
         await loadProducts();
       } catch (e) {
-        console.error(e);
-        setStatus('Не удалось сохранить товар', true);
+        handleError(e, 'Не удалось сохранить товар');
       }
     }
 
@@ -2092,8 +2089,7 @@
         showImageListPlaceholder(courseImagesList, 'Сохраните мастер-класс, чтобы добавить фото.');
         await loadCourses();
       } catch (e) {
-        console.error(e);
-        setStatus('Не удалось сохранить мастер-класс', true);
+        handleError(e, 'Не удалось сохранить мастер-класс');
       }
     }
 
@@ -2116,8 +2112,7 @@
         closeCourseEditModal();
         await loadCourses();
       } catch (e) {
-        console.error(e);
-        setStatus('Не удалось сохранить мастер-класс', true);
+        handleError(e, 'Не удалось сохранить мастер-класс');
       }
     }
 
@@ -2222,6 +2217,7 @@
     courseCategoryFilter.addEventListener('change', loadCourses);
 
     async function initApp() {
+      console.log('[admin] initApp start');
       try {
         currentUser = await getCurrentUser({ includeNotes: true });
         if (!requireAdmin(currentUser)) return;
@@ -2246,9 +2242,9 @@
         await loadReviewProducts();
         await loadReviews();
         showSection('orders');
+        console.log('[admin] initApp done');
       } catch (e) {
-        console.error(e);
-        setStatus('Ошибка загрузки админки', true);
+        handleError(e, 'Ошибка загрузки админки');
       }
     }
 
