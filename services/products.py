@@ -570,24 +570,32 @@ def create_product(
     image: str | None = None,
     image_url: str | None = None,
 ) -> int:
+    payload = {
+        "title": name,
+        "description": description,
+        "short_description": short_description,
+        "price": price,
+        "detail_url": detail_url,
+        "is_active": 1,
+        "category_id": category_id,
+        "masterclass_url": masterclass_url,
+        "image": image,
+        "image_url": image_url,
+    }
+
+    if product_type != "course":
+        payload.update(
+            {
+                "wb_url": wb_url,
+                "ozon_url": ozon_url,
+                "yandex_url": yandex_url,
+                "avito_url": avito_url,
+            }
+        )
+
     model = _pick_model(product_type)
     with get_session() as session:
-        instance = model(
-            title=name,
-            description=description,
-            short_description=short_description,
-            price=price,
-            detail_url=detail_url,
-            is_active=1,
-            category_id=category_id,
-            wb_url=wb_url,
-            ozon_url=ozon_url,
-            yandex_url=yandex_url,
-            avito_url=avito_url,
-            masterclass_url=masterclass_url,
-            image=image,
-            image_url=image_url,
-        )
+        instance = model(**payload)
         session.add(instance)
         session.flush()
         return int(instance.id)
@@ -679,23 +687,36 @@ def update_product_full(
         if not instance:
             return False
 
-        instance.title = name
-        instance.description = description
-        instance.short_description = short_description
-        instance.price = price
-        instance.detail_url = detail_url
-        instance.category_id = category_id
-        instance.wb_url = wb_url
-        instance.ozon_url = ozon_url
-        instance.yandex_url = yandex_url
-        instance.avito_url = avito_url
-        instance.masterclass_url = masterclass_url
+        payload: dict[str, Any] = {
+            "title": name,
+            "description": description,
+            "short_description": short_description,
+            "price": price,
+            "detail_url": detail_url,
+            "category_id": category_id,
+            "wb_url": wb_url,
+            "ozon_url": ozon_url,
+            "yandex_url": yandex_url,
+            "avito_url": avito_url,
+            "masterclass_url": masterclass_url,
+        }
+
         if image is not None:
-            instance.image = image
+            payload["image"] = image
         if image_url is not None:
-            instance.image_url = image_url
+            payload["image_url"] = image_url
         if is_active is not None:
-            instance.is_active = 1 if is_active else 0
+            payload["is_active"] = 1 if is_active else 0
+
+        if product_type == "course":
+            for field in ("wb_url", "ozon_url", "yandex_url", "avito_url"):
+                payload.pop(field, None)
+
+        for key, value in payload.items():
+            if not hasattr(instance, key):
+                continue
+            setattr(instance, key, value)
+
         return True
 
 
