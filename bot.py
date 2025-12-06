@@ -18,6 +18,7 @@ from config import get_settings
 from database import init_db
 
 from handlers import admin, start, webapp
+from middlewares.user_registration import EnsureUserMiddleware
 
 
 async def main() -> None:
@@ -42,6 +43,10 @@ async def main() -> None:
 
     # FSM-хранилище в памяти (для состояний при оформлении заказа и т.п.)
     dp = Dispatcher(storage=MemoryStorage())
+
+    # Регистрируем пользователя по telegram_id при первом обращении
+    dp.message.middleware(EnsureUserMiddleware())
+    dp.callback_query.middleware(EnsureUserMiddleware())
 
     # Подключаем актуальные роутеры
     dp.include_router(start.router)
