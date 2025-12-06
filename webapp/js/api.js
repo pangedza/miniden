@@ -1,4 +1,12 @@
 const API_BASE = "/api";
+const TELEGRAM_WEBAPP_AUTH_PATH = "/auth/telegram_webapp";
+const AUTH_SESSION_PATH = "/auth/session";
+
+window._telegramWebAppAuthState = window._telegramWebAppAuthState || {
+  status: "idle",
+  profile: null,
+  error: null,
+};
 
 function buildUrl(path, params = {}) {
   const url = new URL(`${API_BASE}${path}`, window.location.origin);
@@ -38,29 +46,160 @@ async function apiPost(path, body) {
   return handleResponse(res);
 }
 
+function isTelegramWebApp() {
+  return Boolean(window.Telegram?.WebApp);
+}
+
+function normalizeError(message, status) {
+  const error = new Error(message);
+  if (status) error.status = status;
+  return error;
+}
+
+async function fetchAuthSession(includeNotes) {
+  const params = includeNotes ? { include_notes: true } : undefined;
+  const res = await fetch(buildUrl(AUTH_SESSION_PATH, params));
+
+  if (res.status === 401 || res.status === 404) {
+    return null;
+  }
+
+  return handleResponse(res);
+}
+
+async function ensureTelegramWebAppAuth() {
+  if (!isTelegramWebApp()) {
+    return { status: "skipped" };
+  }
+
+  if (window._telegramWebAppAuthPromise) {
+    return window._telegramWebAppAuthPromise;
+  }
+
+  const telegram = window.Telegram.WebApp;
+  const initData = telegram?.initData;
+  window._telegramWebAppAuthState = {
+    status: "pending",
+    profile: null,
+    error: null,
+  };
+
+  const authPromise = (async () => {
+    if (!initData) {
+      window._telegramWebAppAuthState = {
+        status: "no_init_data",
+        profile: null,
+        error: null,
+      };
+      return window._telegramWebAppAuthState;
+    }
+
+    try {
+      const profile = await fetchAuthSession();
+      if (profile) {
+        window._currentProfile = profile;
+        window._currentProfileLoaded = true;
+        window._currentUser = profile;
+        window._telegramWebAppAuthState = {
+          status: "authorized",
+          profile,
+          error: null,
+        };
+        return window._telegramWebAppAuthState;
+      }
+    } catch (error) {
+      console.warn("Profile check failed", error);
+      window._telegramWebAppAuthState = {
+        status: "profile_error",
+        profile: null,
+        error,
+      };
+      return window._telegramWebAppAuthState;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}${TELEGRAM_WEBAPP_AUTH_PATH}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ init_data: initData }),
+      });
+
+      const text = await res.text();
+      const data = text ? JSON.parse(text) : null;
+
+      if (!res.ok || data?.status !== "ok") {
+        const message =
+          (data && (data.detail || data.message)) ||
+          text ||
+          "Не удалось авторизоваться через Telegram";
+        const error = normalizeError(message, res.status);
+        window._telegramWebAppAuthState = {
+          status: "auth_failed",
+          profile: null,
+          error,
+        };
+        return window._telegramWebAppAuthState;
+      }
+    } catch (error) {
+      console.error("Telegram WebApp auth failed", error);
+      window._telegramWebAppAuthState = {
+        status: "auth_failed",
+        profile: null,
+        error,
+      };
+      return window._telegramWebAppAuthState;
+    }
+
+    try {
+      const profile = await fetchAuthSession();
+      if (profile) {
+        window._currentProfile = profile;
+        window._currentProfileLoaded = true;
+        window._currentUser = profile;
+      }
+      window._telegramWebAppAuthState = {
+        status: "authorized",
+        profile: window._currentProfile || null,
+        error: null,
+      };
+      return window._telegramWebAppAuthState;
+    } catch (error) {
+      console.warn("Failed to load profile after Telegram auth", error);
+      window._telegramWebAppAuthState = {
+        status: "authorized",
+        profile: window._currentProfile || null,
+        error: null,
+      };
+      return window._telegramWebAppAuthState;
+    }
+  })();
+
+  window._telegramWebAppAuthPromise = authPromise;
+  return authPromise;
+}
+
+if (isTelegramWebApp()) {
+  ensureTelegramWebAppAuth();
+}
+
 async function getCurrentUser(options = {}) {
   if (window._currentUser && !options.forceRefresh) {
     return window._currentUser;
   }
 
   const includeNotes = Boolean(options.includeNotes);
-  const telegram = window.Telegram?.WebApp;
-  const initData = telegram?.initData;
+
+  if (isTelegramWebApp()) {
+    await ensureTelegramWebAppAuth();
+    if (window._currentUser && !options.forceRefresh) {
+      return window._currentUser;
+    }
+  }
 
   try {
-    if (initData) {
-      const profile = await apiPost("/auth/telegram", { initData, include_notes: includeNotes });
-      window._currentUser = profile;
-      return profile;
-    }
-
-    const res = await fetch(buildUrl("/auth/session", includeNotes ? { include_notes: true } : undefined));
-    if (res.status === 401 || res.status === 404) {
-      return null;
-    }
-    const data = await handleResponse(res);
-    window._currentUser = data;
-    return data;
+    const profile = await fetchAuthSession(includeNotes);
+    window._currentUser = profile;
+    return profile;
   } catch (error) {
     if (error.status === 401 || error.status === 404) {
       return null;
@@ -80,27 +219,22 @@ async function getCurrentUserProfile(options = {}) {
     return window._currentProfile ?? null;
   }
 
+  const includeNotes = Boolean(options.includeNotes);
+
+  if (isTelegramWebApp()) {
+    await ensureTelegramWebAppAuth();
+    if (window._currentProfile && !options.forceRefresh) {
+      window._currentProfileLoaded = true;
+      return window._currentProfile;
+    }
+  }
+
   window._currentProfileLoaded = true;
 
-  const includeNotes = Boolean(options.includeNotes);
-  const telegram = window.Telegram?.WebApp;
-  const initData = telegram?.initData;
-
   try {
-    if (initData) {
-      const profile = await apiPost("/auth/telegram", { initData, include_notes: includeNotes });
-      window._currentProfile = profile;
-      return profile;
-    }
-
-    const res = await fetch(buildUrl("/auth/session", includeNotes ? { include_notes: true } : undefined));
-    if (!res.ok) {
-      window._currentProfile = null;
-      return null;
-    }
-    const data = await handleResponse(res);
-    window._currentProfile = data;
-    return data;
+    const profile = await fetchAuthSession(includeNotes);
+    window._currentProfile = profile;
+    return profile;
   } catch (error) {
     console.error("Failed to load current user profile", error);
     window._currentProfile = null;
@@ -211,3 +345,5 @@ window.clearGuestCart = clearGuestCart;
 window.syncGuestCartToServer = syncGuestCartToServer;
 window.showToast = showToast;
 window.API_BASE = API_BASE;
+window.ensureTelegramWebAppAuth = ensureTelegramWebAppAuth;
+window.getTelegramWebAppAuthState = () => window._telegramWebAppAuthState;
