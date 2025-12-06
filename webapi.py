@@ -27,7 +27,7 @@ from fastapi import (
     UploadFile,
 )
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -168,10 +168,9 @@ class CheckoutPayload(BaseModel):
     promocode: str | None = None
 
 
-class AuthPayload(BaseModel):
-    initData: str | None = None
-    user: dict | None = None
-    include_notes: bool | None = False
+class TelegramAuthPayload(BaseModel):
+    init_data: str | None = None
+    auth_query: str | None = None
 
 
 class TelegramWebAppAuthPayload(BaseModel):
@@ -214,43 +213,6 @@ def _ensure_admin(user_id: int | None) -> int:
     if user_id is None or not users_service.is_admin(int(user_id)):
         raise HTTPException(status_code=403, detail="Forbidden")
     return int(user_id)
-
-
-def _parse_webapp_user(init_data: str, bot_token: str | None = None) -> dict | None:
-    if not init_data:
-        raise HTTPException(status_code=400, detail="initData is empty")
-
-    data_pairs = dict(parse_qsl(init_data, strict_parsing=False))
-    received_hash = data_pairs.pop("hash", None)
-    if not received_hash:
-        raise HTTPException(status_code=401, detail="Missing hash")
-
-    resolved_bot_token = bot_token or BOT_TOKEN
-    data_check_string = "\n".join(f"{k}={v}" for k, v in sorted(data_pairs.items()))
-    secret_key = hmac.new(f"WebAppData{resolved_bot_token}".encode(), digestmod=hashlib.sha256).digest()
-    calculated_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
-
-    if not hmac.compare_digest(calculated_hash, received_hash):
-        raise HTTPException(status_code=401, detail="Invalid initData signature")
-
-    auth_date_raw = data_pairs.get("auth_date")
-    if auth_date_raw:
-        try:
-            auth_date = int(auth_date_raw)
-        except ValueError:
-            raise HTTPException(status_code=401, detail="Invalid auth_date")
-
-        if time.time() - auth_date > 24 * 60 * 60:
-            raise HTTPException(status_code=401, detail="auth_date is too old")
-
-    user_json = data_pairs.get("user")
-    if not user_json:
-        return None
-
-    try:
-        return json.loads(user_json)
-    except json.JSONDecodeError:
-        raise HTTPException(status_code=400, detail="Invalid user payload")
 
 
 def _validate_telegram_webapp_init_data(
@@ -306,9 +268,63 @@ def _validate_telegram_webapp_init_data(
         raise HTTPException(status_code=400, detail="Invalid user payload")
 
 
+def _parse_telegram_auth_data(auth_payload: str, bot_token: str | None = None) -> dict:
+    if not auth_payload:
+        raise HTTPException(status_code=400, detail="auth payload is empty")
+
+    normalized_payload = auth_payload[1:] if auth_payload.startswith("?") else auth_payload
+
+    try:
+        parsed_pairs = list(parse_qsl(normalized_payload, keep_blank_values=True))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid auth payload format")
+
+    received_hash = None
+    filtered_pairs: list[tuple[str, str]] = []
+    for key, value in parsed_pairs:
+        if key == "hash":
+            received_hash = value
+        else:
+            filtered_pairs.append((key, value))
+
+    if not received_hash:
+        raise HTTPException(status_code=401, detail="Missing hash")
+
+    resolved_bot_token = bot_token or BOT_TOKEN
+    secret_key = hashlib.sha256(resolved_bot_token.encode()).digest()
+    check_string = "\n".join(f"{k}={v}" for k, v in sorted(filtered_pairs, key=lambda item: item[0]))
+    calculated_hash = hmac.new(secret_key, check_string.encode(), hashlib.sha256).hexdigest()
+
+    if not hmac.compare_digest(calculated_hash, str(received_hash)):
+        raise HTTPException(status_code=401, detail="Invalid auth signature")
+
+    data_dict = {k: v for k, v in filtered_pairs}
+
+    auth_date_raw = data_dict.get("auth_date")
+    if auth_date_raw:
+        try:
+            auth_date = int(auth_date_raw)
+        except ValueError:
+            raise HTTPException(status_code=401, detail="Invalid auth_date")
+
+        if time.time() - auth_date > 24 * 60 * 60:
+            raise HTTPException(status_code=401, detail="auth_date is too old")
+
+    return data_dict
+
+
 def _full_name(user) -> str:
     parts = [user.first_name, user.last_name]
     return " ".join(part for part in parts if part).strip()
+
+
+def _extract_user_from_auth_data(data: dict[str, Any]) -> dict[str, Any]:
+    if "user" in data:
+        try:
+            return json.loads(data["user"])
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=400, detail="Invalid user payload")
+    return data
 
 
 def _split_full_name(full_name: str | None) -> tuple[str | None, str | None]:
@@ -783,51 +799,53 @@ class CartPromocodeApplyPayload(BaseModel):
 
 
 @app.post("/api/auth/telegram")
-def api_auth_telegram(payload: AuthPayload):
+def api_auth_telegram(payload: TelegramAuthPayload, response: Response):
     """
-    Авторизация WebApp по initData (из Telegram WebApp) или по заранее
-    переданным данным user. Возвращает единый JSON-профиль пользователя.
+    Единый endpoint авторизации через Telegram WebApp или Login Widget.
+
+    Поддерживает:
+      * init_data — строка initData из Telegram WebApp;
+      * auth_query — query-string из Telegram Login Widget или deeplink-а.
     """
-    if not payload.initData and not payload.user:
-        raise HTTPException(status_code=400, detail="initData or user is required")
 
-    user_data = None
-    if payload.initData:
-        try:
-            user_data = _parse_webapp_user(payload.initData, BOT_TOKEN)
-        except HTTPException as exc:
-            return JSONResponse(
-                status_code=exc.status_code,
-                content={"ok": False, "detail": "invalid telegram webapp auth"},
-            )
-        except Exception:
-            return JSONResponse(
-                status_code=401,
-                content={"ok": False, "detail": "invalid telegram webapp auth"},
-            )
+    if (payload.init_data is None and payload.auth_query is None) or (
+        payload.init_data is not None and payload.auth_query is not None
+    ):
+        raise HTTPException(status_code=400, detail="Provide exactly one of init_data or auth_query")
 
-    if not user_data and payload.user:
-        user_data = payload.user
+    raw_auth_payload = payload.init_data or payload.auth_query or ""
 
-    if not user_data:
-        raise HTTPException(status_code=401, detail="Unauthorized: no user data")
+    try:
+        validated_data = _parse_telegram_auth_data(raw_auth_payload, BOT_TOKEN)
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid telegram auth data")
+
+    user_data = _extract_user_from_auth_data(validated_data)
 
     telegram_id = user_data.get("id")
     if telegram_id is None:
         raise HTTPException(status_code=400, detail="Missing user id")
 
+    try:
+        telegram_id_int = int(telegram_id)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="Invalid user id")
+
     first_name = user_data.get("first_name") or ""
     last_name = user_data.get("last_name") or ""
-    full_name = " ".join([part for part in [first_name, last_name] if part]).strip() or None
+    full_name = " ".join(part for part in [first_name, last_name] if part).strip() or None
+    phone = user_data.get("phone") or user_data.get("phone_number")
 
     with get_session() as session:
         try:
             user = users_service.get_or_create_user_from_telegram(
                 session,
-                telegram_id=int(telegram_id),
+                telegram_id=telegram_id_int,
                 username=user_data.get("username"),
                 full_name=full_name,
-                phone=user_data.get("phone"),
+                phone=phone,
             )
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid user data")
@@ -836,7 +854,22 @@ def api_auth_telegram(payload: AuthPayload):
         except Exception:
             raise HTTPException(status_code=500, detail="Failed to authorize user")
 
-        return _build_user_profile(session, user, include_notes=bool(payload.include_notes))
+        response.set_cookie(
+            key="tg_user_id",
+            value=str(user.telegram_id),
+            httponly=True,
+            max_age=COOKIE_MAX_AGE,
+            samesite="lax",
+        )
+
+        return {
+            "status": "ok",
+            "user": {
+                "id": user.id,
+                "telegram_id": user.telegram_id,
+                "username": user.username,
+            },
+        }
 
 
 @app.post("/api/auth/logout")
