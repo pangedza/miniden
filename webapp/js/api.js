@@ -47,9 +47,7 @@ async function apiPost(path, body) {
   return handleResponse(res);
 }
 
-function isTelegramWebApp() {
-  return Boolean(window.Telegram?.WebApp);
-}
+const isTelegramWebApp = Boolean(window.Telegram?.WebApp);
 
 function normalizeError(message, status) {
   const error = new Error(message);
@@ -130,7 +128,7 @@ async function fetchAuthSession(includeNotes) {
 }
 
 async function ensureTelegramWebAppAuth() {
-  if (!isTelegramWebApp()) {
+  if (!isTelegramWebApp) {
     return { status: "skipped" };
   }
 
@@ -240,7 +238,7 @@ async function ensureTelegramWebAppAuth() {
   return authPromise;
 }
 
-if (isTelegramWebApp()) {
+if (isTelegramWebApp) {
   ensureTelegramWebAppAuth();
 }
 
@@ -251,7 +249,7 @@ async function getCurrentUser(options = {}) {
 
   const includeNotes = Boolean(options.includeNotes);
 
-  if (isTelegramWebApp()) {
+  if (isTelegramWebApp) {
     await ensureTelegramWebAppAuth();
     if (window._currentUser && !options.forceRefresh) {
       return window._currentUser;
@@ -283,7 +281,7 @@ async function getCurrentUserProfile(options = {}) {
 
   const includeNotes = Boolean(options.includeNotes);
 
-  if (isTelegramWebApp()) {
+  if (isTelegramWebApp) {
     await ensureTelegramWebAppAuth();
     if (window._currentProfile && !options.forceRefresh) {
       window._currentProfileLoaded = true;
