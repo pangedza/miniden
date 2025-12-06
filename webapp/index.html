@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/theme.css?v=20241221" />
+  <link rel="stylesheet" href="css/theme.css?v=20241222" />
 </head>
 <body data-theme="purple" class="page-index">
   <header class="top-nav">
@@ -149,8 +149,9 @@
     </div>
   </section>
 
-  <script src="js/app.js?v=20241221"></script>
-  <script src="js/api.js?v=20241221"></script>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="js/app.js?v=20241222"></script>
+  <script src="js/api.js?v=20241222"></script>
   <script>
     const loginSection = document.getElementById('telegram-login-section');
     const authStatus = document.getElementById('auth-status');
@@ -158,6 +159,7 @@
     const switchUserBtn = document.getElementById('switch-user-btn');
     const adminLink = document.getElementById('admin-link');
     const loginButton = document.getElementById('btn-login-telegram');
+    const loginButtonDefaultText = loginButton?.textContent || 'Войти через Telegram';
 
     function updateAdminLinkVisibility(profile) {
       if (!adminLink) return;
@@ -189,8 +191,9 @@
         } else {
           loginSection?.style.setProperty('display', 'block');
           authStatus?.style.setProperty('display', 'none');
-          if (!isTelegramWebApp) {
-            loginButton?.style.setProperty('display', 'inline-flex');
+          if (loginButton) {
+            loginButton.style.setProperty('display', 'inline-flex');
+            loginButton.textContent = isTelegramWebApp ? 'Повторить авторизацию' : loginButtonDefaultText;
           }
         }
       } catch (e) {
@@ -201,28 +204,35 @@
       }
     }
 
-    loginButton?.addEventListener('click', () => {
+    loginButton?.addEventListener('click', async () => {
+      if (isTelegramWebApp) {
+        loginButton.disabled = true;
+        try {
+          await telegramWebAppAutoLogin({ refreshProfile: true, force: true });
+          await loadSession();
+        } finally {
+          loginButton.disabled = false;
+        }
+        return;
+      }
+
       startTelegramOAuthFlow();
     });
 
-    processTelegramAuthFromUrl()
-      .then((res) => {
-        if (res?.status === 'ok') {
-          return loadSession();
-        }
-        return null;
-      })
-      .catch((error) => {
+    async function bootstrapAuth() {
+      await processTelegramAuthFromUrl().catch((error) => {
         console.error('Telegram auth via browser failed', error);
         showToast(error?.message || 'Не удалось авторизоваться через Telegram');
-      })
-      .finally(() => {
-        if (isTelegramWebApp) {
-          loginButton?.style.setProperty('display', 'none');
-        }
       });
 
-    loadSession();
+      if (isTelegramWebApp) {
+        await telegramWebAppAutoLogin({ refreshProfile: true });
+      }
+
+      await loadSession();
+    }
+
+    bootstrapAuth();
   </script>
 </body>
 </html>

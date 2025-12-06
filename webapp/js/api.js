@@ -1,5 +1,6 @@
 const API_BASE = "/api";
 const TELEGRAM_AUTH_PATH = "/auth/telegram";
+const TELEGRAM_WEBAPP_AUTH_PATH = "/auth/telegram_webapp";
 const AUTH_SESSION_PATH = "/auth/session";
 const TELEGRAM_BOT_USERNAME = "BotMiniden_bot";
 
@@ -178,7 +179,7 @@ async function ensureTelegramWebAppAuth() {
     }
 
     try {
-      const res = await fetch(`${API_BASE}${TELEGRAM_AUTH_PATH}`, {
+      const res = await fetch(`${API_BASE}${TELEGRAM_WEBAPP_AUTH_PATH}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ init_data: initData, auth_query: null }),
@@ -240,6 +241,48 @@ async function ensureTelegramWebAppAuth() {
 
 if (isTelegramWebApp) {
   ensureTelegramWebAppAuth();
+}
+
+async function telegramWebAppAutoLogin(options = {}) {
+  if (!isTelegramWebApp || !window.Telegram?.WebApp) {
+    return { status: "skipped", profile: null, error: null };
+  }
+
+  const { refreshProfile = false, force = false } = options;
+
+  if (force || window._telegramWebAppAuthState?.status === "auth_failed" || window._telegramWebAppAuthState?.status === "profile_error") {
+    window._telegramWebAppAuthPromise = null;
+  }
+
+  try {
+    const res = await fetch(buildUrl(AUTH_SESSION_PATH));
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.authenticated) {
+        return { status: "authorized", profile: data.user || null, error: null };
+      }
+    }
+  } catch (error) {
+    console.warn("Session check before Telegram WebApp auto-login failed", error);
+  }
+
+  const state = await ensureTelegramWebAppAuth();
+
+  if (refreshProfile && state?.status === "authorized" && !state.profile) {
+    try {
+      const profile = await fetchAuthSession();
+      if (profile) {
+        window._currentProfile = profile;
+        window._currentUser = profile;
+        window._currentProfileLoaded = true;
+        return { status: "authorized", profile, error: null };
+      }
+    } catch (error) {
+      console.warn("Failed to refresh profile after Telegram WebApp auth", error);
+    }
+  }
+
+  return state;
 }
 
 async function getCurrentUser(options = {}) {
@@ -410,3 +453,4 @@ window.getTelegramWebAppAuthState = () => window._telegramWebAppAuthState;
 window.processTelegramAuthFromUrl = processTelegramAuthFromUrl;
 window.startTelegramOAuthFlow = startTelegramOAuthFlow;
 window.isTelegramWebApp = isTelegramWebApp;
+window.telegramWebAppAutoLogin = telegramWebAppAutoLogin;
