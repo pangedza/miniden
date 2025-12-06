@@ -19,7 +19,7 @@
         <div class="nav-group" data-group="products">
           <button class="nav-btn nav-parent" data-group-toggle="products">Товары</button>
           <div class="nav-submenu">
-            <button class="nav-btn nav-sub" data-view="product-create">Создать товар</button>
+            <button class="nav-btn nav-sub" data-view="product-list" data-action="product-new">Создать товар</button>
             <button class="nav-btn nav-sub" data-view="product-list">Список товаров</button>
             <button class="nav-btn nav-sub" data-view="product-categories">Категории товаров</button>
           </div>
@@ -27,7 +27,7 @@
         <div class="nav-group" data-group="courses">
           <button class="nav-btn nav-parent" data-group-toggle="courses">Мастер-классы</button>
           <div class="nav-submenu">
-            <button class="nav-btn nav-sub" data-view="course-create">Создать мастер-класс</button>
+            <button class="nav-btn nav-sub" data-view="course-list" data-action="course-new">Создать мастер-класс</button>
             <button class="nav-btn nav-sub" data-view="course-list">Список мастер-классов</button>
             <button class="nav-btn nav-sub" data-view="course-categories">Категории мастер-классов</button>
           </div>
@@ -36,7 +36,7 @@
         <div class="nav-group" data-group="promocodes">
           <button class="nav-btn nav-parent" data-group-toggle="promocodes" data-default-view="promocode-list">Промокоды</button>
           <div class="nav-submenu">
-            <button class="nav-btn nav-sub" data-view="promocode-create">Создать промокод</button>
+            <button class="nav-btn nav-sub" data-view="promocode-list" data-action="promo-new">Создать промокод</button>
             <button class="nav-btn nav-sub" data-view="promocode-list">Список промокодов</button>
           </div>
         </div>
@@ -178,18 +178,83 @@
         </div>
       </section>
 
-      <section id="product-create" class="card admin-view" data-view="product-create" style="display:none;">
+      <section id="course-categories" class="card admin-view" data-view="course-categories" style="display:none;">
+        <div class="section-header">
+          <div>
+            <h2>Категории мастер-классов</h2>
+            <p class="muted">Типы курсов и уроков.</p>
+          </div>
+        </div>
+        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));">
+          <div class="card" style="background: rgba(255,255,255,0.03);">
+            <h3 id="course-category-form-title">Создать категорию</h3>
+            <form id="course-category-form" class="stacked-form">
+              <label>Название</label>
+              <input type="text" name="name" required />
+              <label>Slug/код</label>
+              <input type="text" name="slug" placeholder="free" />
+              <label>Порядок сортировки</label>
+              <input type="number" name="sort_order" min="0" value="0" />
+              <label style="display:flex; gap:8px; align-items:center; margin-top:8px;">
+                <input type="checkbox" name="is_active" checked /> Активна
+              </label>
+              <div class="form-actions">
+                <button class="btn primary" type="submit">Сохранить</button>
+                <button class="btn secondary" type="button" id="course-category-reset">Сбросить</button>
+              </div>
+            </form>
+          </div>
+          <div class="table-wrapper">
+            <table aria-label="Категории мастер-классов">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Название</th>
+                  <th>Порядок</th>
+                  <th>Активна</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="course-categories-table"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="product-list" class="card admin-view" data-view="product-list" style="display:none;">
         <div class="section-header">
           <div>
             <h2>Товары</h2>
-            <p class="muted">Категории корзинок и аксессуаров.</p>
+            <p class="muted">Все корзинки и аксессуары.</p>
           </div>
-          <div class="pill-row">
-            <span class="admin-pill active">Создать товар</span>
+          <div class="filters-row">
+            <select id="products-category"></select>
+            <select id="products-status">
+              <option value="all">Все</option>
+              <option value="active">Активные</option>
+              <option value="hidden">Скрытые</option>
+            </select>
+            <button class="btn primary" type="button" id="product-reset">Новый товар</button>
           </div>
         </div>
 
-        <div class="card" style="background: rgba(255,255,255,0.03);">
+        <div class="table-wrapper">
+          <table aria-label="Товары">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Название</th>
+                <th>Категория</th>
+                <th>Цена</th>
+                <th>Активен</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="products-table"></tbody>
+          </table>
+        </div>
+
+        <div class="card" style="background: rgba(255,255,255,0.03); margin-top:16px;">
           <h3 id="product-form-title">Создать товар</h3>
           <form id="product-form" class="stacked-form">
             <div class="form-grid">
@@ -237,75 +302,31 @@
               <div id="product-images-list" class="image-list muted">Сохраните товар, чтобы добавить фото.</div>
             </div>
             <div class="form-actions">
-              <button class="btn primary" type="submit">Сохранить</button>
-              <button class="btn secondary" type="button" id="product-cancel">Отмена</button>
+              <button class="btn primary" type="submit">Создать товар</button>
+              <button class="btn secondary" type="button" id="product-cancel">Новый товар</button>
             </div>
           </form>
         </div>
       </section>
 
-      <section id="course-categories" class="card admin-view" data-view="course-categories" style="display:none;">
+      <section id="course-list" class="card admin-view" data-view="course-list" style="display:none;">
         <div class="section-header">
           <div>
-            <h2>Категории мастер-классов</h2>
-            <p class="muted">Типы курсов и уроков.</p>
-          </div>
-        </div>
-        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));">
-          <div class="card" style="background: rgba(255,255,255,0.03);">
-            <h3 id="course-category-form-title">Создать категорию</h3>
-            <form id="course-category-form" class="stacked-form">
-              <label>Название</label>
-              <input type="text" name="name" required />
-              <label>Slug/код</label>
-              <input type="text" name="slug" placeholder="free" />
-              <label>Порядок сортировки</label>
-              <input type="number" name="sort_order" min="0" value="0" />
-              <label style="display:flex; gap:8px; align-items:center; margin-top:8px;">
-                <input type="checkbox" name="is_active" checked /> Активна
-              </label>
-              <div class="form-actions">
-                <button class="btn primary" type="submit">Сохранить</button>
-                <button class="btn secondary" type="button" id="course-category-reset">Сбросить</button>
-              </div>
-            </form>
-          </div>
-          <div class="table-wrapper">
-            <table aria-label="Категории мастер-классов">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Название</th>
-                  <th>Порядок</th>
-                  <th>Активна</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody id="course-categories-table"></tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <section id="product-list" class="card admin-view" data-view="product-list" style="display:none;">
-        <div class="section-header">
-          <div>
-            <h2>Список товаров</h2>
-            <p class="muted">Все корзинки и аксессуары.</p>
+            <h2>Мастер-классы</h2>
+            <p class="muted">Онлайн уроки. Бесплатные доступны сразу, платные — после оплаты заказа.</p>
           </div>
           <div class="filters-row">
-            <select id="products-category"></select>
-            <select id="products-status">
+            <select id="courses-category"></select>
+            <select id="courses-status">
               <option value="all">Все</option>
               <option value="active">Активные</option>
               <option value="hidden">Скрытые</option>
             </select>
-            <button class="btn primary" type="button" id="product-reset">Новый товар</button>
+            <button class="btn primary" type="button" id="course-reset">Новый мастер-класс</button>
           </div>
         </div>
-
         <div class="table-wrapper">
-          <table aria-label="Товары">
+          <table aria-label="Мастер-классы">
             <thead>
               <tr>
                 <th>ID</th>
@@ -316,23 +337,11 @@
                 <th></th>
               </tr>
             </thead>
-            <tbody id="products-table"></tbody>
+            <tbody id="courses-table"></tbody>
           </table>
         </div>
-      </section>
 
-      <section id="course-create" class="card admin-view" data-view="course-create" style="display:none;">
-        <div class="section-header">
-          <div>
-            <h2>Мастер-классы</h2>
-            <p class="muted">Онлайн уроки. Бесплатные доступны сразу, платные — после оплаты заказа.</p>
-          </div>
-          <div class="pill-row">
-            <span class="admin-pill active">Создать мастер-класс</span>
-          </div>
-        </div>
-
-        <div class="card" style="background: rgba(255,255,255,0.03);">
+        <div class="card" style="background: rgba(255,255,255,0.03); margin-top:16px;">
           <h3 id="course-form-title">Создать мастер-класс</h3>
           <form id="course-form" class="stacked-form">
             <div class="form-grid">
@@ -371,55 +380,49 @@
               <div id="course-images-list" class="image-list muted">Сохраните мастер-класс, чтобы добавить фото.</div>
             </div>
             <div class="form-actions">
-              <button class="btn primary" type="submit">Сохранить</button>
-              <button class="btn secondary" type="button" id="course-cancel">Отмена</button>
+              <button class="btn primary" type="submit">Создать мастер-класс</button>
+              <button class="btn secondary" type="button" id="course-cancel">Новый мастер-класс</button>
             </div>
           </form>
         </div>
       </section>
 
-      <section id="course-list" class="card admin-view" data-view="course-list" style="display:none;">
+      <section id="promocode-list" class="card admin-view" data-view="promocode-list" style="display:none;">
         <div class="section-header">
           <div>
-            <h2>Список мастер-классов</h2>
-            <p class="muted">Все уроки.</p>
+            <h2>Список промокодов</h2>
+            <p class="muted">Все созданные промокоды с возможностью фильтрации и редактирования.</p>
           </div>
           <div class="filters-row">
-            <select id="courses-category"></select>
-            <select id="courses-status">
+            <select id="promo-status-filter">
               <option value="all">Все</option>
               <option value="active">Активные</option>
-              <option value="hidden">Скрытые</option>
+              <option value="inactive">Не активные</option>
             </select>
-            <button class="btn primary" type="button" id="course-reset">Новый мастер-класс</button>
+            <button class="btn primary" type="button" id="promo-create-new" data-view="promocode-list" data-action="promo-new">Новый промокод</button>
           </div>
         </div>
-        <div class="table-wrapper">
-          <table aria-label="Мастер-классы">
+        <div class="card" style="overflow:auto;">
+          <table aria-label="Промокоды" style="width:100%; min-width:760px;">
             <thead>
               <tr>
                 <th>ID</th>
-                <th>Название</th>
-                <th>Категория</th>
-                <th>Цена</th>
-                <th>Активен</th>
+                <th>Код</th>
+                <th>Тип скидки</th>
+                <th>Значение</th>
+                <th>Область / цель</th>
+                <th>Период действия</th>
+                <th>Статус</th>
+                <th>Использовано</th>
                 <th></th>
               </tr>
             </thead>
-            <tbody id="courses-table"></tbody>
+            <tbody id="promo-table"></tbody>
           </table>
         </div>
-      </section>
 
-      <section id="promocode-create" class="card admin-view" data-view="promocode-create" style="display:none;">
-        <div class="section-header">
-          <div>
-            <h2 id="promo-create-title">Создать промокод</h2>
-            <p class="muted">Заполните параметры и сохраните, чтобы добавить новый промокод.</p>
-          </div>
-          <button class="btn secondary" type="button" data-view="promocode-list">К списку</button>
-        </div>
-        <div class="card" style="max-width:720px; margin:0 auto;">
+        <div class="card" style="max-width:720px; margin:16px auto 0;">
+          <h3 id="promo-create-title">Создать промокод</h3>
           <form id="promo-create-form" class="stacked-form">
             <label for="promo-create-code">Код</label>
             <input type="text" id="promo-create-code" name="code" required />
@@ -465,45 +468,10 @@
             </div>
 
             <div class="form-actions">
-              <button class="btn primary" type="submit">Сохранить</button>
+              <button class="btn primary" type="submit">Создать промокод</button>
               <button class="btn secondary" type="button" id="promo-create-reset">Сбросить</button>
             </div>
           </form>
-        </div>
-      </section>
-
-      <section id="promocode-list" class="card admin-view" data-view="promocode-list" style="display:none;">
-        <div class="section-header">
-          <div>
-            <h2>Список промокодов</h2>
-            <p class="muted">Все созданные промокоды с возможностью фильтрации и редактирования.</p>
-          </div>
-          <div class="filters-row">
-            <select id="promo-status-filter">
-              <option value="all">Все</option>
-              <option value="active">Активные</option>
-              <option value="inactive">Не активные</option>
-            </select>
-            <button class="btn primary" type="button" data-view="promocode-create">Создать промокод</button>
-          </div>
-        </div>
-        <div class="card" style="overflow:auto;">
-          <table aria-label="Промокоды" style="width:100%; min-width:760px;">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Код</th>
-                <th>Тип скидки</th>
-                <th>Значение</th>
-                <th>Область / цель</th>
-                <th>Период действия</th>
-                <th>Статус</th>
-                <th>Использовано</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="promo-table"></tbody>
-          </table>
         </div>
       </section>
 
@@ -732,6 +700,9 @@
     let reviewItems = [];
     let productItems = [];
     let courseItems = [];
+    let productCurrentId = null;
+    let masterclassCurrentId = null;
+    let promoCurrentId = null;
     const productSubmitBtn = productForm?.querySelector('button[type="submit"]');
     const courseSubmitBtn = courseForm?.querySelector('button[type="submit"]');
     const promoSubmitBtn = promoCreateForm?.querySelector('button[type="submit"]');
@@ -829,35 +800,29 @@
     }
 
     function openProductCreateView() {
-      productFormState.mode = 'create';
-      productFormState.currentId = null;
-      productFormTitle.textContent = 'Создать товар';
-      if (productSubmitBtn) productSubmitBtn.textContent = 'Создать товар';
-      showSection('product-create');
+      resetProductCreateForm();
+      showSection('product-list');
+      productForm?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
     function openCourseCreateView() {
-      courseFormState.mode = 'create';
-      courseFormState.currentId = null;
-      courseFormTitle.textContent = 'Создать мастер-класс';
-      if (courseSubmitBtn) courseSubmitBtn.textContent = 'Создать мастер-класс';
-      showSection('course-create');
+      resetCourseFormState();
+      showSection('course-list');
+      courseForm?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
     function openPromocodeCreateView() {
-      promoCreateState.mode = 'create';
-      promoCreateState.currentId = null;
-      promoCreateTitle.textContent = 'Создать промокод';
-      if (promoSubmitBtn) promoSubmitBtn.textContent = 'Создать промокод';
-      showSection('promocode-create');
+      resetPromoCreateForm();
+      showSection('promocode-list');
+      promoCreateForm?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
     navLinks.forEach((btn) => {
       btn.addEventListener('click', () => {
         const view = btn.dataset.view;
-        if (view === 'product-create') return openProductCreateView();
-        if (view === 'course-create') return openCourseCreateView();
-        if (view === 'promocode-create') return openPromocodeCreateView();
+        if (btn.dataset.action === 'product-new') return openProductCreateView();
+        if (btn.dataset.action === 'course-new') return openCourseCreateView();
+        if (btn.dataset.action === 'promo-new') return openPromocodeCreateView();
         handleViewNavigation(view);
       });
     });
@@ -866,9 +831,9 @@
       if (btn.classList.contains('nav-btn')) return;
       btn.addEventListener('click', () => {
         const view = btn.dataset.view;
-        if (view === 'product-create') return openProductCreateView();
-        if (view === 'course-create') return openCourseCreateView();
-        if (view === 'promocode-create') return openPromocodeCreateView();
+        if (btn.dataset.action === 'product-new') return openProductCreateView();
+        if (btn.dataset.action === 'course-new') return openCourseCreateView();
+        if (btn.dataset.action === 'promo-new') return openPromocodeCreateView();
         handleViewNavigation(view);
       });
     });
@@ -1572,7 +1537,7 @@
     async function uploadProductGalleryFiles(event, target = productImagesList) {
       const files = Array.from(event.target?.files || []);
       if (!files.length) return;
-      if (!productFormState.currentId) {
+      if (!productCurrentId) {
         alert('Сначала сохраните товар.');
         event.target.value = '';
         return;
@@ -1580,14 +1545,12 @@
       const formData = new FormData();
       files.forEach((file) => formData.append('files', file));
       try {
-        const res = await fetch(`${API_BASE}/admin/products/${productFormState.currentId}/images`, {
+        const res = await fetch(`${API_BASE}/admin/products/${productCurrentId}/images`, {
           method: 'POST',
           body: formData,
         });
         const data = await handleResponse(res);
-        renderImagesList(data.items || data || [], target, 'product', () =>
-          loadProductImages(productFormState.currentId, target)
-        );
+        renderImagesList(data.items || data || [], target, 'product', () => loadProductImages(productCurrentId, target));
         setStatus('Фото товара добавлены');
       } catch (e) {
         handleError(e, 'Не удалось загрузить фото товара');
@@ -1598,9 +1561,10 @@
     function startProductInlineEdit(item) {
       if (!item) return;
       productFormState.mode = 'edit';
-      productFormState.currentId = item.id;
+      productCurrentId = item.id;
+      productFormState.currentId = productCurrentId;
       productFormTitle.textContent = `Редактировать товар #${item.id}`;
-      if (productSubmitBtn) productSubmitBtn.textContent = 'Сохранить';
+      if (productSubmitBtn) productSubmitBtn.textContent = 'Сохранить изменения';
       const productImageUrl = item.image_url || item.image || item.images?.[0]?.image_url || '';
       resetFormState(productFormState.formData, productFormDefaults);
       Object.assign(productFormState.formData, {
@@ -1632,24 +1596,27 @@
       if (productImageUrlInput) productImageUrlInput.value = productImageUrl || '';
       setProductImagePreview(productImageUrl);
       showImageListPlaceholder(productImagesList, 'Загрузите фото после сохранения.');
-      showSection('product-create');
-      loadProductImages(productFormState.currentId, productImagesList);
+      showSection('product-list');
+      loadProductImages(productCurrentId, productImagesList);
+      productForm?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
     function closeProductEditModal() {
       productFormState.mode = 'create';
+      productCurrentId = null;
       productFormState.currentId = null;
       productFormTitle.textContent = 'Создать товар';
       if (productSubmitBtn) productSubmitBtn.textContent = 'Создать товар';
       productEditModal?.classList.add('hidden');
     }
 
-    function openCourseEditModal(item) {
+    function startCourseInlineEdit(item) {
       if (!item) return;
       courseFormState.mode = 'edit';
-      courseFormState.currentId = item.id;
+      masterclassCurrentId = item.id;
+      courseFormState.currentId = masterclassCurrentId;
       courseFormTitle.textContent = `Редактировать мастер-класс #${item.id}`;
-      if (courseSubmitBtn) courseSubmitBtn.textContent = 'Сохранить';
+      if (courseSubmitBtn) courseSubmitBtn.textContent = 'Сохранить изменения';
       const courseImageUrl = item.image_url || item.image || item.images?.[0]?.image_url || '';
       resetFormState(courseFormState.formData, courseFormDefaults);
       Object.assign(courseFormState.formData, {
@@ -1679,12 +1646,14 @@
       if (courseImageUrlInput) courseImageUrlInput.value = courseImageUrl || '';
       setCourseImagePreview(courseImageUrl);
       showImageListPlaceholder(courseImagesList, 'Загрузите фото после сохранения.');
-      showSection('course-create');
-      loadCourseImages(courseFormState.currentId, courseImagesList);
+      showSection('course-list');
+      loadCourseImages(masterclassCurrentId, courseImagesList);
+      courseForm?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
     function closeCourseEditModal() {
       courseFormState.mode = 'create';
+      masterclassCurrentId = null;
       courseFormState.currentId = null;
       courseFormTitle.textContent = 'Создать мастер-класс';
       if (courseSubmitBtn) courseSubmitBtn.textContent = 'Создать мастер-класс';
@@ -1694,7 +1663,7 @@
     async function uploadCourseGalleryFiles(event, target = courseImagesList) {
       const files = Array.from(event.target?.files || []);
       if (!files.length) return;
-      if (!courseFormState.currentId) {
+      if (!masterclassCurrentId) {
         alert('Сначала сохраните мастер-класс.');
         event.target.value = '';
         return;
@@ -1702,14 +1671,12 @@
       const formData = new FormData();
       files.forEach((file) => formData.append('files', file));
       try {
-        const res = await fetch(`${API_BASE}/admin/masterclasses/${courseFormState.currentId}/images`, {
+        const res = await fetch(`${API_BASE}/admin/masterclasses/${masterclassCurrentId}/images`, {
           method: 'POST',
           body: formData,
         });
         const data = await handleResponse(res);
-        renderImagesList(data.items || data || [], target, 'course', () =>
-          loadCourseImages(courseFormState.currentId, target)
-        );
+        renderImagesList(data.items || data || [], target, 'course', () => loadCourseImages(masterclassCurrentId, target));
         setStatus('Фото мастер-класса добавлены');
       } catch (e) {
         handleError(e, 'Не удалось загрузить фото мастер-класса');
@@ -1727,9 +1694,9 @@
         if (reloadFn) {
           await reloadFn();
         } else if (type === 'product') {
-          await loadProductImages(productFormState.currentId, productImagesList);
+          await loadProductImages(productCurrentId, productImagesList);
         } else {
-          await loadCourseImages(courseFormState.currentId, courseImagesList);
+          await loadCourseImages(masterclassCurrentId, courseImagesList);
         }
       } catch (e) {
         handleError(e, 'Не удалось удалить изображение');
@@ -1782,7 +1749,7 @@
         if (productType === 'basket') {
           startProductInlineEdit(item);
         } else {
-          openCourseEditModal(item);
+          startCourseInlineEdit(item);
         }
         return;
       }
@@ -2099,9 +2066,10 @@
 
     function openPromocodeEdit(promo) {
       promoCreateState.mode = 'edit';
-      promoCreateState.currentId = promo.id;
+      promoCurrentId = promo.id;
+      promoCreateState.currentId = promoCurrentId;
       promoCreateTitle.textContent = `Редактировать промокод #${promo.id}`;
-      if (promoSubmitBtn) promoSubmitBtn.textContent = 'Сохранить';
+      if (promoSubmitBtn) promoSubmitBtn.textContent = 'Сохранить изменения';
       resetFormState(promoCreateState.formData, promoFormDefaults);
       Object.assign(promoCreateState.formData, {
         code: promo.code || '',
@@ -2117,7 +2085,8 @@
       });
       applyStateToForm(promoCreateForm, promoCreateState.formData);
       updatePromoTargetState(promoCreateScope, promoCreateTarget);
-      showSection('promocode-create');
+      showSection('promocode-list');
+      promoCreateForm?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
     function closePromocodeEdit() {
@@ -2153,6 +2122,7 @@
 
     function resetPromoCreateForm() {
       promoCreateState.mode = 'create';
+      promoCurrentId = null;
       promoCreateState.currentId = null;
       promoCreateTitle.textContent = 'Создать промокод';
       if (promoSubmitBtn) promoSubmitBtn.textContent = 'Создать промокод';
@@ -2181,8 +2151,8 @@
       };
 
       try {
-        if (promoCreateState.mode === 'edit' && promoCreateState.currentId) {
-          await sendJson(`/admin/promocodes/${promoCreateState.currentId}`, 'PUT', payload);
+        if (promoCurrentId) {
+          await sendJson(`/admin/promocodes/${promoCurrentId}`, 'PUT', payload);
           setStatus('Промокод обновлён');
         } else {
           await sendJson('/admin/promocodes', 'POST', payload);
@@ -2191,34 +2161,6 @@
         resetPromoCreateForm();
         await loadPromocodes();
         showSection('promocode-list');
-      } catch (e) {
-        handleError(e, 'Не удалось сохранить промокод');
-      }
-    }
-
-    async function submitPromocodeEdit(event) {
-      event.preventDefault();
-      if (!currentUser || !promoCreateState.currentId) return;
-
-      const payload = {
-        user_id: currentUser.telegram_id,
-        code: (promoEditCode.value || '').trim(),
-        discount_type: promoEditDiscountType.value,
-        discount_value: promoEditDiscountValue.value === '' ? null : Number(promoEditDiscountValue.value || 0),
-        scope: promoEditScope.value,
-        target_id: promoEditTarget.value ? Number(promoEditTarget.value) : null,
-        date_start: fromInputDate(promoEditDateStart.value),
-        date_end: fromInputDate(promoEditDateEnd.value),
-        max_uses: promoEditMaxUses.value ? Number(promoEditMaxUses.value) : null,
-        active: promoEditActive.checked,
-        one_per_user: promoEditOnePerUser.checked,
-      };
-
-      try {
-        await sendJson(`/admin/promocodes/${promoCreateState.currentId}`, 'PUT', payload);
-        setStatus('Промокод сохранён');
-        closePromocodeEdit();
-        await loadPromocodes();
       } catch (e) {
         handleError(e, 'Не удалось сохранить промокод');
       }
@@ -2234,8 +2176,8 @@
       payload.image_url = productImageUrlInput?.value.trim() || null;
 
       try {
-        if (productFormState.mode === 'edit' && productFormState.currentId) {
-          await fetch(`${API_BASE}/admin/products/${productFormState.currentId}`, {
+        if (productCurrentId) {
+          await fetch(`${API_BASE}/admin/products/${productCurrentId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
@@ -2252,31 +2194,9 @@
       }
     }
 
-    async function submitProductEditForm(event) {
-      event.preventDefault();
-      if (!currentUser || !productFormState.currentId) return;
-      const payload = serializeForm(productEditForm);
-      payload.user_id = currentUser.telegram_id;
-      payload.type = 'basket';
-      payload.price = payload.price ? Number(payload.price) : 0;
-      payload.image_url = productEditImageUrlInput?.value.trim() || null;
-
-      try {
-        await fetch(`${API_BASE}/admin/products/${productFormState.currentId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        }).then(handleResponse);
-        setStatus('Товар сохранён');
-        closeProductEditModal();
-        await loadProducts();
-      } catch (e) {
-        handleError(e, 'Не удалось сохранить товар');
-      }
-    }
-
     function resetProductCreateForm() {
       productFormState.mode = 'create';
+      productCurrentId = null;
       productFormState.currentId = null;
       productFormTitle.textContent = 'Создать товар';
       if (productSubmitBtn) productSubmitBtn.textContent = 'Создать товар';
@@ -2284,6 +2204,18 @@
       applyStateToForm(productForm, productFormState.formData);
       resetProductImageInputs();
       showImageListPlaceholder(productImagesList, 'Сохраните товар, чтобы добавить фото.');
+    }
+
+    function resetCourseFormState() {
+      courseFormState.mode = 'create';
+      masterclassCurrentId = null;
+      courseFormState.currentId = null;
+      courseFormTitle.textContent = 'Создать мастер-класс';
+      if (courseSubmitBtn) courseSubmitBtn.textContent = 'Создать мастер-класс';
+      resetFormState(courseFormState.formData, courseFormDefaults);
+      applyStateToForm(courseForm, courseFormState.formData);
+      resetCourseImageInputs();
+      showImageListPlaceholder(courseImagesList, 'Сохраните мастер-класс, чтобы добавить фото.');
     }
 
     async function submitCourseForm(event) {
@@ -2296,8 +2228,8 @@
       payload.image_url = courseImageUrlInput?.value.trim() || null;
 
       try {
-        if (courseFormState.mode === 'edit' && courseFormState.currentId) {
-          await fetch(`${API_BASE}/admin/products/${courseFormState.currentId}`, {
+        if (masterclassCurrentId) {
+          await fetch(`${API_BASE}/admin/products/${masterclassCurrentId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
@@ -2307,37 +2239,7 @@
           await apiPost('/admin/products', payload);
           setStatus('Мастер-класс сохранён');
         }
-        courseFormState.mode = 'create';
-        courseFormState.currentId = null;
-        courseFormTitle.textContent = 'Создать мастер-класс';
-        if (courseSubmitBtn) courseSubmitBtn.textContent = 'Создать мастер-класс';
-        resetFormState(courseFormState.formData, courseFormDefaults);
-        applyStateToForm(courseForm, courseFormState.formData);
-        resetCourseImageInputs();
-        showImageListPlaceholder(courseImagesList, 'Сохраните мастер-класс, чтобы добавить фото.');
-        await loadCourses();
-      } catch (e) {
-        handleError(e, 'Не удалось сохранить мастер-класс');
-      }
-    }
-
-    async function submitCourseEditForm(event) {
-      event.preventDefault();
-      if (!currentUser || !courseFormState.currentId) return;
-      const payload = serializeForm(courseEditForm);
-      payload.user_id = currentUser.telegram_id;
-      payload.type = 'course';
-      payload.price = payload.price ? Number(payload.price) : 0;
-      payload.image_url = courseEditImageUrlInput?.value.trim() || null;
-
-      try {
-        await fetch(`${API_BASE}/admin/products/${courseFormState.currentId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        }).then(handleResponse);
-        setStatus('Мастер-класс сохранён');
-        closeCourseEditModal();
+        resetCourseFormState();
         await loadCourses();
       } catch (e) {
         handleError(e, 'Не удалось сохранить мастер-класс');
@@ -2349,14 +2251,11 @@
     bindStateToForm(promoCreateForm, promoCreateState.formData);
 
     promoCreateForm?.addEventListener('submit', submitPromocodeCreate);
-    promoEditForm?.addEventListener('submit', submitPromocodeEdit);
     promoCreateReset?.addEventListener('click', resetPromoCreateForm);
     promoCreateScope?.addEventListener('change', () => updatePromoTargetState(promoCreateScope, promoCreateTarget));
     promoEditScope?.addEventListener('change', () => updatePromoTargetState(promoEditScope, promoEditTarget));
     productForm.addEventListener('submit', submitProductForm);
-    productEditForm?.addEventListener('submit', submitProductEditForm);
     courseForm.addEventListener('submit', submitCourseForm);
-    courseEditForm?.addEventListener('submit', submitCourseEditForm);
     productCategoryForm?.addEventListener('submit', submitProductCategoryForm);
     courseCategoryForm?.addEventListener('submit', submitCourseCategoryForm);
     productsTable?.addEventListener('click', handleProductTableClick);
@@ -2364,30 +2263,21 @@
     promoTable?.addEventListener('click', handlePromoTableClick);
     productCancel.addEventListener('click', () => {
       resetProductCreateForm();
+      productForm?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
     courseCancel.addEventListener('click', () => {
-      courseFormState.mode = 'create';
-      courseFormState.currentId = null;
-      courseFormTitle.textContent = 'Создать мастер-класс';
-      if (courseSubmitBtn) courseSubmitBtn.textContent = 'Создать мастер-класс';
-      resetFormState(courseFormState.formData, courseFormDefaults);
-      applyStateToForm(courseForm, courseFormState.formData);
-      resetCourseImageInputs();
-      showImageListPlaceholder(courseImagesList, 'Сохраните мастер-класс, чтобы добавить фото.');
+      resetCourseFormState();
+      courseForm?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
     productReset.addEventListener('click', () => {
       resetProductCreateForm();
-      showSection('product-create');
+      showSection('product-list');
+      productForm?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
     courseReset.addEventListener('click', () => {
-      courseFormState.mode = 'create';
-      courseFormState.currentId = null;
-      courseFormTitle.textContent = 'Создать мастер-класс';
-      if (courseSubmitBtn) courseSubmitBtn.textContent = 'Создать мастер-класс';
-      resetFormState(courseFormState.formData, courseFormDefaults);
-      applyStateToForm(courseForm, courseFormState.formData);
-      resetCourseImageInputs();
-      showImageListPlaceholder(courseImagesList, 'Сохраните мастер-класс, чтобы добавить фото.');
+      resetCourseFormState();
+      showSection('course-list');
+      courseForm?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
     productCategoryReset?.addEventListener('click', () => {
       editingProductCategoryId = null;
