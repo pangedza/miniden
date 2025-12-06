@@ -79,9 +79,7 @@ function clearTelegramAuthParamsFromUrl() {
 }
 
 function buildTelegramOAuthUrl() {
-  const returnTo = new URL(window.location.href);
-  returnTo.search = "";
-  returnTo.hash = "";
+  const returnTo = new URL("/api/auth/telegram-login", window.location.origin);
 
   const url = new URL("https://oauth.telegram.org/auth");
   url.searchParams.set("bot", TELEGRAM_BOT_USERNAME);
@@ -115,7 +113,7 @@ async function processTelegramAuthFromUrl() {
 
 function startTelegramOAuthFlow() {
   const url = buildTelegramOAuthUrl();
-  window.open(url, "_blank", "noopener,noreferrer");
+  window.location.href = url;
 }
 
 async function fetchAuthSession(includeNotes) {
