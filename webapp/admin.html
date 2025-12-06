@@ -1560,6 +1560,19 @@
       showImageListPlaceholder(courseEditImagesList, 'Загрузите фото после сохранения.');
     }
 
+    async function fetchEntryForEdit(type, id) {
+      if (!currentUser || !type || !id) return null;
+      const pathMap = {
+        product: `/admin/product/${id}`,
+        course: `/admin/masterclass/${id}`,
+        promo: `/admin/promocode/${id}`,
+      };
+      const path = pathMap[type];
+      if (!path) return null;
+      const data = await apiGet(path, { user_id: currentUser.telegram_id });
+      return data?.item ?? data ?? null;
+    }
+
     async function uploadCourseGalleryFiles(event, target = courseImagesList) {
       const files = Array.from(event.target?.files || []);
       if (!files.length) return;
@@ -1669,19 +1682,11 @@
           <td>${priceLabel}</td>
           <td>${item.is_active ? 'Да' : 'Нет'}</td>
           <td style="display:flex; gap:6px; flex-wrap:wrap;">
-            <button class="btn secondary" type="button" data-action="edit">Редактировать</button>
+            <button class="btn secondary btn-edit-entry" type="button" data-edit="${type === 'basket' ? 'product' : 'course'}" data-id="${item.id}">Редактировать</button>
             <button class="btn secondary" type="button" data-action="toggle">${item.is_active ? 'Скрыть' : 'Показать'}</button>
           </td>
         `;
-        const editBtn = row.querySelector('[data-action="edit"]');
         const toggleBtn = row.querySelector('[data-action="toggle"]');
-        editBtn.addEventListener('click', () => {
-          if (type === 'basket') {
-            openProductEditModal(item);
-          } else {
-            openCourseEditModal(item);
-          }
-        });
         toggleBtn.addEventListener('click', async () => {
           try {
             await apiPost(`/admin/products/${item.id}/toggle`, { user_id: currentUser.telegram_id, type });
@@ -1898,12 +1903,10 @@
           <td>${usageText}</td>
           <td style="display:flex; gap:6px; flex-wrap:wrap;">
             <button class="btn secondary" type="button" data-toggle="${promo.id}">${promo.active ? 'Выключить' : 'Активировать'}</button>
-            <button class="btn secondary" type="button" data-edit="${promo.id}">Редактировать</button>
+            <button class="btn secondary btn-edit-entry" type="button" data-edit="promo" data-id="${promo.id}">Редактировать</button>
             <button class="btn secondary" type="button" data-delete="${promo.id}">Удалить</button>
           </td>
         `;
-
-        row.querySelector('[data-edit]')?.addEventListener('click', () => openPromocodeEdit(promo));
         row.querySelector('[data-delete]')?.addEventListener('click', () => deletePromocode(promo.id));
         row.querySelector('[data-toggle]')?.addEventListener('click', () => togglePromocodeActive(promo));
         promoTable.appendChild(row);
@@ -1950,6 +1953,17 @@
       promoEditOnePerUser.checked = false;
       updatePromoTargetState(promoEditScope, promoEditTarget);
       promoEditModal?.classList.add('hidden');
+    }
+
+    function openEntryForEdit(type, item) {
+      if (!item) return;
+      if (type === 'product') {
+        openProductEditModal(item);
+      } else if (type === 'course') {
+        openCourseEditModal(item);
+      } else if (type === 'promo') {
+        openPromocodeEdit(item);
+      }
     }
 
     async function deletePromocode(id) {
@@ -2036,7 +2050,7 @@
       };
 
       try {
-        await sendJson(`/admin/promocodes/${editingPromoId}`, 'PUT', payload);
+        await sendJson(`/admin/promocode/update/${editingPromoId}`, 'PUT', payload);
         setStatus('Промокод сохранён');
         closePromocodeEdit();
         await loadPromocodes();
@@ -2074,11 +2088,7 @@
       payload.image_url = productEditImageUrlInput?.value.trim() || null;
 
       try {
-        await fetch(`${API_BASE}/admin/products/${editingProductId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        }).then(handleResponse);
+        await sendJson(`/admin/product/update/${editingProductId}`, 'PUT', payload);
         setStatus('Товар сохранён');
         closeProductEditModal();
         await loadProducts();
@@ -2127,11 +2137,7 @@
       payload.image_url = courseEditImageUrlInput?.value.trim() || null;
 
       try {
-        await fetch(`${API_BASE}/admin/products/${editingCourseId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        }).then(handleResponse);
+        await sendJson(`/admin/masterclass/update/${editingCourseId}`, 'PUT', payload);
         setStatus('Мастер-класс сохранён');
         closeCourseEditModal();
         await loadCourses();
@@ -2213,6 +2219,30 @@
     promoEditCancel?.addEventListener('click', closePromocodeEdit);
     promoEditModal?.addEventListener('click', (event) => {
       if (event.target.id === 'promo-edit-modal') closePromocodeEdit();
+    });
+    document.addEventListener('click', async (event) => {
+      const editBtn = event.target.closest('.btn-edit-entry');
+      if (!editBtn) return;
+      const type = editBtn.dataset.edit;
+      const id = editBtn.dataset.id;
+      if (!type || !id) return;
+      if (!currentUser) {
+        setStatus('Нет доступа: авторизуйтесь заново', true);
+        return;
+      }
+      try {
+        const item = await fetchEntryForEdit(type, id);
+        if (!item) throw new Error('Не удалось получить данные');
+        openEntryForEdit(type, item);
+      } catch (error) {
+        console.error(error);
+        const message = type === 'promo'
+          ? 'Не удалось загрузить промокод'
+          : type === 'course'
+          ? 'Не удалось загрузить мастер-класс'
+          : 'Не удалось загрузить товар';
+        setStatus(message, true);
+      }
     });
     promoStatusFilter?.addEventListener('change', () => {
       renderPromocodes(applyPromocodeFilters(promocodeItems));
