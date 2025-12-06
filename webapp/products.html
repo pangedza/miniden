@@ -193,7 +193,6 @@
     let currentProduct = null;
     let productModalIndex = 0;
 
-    const isTelegramWebApp = Boolean(window.Telegram?.WebApp);
     if (isTelegramWebApp && window.Telegram?.WebApp?.ready) {
       window.Telegram.WebApp.ready();
     }
