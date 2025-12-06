@@ -647,24 +647,25 @@ def api_auth_telegram_login(request: Request):
 
 
 @app.get("/api/auth/session")
-def api_auth_session(request: Request, response: Response, include_notes: bool = False):
+def api_auth_session(request: Request, include_notes: bool = False):
     """
     Авторизация из браузера по ранее установленной cookie tg_user_id.
-    Возвращает профиль пользователя в едином формате или ok=false при ошибке.
+
+    Если cookie отсутствует или невалидна — возвращает `{"authenticated": false}`
+    без ошибки 401. При наличии валидной сессии — профиль пользователя в поле
+    `user` с флагом `authenticated`.
     """
     with get_session() as session:
         user = _get_current_user_from_cookie(session, request)
         if not user:
-            response.status_code = 401
-            return {"ok": False, "detail": "unauthorized"}
+            return {"authenticated": False}
 
         try:
             profile = _build_user_profile(session, user, include_notes=include_notes)
         except HTTPException as exc:
-            response.status_code = exc.status_code
-            return {"ok": False, "detail": exc.detail}
+            raise HTTPException(status_code=exc.status_code, detail=exc.detail)
 
-    return profile
+    return {"authenticated": True, "user": profile}
 
 
 class AdminProductsCreatePayload(BaseModel):
