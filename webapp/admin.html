@@ -196,25 +196,25 @@
               <label>Категория</label>
               <select name="category_id" id="product-category-select"></select>
               <label>Название</label>
-              <input type="text" name="name" required />
+              <input type="text" name="name" id="product-name" required />
               <label>Цена</label>
-              <input type="number" name="price" min="0" required />
+              <input type="number" name="price" id="product-price" min="0" required />
               <label>Краткое описание</label>
-              <textarea name="short_description" rows="2" placeholder="Кратко, до ~100–150 символов. Показывается на карточке товара."></textarea>
+              <textarea name="short_description" id="product-short-description" rows="2" placeholder="Кратко, до ~100–150 символов. Показывается на карточке товара."></textarea>
               <label>Описание</label>
-              <textarea name="description"></textarea>
+              <textarea name="description" id="product-description"></textarea>
               <label>Ссылка на Wildberries</label>
-              <input type="text" name="wb_url" />
+              <input type="text" name="wb_url" id="product-wb-url" />
               <label>Ссылка на Ozon</label>
-              <input type="text" name="ozon_url" />
+              <input type="text" name="ozon_url" id="product-ozon-url" />
               <label>Ссылка на Яндекс.Маркет</label>
-              <input type="text" name="yandex_url" />
+              <input type="text" name="yandex_url" id="product-yandex-url" />
               <label>Ссылка на Авито</label>
-              <input type="text" name="avito_url" />
+              <input type="text" name="avito_url" id="product-avito-url" />
               <label>Ссылка на мастер-класс</label>
-              <input type="text" name="masterclass_url" />
+              <input type="text" name="masterclass_url" id="product-masterclass-url" />
               <label>Ссылка на подробности</label>
-              <input type="text" name="detail_url" />
+              <input type="text" name="detail_url" id="product-detail-url" />
             </div>
 
             <div class="form-group">
@@ -339,17 +339,17 @@
               <label>Категория</label>
               <select name="category_id" id="course-category-select"></select>
               <label>Название</label>
-              <input type="text" name="name" required />
+              <input type="text" name="name" id="course-name" required />
               <label>Цена (0 — бесплатно)</label>
-              <input type="number" name="price" min="0" required />
+              <input type="number" name="price" id="course-price" min="0" required />
               <label>Краткое описание</label>
-              <textarea name="short_description" rows="2" placeholder="Кратко, до ~100–150 символов. Показывается на карточке курса."></textarea>
+              <textarea name="short_description" id="course-short-description" rows="2" placeholder="Кратко, до ~100–150 символов. Показывается на карточке курса."></textarea>
               <label>Описание</label>
-              <textarea name="description"></textarea>
+              <textarea name="description" id="course-description"></textarea>
               <label>Ссылка на мастер-класс</label>
-              <input type="text" name="masterclass_url" />
+              <input type="text" name="masterclass_url" id="course-masterclass-url" />
               <label>Ссылка на подробности</label>
-              <input type="text" name="detail_url" />
+              <input type="text" name="detail_url" id="course-detail-url" />
             </div>
             <div class="form-group">
               <label>Фото курса</label>
@@ -422,19 +422,19 @@
         <div class="card" style="max-width:720px; margin:0 auto;">
           <form id="promo-create-form" class="stacked-form">
             <label for="promo-create-code">Код</label>
-            <input type="text" id="promo-create-code" required />
+            <input type="text" id="promo-create-code" name="code" required />
 
             <label for="promo-create-discount-type">Тип скидки</label>
-            <select id="promo-create-discount-type" required>
+            <select id="promo-create-discount-type" name="discount_type" required>
               <option value="percent">Процент</option>
               <option value="fixed">Фиксированная</option>
             </select>
 
             <label for="promo-create-discount-value">Значение</label>
-            <input type="number" id="promo-create-discount-value" min="1" step="1" required />
+            <input type="number" id="promo-create-discount-value" name="discount_value" min="1" step="1" required />
 
             <label for="promo-create-scope">Область применения</label>
-            <select id="promo-create-scope" required>
+            <select id="promo-create-scope" name="scope" required>
               <option value="all">На весь заказ</option>
               <option value="basket">Только корзинки</option>
               <option value="course">Только мастер-классы</option>
@@ -443,25 +443,25 @@
             </select>
 
             <label for="promo-create-target">ID цели (для product/category)</label>
-            <input type="number" id="promo-create-target" min="0" placeholder="Например, ID товара или категории" />
+            <input type="number" id="promo-create-target" name="target_id" min="0" placeholder="Например, ID товара или категории" />
 
             <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
               <div>
                 <label for="promo-create-date-start">Дата начала</label>
-                <input type="datetime-local" id="promo-create-date-start" />
+                <input type="datetime-local" id="promo-create-date-start" name="date_start" />
               </div>
               <div>
                 <label for="promo-create-date-end">Дата окончания</label>
-                <input type="datetime-local" id="promo-create-date-end" />
+                <input type="datetime-local" id="promo-create-date-end" name="date_end" />
               </div>
             </div>
 
             <label for="promo-create-max-uses">Максимум использований</label>
-            <input type="number" id="promo-create-max-uses" min="0" placeholder="0 — без лимита" />
+            <input type="number" id="promo-create-max-uses" name="max_uses" min="0" placeholder="0 — без лимита" />
 
             <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:6px;">
-              <label style="display:flex; align-items:center; gap:6px; margin:0;"><input type="checkbox" id="promo-create-active" checked /> Активен</label>
-              <label style="display:flex; align-items:center; gap:6px; margin:0;"><input type="checkbox" id="promo-create-one-per-user" /> Один раз на пользователя</label>
+              <label style="display:flex; align-items:center; gap:6px; margin:0;"><input type="checkbox" id="promo-create-active" name="active" checked /> Активен</label>
+              <label style="display:flex; align-items:center; gap:6px; margin:0;"><input type="checkbox" id="promo-create-one-per-user" name="one_per_user" /> Один раз на пользователя</label>
             </div>
 
             <div class="form-actions">
@@ -693,6 +693,49 @@
     let editingCourseCategoryId = null;
     let promocodeItems = [];
     let reviewItems = [];
+    let productItems = [];
+    let courseItems = [];
+
+    const productFormDefaults = {
+      category_id: '',
+      name: '',
+      price: null,
+      short_description: '',
+      description: '',
+      wb_url: '',
+      ozon_url: '',
+      yandex_url: '',
+      avito_url: '',
+      masterclass_url: '',
+      detail_url: '',
+      image_url: '',
+    };
+    const courseFormDefaults = {
+      category_id: '',
+      name: '',
+      price: null,
+      short_description: '',
+      description: '',
+      masterclass_url: '',
+      detail_url: '',
+      image_url: '',
+    };
+    const promoFormDefaults = {
+      code: '',
+      discount_type: 'percent',
+      discount_value: null,
+      scope: 'all',
+      target_id: '',
+      date_start: '',
+      date_end: '',
+      max_uses: '',
+      active: true,
+      one_per_user: false,
+    };
+
+    const productFormState = createFormState(productFormDefaults);
+    const courseFormState = createFormState(courseFormDefaults);
+    const promoCreateFormState = createFormState(promoFormDefaults);
 
     function setStatus(message, isError = false) {
       if (!message) {
@@ -774,7 +817,8 @@
       }
       if (view === 'course-create' && !editingCourseId) {
         courseFormTitle.textContent = 'Создать мастер-класс';
-        courseForm?.reset();
+        resetFormState(courseFormState, courseFormDefaults);
+        applyStateToForm(courseForm, courseFormState);
         resetCourseImageInputs();
         showImageListPlaceholder(courseImagesList, 'Сохраните мастер-класс, чтобы добавить фото.');
       }
@@ -1204,6 +1248,51 @@
       return payload;
     }
 
+    function createFormState(defaults = {}) {
+      return { ...defaults };
+    }
+
+    function resetFormState(state, defaults = {}) {
+      Object.keys(state).forEach((key) => delete state[key]);
+      Object.assign(state, defaults);
+    }
+
+    function applyStateToForm(form, state) {
+      if (!form || !state) return;
+      Array.from(form.elements).forEach((el) => {
+        if (!el.name || !(el.name in state)) return;
+        const value = state[el.name];
+        if (el.type === 'checkbox') {
+          el.checked = Boolean(value);
+        } else if (el.type === 'radio') {
+          el.checked = el.value === value;
+        } else {
+          el.value = value ?? '';
+        }
+      });
+    }
+
+    function handleFormInput(event, state) {
+      const el = event.target;
+      if (!el?.name || !(el.name in state)) return;
+      if (el.type === 'checkbox') {
+        state[el.name] = el.checked;
+        return;
+      }
+      if (el.type === 'number') {
+        state[el.name] = el.value === '' ? null : Number(el.value);
+        return;
+      }
+      state[el.name] = el.value;
+    }
+
+    function bindStateToForm(form, state) {
+      if (!form || !state) return;
+      applyStateToForm(form, state);
+      form.addEventListener('input', (event) => handleFormInput(event, state));
+      form.addEventListener('change', (event) => handleFormInput(event, state));
+    }
+
     function setProductImagePreview(url) {
       if (!productImagePreview) return;
       if (url) {
@@ -1481,20 +1570,22 @@
       editingProductId = item.id;
       productFormTitle.textContent = `Редактировать товар #${item.id}`;
       const productImageUrl = item.image_url || item.image || item.images?.[0]?.image_url || '';
-      fillForm(productForm, {
+      resetFormState(productFormState, productFormDefaults);
+      Object.assign(productFormState, {
         category_id: item.category_id ?? '',
-        name: item.name,
-        price: item.price,
+        name: item.name || '',
+        price: item.price ?? null,
         image_url: productImageUrl,
-        short_description: item.short_description,
-        description: item.description,
-        wb_url: item.wb_url,
-        ozon_url: item.ozon_url,
-        yandex_url: item.yandex_url,
-        avito_url: item.avito_url,
-        masterclass_url: item.masterclass_url,
-        detail_url: item.detail_url,
+        short_description: item.short_description || '',
+        description: item.description || '',
+        wb_url: item.wb_url || '',
+        ozon_url: item.ozon_url || '',
+        yandex_url: item.yandex_url || '',
+        avito_url: item.avito_url || '',
+        masterclass_url: item.masterclass_url || '',
+        detail_url: item.detail_url || '',
       });
+      applyStateToForm(productForm, productFormState);
       if (productCategorySelect && item.category_id) {
         const hasOption = Array.from(productCategorySelect.options || []).some(
           (opt) => String(opt.value) === String(item.category_id)
@@ -1516,7 +1607,8 @@
     function closeProductEditModal() {
       editingProductId = null;
       productFormTitle.textContent = 'Создать товар';
-      productForm?.reset();
+      resetFormState(productFormState, productFormDefaults);
+      applyStateToForm(productForm, productFormState);
       resetProductImageInputs();
       showImageListPlaceholder(productImagesList, 'Сохраните товар, чтобы добавить фото.');
       productEditModal?.classList.add('hidden');
@@ -1527,16 +1619,18 @@
       editingCourseId = item.id;
       courseFormTitle.textContent = `Редактировать мастер-класс #${item.id}`;
       const courseImageUrl = item.image_url || item.image || item.images?.[0]?.image_url || '';
-      fillForm(courseForm, {
+      resetFormState(courseFormState, courseFormDefaults);
+      Object.assign(courseFormState, {
         category_id: item.category_id ?? '',
-        name: item.name,
-        price: item.price,
+        name: item.name || '',
+        price: item.price ?? null,
         image_url: courseImageUrl,
-        short_description: item.short_description,
-        description: item.description,
-        masterclass_url: item.masterclass_url,
-        detail_url: item.detail_url,
+        short_description: item.short_description || '',
+        description: item.description || '',
+        masterclass_url: item.masterclass_url || '',
+        detail_url: item.detail_url || '',
       });
+      applyStateToForm(courseForm, courseFormState);
 
       if (courseCategorySelect && item.category_id) {
         const hasOption = Array.from(courseCategorySelect.options || []).some(
@@ -1560,7 +1654,8 @@
     function closeCourseEditModal() {
       editingCourseId = null;
       courseFormTitle.textContent = 'Создать мастер-класс';
-      courseForm?.reset();
+      resetFormState(courseFormState, courseFormDefaults);
+      applyStateToForm(courseForm, courseFormState);
       resetCourseImageInputs();
       showImageListPlaceholder(courseImagesList, 'Сохраните мастер-класс, чтобы добавить фото.');
       courseEditModal?.classList.add('hidden');
@@ -1637,6 +1732,44 @@
       });
     }
 
+    function findProductItemById(id, type) {
+      const source = type === 'course' ? courseItems : productItems;
+      return source.find((item) => String(item.id) === String(id));
+    }
+
+    async function handleProductTableClick(event) {
+      const btn = event.target.closest('[data-action]');
+      if (!btn) return;
+      const { action, id, type } = btn.dataset;
+      if (!id) return;
+      const productType = type || 'basket';
+
+      if (action === 'edit') {
+        const item = findProductItemById(id, productType);
+        if (!item) return;
+        if (productType === 'basket') {
+          startProductInlineEdit(item);
+        } else {
+          openCourseEditModal(item);
+        }
+        return;
+      }
+
+      if (action === 'toggle') {
+        try {
+          await apiPost(`/admin/products/${id}/toggle`, { user_id: currentUser.telegram_id, type: productType });
+          setStatus('Статус товара обновлён');
+          if (productType === 'basket') {
+            await loadProducts();
+          } else {
+            await loadCourses();
+          }
+        } catch (e) {
+          handleError(e, 'Не удалось переключить активность');
+        }
+      }
+    }
+
     function fillCategoryForm(form, category) {
       if (!form || !category) return;
       form.elements.name.value = category.name || '';
@@ -1675,32 +1808,10 @@
           <td>${priceLabel}</td>
           <td>${item.is_active ? 'Да' : 'Нет'}</td>
           <td style="display:flex; gap:6px; flex-wrap:wrap;">
-            <button class="btn secondary" type="button" data-action="edit">Редактировать</button>
-            <button class="btn secondary" type="button" data-action="toggle">${item.is_active ? 'Скрыть' : 'Показать'}</button>
+            <button class="btn secondary" type="button" data-action="edit" data-id="${item.id}" data-type="${type}">Редактировать</button>
+            <button class="btn secondary" type="button" data-action="toggle" data-id="${item.id}" data-type="${type}">${item.is_active ? 'Скрыть' : 'Показать'}</button>
           </td>
         `;
-        const editBtn = row.querySelector('[data-action="edit"]');
-        const toggleBtn = row.querySelector('[data-action="toggle"]');
-        editBtn.addEventListener('click', () => {
-          if (type === 'basket') {
-            startProductInlineEdit(item);
-          } else {
-            openCourseEditModal(item);
-          }
-        });
-        toggleBtn.addEventListener('click', async () => {
-          try {
-            await apiPost(`/admin/products/${item.id}/toggle`, { user_id: currentUser.telegram_id, type });
-            setStatus('Статус товара обновлён');
-            if (type === 'basket') {
-              await loadProducts();
-            } else {
-              await loadCourses();
-            }
-          } catch (e) {
-            handleError(e, 'Не удалось переключить активность');
-          }
-        });
         targetTable.appendChild(row);
       });
     }
@@ -1804,6 +1915,7 @@
         const status = productsStatusFilter.value === 'all' ? undefined : productsStatusFilter.value;
         const data = await apiGet('/admin/products', { user_id: currentUser.telegram_id, type: 'basket', status });
         let items = data.items || [];
+        productItems = items;
         const catFilter = productCategoryFilter.value;
         if (catFilter) {
           items = items.filter((i) => String(i.category_id || i.category_slug || '') === String(catFilter));
@@ -1820,6 +1932,7 @@
         const status = coursesStatusFilter.value === 'all' ? undefined : coursesStatusFilter.value;
         const data = await apiGet('/admin/products', { user_id: currentUser.telegram_id, type: 'course', status });
         let items = data.items || [];
+        courseItems = items;
         const catFilter = courseCategoryFilter.value;
         if (catFilter) {
           items = items.filter((i) => String(i.category_slug || i.category_id || '') === String(catFilter));
@@ -1860,6 +1973,30 @@
       if (statusFilter === 'active') return items.filter((p) => p.active);
       if (statusFilter === 'inactive') return items.filter((p) => !p.active);
       return items;
+    }
+
+    function findPromocodeById(id) {
+      return promocodeItems.find((p) => String(p.id) === String(id));
+    }
+
+    async function handlePromoTableClick(event) {
+      const btn = event.target.closest('[data-edit], [data-delete], [data-toggle]');
+      if (!btn) return;
+      const promoId = btn.dataset.edit || btn.dataset.delete || btn.dataset.toggle;
+      if (!promoId) return;
+      const promo = findPromocodeById(promoId);
+
+      if (btn.dataset.edit) {
+        if (promo) openPromocodeEdit(promo);
+        return;
+      }
+      if (btn.dataset.delete) {
+        deletePromocode(Number(promoId));
+        return;
+      }
+      if (btn.dataset.toggle && promo) {
+        togglePromocodeActive(promo);
+      }
     }
 
     function renderPromocodes(promos) {
@@ -1908,10 +2045,6 @@
             <button class="btn secondary" type="button" data-delete="${promo.id}">Удалить</button>
           </td>
         `;
-
-        row.querySelector('[data-edit]')?.addEventListener('click', () => openPromocodeEdit(promo));
-        row.querySelector('[data-delete]')?.addEventListener('click', () => deletePromocode(promo.id));
-        row.querySelector('[data-toggle]')?.addEventListener('click', () => togglePromocodeActive(promo));
         promoTable.appendChild(row);
       });
     }
@@ -1935,16 +2068,20 @@
     function openPromocodeEdit(promo) {
       editingPromoId = promo.id;
       promoCreateTitle.textContent = `Редактировать промокод #${promo.id}`;
-      promoCreateCode.value = promo.code || '';
-      promoCreateDiscountType.value = promo.discount_type || 'percent';
-      promoCreateDiscountValue.value = promo.discount_value || '';
-      promoCreateScope.value = promo.scope || 'all';
-      promoCreateTarget.value = promo.target_id ?? '';
-      promoCreateDateStart.value = toInputDate(promo.date_start);
-      promoCreateDateEnd.value = toInputDate(promo.date_end);
-      promoCreateMaxUses.value = promo.max_uses ?? '';
-      promoCreateActive.checked = promo.active !== false;
-      promoCreateOnePerUser.checked = Boolean(promo.one_per_user);
+      resetFormState(promoCreateFormState, promoFormDefaults);
+      Object.assign(promoCreateFormState, {
+        code: promo.code || '',
+        discount_type: promo.discount_type || 'percent',
+        discount_value: promo.discount_value ?? null,
+        scope: promo.scope || 'all',
+        target_id: promo.target_id ?? '',
+        date_start: toInputDate(promo.date_start),
+        date_end: toInputDate(promo.date_end),
+        max_uses: promo.max_uses ?? '',
+        active: promo.active !== false,
+        one_per_user: Boolean(promo.one_per_user),
+      });
+      applyStateToForm(promoCreateForm, promoCreateFormState);
       updatePromoTargetState(promoCreateScope, promoCreateTarget);
       handleViewNavigation('promocode-create');
     }
@@ -1984,10 +2121,8 @@
     function resetPromoCreateForm() {
       editingPromoId = null;
       promoCreateTitle.textContent = 'Создать промокод';
-      promoCreateForm?.reset();
-      promoCreateActive.checked = true;
-      promoCreateOnePerUser.checked = false;
-      promoCreateTarget.value = '';
+      resetFormState(promoCreateFormState, promoFormDefaults);
+      applyStateToForm(promoCreateForm, promoCreateFormState);
       updatePromoTargetState(promoCreateScope, promoCreateTarget);
     }
 
@@ -2108,7 +2243,8 @@
     function resetProductCreateForm() {
       editingProductId = null;
       productFormTitle.textContent = 'Создать товар';
-      productForm.reset();
+      resetFormState(productFormState, productFormDefaults);
+      applyStateToForm(productForm, productFormState);
       resetProductImageInputs();
       showImageListPlaceholder(productImagesList, 'Сохраните товар, чтобы добавить фото.');
     }
@@ -2136,7 +2272,8 @@
         }
         editingCourseId = null;
         courseFormTitle.textContent = 'Создать мастер-класс';
-        courseForm.reset();
+        resetFormState(courseFormState, courseFormDefaults);
+        applyStateToForm(courseForm, courseFormState);
         resetCourseImageInputs();
         showImageListPlaceholder(courseImagesList, 'Сохраните мастер-класс, чтобы добавить фото.');
         await loadCourses();
@@ -2168,6 +2305,10 @@
       }
     }
 
+    bindStateToForm(productForm, productFormState);
+    bindStateToForm(courseForm, courseFormState);
+    bindStateToForm(promoCreateForm, promoCreateFormState);
+
     promoCreateForm?.addEventListener('submit', submitPromocodeCreate);
     promoEditForm?.addEventListener('submit', submitPromocodeEdit);
     promoCreateReset?.addEventListener('click', resetPromoCreateForm);
@@ -2179,13 +2320,17 @@
     courseEditForm?.addEventListener('submit', submitCourseEditForm);
     productCategoryForm?.addEventListener('submit', submitProductCategoryForm);
     courseCategoryForm?.addEventListener('submit', submitCourseCategoryForm);
+    productsTable?.addEventListener('click', handleProductTableClick);
+    coursesTable?.addEventListener('click', handleProductTableClick);
+    promoTable?.addEventListener('click', handlePromoTableClick);
     productCancel.addEventListener('click', () => {
       resetProductCreateForm();
     });
     courseCancel.addEventListener('click', () => {
       editingCourseId = null;
       courseFormTitle.textContent = 'Создать мастер-класс';
-      courseForm.reset();
+      resetFormState(courseFormState, courseFormDefaults);
+      applyStateToForm(courseForm, courseFormState);
       resetCourseImageInputs();
       showImageListPlaceholder(courseImagesList, 'Сохраните мастер-класс, чтобы добавить фото.');
     });
@@ -2196,7 +2341,8 @@
     courseReset.addEventListener('click', () => {
       editingCourseId = null;
       courseFormTitle.textContent = 'Создать мастер-класс';
-      courseForm.reset();
+      resetFormState(courseFormState, courseFormDefaults);
+      applyStateToForm(courseForm, courseFormState);
       resetCourseImageInputs();
       showImageListPlaceholder(courseImagesList, 'Сохраните мастер-класс, чтобы добавить фото.');
     });
@@ -2436,19 +2582,19 @@
       <div class="admin-modal__body" style="max-height:70vh; overflow:auto;">
         <form id="promo-edit-form" class="stacked-form">
           <label for="promo-edit-code">Код</label>
-          <input type="text" id="promo-edit-code" required />
+          <input type="text" id="promo-edit-code" name="code" required />
 
           <label for="promo-edit-discount-type">Тип скидки</label>
-          <select id="promo-edit-discount-type" required>
+          <select id="promo-edit-discount-type" name="discount_type" required>
             <option value="percent">Процент</option>
             <option value="fixed">Фиксированная</option>
           </select>
 
           <label for="promo-edit-discount-value">Значение</label>
-          <input type="number" id="promo-edit-discount-value" min="1" step="1" required />
+          <input type="number" id="promo-edit-discount-value" name="discount_value" min="1" step="1" required />
 
           <label for="promo-edit-scope">Область применения</label>
-          <select id="promo-edit-scope" required>
+          <select id="promo-edit-scope" name="scope" required>
             <option value="all">На весь заказ</option>
             <option value="basket">Только корзинки</option>
             <option value="course">Только мастер-классы</option>
@@ -2457,25 +2603,25 @@
           </select>
 
           <label for="promo-edit-target">ID цели (для product/category)</label>
-          <input type="number" id="promo-edit-target" min="0" placeholder="Например, ID товара или категории" />
+          <input type="number" id="promo-edit-target" name="target_id" min="0" placeholder="Например, ID товара или категории" />
 
           <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
             <div>
               <label for="promo-edit-date-start">Дата начала</label>
-              <input type="datetime-local" id="promo-edit-date-start" />
+              <input type="datetime-local" id="promo-edit-date-start" name="date_start" />
             </div>
             <div>
               <label for="promo-edit-date-end">Дата окончания</label>
-              <input type="datetime-local" id="promo-edit-date-end" />
+              <input type="datetime-local" id="promo-edit-date-end" name="date_end" />
             </div>
           </div>
 
           <label for="promo-edit-max-uses">Максимум использований</label>
-          <input type="number" id="promo-edit-max-uses" min="0" placeholder="0 — без лимита" />
+          <input type="number" id="promo-edit-max-uses" name="max_uses" min="0" placeholder="0 — без лимита" />
 
           <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:6px;">
-            <label style="display:flex; align-items:center; gap:6px; margin:0;"><input type="checkbox" id="promo-edit-active" /> Активен</label>
-            <label style="display:flex; align-items:center; gap:6px; margin:0;"><input type="checkbox" id="promo-edit-one-per-user" /> Один раз на пользователя</label>
+            <label style="display:flex; align-items:center; gap:6px; margin:0;"><input type="checkbox" id="promo-edit-active" name="active" /> Активен</label>
+            <label style="display:flex; align-items:center; gap:6px; margin:0;"><input type="checkbox" id="promo-edit-one-per-user" name="one_per_user" /> Один раз на пользователя</label>
           </div>
 
           <div class="form-actions">
