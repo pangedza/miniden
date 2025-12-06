@@ -572,33 +572,11 @@
     const productImagePreview = document.getElementById('product-image-preview');
     const productGalleryInput = document.getElementById('product-gallery-input');
     const productImagesList = document.getElementById('product-images-list');
-    const productEditModal = document.getElementById('product-edit-modal');
-    const productEditForm = document.getElementById('product-edit-form');
-    const productEditTitle = document.getElementById('product-edit-title');
-    const productEditCategorySelect = document.getElementById('product-edit-category-select');
-    const productEditImageFileInput = document.getElementById('product-edit-image-file-input');
-    const productEditImageUrlInput = document.getElementById('product-edit-image-url-input');
-    const productEditImagePreview = document.getElementById('product-edit-image-preview');
-    const productEditGalleryInput = document.getElementById('product-edit-gallery-input');
-    const productEditImagesList = document.getElementById('product-edit-images-list');
-    const productEditClose = document.getElementById('product-edit-close');
-    const productEditCancel = document.getElementById('product-edit-cancel');
     const courseImageFileInput = document.getElementById('course-image-file-input');
     const courseImageUrlInput = document.getElementById('course-image-url-input');
     const courseImagePreview = document.getElementById('course-image-preview');
     const courseGalleryInput = document.getElementById('course-gallery-input');
     const courseImagesList = document.getElementById('course-images-list');
-    const courseEditModal = document.getElementById('course-edit-modal');
-    const courseEditForm = document.getElementById('course-edit-form');
-    const courseEditTitle = document.getElementById('course-edit-title');
-    const courseEditCategorySelect = document.getElementById('course-edit-category-select');
-    const courseEditImageFileInput = document.getElementById('course-edit-image-file-input');
-    const courseEditImageUrlInput = document.getElementById('course-edit-image-url-input');
-    const courseEditImagePreview = document.getElementById('course-edit-image-preview');
-    const courseEditGalleryInput = document.getElementById('course-edit-gallery-input');
-    const courseEditImagesList = document.getElementById('course-edit-images-list');
-    const courseEditClose = document.getElementById('course-edit-close');
-    const courseEditCancel = document.getElementById('course-edit-cancel');
     const imageModal = document.getElementById('image-modal');
     const imageModalClose = document.getElementById('image-modal-close');
     const imageModalPicture = document.getElementById('image-modal-picture');
@@ -628,21 +606,6 @@
     const promoCreateActive = document.getElementById('promo-create-active');
     const promoCreateOnePerUser = document.getElementById('promo-create-one-per-user');
     const promoCreateReset = document.getElementById('promo-create-reset');
-    const promoEditModal = document.getElementById('promo-edit-modal');
-    const promoEditForm = document.getElementById('promo-edit-form');
-    const promoEditTitle = document.getElementById('promo-edit-title');
-    const promoEditCode = document.getElementById('promo-edit-code');
-    const promoEditDiscountType = document.getElementById('promo-edit-discount-type');
-    const promoEditDiscountValue = document.getElementById('promo-edit-discount-value');
-    const promoEditScope = document.getElementById('promo-edit-scope');
-    const promoEditTarget = document.getElementById('promo-edit-target');
-    const promoEditDateStart = document.getElementById('promo-edit-date-start');
-    const promoEditDateEnd = document.getElementById('promo-edit-date-end');
-    const promoEditMaxUses = document.getElementById('promo-edit-max-uses');
-    const promoEditActive = document.getElementById('promo-edit-active');
-    const promoEditOnePerUser = document.getElementById('promo-edit-one-per-user');
-    const promoEditClose = document.getElementById('promo-edit-close');
-    const promoEditCancel = document.getElementById('promo-edit-cancel');
     const productCategoriesTable = document.getElementById('product-categories-table');
     const courseCategoriesTable = document.getElementById('course-categories-table');
     const productCategoryForm = document.getElementById('product-category-form');
@@ -1297,17 +1260,6 @@
       }
     }
 
-    function setProductEditImagePreview(url) {
-      if (!productEditImagePreview) return;
-      if (url) {
-        productEditImagePreview.style.backgroundImage = `url(${url})`;
-        productEditImagePreview.textContent = '';
-      } else {
-        productEditImagePreview.style.backgroundImage = '';
-        productEditImagePreview.textContent = 'Нет изображения';
-      }
-    }
-
     function setCourseImagePreview(url) {
       if (!courseImagePreview) return;
       if (url) {
@@ -1319,39 +1271,16 @@
       }
     }
 
-    function setCourseEditImagePreview(url) {
-      if (!courseEditImagePreview) return;
-      if (url) {
-        courseEditImagePreview.style.backgroundImage = `url(${url})`;
-        courseEditImagePreview.textContent = '';
-      } else {
-        courseEditImagePreview.style.backgroundImage = '';
-        courseEditImagePreview.textContent = 'Нет изображения';
-      }
-    }
-
     function resetProductImageInputs() {
       if (productImageFileInput) productImageFileInput.value = '';
       if (productImageUrlInput) productImageUrlInput.value = '';
       setProductImagePreview('');
     }
 
-    function resetProductEditImageInputs() {
-      if (productEditImageFileInput) productEditImageFileInput.value = '';
-      if (productEditImageUrlInput) productEditImageUrlInput.value = '';
-      setProductEditImagePreview('');
-    }
-
     function resetCourseImageInputs() {
       if (courseImageFileInput) courseImageFileInput.value = '';
       if (courseImageUrlInput) courseImageUrlInput.value = '';
       setCourseImagePreview('');
-    }
-
-    function resetCourseEditImageInputs() {
-      if (courseEditImageFileInput) courseEditImageFileInput.value = '';
-      if (courseEditImageUrlInput) courseEditImageUrlInput.value = '';
-      setCourseEditImagePreview('');
     }
 
     async function uploadProductImageFile() {
@@ -1376,28 +1305,6 @@
       }
     }
 
-    async function uploadProductEditImageFile() {
-      const file = productEditImageFileInput?.files?.[0];
-      if (!file) return;
-
-      const formData = new FormData();
-      formData.append('kind', 'product');
-      formData.append('file', file);
-
-      try {
-        const res = await fetch('/api/admin/upload-image', { method: 'POST', body: formData });
-        const data = await res.json();
-        if (!data.ok) {
-          throw new Error('Ошибка загрузки изображения');
-        }
-
-        if (productEditImageUrlInput) productEditImageUrlInput.value = data.url;
-        setProductEditImagePreview(data.url);
-      } catch (e) {
-        handleError(e, 'Не удалось загрузить изображение товара');
-      }
-    }
-
     async function uploadCourseImageFile() {
       const file = courseImageFileInput?.files?.[0];
       if (!file) return;
@@ -1415,28 +1322,6 @@
 
         if (courseImageUrlInput) courseImageUrlInput.value = data.url;
         setCourseImagePreview(data.url);
-      } catch (e) {
-        handleError(e, 'Не удалось загрузить изображение мастер-класса');
-      }
-    }
-
-    async function uploadCourseEditImageFile() {
-      const file = courseEditImageFileInput?.files?.[0];
-      if (!file) return;
-
-      const formData = new FormData();
-      formData.append('kind', 'course');
-      formData.append('file', file);
-
-      try {
-        const res = await fetch('/api/admin/upload-image', { method: 'POST', body: formData });
-        const data = await res.json();
-        if (!data.ok) {
-          throw new Error('Ошибка загрузки изображения');
-        }
-
-        if (courseEditImageUrlInput) courseEditImageUrlInput.value = data.url;
-        setCourseEditImagePreview(data.url);
       } catch (e) {
         handleError(e, 'Не удалось загрузить изображение мастер-класса');
       }
@@ -1601,15 +1486,6 @@
       productForm?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
-    function closeProductEditModal() {
-      productFormState.mode = 'create';
-      productCurrentId = null;
-      productFormState.currentId = null;
-      productFormTitle.textContent = 'Создать товар';
-      if (productSubmitBtn) productSubmitBtn.textContent = 'Создать товар';
-      productEditModal?.classList.add('hidden');
-    }
-
     function startCourseInlineEdit(item) {
       if (!item) return;
       courseFormState.mode = 'edit';
@@ -1649,15 +1525,6 @@
       showSection('course-list');
       loadCourseImages(masterclassCurrentId, courseImagesList);
       courseForm?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-
-    function closeCourseEditModal() {
-      courseFormState.mode = 'create';
-      masterclassCurrentId = null;
-      courseFormState.currentId = null;
-      courseFormTitle.textContent = 'Создать мастер-класс';
-      if (courseSubmitBtn) courseSubmitBtn.textContent = 'Создать мастер-класс';
-      courseEditModal?.classList.add('hidden');
     }
 
     async function uploadCourseGalleryFiles(event, target = courseImagesList) {
@@ -1843,7 +1710,7 @@
       }
     }
 
-    async function submitProductCategoryForm(event) {
+    async function handleProductCategoryFormSubmit(event) {
       event.preventDefault();
       if (!currentUser) return;
       const form = productCategoryForm;
@@ -1869,14 +1736,13 @@
           loadProductCategories(),
           loadCategories(productCategorySelect, 'basket'),
           loadCategories(productCategoryFilter, 'basket'),
-          loadCategories(productEditCategorySelect, 'basket'),
         ]);
       } catch (e) {
         handleError(e, 'Не удалось сохранить категорию товара');
       }
     }
 
-    async function submitCourseCategoryForm(event) {
+    async function handleCourseCategoryFormSubmit(event) {
       event.preventDefault();
       if (!currentUser) return;
       const form = courseCategoryForm;
@@ -2089,11 +1955,6 @@
       promoCreateForm?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
-    function closePromocodeEdit() {
-      resetPromoCreateForm();
-      promoEditModal?.classList.add('hidden');
-    }
-
     async function deletePromocode(id) {
       if (!currentUser || !id) return;
       if (!confirm('Удалить промокод?')) return;
@@ -2166,7 +2027,7 @@
       }
     }
 
-    async function submitProductForm(event) {
+    async function handleProductFormSubmit(event) {
       event.preventDefault();
       if (!currentUser) return;
       const payload = serializeForm(productForm);
@@ -2218,7 +2079,7 @@
       showImageListPlaceholder(courseImagesList, 'Сохраните мастер-класс, чтобы добавить фото.');
     }
 
-    async function submitCourseForm(event) {
+    async function handleCourseFormSubmit(event) {
       event.preventDefault();
       if (!currentUser) return;
       const payload = serializeForm(courseForm);
@@ -2253,11 +2114,10 @@
     promoCreateForm?.addEventListener('submit', submitPromocodeCreate);
     promoCreateReset?.addEventListener('click', resetPromoCreateForm);
     promoCreateScope?.addEventListener('change', () => updatePromoTargetState(promoCreateScope, promoCreateTarget));
-    promoEditScope?.addEventListener('change', () => updatePromoTargetState(promoEditScope, promoEditTarget));
-    productForm.addEventListener('submit', submitProductForm);
-    courseForm.addEventListener('submit', submitCourseForm);
-    productCategoryForm?.addEventListener('submit', submitProductCategoryForm);
-    courseCategoryForm?.addEventListener('submit', submitCourseCategoryForm);
+    productForm.addEventListener('submit', handleProductFormSubmit);
+    courseForm.addEventListener('submit', handleCourseFormSubmit);
+    productCategoryForm?.addEventListener('submit', handleProductCategoryFormSubmit);
+    courseCategoryForm?.addEventListener('submit', handleCourseCategoryFormSubmit);
     productsTable?.addEventListener('click', handleProductTableClick);
     coursesTable?.addEventListener('click', handleProductTableClick);
     promoTable?.addEventListener('click', handlePromoTableClick);
@@ -2289,37 +2149,14 @@
     });
 
     productImageFileInput?.addEventListener('change', uploadProductImageFile);
-    productEditImageFileInput?.addEventListener('change', uploadProductEditImageFile);
     courseImageFileInput?.addEventListener('change', uploadCourseImageFile);
     productGalleryInput?.addEventListener('change', uploadProductGalleryFiles);
-    productEditGalleryInput?.addEventListener('change', (event) => uploadProductGalleryFiles(event, productEditImagesList));
     courseGalleryInput?.addEventListener('change', uploadCourseGalleryFiles);
-    courseEditGalleryInput?.addEventListener('change', (event) => uploadCourseGalleryFiles(event, courseEditImagesList));
     productImageUrlInput?.addEventListener('input', () => setProductImagePreview(productImageUrlInput.value.trim()));
-    productEditImageUrlInput?.addEventListener('input', () => setProductEditImagePreview(productEditImageUrlInput.value.trim()));
     courseImageUrlInput?.addEventListener('input', () => setCourseImagePreview(courseImageUrlInput.value.trim()));
-    courseEditImageFileInput?.addEventListener('change', uploadCourseEditImageFile);
-    courseEditImageUrlInput?.addEventListener('input', () => setCourseEditImagePreview(courseEditImageUrlInput.value.trim()));
     imageModalClose?.addEventListener('click', closeImageModal);
     imageModal?.addEventListener('click', (event) => {
       if (event.target.id === 'image-modal') closeImageModal();
-    });
-    productEditClose?.addEventListener('click', closeProductEditModal);
-    productEditCancel?.addEventListener('click', closeProductEditModal);
-    productEditModal?.addEventListener('click', (event) => {
-      if (event.target.id === 'product-edit-modal') closeProductEditModal();
-    });
-
-    courseEditClose?.addEventListener('click', closeCourseEditModal);
-    courseEditCancel?.addEventListener('click', closeCourseEditModal);
-    courseEditModal?.addEventListener('click', (event) => {
-      if (event.target.id === 'course-edit-modal') closeCourseEditModal();
-    });
-
-    promoEditClose?.addEventListener('click', closePromocodeEdit);
-    promoEditCancel?.addEventListener('click', closePromocodeEdit);
-    promoEditModal?.addEventListener('click', (event) => {
-      if (event.target.id === 'promo-edit-modal') closePromocodeEdit();
     });
     promoStatusFilter?.addEventListener('change', () => {
       renderPromocodes(applyPromocodeFilters(promocodeItems));
@@ -2356,8 +2193,6 @@
         await Promise.all([
           loadCategories(productCategoryFilter, 'basket'),
           loadCategories(productCategorySelect, 'basket'),
-          loadCategories(productEditCategorySelect, 'basket'),
-          loadCategories(courseEditCategorySelect, 'course'),
           loadCategories(courseCategoryFilter, 'course'),
           loadCategories(courseCategorySelect, 'course'),
         ]);
@@ -2365,7 +2200,6 @@
         await Promise.all([loadProductCategories(), loadCourseCategories()]);
 
         resetPromoCreateForm();
-        updatePromoTargetState(promoEditScope, promoEditTarget);
         await loadOrders();
         await loadProducts();
         await loadCourses();
@@ -2390,178 +2224,6 @@
       </div>
       <div class="admin-modal__body image-modal__body">
         <img id="image-modal-picture" src="" alt="Просмотр изображения">
-      </div>
-    </div>
-  </div>
-
-  <div id="product-edit-modal" class="admin-modal hidden">
-    <div class="admin-modal__content">
-      <div class="admin-modal__header">
-        <h3 id="product-edit-title">Редактировать товар</h3>
-        <button class="btn secondary" type="button" id="product-edit-close">Закрыть</button>
-      </div>
-      <div class="admin-modal__body" style="max-height:70vh; overflow:auto;">
-        <form id="product-edit-form" class="stacked-form">
-          <div class="form-grid">
-            <label>Категория</label>
-            <select name="category_id" id="product-edit-category-select"></select>
-            <label>Название</label>
-            <input type="text" name="name" required />
-            <label>Цена</label>
-            <input type="number" name="price" min="0" required />
-            <label>Краткое описание</label>
-            <textarea name="short_description" rows="2"></textarea>
-            <label>Описание</label>
-            <textarea name="description"></textarea>
-            <label>Ссылка на Wildberries</label>
-            <input type="text" name="wb_url" />
-            <label>Ссылка на Ozon</label>
-            <input type="text" name="ozon_url" />
-            <label>Ссылка на Яндекс.Маркет</label>
-            <input type="text" name="yandex_url" />
-            <label>Ссылка на Авито</label>
-            <input type="text" name="avito_url" />
-            <label>Ссылка на мастер-класс</label>
-            <input type="text" name="masterclass_url" />
-            <label>Ссылка на подробности</label>
-            <input type="text" name="detail_url" />
-          </div>
-          <div class="form-group">
-            <label>Фото товара</label>
-            <input type="file" id="product-edit-image-file-input" accept="image/*">
-          </div>
-          <div class="form-group">
-            <label>URL изображения (image_url)</label>
-            <input type="text" id="product-edit-image-url-input" name="image_url" placeholder="/media/products/xxx.jpg">
-          </div>
-          <div class="form-group">
-            <div id="product-edit-image-preview" class="image-preview-box">Нет изображения</div>
-          </div>
-          <div class="form-group">
-            <label>Фотографии товара</label>
-            <div class="image-upload-row">
-              <input type="file" id="product-edit-gallery-input" accept="image/*" multiple>
-              <div class="muted" style="font-size:13px;">Можно выбрать несколько файлов одновременно.</div>
-            </div>
-            <div id="product-edit-images-list" class="image-list muted">Загрузите фото после сохранения.</div>
-          </div>
-          <div class="form-actions">
-            <button class="btn primary" type="submit">Сохранить</button>
-            <button class="btn secondary" type="button" id="product-edit-cancel">Отмена</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
-
-  <div id="course-edit-modal" class="admin-modal hidden">
-    <div class="admin-modal__content">
-      <div class="admin-modal__header">
-        <h3 id="course-edit-title">Редактировать мастер-класс</h3>
-        <button class="btn secondary" type="button" id="course-edit-close">Закрыть</button>
-      </div>
-      <div class="admin-modal__body" style="max-height:70vh; overflow:auto;">
-        <form id="course-edit-form" class="stacked-form">
-          <div class="form-grid">
-            <label>Категория</label>
-            <select name="category_id" id="course-edit-category-select"></select>
-            <label>Название</label>
-            <input type="text" name="name" required />
-            <label>Цена (0 — бесплатно)</label>
-            <input type="number" name="price" min="0" required />
-            <label>Краткое описание</label>
-            <textarea name="short_description" rows="2"></textarea>
-            <label>Описание</label>
-            <textarea name="description"></textarea>
-            <label>Ссылка на мастер-класс</label>
-            <input type="text" name="masterclass_url" />
-            <label>Ссылка на подробности</label>
-            <input type="text" name="detail_url" />
-          </div>
-          <div class="form-group">
-            <label>Фото курса</label>
-            <input type="file" id="course-edit-image-file-input" accept="image/*" />
-          </div>
-          <div class="form-group">
-            <label>URL изображения (image_url)</label>
-            <input type="text" id="course-edit-image-url-input" name="image_url" placeholder="/media/courses/xxx.jpg" />
-          </div>
-          <div class="form-group">
-            <div id="course-edit-image-preview" class="image-preview-box">Нет изображения</div>
-          </div>
-          <div class="form-group">
-            <label>Фотографии мастер-класса</label>
-            <div class="image-upload-row">
-              <input type="file" id="course-edit-gallery-input" accept="image/*" multiple />
-              <div class="muted" style="font-size:13px;">Добавьте одно или несколько изображений.</div>
-            </div>
-            <div id="course-edit-images-list" class="image-list muted">Загрузите фото после сохранения.</div>
-          </div>
-          <div class="form-actions">
-            <button class="btn primary" type="submit">Сохранить</button>
-            <button class="btn secondary" type="button" id="course-edit-cancel">Отмена</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
-
-  <div id="promo-edit-modal" class="admin-modal hidden">
-    <div class="admin-modal__content">
-      <div class="admin-modal__header">
-        <h3 id="promo-edit-title">Редактировать промокод</h3>
-        <button class="btn secondary" type="button" id="promo-edit-close">Закрыть</button>
-      </div>
-      <div class="admin-modal__body" style="max-height:70vh; overflow:auto;">
-        <form id="promo-edit-form" class="stacked-form">
-          <label for="promo-edit-code">Код</label>
-          <input type="text" id="promo-edit-code" name="code" required />
-
-          <label for="promo-edit-discount-type">Тип скидки</label>
-          <select id="promo-edit-discount-type" name="discount_type" required>
-            <option value="percent">Процент</option>
-            <option value="fixed">Фиксированная</option>
-          </select>
-
-          <label for="promo-edit-discount-value">Значение</label>
-          <input type="number" id="promo-edit-discount-value" name="discount_value" min="1" step="1" required />
-
-          <label for="promo-edit-scope">Область применения</label>
-          <select id="promo-edit-scope" name="scope" required>
-            <option value="all">На весь заказ</option>
-            <option value="basket">Только корзинки</option>
-            <option value="course">Только мастер-классы</option>
-            <option value="product">Определённый товар/курс</option>
-            <option value="category">Категория корзинок</option>
-          </select>
-
-          <label for="promo-edit-target">ID цели (для product/category)</label>
-          <input type="number" id="promo-edit-target" name="target_id" min="0" placeholder="Например, ID товара или категории" />
-
-          <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
-            <div>
-              <label for="promo-edit-date-start">Дата начала</label>
-              <input type="datetime-local" id="promo-edit-date-start" name="date_start" />
-            </div>
-            <div>
-              <label for="promo-edit-date-end">Дата окончания</label>
-              <input type="datetime-local" id="promo-edit-date-end" name="date_end" />
-            </div>
-          </div>
-
-          <label for="promo-edit-max-uses">Максимум использований</label>
-          <input type="number" id="promo-edit-max-uses" name="max_uses" min="0" placeholder="0 — без лимита" />
-
-          <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:6px;">
-            <label style="display:flex; align-items:center; gap:6px; margin:0;"><input type="checkbox" id="promo-edit-active" name="active" /> Активен</label>
-            <label style="display:flex; align-items:center; gap:6px; margin:0;"><input type="checkbox" id="promo-edit-one-per-user" name="one_per_user" /> Один раз на пользователя</label>
-          </div>
-
-          <div class="form-actions">
-            <button class="btn primary" type="submit">Сохранить</button>
-            <button class="btn secondary" type="button" id="promo-edit-cancel">Отмена</button>
-          </div>
-        </form>
       </div>
     </div>
   </div>
