@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/theme.css?v=20241216" />
+  <link rel="stylesheet" href="css/theme.css?v=20241217" />
 
 </head>
 <body data-theme="purple" class="page-profile">
@@ -102,8 +102,8 @@
     <a class="btn" href="products.html">Перейти в каталог</a>
   </div>
 
-  <script src="js/app.js?v=20241216"></script>
-  <script src="js/api.js?v=20241216"></script>
+  <script src="js/app.js?v=20241217"></script>
+  <script src="js/api.js?v=20241217"></script>
   <script>
     const statusEl = document.getElementById('status');
     const loginHint = document.getElementById('login-hint');
@@ -455,6 +455,19 @@
       try {
         currentUser = await getCurrentUserProfile({ includeNotes: true });
         if (!currentUser) {
+          if (isTelegramWebApp) {
+            const authState = window.getTelegramWebAppAuthState?.();
+            const stateStatus = authState?.status;
+            if (stateStatus === 'auth_failed' || stateStatus === 'profile_error') {
+              showLoginHint('Не удалось авторизоваться через Telegram. Закройте WebApp и откройте его снова из чата бота.');
+            } else if (stateStatus === 'no_init_data') {
+              showLoginHint('Данные для авторизации Telegram не получены. Попробуйте обновить окно WebApp.');
+            } else {
+              showLoginHint('Идёт попытка входа через Telegram. Если данных нет, перезапустите WebApp.');
+            }
+            return;
+          }
+
           showLoginHint('Вы не авторизованы. Перейдите на главную страницу и выполните вход через Telegram.');
           return;
         }
@@ -485,6 +498,15 @@
       }
     });
     loginButton?.addEventListener('click', () => {
+      if (isTelegramWebApp) {
+        const state = window.getTelegramWebAppAuthState?.();
+        const errorMessage =
+          state?.error?.message ||
+          'Не удалось авторизоваться через Telegram WebApp. Попробуйте перезапустить приложение из бота.';
+        setStatus(errorMessage, true);
+        return;
+      }
+
       window.location.href = '/index.html';
     });
 
