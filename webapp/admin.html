@@ -686,16 +686,6 @@
 
     let currentUser = null;
     let selectedOrder = null;
-    let editingProductId = null;
-    let editingCourseId = null;
-    let editingPromoId = null;
-    let editingProductCategoryId = null;
-    let editingCourseCategoryId = null;
-    let promocodeItems = [];
-    let reviewItems = [];
-    let productItems = [];
-    let courseItems = [];
-
     const productFormDefaults = {
       category_id: '',
       name: '',
@@ -733,9 +723,18 @@
       one_per_user: false,
     };
 
-    const productFormState = createFormState(productFormDefaults);
-    const courseFormState = createFormState(courseFormDefaults);
-    const promoCreateFormState = createFormState(promoFormDefaults);
+    const productFormState = createSectionFormState(productFormDefaults);
+    const courseFormState = createSectionFormState(courseFormDefaults);
+    const promoCreateState = createSectionFormState(promoFormDefaults);
+    let editingProductCategoryId = null;
+    let editingCourseCategoryId = null;
+    let promocodeItems = [];
+    let reviewItems = [];
+    let productItems = [];
+    let courseItems = [];
+    const productSubmitBtn = productForm?.querySelector('button[type="submit"]');
+    const courseSubmitBtn = courseForm?.querySelector('button[type="submit"]');
+    const promoSubmitBtn = promoCreateForm?.querySelector('button[type="submit"]');
 
     function setStatus(message, isError = false) {
       if (!message) {
@@ -806,24 +805,11 @@
 
     function handleViewNavigation(view) {
       showSection(view);
-      if (view === 'product-create' && !editingProductId) {
-        resetProductCreateForm();
-      }
       if (view === 'product-categories') {
         loadProductCategories();
       }
       if (view === 'course-categories') {
         loadCourseCategories();
-      }
-      if (view === 'course-create' && !editingCourseId) {
-        courseFormTitle.textContent = 'Создать мастер-класс';
-        resetFormState(courseFormState, courseFormDefaults);
-        applyStateToForm(courseForm, courseFormState);
-        resetCourseImageInputs();
-        showImageListPlaceholder(courseImagesList, 'Сохраните мастер-класс, чтобы добавить фото.');
-      }
-      if (view === 'promocode-create' && !editingPromoId) {
-        resetPromoCreateForm();
       }
       if (view === 'promocode-list') {
         loadPromocodes();
@@ -842,15 +828,47 @@
       }
     }
 
+    function openProductCreateView() {
+      resetProductCreateForm();
+      showSection('product-create');
+    }
+
+    function openCourseCreateView() {
+      courseFormState.mode = 'create';
+      courseFormState.currentId = null;
+      courseFormTitle.textContent = 'Создать мастер-класс';
+      if (courseSubmitBtn) courseSubmitBtn.textContent = 'Создать мастер-класс';
+      resetFormState(courseFormState.formData, courseFormDefaults);
+      applyStateToForm(courseForm, courseFormState.formData);
+      resetCourseImageInputs();
+      showImageListPlaceholder(courseImagesList, 'Сохраните мастер-класс, чтобы добавить фото.');
+      showSection('course-create');
+    }
+
+    function openPromocodeCreateView() {
+      resetPromoCreateForm();
+      showSection('promocode-create');
+    }
+
     navLinks.forEach((btn) => {
       btn.addEventListener('click', () => {
-        handleViewNavigation(btn.dataset.view);
+        const view = btn.dataset.view;
+        if (view === 'product-create') return openProductCreateView();
+        if (view === 'course-create') return openCourseCreateView();
+        if (view === 'promocode-create') return openPromocodeCreateView();
+        handleViewNavigation(view);
       });
     });
 
     document.querySelectorAll('[data-view]').forEach((btn) => {
       if (btn.classList.contains('nav-btn')) return;
-      btn.addEventListener('click', () => handleViewNavigation(btn.dataset.view));
+      btn.addEventListener('click', () => {
+        const view = btn.dataset.view;
+        if (view === 'product-create') return openProductCreateView();
+        if (view === 'course-create') return openCourseCreateView();
+        if (view === 'promocode-create') return openPromocodeCreateView();
+        handleViewNavigation(view);
+      });
     });
 
     navParents.forEach((parent) => {
@@ -1252,6 +1270,14 @@
       return { ...defaults };
     }
 
+    function createSectionFormState(defaults = {}) {
+      return {
+        mode: 'create',
+        currentId: null,
+        formData: createFormState(defaults),
+      };
+    }
+
     function resetFormState(state, defaults = {}) {
       Object.keys(state).forEach((key) => delete state[key]);
       Object.assign(state, defaults);
@@ -1544,7 +1570,7 @@
     async function uploadProductGalleryFiles(event, target = productImagesList) {
       const files = Array.from(event.target?.files || []);
       if (!files.length) return;
-      if (!editingProductId) {
+      if (!productFormState.currentId) {
         alert('Сначала сохраните товар.');
         event.target.value = '';
         return;
@@ -1552,12 +1578,14 @@
       const formData = new FormData();
       files.forEach((file) => formData.append('files', file));
       try {
-        const res = await fetch(`${API_BASE}/admin/products/${editingProductId}/images`, {
+        const res = await fetch(`${API_BASE}/admin/products/${productFormState.currentId}/images`, {
           method: 'POST',
           body: formData,
         });
         const data = await handleResponse(res);
-        renderImagesList(data.items || data || [], target, 'product', () => loadProductImages(editingProductId, target));
+        renderImagesList(data.items || data || [], target, 'product', () =>
+          loadProductImages(productFormState.currentId, target)
+        );
         setStatus('Фото товара добавлены');
       } catch (e) {
         handleError(e, 'Не удалось загрузить фото товара');
@@ -1567,11 +1595,13 @@
 
     function startProductInlineEdit(item) {
       if (!item) return;
-      editingProductId = item.id;
+      productFormState.mode = 'edit';
+      productFormState.currentId = item.id;
       productFormTitle.textContent = `Редактировать товар #${item.id}`;
+      if (productSubmitBtn) productSubmitBtn.textContent = 'Сохранить';
       const productImageUrl = item.image_url || item.image || item.images?.[0]?.image_url || '';
-      resetFormState(productFormState, productFormDefaults);
-      Object.assign(productFormState, {
+      resetFormState(productFormState.formData, productFormDefaults);
+      Object.assign(productFormState.formData, {
         category_id: item.category_id ?? '',
         name: item.name || '',
         price: item.price ?? null,
@@ -1585,7 +1615,7 @@
         masterclass_url: item.masterclass_url || '',
         detail_url: item.detail_url || '',
       });
-      applyStateToForm(productForm, productFormState);
+      applyStateToForm(productForm, productFormState.formData);
       if (productCategorySelect && item.category_id) {
         const hasOption = Array.from(productCategorySelect.options || []).some(
           (opt) => String(opt.value) === String(item.category_id)
@@ -1600,27 +1630,24 @@
       if (productImageUrlInput) productImageUrlInput.value = productImageUrl || '';
       setProductImagePreview(productImageUrl);
       showImageListPlaceholder(productImagesList, 'Загрузите фото после сохранения.');
-      handleViewNavigation('product-create');
-      loadProductImages(editingProductId, productImagesList);
+      showSection('product-create');
+      loadProductImages(productFormState.currentId, productImagesList);
     }
 
     function closeProductEditModal() {
-      editingProductId = null;
-      productFormTitle.textContent = 'Создать товар';
-      resetFormState(productFormState, productFormDefaults);
-      applyStateToForm(productForm, productFormState);
-      resetProductImageInputs();
-      showImageListPlaceholder(productImagesList, 'Сохраните товар, чтобы добавить фото.');
+      resetProductCreateForm();
       productEditModal?.classList.add('hidden');
     }
 
     function openCourseEditModal(item) {
       if (!item) return;
-      editingCourseId = item.id;
+      courseFormState.mode = 'edit';
+      courseFormState.currentId = item.id;
       courseFormTitle.textContent = `Редактировать мастер-класс #${item.id}`;
+      if (courseSubmitBtn) courseSubmitBtn.textContent = 'Сохранить';
       const courseImageUrl = item.image_url || item.image || item.images?.[0]?.image_url || '';
-      resetFormState(courseFormState, courseFormDefaults);
-      Object.assign(courseFormState, {
+      resetFormState(courseFormState.formData, courseFormDefaults);
+      Object.assign(courseFormState.formData, {
         category_id: item.category_id ?? '',
         name: item.name || '',
         price: item.price ?? null,
@@ -1630,7 +1657,7 @@
         masterclass_url: item.masterclass_url || '',
         detail_url: item.detail_url || '',
       });
-      applyStateToForm(courseForm, courseFormState);
+      applyStateToForm(courseForm, courseFormState.formData);
 
       if (courseCategorySelect && item.category_id) {
         const hasOption = Array.from(courseCategorySelect.options || []).some(
@@ -1647,15 +1674,17 @@
       if (courseImageUrlInput) courseImageUrlInput.value = courseImageUrl || '';
       setCourseImagePreview(courseImageUrl);
       showImageListPlaceholder(courseImagesList, 'Загрузите фото после сохранения.');
-      handleViewNavigation('course-create');
-      loadCourseImages(editingCourseId, courseImagesList);
+      showSection('course-create');
+      loadCourseImages(courseFormState.currentId, courseImagesList);
     }
 
     function closeCourseEditModal() {
-      editingCourseId = null;
+      courseFormState.mode = 'create';
+      courseFormState.currentId = null;
       courseFormTitle.textContent = 'Создать мастер-класс';
-      resetFormState(courseFormState, courseFormDefaults);
-      applyStateToForm(courseForm, courseFormState);
+      if (courseSubmitBtn) courseSubmitBtn.textContent = 'Создать мастер-класс';
+      resetFormState(courseFormState.formData, courseFormDefaults);
+      applyStateToForm(courseForm, courseFormState.formData);
       resetCourseImageInputs();
       showImageListPlaceholder(courseImagesList, 'Сохраните мастер-класс, чтобы добавить фото.');
       courseEditModal?.classList.add('hidden');
@@ -1664,7 +1693,7 @@
     async function uploadCourseGalleryFiles(event, target = courseImagesList) {
       const files = Array.from(event.target?.files || []);
       if (!files.length) return;
-      if (!editingCourseId) {
+      if (!courseFormState.currentId) {
         alert('Сначала сохраните мастер-класс.');
         event.target.value = '';
         return;
@@ -1672,12 +1701,14 @@
       const formData = new FormData();
       files.forEach((file) => formData.append('files', file));
       try {
-        const res = await fetch(`${API_BASE}/admin/masterclasses/${editingCourseId}/images`, {
+        const res = await fetch(`${API_BASE}/admin/masterclasses/${courseFormState.currentId}/images`, {
           method: 'POST',
           body: formData,
         });
         const data = await handleResponse(res);
-        renderImagesList(data.items || data || [], target, 'course', () => loadCourseImages(editingCourseId, target));
+        renderImagesList(data.items || data || [], target, 'course', () =>
+          loadCourseImages(courseFormState.currentId, target)
+        );
         setStatus('Фото мастер-класса добавлены');
       } catch (e) {
         handleError(e, 'Не удалось загрузить фото мастер-класса');
@@ -1695,9 +1726,9 @@
         if (reloadFn) {
           await reloadFn();
         } else if (type === 'product') {
-          await loadProductImages(editingProductId, productImagesList);
+          await loadProductImages(productFormState.currentId, productImagesList);
         } else {
-          await loadCourseImages(editingCourseId, courseImagesList);
+          await loadCourseImages(courseFormState.currentId, courseImagesList);
         }
       } catch (e) {
         handleError(e, 'Не удалось удалить изображение');
@@ -2066,10 +2097,12 @@
     }
 
     function openPromocodeEdit(promo) {
-      editingPromoId = promo.id;
+      promoCreateState.mode = 'edit';
+      promoCreateState.currentId = promo.id;
       promoCreateTitle.textContent = `Редактировать промокод #${promo.id}`;
-      resetFormState(promoCreateFormState, promoFormDefaults);
-      Object.assign(promoCreateFormState, {
+      if (promoSubmitBtn) promoSubmitBtn.textContent = 'Сохранить';
+      resetFormState(promoCreateState.formData, promoFormDefaults);
+      Object.assign(promoCreateState.formData, {
         code: promo.code || '',
         discount_type: promo.discount_type || 'percent',
         discount_value: promo.discount_value ?? null,
@@ -2081,13 +2114,12 @@
         active: promo.active !== false,
         one_per_user: Boolean(promo.one_per_user),
       });
-      applyStateToForm(promoCreateForm, promoCreateFormState);
+      applyStateToForm(promoCreateForm, promoCreateState.formData);
       updatePromoTargetState(promoCreateScope, promoCreateTarget);
-      handleViewNavigation('promocode-create');
+      showSection('promocode-create');
     }
 
     function closePromocodeEdit() {
-      editingPromoId = null;
       resetPromoCreateForm();
       promoEditModal?.classList.add('hidden');
     }
@@ -2119,10 +2151,12 @@
     }
 
     function resetPromoCreateForm() {
-      editingPromoId = null;
+      promoCreateState.mode = 'create';
+      promoCreateState.currentId = null;
       promoCreateTitle.textContent = 'Создать промокод';
-      resetFormState(promoCreateFormState, promoFormDefaults);
-      applyStateToForm(promoCreateForm, promoCreateFormState);
+      if (promoSubmitBtn) promoSubmitBtn.textContent = 'Создать промокод';
+      resetFormState(promoCreateState.formData, promoFormDefaults);
+      applyStateToForm(promoCreateForm, promoCreateState.formData);
       updatePromoTargetState(promoCreateScope, promoCreateTarget);
     }
 
@@ -2146,8 +2180,8 @@
       };
 
       try {
-        if (editingPromoId) {
-          await sendJson(`/admin/promocodes/${editingPromoId}`, 'PUT', payload);
+        if (promoCreateState.mode === 'edit' && promoCreateState.currentId) {
+          await sendJson(`/admin/promocodes/${promoCreateState.currentId}`, 'PUT', payload);
           setStatus('Промокод обновлён');
         } else {
           await sendJson('/admin/promocodes', 'POST', payload);
@@ -2163,7 +2197,7 @@
 
     async function submitPromocodeEdit(event) {
       event.preventDefault();
-      if (!currentUser || !editingPromoId) return;
+      if (!currentUser || !promoCreateState.currentId) return;
 
       const payload = {
         user_id: currentUser.telegram_id,
@@ -2180,7 +2214,7 @@
       };
 
       try {
-        await sendJson(`/admin/promocodes/${editingPromoId}`, 'PUT', payload);
+        await sendJson(`/admin/promocodes/${promoCreateState.currentId}`, 'PUT', payload);
         setStatus('Промокод сохранён');
         closePromocodeEdit();
         await loadPromocodes();
@@ -2199,8 +2233,8 @@
       payload.image_url = productImageUrlInput?.value.trim() || null;
 
       try {
-        if (editingProductId) {
-          await fetch(`${API_BASE}/admin/products/${editingProductId}`, {
+        if (productFormState.mode === 'edit' && productFormState.currentId) {
+          await fetch(`${API_BASE}/admin/products/${productFormState.currentId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
@@ -2219,7 +2253,7 @@
 
     async function submitProductEditForm(event) {
       event.preventDefault();
-      if (!currentUser || !editingProductId) return;
+      if (!currentUser || !productFormState.currentId) return;
       const payload = serializeForm(productEditForm);
       payload.user_id = currentUser.telegram_id;
       payload.type = 'basket';
@@ -2227,7 +2261,7 @@
       payload.image_url = productEditImageUrlInput?.value.trim() || null;
 
       try {
-        await fetch(`${API_BASE}/admin/products/${editingProductId}`, {
+        await fetch(`${API_BASE}/admin/products/${productFormState.currentId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
@@ -2241,10 +2275,12 @@
     }
 
     function resetProductCreateForm() {
-      editingProductId = null;
+      productFormState.mode = 'create';
+      productFormState.currentId = null;
       productFormTitle.textContent = 'Создать товар';
-      resetFormState(productFormState, productFormDefaults);
-      applyStateToForm(productForm, productFormState);
+      if (productSubmitBtn) productSubmitBtn.textContent = 'Создать товар';
+      resetFormState(productFormState.formData, productFormDefaults);
+      applyStateToForm(productForm, productFormState.formData);
       resetProductImageInputs();
       showImageListPlaceholder(productImagesList, 'Сохраните товар, чтобы добавить фото.');
     }
@@ -2259,8 +2295,8 @@
       payload.image_url = courseImageUrlInput?.value.trim() || null;
 
       try {
-        if (editingCourseId) {
-          await fetch(`${API_BASE}/admin/products/${editingCourseId}`, {
+        if (courseFormState.mode === 'edit' && courseFormState.currentId) {
+          await fetch(`${API_BASE}/admin/products/${courseFormState.currentId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
@@ -2270,10 +2306,12 @@
           await apiPost('/admin/products', payload);
           setStatus('Мастер-класс сохранён');
         }
-        editingCourseId = null;
+        courseFormState.mode = 'create';
+        courseFormState.currentId = null;
         courseFormTitle.textContent = 'Создать мастер-класс';
-        resetFormState(courseFormState, courseFormDefaults);
-        applyStateToForm(courseForm, courseFormState);
+        if (courseSubmitBtn) courseSubmitBtn.textContent = 'Создать мастер-класс';
+        resetFormState(courseFormState.formData, courseFormDefaults);
+        applyStateToForm(courseForm, courseFormState.formData);
         resetCourseImageInputs();
         showImageListPlaceholder(courseImagesList, 'Сохраните мастер-класс, чтобы добавить фото.');
         await loadCourses();
@@ -2284,7 +2322,7 @@
 
     async function submitCourseEditForm(event) {
       event.preventDefault();
-      if (!currentUser || !editingCourseId) return;
+      if (!currentUser || !courseFormState.currentId) return;
       const payload = serializeForm(courseEditForm);
       payload.user_id = currentUser.telegram_id;
       payload.type = 'course';
@@ -2292,7 +2330,7 @@
       payload.image_url = courseEditImageUrlInput?.value.trim() || null;
 
       try {
-        await fetch(`${API_BASE}/admin/products/${editingCourseId}`, {
+        await fetch(`${API_BASE}/admin/products/${courseFormState.currentId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
@@ -2305,9 +2343,9 @@
       }
     }
 
-    bindStateToForm(productForm, productFormState);
-    bindStateToForm(courseForm, courseFormState);
-    bindStateToForm(promoCreateForm, promoCreateFormState);
+    bindStateToForm(productForm, productFormState.formData);
+    bindStateToForm(courseForm, courseFormState.formData);
+    bindStateToForm(promoCreateForm, promoCreateState.formData);
 
     promoCreateForm?.addEventListener('submit', submitPromocodeCreate);
     promoEditForm?.addEventListener('submit', submitPromocodeEdit);
@@ -2327,10 +2365,12 @@
       resetProductCreateForm();
     });
     courseCancel.addEventListener('click', () => {
-      editingCourseId = null;
+      courseFormState.mode = 'create';
+      courseFormState.currentId = null;
       courseFormTitle.textContent = 'Создать мастер-класс';
-      resetFormState(courseFormState, courseFormDefaults);
-      applyStateToForm(courseForm, courseFormState);
+      if (courseSubmitBtn) courseSubmitBtn.textContent = 'Создать мастер-класс';
+      resetFormState(courseFormState.formData, courseFormDefaults);
+      applyStateToForm(courseForm, courseFormState.formData);
       resetCourseImageInputs();
       showImageListPlaceholder(courseImagesList, 'Сохраните мастер-класс, чтобы добавить фото.');
     });
@@ -2339,10 +2379,12 @@
       showSection('product-create');
     });
     courseReset.addEventListener('click', () => {
-      editingCourseId = null;
+      courseFormState.mode = 'create';
+      courseFormState.currentId = null;
       courseFormTitle.textContent = 'Создать мастер-класс';
-      resetFormState(courseFormState, courseFormDefaults);
-      applyStateToForm(courseForm, courseFormState);
+      if (courseSubmitBtn) courseSubmitBtn.textContent = 'Создать мастер-класс';
+      resetFormState(courseFormState.formData, courseFormDefaults);
+      applyStateToForm(courseForm, courseFormState.formData);
       resetCourseImageInputs();
       showImageListPlaceholder(courseImagesList, 'Сохраните мастер-класс, чтобы добавить фото.');
     });
