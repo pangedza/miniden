@@ -1,6 +1,7 @@
 const API_BASE = "/api";
-const TELEGRAM_WEBAPP_AUTH_PATH = "/auth/telegram_webapp";
+const TELEGRAM_AUTH_PATH = "/auth/telegram";
 const AUTH_SESSION_PATH = "/auth/session";
+const TELEGRAM_BOT_USERNAME = "BotMiniden_bot";
 
 window._telegramWebAppAuthState = window._telegramWebAppAuthState || {
   status: "idle",
@@ -56,6 +57,67 @@ function normalizeError(message, status) {
   return error;
 }
 
+function getTelegramAuthQueryFromUrl() {
+  const search = window.location.search || "";
+  if (!search.includes("hash")) return null;
+  const params = new URLSearchParams(search);
+  if (!params.has("id") || !params.has("hash")) return null;
+  return search.startsWith("?") ? search.slice(1) : search;
+}
+
+function clearTelegramAuthParamsFromUrl() {
+  const url = new URL(window.location.href);
+  url.searchParams.delete("id");
+  url.searchParams.delete("hash");
+  url.searchParams.delete("first_name");
+  url.searchParams.delete("last_name");
+  url.searchParams.delete("username");
+  url.searchParams.delete("photo_url");
+  url.searchParams.delete("auth_date");
+  url.searchParams.delete("auth_query");
+  window.history.replaceState({}, document.title, url.toString());
+}
+
+function buildTelegramOAuthUrl() {
+  const returnTo = new URL(window.location.href);
+  returnTo.search = "";
+  returnTo.hash = "";
+
+  const url = new URL("https://oauth.telegram.org/auth");
+  url.searchParams.set("bot", TELEGRAM_BOT_USERNAME);
+  url.searchParams.set("origin", window.location.origin);
+  url.searchParams.set("request_access", "write");
+  url.searchParams.set("return_to", returnTo.toString());
+
+  return url.toString();
+}
+
+async function processTelegramAuthFromUrl() {
+  const authQuery = getTelegramAuthQueryFromUrl();
+  if (!authQuery) return null;
+
+  try {
+    const res = await apiPost(TELEGRAM_AUTH_PATH, { auth_query: authQuery, init_data: null });
+    window._currentProfile = null;
+    window._currentUser = null;
+    window._currentProfileLoaded = false;
+    const profile = await fetchAuthSession();
+    if (profile) {
+      window._currentProfile = profile;
+      window._currentUser = profile;
+      window._currentProfileLoaded = true;
+    }
+    return res;
+  } finally {
+    clearTelegramAuthParamsFromUrl();
+  }
+}
+
+function startTelegramOAuthFlow() {
+  const url = buildTelegramOAuthUrl();
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
 async function fetchAuthSession(includeNotes) {
   const params = includeNotes ? { include_notes: true } : undefined;
   const res = await fetch(buildUrl(AUTH_SESSION_PATH, params));
@@ -64,7 +126,9 @@ async function fetchAuthSession(includeNotes) {
     return null;
   }
 
-  return handleResponse(res);
+  const data = await handleResponse(res);
+  if (!data?.authenticated) return null;
+  return data.user || null;
 }
 
 async function ensureTelegramWebAppAuth() {
@@ -118,10 +182,10 @@ async function ensureTelegramWebAppAuth() {
     }
 
     try {
-      const res = await fetch(`${API_BASE}${TELEGRAM_WEBAPP_AUTH_PATH}`, {
+      const res = await fetch(`${API_BASE}${TELEGRAM_AUTH_PATH}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ init_data: initData }),
+        body: JSON.stringify({ init_data: initData, auth_query: null }),
       });
 
       const text = await res.text();
@@ -347,3 +411,6 @@ window.showToast = showToast;
 window.API_BASE = API_BASE;
 window.ensureTelegramWebAppAuth = ensureTelegramWebAppAuth;
 window.getTelegramWebAppAuthState = () => window._telegramWebAppAuthState;
+window.processTelegramAuthFromUrl = processTelegramAuthFromUrl;
+window.startTelegramOAuthFlow = startTelegramOAuthFlow;
+window.isTelegramWebApp = isTelegramWebApp;

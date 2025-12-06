@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/theme.css?v=20241217" />
+  <link rel="stylesheet" href="css/theme.css?v=20241220" />
 
 </head>
 <body data-theme="purple" class="page-profile">
@@ -102,8 +102,8 @@
     <a class="btn" href="products.html">Перейти в каталог</a>
   </div>
 
-  <script src="js/app.js?v=20241217"></script>
-  <script src="js/api.js?v=20241217"></script>
+  <script src="js/app.js?v=20241220"></script>
+  <script src="js/api.js?v=20241220"></script>
   <script>
     const statusEl = document.getElementById('status');
     const loginHint = document.getElementById('login-hint');
@@ -131,6 +131,9 @@
 
     let currentUser = null;
     const isTelegramWebApp = Boolean(window.Telegram?.WebApp);
+    if (isTelegramWebApp) {
+      loginButton?.style.setProperty('display', 'none');
+    }
 
     function updateAdminLinkVisibility() {
       if (!adminLink) return;
@@ -507,14 +510,21 @@
         return;
       }
 
-      window.location.href = '/index.html';
+      startTelegramOAuthFlow();
     });
 
     if (isTelegramWebApp && window.Telegram?.WebApp?.ready) {
       window.Telegram.WebApp.ready();
     }
 
-    initProfile();
+    processTelegramAuthFromUrl()
+      .catch((error) => {
+        console.error('Failed to authorize via Telegram auth params', error);
+        showToast(error?.message || 'Не удалось авторизоваться через Telegram');
+      })
+      .finally(() => {
+        initProfile();
+      });
   </script>
 
 </body>

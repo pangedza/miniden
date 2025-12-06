@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/theme.css?v=20241217" />
+  <link rel="stylesheet" href="css/theme.css?v=20241220" />
 </head>
 <body data-theme="purple" class="page-index">
   <header class="top-nav">
@@ -136,7 +136,7 @@
       Чтобы синхронизировать корзину и профиль с ботом MiniDeN, войдите через Telegram. После успешного входа вы будете перенаправлены в профиль (profile.html), где увидите ваши заказы, корзину и курсы.
     </p>
     <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
-      <script async src="https://telegram.org/js/telegram-widget.js?19" data-telegram-login="BotMiniden_bot" data-size="large" data-auth-url="/api/auth/telegram-login" data-request-access="write"></script>
+      <button class="btn" id="btn-login-telegram" type="button">Войти через Telegram</button>
     </div>
   </section>
 
@@ -149,14 +149,16 @@
     </div>
   </section>
 
-  <script src="js/app.js?v=20241217"></script>
-  <script src="js/api.js?v=20241217"></script>
+  <script src="js/app.js?v=20241220"></script>
+  <script src="js/api.js?v=20241220"></script>
   <script>
     const loginSection = document.getElementById('telegram-login-section');
     const authStatus = document.getElementById('auth-status');
     const authUsername = document.getElementById('auth-username');
     const switchUserBtn = document.getElementById('switch-user-btn');
     const adminLink = document.getElementById('admin-link');
+    const loginButton = document.getElementById('btn-login-telegram');
+    const isTelegramWebApp = Boolean(window.Telegram?.WebApp);
 
     function updateAdminLinkVisibility(profile) {
       if (!adminLink) return;
@@ -180,7 +182,7 @@
         const user = await getCurrentUserProfile();
         updateAdminLinkVisibility(user);
 
-        if (user?.ok) {
+        if (user) {
           loginSection?.style.setProperty('display', 'none');
           authStatus?.style.setProperty('display', 'block');
           const displayName = user.full_name || (user.telegram_username ? '@' + user.telegram_username : user.telegram_id);
@@ -188,6 +190,9 @@
         } else {
           loginSection?.style.setProperty('display', 'block');
           authStatus?.style.setProperty('display', 'none');
+          if (!isTelegramWebApp) {
+            loginButton?.style.setProperty('display', 'inline-flex');
+          }
         }
       } catch (e) {
         console.error('Failed to load auth status', e);
@@ -196,6 +201,27 @@
         authStatus?.style.setProperty('display', 'none');
       }
     }
+
+    loginButton?.addEventListener('click', () => {
+      startTelegramOAuthFlow();
+    });
+
+    processTelegramAuthFromUrl()
+      .then((res) => {
+        if (res?.status === 'ok') {
+          return loadSession();
+        }
+        return null;
+      })
+      .catch((error) => {
+        console.error('Telegram auth via browser failed', error);
+        showToast(error?.message || 'Не удалось авторизоваться через Telegram');
+      })
+      .finally(() => {
+        if (isTelegramWebApp) {
+          loginButton?.style.setProperty('display', 'none');
+        }
+      });
 
     loadSession();
   </script>
