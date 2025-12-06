@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/theme.css?v=20241220" />
+  <link rel="stylesheet" href="css/theme.css?v=20241221" />
 
 </head>
 <body data-theme="purple" class="page-profile">
@@ -102,8 +102,8 @@
     <a class="btn" href="products.html">Перейти в каталог</a>
   </div>
 
-  <script src="js/app.js?v=20241220"></script>
-  <script src="js/api.js?v=20241220"></script>
+  <script src="js/app.js?v=20241221"></script>
+  <script src="js/api.js?v=20241221"></script>
   <script>
     const statusEl = document.getElementById('status');
     const loginHint = document.getElementById('login-hint');
@@ -480,7 +480,7 @@
         renderProfile(currentUser);
       } catch (e) {
         console.error(e);
-        setStatus('Не удалось загрузить профиль', true);
+        showLoginHint('Не удалось загрузить профиль. Попробуйте войти через Telegram позже.');
       }
     }
 
