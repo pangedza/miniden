@@ -829,7 +829,10 @@
     }
 
     function openProductCreateView() {
-      resetProductCreateForm();
+      productFormState.mode = 'create';
+      productFormState.currentId = null;
+      productFormTitle.textContent = 'Создать товар';
+      if (productSubmitBtn) productSubmitBtn.textContent = 'Создать товар';
       showSection('product-create');
     }
 
@@ -838,15 +841,14 @@
       courseFormState.currentId = null;
       courseFormTitle.textContent = 'Создать мастер-класс';
       if (courseSubmitBtn) courseSubmitBtn.textContent = 'Создать мастер-класс';
-      resetFormState(courseFormState.formData, courseFormDefaults);
-      applyStateToForm(courseForm, courseFormState.formData);
-      resetCourseImageInputs();
-      showImageListPlaceholder(courseImagesList, 'Сохраните мастер-класс, чтобы добавить фото.');
       showSection('course-create');
     }
 
     function openPromocodeCreateView() {
-      resetPromoCreateForm();
+      promoCreateState.mode = 'create';
+      promoCreateState.currentId = null;
+      promoCreateTitle.textContent = 'Создать промокод';
+      if (promoSubmitBtn) promoSubmitBtn.textContent = 'Создать промокод';
       showSection('promocode-create');
     }
 
@@ -1635,7 +1637,10 @@
     }
 
     function closeProductEditModal() {
-      resetProductCreateForm();
+      productFormState.mode = 'create';
+      productFormState.currentId = null;
+      productFormTitle.textContent = 'Создать товар';
+      if (productSubmitBtn) productSubmitBtn.textContent = 'Создать товар';
       productEditModal?.classList.add('hidden');
     }
 
@@ -1683,10 +1688,6 @@
       courseFormState.currentId = null;
       courseFormTitle.textContent = 'Создать мастер-класс';
       if (courseSubmitBtn) courseSubmitBtn.textContent = 'Создать мастер-класс';
-      resetFormState(courseFormState.formData, courseFormDefaults);
-      applyStateToForm(courseForm, courseFormState.formData);
-      resetCourseImageInputs();
-      showImageListPlaceholder(courseImagesList, 'Сохраните мастер-класс, чтобы добавить фото.');
       courseEditModal?.classList.add('hidden');
     }
 
