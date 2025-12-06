@@ -763,7 +763,7 @@
 
     function handleViewNavigation(view) {
       showSection(view);
-      if (view === 'product-create') {
+      if (view === 'product-create' && !editingProductId) {
         resetProductCreateForm();
       }
       if (view === 'product-categories') {
@@ -772,7 +772,13 @@
       if (view === 'course-categories') {
         loadCourseCategories();
       }
-      if (view === 'promocode-create') {
+      if (view === 'course-create' && !editingCourseId) {
+        courseFormTitle.textContent = 'Создать мастер-класс';
+        courseForm?.reset();
+        resetCourseImageInputs();
+        showImageListPlaceholder(courseImagesList, 'Сохраните мастер-класс, чтобы добавить фото.');
+      }
+      if (view === 'promocode-create' && !editingPromoId) {
         resetPromoCreateForm();
       }
       if (view === 'promocode-list') {
@@ -1470,12 +1476,12 @@
       event.target.value = '';
     }
 
-    function openProductEditModal(item) {
+    function startProductInlineEdit(item) {
       if (!item) return;
       editingProductId = item.id;
-      productEditTitle.textContent = `Редактировать товар #${item.id}`;
+      productFormTitle.textContent = `Редактировать товар #${item.id}`;
       const productImageUrl = item.image_url || item.image || item.images?.[0]?.image_url || '';
-      fillForm(productEditForm, {
+      fillForm(productForm, {
         category_id: item.category_id ?? '',
         name: item.name,
         price: item.price,
@@ -1489,39 +1495,39 @@
         masterclass_url: item.masterclass_url,
         detail_url: item.detail_url,
       });
-      if (productEditCategorySelect && item.category_id) {
-        const hasOption = Array.from(productEditCategorySelect.options || []).some(
+      if (productCategorySelect && item.category_id) {
+        const hasOption = Array.from(productCategorySelect.options || []).some(
           (opt) => String(opt.value) === String(item.category_id)
         );
         if (!hasOption) {
           const opt = document.createElement('option');
           opt.value = item.category_id;
           opt.textContent = item.category_name || `Категория ${item.category_id}`;
-          productEditCategorySelect.appendChild(opt);
+          productCategorySelect.appendChild(opt);
         }
       }
-      if (productEditImageUrlInput) productEditImageUrlInput.value = productImageUrl || '';
-      setProductEditImagePreview(productImageUrl);
-      showImageListPlaceholder(productEditImagesList, 'Сохраните товар, чтобы добавить фото.');
-      productEditModal?.classList.remove('hidden');
-      loadProductImages(editingProductId, productEditImagesList);
+      if (productImageUrlInput) productImageUrlInput.value = productImageUrl || '';
+      setProductImagePreview(productImageUrl);
+      showImageListPlaceholder(productImagesList, 'Загрузите фото после сохранения.');
+      handleViewNavigation('product-create');
+      loadProductImages(editingProductId, productImagesList);
     }
 
     function closeProductEditModal() {
       editingProductId = null;
+      productFormTitle.textContent = 'Создать товар';
+      productForm?.reset();
+      resetProductImageInputs();
+      showImageListPlaceholder(productImagesList, 'Сохраните товар, чтобы добавить фото.');
       productEditModal?.classList.add('hidden');
-      productEditForm?.reset();
-      if (productEditGalleryInput) productEditGalleryInput.value = '';
-      resetProductEditImageInputs();
-      showImageListPlaceholder(productEditImagesList, 'Загрузите фото после сохранения.');
     }
 
     function openCourseEditModal(item) {
       if (!item) return;
       editingCourseId = item.id;
-      courseEditTitle.textContent = `Редактировать мастер-класс #${item.id}`;
+      courseFormTitle.textContent = `Редактировать мастер-класс #${item.id}`;
       const courseImageUrl = item.image_url || item.image || item.images?.[0]?.image_url || '';
-      fillForm(courseEditForm, {
+      fillForm(courseForm, {
         category_id: item.category_id ?? '',
         name: item.name,
         price: item.price,
@@ -1532,32 +1538,32 @@
         detail_url: item.detail_url,
       });
 
-      if (courseEditCategorySelect && item.category_id) {
-        const hasOption = Array.from(courseEditCategorySelect.options || []).some(
+      if (courseCategorySelect && item.category_id) {
+        const hasOption = Array.from(courseCategorySelect.options || []).some(
           (opt) => String(opt.value) === String(item.category_id)
         );
         if (!hasOption) {
           const opt = document.createElement('option');
           opt.value = item.category_id;
           opt.textContent = item.category_name || `Категория ${item.category_id}`;
-          courseEditCategorySelect.appendChild(opt);
+          courseCategorySelect.appendChild(opt);
         }
       }
 
-      if (courseEditImageUrlInput) courseEditImageUrlInput.value = courseImageUrl || '';
-      setCourseEditImagePreview(courseImageUrl);
-      showImageListPlaceholder(courseEditImagesList, 'Загрузите фото после сохранения.');
-      courseEditModal?.classList.remove('hidden');
-      loadCourseImages(editingCourseId, courseEditImagesList);
+      if (courseImageUrlInput) courseImageUrlInput.value = courseImageUrl || '';
+      setCourseImagePreview(courseImageUrl);
+      showImageListPlaceholder(courseImagesList, 'Загрузите фото после сохранения.');
+      handleViewNavigation('course-create');
+      loadCourseImages(editingCourseId, courseImagesList);
     }
 
     function closeCourseEditModal() {
       editingCourseId = null;
+      courseFormTitle.textContent = 'Создать мастер-класс';
+      courseForm?.reset();
+      resetCourseImageInputs();
+      showImageListPlaceholder(courseImagesList, 'Сохраните мастер-класс, чтобы добавить фото.');
       courseEditModal?.classList.add('hidden');
-      courseEditForm?.reset();
-      if (courseEditGalleryInput) courseEditGalleryInput.value = '';
-      resetCourseEditImageInputs();
-      showImageListPlaceholder(courseEditImagesList, 'Загрузите фото после сохранения.');
     }
 
     async function uploadCourseGalleryFiles(event, target = courseImagesList) {
@@ -1677,7 +1683,7 @@
         const toggleBtn = row.querySelector('[data-action="toggle"]');
         editBtn.addEventListener('click', () => {
           if (type === 'basket') {
-            openProductEditModal(item);
+            startProductInlineEdit(item);
           } else {
             openCourseEditModal(item);
           }
@@ -1928,27 +1934,24 @@
 
     function openPromocodeEdit(promo) {
       editingPromoId = promo.id;
-      promoEditTitle.textContent = `Редактировать промокод #${promo.id}`;
-      promoEditCode.value = promo.code || '';
-      promoEditDiscountType.value = promo.discount_type || 'percent';
-      promoEditDiscountValue.value = promo.discount_value || '';
-      promoEditScope.value = promo.scope || 'all';
-      promoEditTarget.value = promo.target_id ?? '';
-      promoEditDateStart.value = toInputDate(promo.date_start);
-      promoEditDateEnd.value = toInputDate(promo.date_end);
-      promoEditMaxUses.value = promo.max_uses ?? '';
-      promoEditActive.checked = promo.active !== false;
-      promoEditOnePerUser.checked = Boolean(promo.one_per_user);
-      updatePromoTargetState(promoEditScope, promoEditTarget);
-      promoEditModal?.classList.remove('hidden');
+      promoCreateTitle.textContent = `Редактировать промокод #${promo.id}`;
+      promoCreateCode.value = promo.code || '';
+      promoCreateDiscountType.value = promo.discount_type || 'percent';
+      promoCreateDiscountValue.value = promo.discount_value || '';
+      promoCreateScope.value = promo.scope || 'all';
+      promoCreateTarget.value = promo.target_id ?? '';
+      promoCreateDateStart.value = toInputDate(promo.date_start);
+      promoCreateDateEnd.value = toInputDate(promo.date_end);
+      promoCreateMaxUses.value = promo.max_uses ?? '';
+      promoCreateActive.checked = promo.active !== false;
+      promoCreateOnePerUser.checked = Boolean(promo.one_per_user);
+      updatePromoTargetState(promoCreateScope, promoCreateTarget);
+      handleViewNavigation('promocode-create');
     }
 
     function closePromocodeEdit() {
       editingPromoId = null;
-      promoEditForm?.reset();
-      promoEditActive.checked = false;
-      promoEditOnePerUser.checked = false;
-      updatePromoTargetState(promoEditScope, promoEditTarget);
+      resetPromoCreateForm();
       promoEditModal?.classList.add('hidden');
     }
 
@@ -1979,6 +1982,7 @@
     }
 
     function resetPromoCreateForm() {
+      editingPromoId = null;
       promoCreateTitle.textContent = 'Создать промокод';
       promoCreateForm?.reset();
       promoCreateActive.checked = true;
@@ -2007,8 +2011,13 @@
       };
 
       try {
-        await sendJson('/admin/promocodes', 'POST', payload);
-        setStatus('Промокод создан');
+        if (editingPromoId) {
+          await sendJson(`/admin/promocodes/${editingPromoId}`, 'PUT', payload);
+          setStatus('Промокод обновлён');
+        } else {
+          await sendJson('/admin/promocodes', 'POST', payload);
+          setStatus('Промокод создан');
+        }
         resetPromoCreateForm();
         await loadPromocodes();
         showSection('promocode-list');
@@ -2055,8 +2064,17 @@
       payload.image_url = productImageUrlInput?.value.trim() || null;
 
       try {
-        await apiPost('/admin/products', payload);
-        setStatus('Товар создан');
+        if (editingProductId) {
+          await fetch(`${API_BASE}/admin/products/${editingProductId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          }).then(handleResponse);
+          setStatus('Товар сохранён');
+        } else {
+          await apiPost('/admin/products', payload);
+          setStatus('Товар создан');
+        }
         resetProductCreateForm();
         await loadProducts();
       } catch (e) {
@@ -2105,8 +2123,18 @@
       payload.image_url = courseImageUrlInput?.value.trim() || null;
 
       try {
-        await apiPost('/admin/products', payload);
-        setStatus('Мастер-класс сохранён');
+        if (editingCourseId) {
+          await fetch(`${API_BASE}/admin/products/${editingCourseId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          }).then(handleResponse);
+          setStatus('Мастер-класс сохранён');
+        } else {
+          await apiPost('/admin/products', payload);
+          setStatus('Мастер-класс сохранён');
+        }
+        editingCourseId = null;
         courseFormTitle.textContent = 'Создать мастер-класс';
         courseForm.reset();
         resetCourseImageInputs();
