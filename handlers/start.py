@@ -24,6 +24,17 @@ async def _send_subscription_invite(target_message) -> None:
     )
 
 
+def _ensure_user_exists(telegram_user: types.User) -> None:
+    users_service.get_or_create_user_from_telegram(
+        {
+            "id": telegram_user.id,
+            "username": telegram_user.username,
+            "first_name": telegram_user.first_name,
+            "last_name": telegram_user.last_name,
+        }
+    )
+
+
 # -------------------------------------------------------------------
 #   Экран приветствия /start
 # -------------------------------------------------------------------
@@ -44,6 +55,8 @@ async def cmd_start_deeplink(message: types.Message, command: CommandObject):
 
     token = payload[len("auth_") :]
 
+    _ensure_user_exists(message.from_user)
+
     # связываем token ↔ telegram_id
     with get_session() as s:
         session = s.query(AuthSession).filter(AuthSession.token == token).first()
@@ -63,6 +76,8 @@ async def cmd_start_deeplink(message: types.Message, command: CommandObject):
 async def cmd_start(message: types.Message):
     user_id = message.from_user.id
     is_admin = user_id in ADMIN_IDS
+
+    _ensure_user_exists(message.from_user)
 
     payload = (message.text or "").split(maxsplit=1)
     deep_link = payload[1] if len(payload) > 1 else ""
@@ -89,6 +104,8 @@ async def start_button(message: types.Message):
     """
     user_id = message.from_user.id
     is_admin = user_id in ADMIN_IDS
+
+    _ensure_user_exists(message.from_user)
 
     if await ensure_subscribed(message, message.bot, is_admin=is_admin):
         await _send_start_screen(message, is_admin=is_admin)

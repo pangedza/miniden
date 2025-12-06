@@ -1,6 +1,6 @@
 from aiogram import F, Router, types
 from aiogram.filters import Command
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 
 from config import ADMIN_IDS, get_settings
 from services.subscription import ensure_subscribed
@@ -11,13 +11,24 @@ PROFILE_BUTTON_TEXT = "👤 Профиль"
 
 WEBAPP_PROFILE_MESSAGE = (
     "Ваш профиль, заказы и доступ к курсам теперь доступны в WebApp.\n"
-    "Откройте его через кнопку «👤 Профиль (WebApp)» в главном меню."
+    "Откройте его через кнопку «👤 Профиль (WebApp)» в главном меню или кнопкой ниже."
 )
 
 
-def _build_profile_keyboard() -> InlineKeyboardMarkup:
+def _build_profile_keyboard() -> InlineKeyboardMarkup | None:
+    profile_url = get_settings().webapp_profile_url
+    if not profile_url:
+        return None
+
     return InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text="Открыть профиль в WebApp", callback_data="profile:webapp")]]
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Открыть профиль в WebApp",
+                    web_app=WebAppInfo(url=profile_url),
+                )
+            ]
+        ]
     )
 
 
