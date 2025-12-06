@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/theme.css?v=20241221" />
+  <link rel="stylesheet" href="css/theme.css?v=20241222" />
 
 </head>
 <body data-theme="purple" class="page-profile">
@@ -92,8 +92,8 @@
   </main>
 
   <section class="section" id="login-hint" style="display: none; text-align: center;">
-    <h2>Вы не авторизованы</h2>
-    <p>Профиль, заказы и избранное доступны после входа через Telegram. Перейдите на <a href="index.html">главную страницу</a>, выполните вход и вернитесь сюда.</p>
+    <h2 id="login-hint-title">Вы не авторизованы</h2>
+    <p id="login-hint-description">Профиль, заказы и избранное доступны после входа через Telegram.</p>
     <button class="btn" id="login-button" type="button">Войти через Telegram</button>
   </section>
 
@@ -102,8 +102,9 @@
     <a class="btn" href="products.html">Перейти в каталог</a>
   </div>
 
-  <script src="js/app.js?v=20241221"></script>
-  <script src="js/api.js?v=20241221"></script>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="js/app.js?v=20241222"></script>
+  <script src="js/api.js?v=20241222"></script>
   <script>
     const statusEl = document.getElementById('status');
     const loginHint = document.getElementById('login-hint');
@@ -126,12 +127,23 @@
     const actions = document.getElementById('profile-actions');
     const switchUserBtn = document.getElementById('switch-user-btn');
     const loginButton = document.getElementById('login-button');
+    const loginHintDescription = document.getElementById('login-hint-description');
     const editFullNameBtn = document.getElementById('edit-full-name');
     const editPhoneBtn = document.getElementById('edit-phone');
+    const loginButtonDefaultText = loginButton?.textContent || 'Войти через Telegram';
 
     let currentUser = null;
+
     if (isTelegramWebApp) {
-      loginButton?.style.setProperty('display', 'none');
+      if (loginHintDescription) {
+        loginHintDescription.textContent = 'Авторизуем через ваш Telegram-аккаунт...';
+      }
+      if (loginButton) {
+        loginButton.textContent = 'Повторить авторизацию';
+      }
+    } else if (loginHintDescription) {
+      loginHintDescription.innerHTML =
+        'Профиль, заказы и избранное доступны после входа через Telegram. Перейдите на <a href="index.html">главную страницу</a>, выполните вход и вернитесь сюда.';
     }
 
     function updateAdminLinkVisibility() {
@@ -151,13 +163,41 @@
       statusEl.style.display = 'block';
     }
 
-    function showLoginHint(message) {
+    function showLoginHint(message, isError = !isTelegramWebApp) {
       if (loginHint) {
         loginHint.style.display = 'block';
       }
-      setStatus(message, true);
+      if (loginHintDescription) {
+        loginHintDescription.textContent = message || (isTelegramWebApp
+          ? 'Авторизуем через ваш Telegram-аккаунт...'
+          : 'Профиль, заказы и избранное доступны после входа через Telegram.');
+      }
+      setStatus(message, isError);
       actions?.style.setProperty('display', 'none');
       profileGrid?.style.setProperty('display', 'none');
+    }
+
+    async function checkSessionAndMaybeAutoLogin({ showProgress = true, force = false } = {}) {
+      if (!isTelegramWebApp) return false;
+
+      if (showProgress) {
+        setStatus('Авторизуем через ваш Telegram-аккаунт...', false);
+      }
+
+      try {
+        const res = await fetch('/api/auth/session');
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.authenticated) {
+            return true;
+          }
+        }
+      } catch (error) {
+        console.warn('Session check before Telegram WebApp auth failed', error);
+      }
+
+      const state = await telegramWebAppAutoLogin({ refreshProfile: true, force });
+      return state?.status === 'authorized';
     }
 
     async function saveProfileUpdates(updates) {
@@ -461,16 +501,16 @@
             const authState = window.getTelegramWebAppAuthState?.();
             const stateStatus = authState?.status;
             if (stateStatus === 'auth_failed' || stateStatus === 'profile_error') {
-              showLoginHint('Не удалось авторизоваться через Telegram. Закройте WebApp и откройте его снова из чата бота.');
+              showLoginHint('Не удалось авторизоваться через Telegram. Закройте WebApp и откройте его снова из чата бота.', true);
             } else if (stateStatus === 'no_init_data') {
-              showLoginHint('Данные для авторизации Telegram не получены. Попробуйте обновить окно WebApp.');
+              showLoginHint('Данные для авторизации Telegram не получены. Попробуйте обновить окно WebApp.', true);
             } else {
-              showLoginHint('Идёт попытка входа через Telegram. Если данных нет, перезапустите WebApp.');
+              showLoginHint('Идёт попытка входа через Telegram. Если данных нет, перезапустите WebApp.', false);
             }
             return;
           }
 
-          showLoginHint('Вы не авторизованы. Перейдите на главную страницу и выполните вход через Telegram.');
+          showLoginHint('Вы не авторизованы. Перейдите на главную страницу и выполните вход через Telegram.', true);
           return;
         }
         updateAdminLinkVisibility();
@@ -499,13 +539,25 @@
         avatarFileInput.value = '';
       }
     });
-    loginButton?.addEventListener('click', () => {
+    loginButton?.addEventListener('click', async () => {
       if (isTelegramWebApp) {
-        const state = window.getTelegramWebAppAuthState?.();
-        const errorMessage =
-          state?.error?.message ||
-          'Не удалось авторизоваться через Telegram WebApp. Попробуйте перезапустить приложение из бота.';
-        setStatus(errorMessage, true);
+        loginButton.disabled = true;
+        setStatus('Пробуем авторизовать через Telegram...', false);
+        try {
+          const authorized = await checkSessionAndMaybeAutoLogin({ showProgress: false, force: true });
+          await initProfile();
+          if (!authorized) {
+            setStatus('Не удалось авторизоваться через Telegram WebApp. Попробуйте ещё раз.', true);
+          } else {
+            setStatus('');
+          }
+        } catch (error) {
+          console.error('Telegram WebApp re-auth failed', error);
+          setStatus(error?.message || 'Не удалось авторизоваться через Telegram WebApp.', true);
+        } finally {
+          loginButton.disabled = false;
+          loginButton.textContent = isTelegramWebApp ? 'Повторить авторизацию' : loginButtonDefaultText;
+        }
         return;
       }
 
@@ -521,8 +573,11 @@
         console.error('Failed to authorize via Telegram auth params', error);
         showToast(error?.message || 'Не удалось авторизоваться через Telegram');
       })
-      .finally(() => {
-        initProfile();
+      .finally(async () => {
+        if (isTelegramWebApp) {
+          await checkSessionAndMaybeAutoLogin();
+        }
+        await initProfile();
       });
   </script>
 
