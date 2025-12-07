@@ -8,6 +8,7 @@
   const reviewMessage = document.getElementById('product-review-message');
   const params = new URLSearchParams(window.location.search);
   const productId = params.get('id');
+  const reviewsUrl = productId ? `/api/products/${productId}/reviews` : null;
   let reviewFormInitialized = false;
 
   if (!root) return;
@@ -199,12 +200,12 @@
   };
 
   const loadProductReviews = async (id) => {
-    if (!id || !reviewSection) return;
+    if (!id || !reviewSection || !reviewsUrl) return;
     if (reviewsList) reviewsList.innerHTML = '';
     if (reviewsEmpty) reviewsEmpty.style.display = 'none';
 
     try {
-      const res = await fetch(`/api/products/${id}/reviews`);
+      const res = await fetch(reviewsUrl);
       if (!res.ok) {
         console.error('Failed to load reviews', res.status);
         return;
@@ -229,7 +230,7 @@
       text: formData.get('text')?.toString().trim(),
     };
 
-    if (!productId) {
+    if (!productId || !reviewsUrl) {
       reviewMessage.textContent = 'Товар не найден.';
       return;
     }
@@ -245,7 +246,7 @@
     }
 
     try {
-      const res = await fetch(`/api/products/${productId}/reviews`, {
+      const res = await fetch(reviewsUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

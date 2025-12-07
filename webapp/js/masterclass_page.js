@@ -3,6 +3,7 @@
   const adminLink = document.getElementById('admin-link');
   const params = new URLSearchParams(window.location.search);
   const masterclassId = params.get('id');
+  const reviewsUrl = masterclassId ? `/api/masterclasses/${masterclassId}/reviews` : null;
   const reviewsList = document.getElementById('mc-reviews-list');
   const reviewsEmpty = document.getElementById('mc-reviews-empty');
   const reviewForm = document.getElementById('mc-review-form');
@@ -171,19 +172,20 @@
   };
 
   const loadMasterclassReviews = async (mcId) => {
-    if (!mcId || !reviewsList || !reviewsEmpty) return;
+    if (!mcId || !reviewsList || !reviewsEmpty || !reviewsUrl) return;
 
     reviewsList.innerHTML = '';
     reviewsEmpty.style.display = 'none';
 
     try {
-      const res = await fetch(`/api/masterclasses/${mcId}/reviews`);
+      const res = await fetch(reviewsUrl);
       if (!res.ok) {
         console.error('Failed to load masterclass reviews', res.status);
         return;
       }
 
-      const reviews = await res.json();
+      const data = await res.json();
+      const reviews = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : [];
 
       if (!reviews || !reviews.length) {
         reviewsEmpty.style.display = '';
@@ -254,7 +256,7 @@
       text: formData.get('text')?.toString().trim(),
     };
 
-    if (!masterclassId) {
+    if (!masterclassId || !reviewsUrl) {
       reviewMessage.textContent = 'Мастер-класс не найден.';
       return;
     }
@@ -270,7 +272,7 @@
     }
 
     try {
-      const res = await fetch(`/api/masterclasses/${masterclassId}/reviews`, {
+      const res = await fetch(reviewsUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
