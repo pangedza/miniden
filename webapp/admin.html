@@ -616,6 +616,10 @@
     const courseCategoryReset = document.getElementById('course-category-reset');
 
     let currentUser = null;
+    const categoryMaps = {
+      basket: new Map(),
+      course: new Map(),
+    };
     let selectedOrder = null;
     const productFormDefaults = {
       category_id: '',
@@ -1137,6 +1141,13 @@
         if (!targetSelect) return;
         const categoriesRes = await apiGet('/categories', { type });
         const categories = Array.isArray(categoriesRes) ? categoriesRes : categoriesRes?.items || [];
+        const targetMap = categoryMaps[type] || categoryMaps.basket;
+        targetMap.clear();
+        categories.forEach((cat) => {
+          if (cat?.id !== undefined && cat?.id !== null) {
+            targetMap.set(cat.id, cat);
+          }
+        });
         targetSelect.innerHTML = '';
         const allOption = document.createElement('option');
         allOption.value = '';
@@ -1144,7 +1155,7 @@
         targetSelect.appendChild(allOption);
         categories.forEach((cat) => {
           const option = document.createElement('option');
-          option.value = cat.id ?? cat.slug ?? '';
+          option.value = cat.id ?? '';
           option.textContent = cat.name;
           targetSelect.appendChild(option);
         });
@@ -1663,9 +1674,10 @@
         return;
       }
 
+      const categoryMap = categoryMaps[type] || categoryMaps.basket;
       items.forEach((item) => {
         const row = document.createElement('tr');
-        const categoryLabel = item.category_name || '—';
+        const categoryLabel = categoryMap.get(item.category_id)?.name || item.category_name || '—';
         const priceLabel = `${item.price || 0} ₽${type === 'course' && (!item.price || item.price === 0) ? ' (бесплатно)' : ''}`;
         row.innerHTML = `
           <td>#${item.id}</td>
@@ -1783,7 +1795,7 @@
         productItems = items;
         const catFilter = productCategoryFilter.value;
         if (catFilter) {
-          items = items.filter((i) => String(i.category_id || i.category_slug || '') === String(catFilter));
+          items = items.filter((i) => String(i.category_id ?? '') === String(catFilter));
         }
         renderProductTable(items, productsTable, 'basket');
       } catch (e) {
