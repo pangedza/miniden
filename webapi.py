@@ -38,6 +38,7 @@ from services import admin_notes as admin_notes_service
 from services import cart as cart_service
 from services import favorites as favorites_service
 from services import home as home_service
+from services import faq_service
 from services import orders as orders_service
 from services import products as products_service
 from services import promocodes as promocodes_service
@@ -158,10 +159,34 @@ def api_home():
     return home_service.get_active_home_data()
 
 
+@app.get("/api/faq")
+def api_faq(category: str | None = None):
+    items = faq_service.get_faq_list(category)
+    return [_faq_to_dict(item) for item in items]
+
+
+@app.get("/api/faq/{faq_id}")
+def api_faq_detail(faq_id: int):
+    item = faq_service.get_faq_item(faq_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="FAQ not found")
+    return _faq_to_dict(item)
+
+
 def _validate_type(product_type: str) -> str:
     if product_type not in ALLOWED_TYPES:
         raise HTTPException(status_code=400, detail="type must be 'basket' or 'course'")
     return product_type
+
+
+def _faq_to_dict(item) -> dict:
+    return {
+        "id": int(item.id),
+        "category": item.category,
+        "question": item.question,
+        "answer": item.answer,
+        "sort_order": int(item.sort_order or 0),
+    }
 
 
 class CartItemPayload(BaseModel):
@@ -196,6 +221,20 @@ class TelegramWebAppAuthPayload(BaseModel):
 class ProfileUpdatePayload(BaseModel):
     full_name: str | None = None
     phone: str | None = None
+
+
+class FaqCreatePayload(BaseModel):
+    category: str
+    question: str
+    answer: str
+    sort_order: int | None = 0
+
+
+class FaqUpdatePayload(BaseModel):
+    category: str | None = None
+    question: str | None = None
+    answer: str | None = None
+    sort_order: int | None = None
 
 
 class AvatarUpdatePayload(BaseModel):
@@ -1613,6 +1652,39 @@ def admin_update_review_status(
         raise HTTPException(status_code=404, detail="Review not found")
 
     return {"ok": True, "status": review.status, "is_deleted": review.is_deleted}
+
+
+@app.get("/api/admin/faq")
+def admin_faq_list(user_id: int, category: str | None = None):
+    _ensure_admin(user_id)
+    items = faq_service.get_faq_list(category)
+    return {"items": [_faq_to_dict(item) for item in items]}
+
+
+@app.post("/api/admin/faq")
+def admin_create_faq(payload: FaqCreatePayload, user_id: int):
+    _ensure_admin(user_id)
+    item = faq_service.create_faq_item(payload.dict())
+    return _faq_to_dict(item)
+
+
+@app.put("/api/admin/faq/{faq_id}")
+def admin_update_faq(faq_id: int, payload: FaqUpdatePayload, user_id: int):
+    _ensure_admin(user_id)
+    data = {key: value for key, value in payload.dict().items() if value is not None}
+    item = faq_service.update_faq_item(faq_id, data)
+    if not item:
+        raise HTTPException(status_code=404, detail="FAQ not found")
+    return _faq_to_dict(item)
+
+
+@app.delete("/api/admin/faq/{faq_id}")
+def admin_delete_faq(faq_id: int, user_id: int):
+    _ensure_admin(user_id)
+    deleted = faq_service.delete_faq_item(faq_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="FAQ not found")
+    return {"ok": True}
 
 
 @app.get("/api/admin/home/banners")

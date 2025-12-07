@@ -73,6 +73,8 @@ def get_main_menu(is_admin: bool = False) -> ReplyKeyboardMarkup:
     if webapp_row:
         keyboard.append(webapp_row)
 
+    keyboard.append([KeyboardButton(text="❓ Вопросы и ответы")])
+
     if is_admin and getattr(settings, "webapp_admin_url", None):
         keyboard.append(
             [

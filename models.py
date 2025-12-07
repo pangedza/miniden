@@ -330,6 +330,23 @@ class HomePost(Base):
     sort_order = Column(Integer, default=0, nullable=False)
 
 
+class FaqItem(Base):
+    __tablename__ = "faq"
+
+    id = Column(Integer, primary_key=True)
+    category = Column(String(64), nullable=False, index=True)
+    question = Column(Text, nullable=False)
+    answer = Column(Text, nullable=False)
+    sort_order = Column(Integer, default=0, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False,
+    )
+
+
 __all__ = [
     "Base",
     "AdminNote",
@@ -350,4 +367,5 @@ __all__ = [
     "HomeBanner",
     "HomeSection",
     "HomePost",
+    "FaqItem",
 ]
