@@ -1102,13 +1102,17 @@ def create_product_review(product_id: int, payload: ReviewCreatePayload, request
 
 
 @app.get("/api/products/{product_id}/reviews")
-def get_product_reviews(product_id: int, page: int = 1, limit: int = 20):
+def get_product_reviews(
+    product_id: int, page: int = 1, limit: int = 20, with_meta: bool = False
+):
     product = products_service.get_product_by_id(product_id)
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
     reviews = reviews_service.get_reviews_for_product(product_id, page=page, limit=limit)
-    return {"items": reviews, "page": page, "limit": limit}
+    if with_meta:
+        return {"items": reviews, "page": page, "limit": limit}
+    return reviews
 
 
 @app.get("/api/products/{product_id}/rating")
