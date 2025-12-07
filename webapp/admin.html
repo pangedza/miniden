@@ -1136,11 +1136,11 @@
     statusFilter.addEventListener('change', loadOrders);
     saveStatusBtn.addEventListener('click', updateOrderStatus);
 
-    async function loadCategories(targetSelect, type) {
+    async function loadCategories(targetSelect, type, { includeAllOption = false } = {}) {
       try {
-        if (!targetSelect) return;
-        const categoriesRes = await apiGet('/categories', { type });
-        const categories = Array.isArray(categoriesRes) ? categoriesRes : categoriesRes?.items || [];
+        const categoriesRes = await apiGet('/categories', { type, active: true });
+        const categoriesRaw = Array.isArray(categoriesRes) ? categoriesRes : categoriesRes?.items || [];
+        const categories = categoriesRaw.filter((cat) => cat?.is_active);
         const targetMap = categoryMaps[type] || categoryMaps.basket;
         targetMap.clear();
         categories.forEach((cat) => {
@@ -1148,14 +1148,18 @@
             targetMap.set(cat.id, cat);
           }
         });
-        targetSelect.innerHTML = '';
-        const allOption = document.createElement('option');
-        allOption.value = '';
-        allOption.textContent = 'Все категории';
-        targetSelect.appendChild(allOption);
 
-        categories.forEach((cat) => {
-          if (cat?.id === undefined || cat?.id === null) return;
+        if (!targetSelect) return;
+        targetSelect.innerHTML = '';
+
+        if (includeAllOption) {
+          const allOption = document.createElement('option');
+          allOption.value = '';
+          allOption.textContent = 'Все категории';
+          targetSelect.appendChild(allOption);
+        }
+
+        Array.from(targetMap.values()).forEach((cat) => {
           const option = document.createElement('option');
           option.value = String(cat.id);
           option.textContent = cat.name;
@@ -1466,7 +1470,7 @@
       const productImageUrl = item.image_url || item.image || item.images?.[0]?.image_url || '';
       resetFormState(productFormState.formData, productFormDefaults);
       Object.assign(productFormState.formData, {
-        category_id: item.category_id ?? '',
+        category_id: item.category_id != null ? String(item.category_id) : '',
         name: item.name || '',
         price: item.price ?? null,
         image_url: productImageUrl,
@@ -1480,16 +1484,8 @@
         detail_url: item.detail_url || '',
       });
       applyStateToForm(productForm, productFormState.formData);
-      if (productCategorySelect && item.category_id) {
-        const hasOption = Array.from(productCategorySelect.options || []).some(
-          (opt) => String(opt.value) === String(item.category_id)
-        );
-        if (!hasOption) {
-          const opt = document.createElement('option');
-          opt.value = item.category_id;
-          opt.textContent = item.category_name || `Категория ${item.category_id}`;
-          productCategorySelect.appendChild(opt);
-        }
+      if (productCategorySelect) {
+        productCategorySelect.value = item.category_id != null ? String(item.category_id) : '';
       }
       if (productImageUrlInput) productImageUrlInput.value = productImageUrl || '';
       setProductImagePreview(productImageUrl);
@@ -1509,7 +1505,7 @@
       const courseImageUrl = item.image_url || item.image || item.images?.[0]?.image_url || '';
       resetFormState(courseFormState.formData, courseFormDefaults);
       Object.assign(courseFormState.formData, {
-        category_id: item.category_id ?? '',
+        category_id: item.category_id != null ? String(item.category_id) : '',
         name: item.name || '',
         price: item.price ?? null,
         image_url: courseImageUrl,
@@ -1519,17 +1515,8 @@
         detail_url: item.detail_url || '',
       });
       applyStateToForm(courseForm, courseFormState.formData);
-
-      if (courseCategorySelect && item.category_id) {
-        const hasOption = Array.from(courseCategorySelect.options || []).some(
-          (opt) => String(opt.value) === String(item.category_id)
-        );
-        if (!hasOption) {
-          const opt = document.createElement('option');
-          opt.value = item.category_id;
-          opt.textContent = item.category_name || `Категория ${item.category_id}`;
-          courseCategorySelect.appendChild(opt);
-        }
+      if (courseCategorySelect) {
+        courseCategorySelect.value = item.category_id != null ? String(item.category_id) : '';
       }
 
       if (courseImageUrlInput) courseImageUrlInput.value = courseImageUrl || '';
@@ -1679,7 +1666,7 @@
       const categoryMap = categoryMaps[type] || categoryMaps.basket;
       items.forEach((item) => {
         const row = document.createElement('tr');
-        const categoryLabel = categoryMap.get(item.category_id)?.name || item.category_name || '—';
+        const categoryLabel = categoryMap.get(item.category_id)?.name || '—';
         const priceLabel = `${item.price || 0} ₽${type === 'course' && (!item.price || item.price === 0) ? ' (бесплатно)' : ''}`;
         row.innerHTML = `
           <td>#${item.id}</td>
@@ -1749,7 +1736,7 @@
         await Promise.all([
           loadProductCategories(),
           loadCategories(productCategorySelect, 'basket'),
-          loadCategories(productCategoryFilter, 'basket'),
+          loadCategories(productCategoryFilter, 'basket', { includeAllOption: true }),
         ]);
       } catch (e) {
         handleError(e, 'Не удалось сохранить категорию товара');
@@ -1781,7 +1768,7 @@
         await Promise.all([
           loadCourseCategories(),
           loadCategories(courseCategorySelect, 'course'),
-          loadCategories(courseCategoryFilter, 'course'),
+          loadCategories(courseCategoryFilter, 'course', { includeAllOption: true }),
         ]);
       } catch (e) {
         handleError(e, 'Не удалось сохранить категорию мастер-класса');
@@ -2205,9 +2192,9 @@
         if (!requireAdmin(currentUser)) return;
 
         await Promise.all([
-          loadCategories(productCategoryFilter, 'basket'),
+          loadCategories(productCategoryFilter, 'basket', { includeAllOption: true }),
           loadCategories(productCategorySelect, 'basket'),
-          loadCategories(courseCategoryFilter, 'course'),
+          loadCategories(courseCategoryFilter, 'course', { includeAllOption: true }),
           loadCategories(courseCategorySelect, 'course'),
         ]);
 
