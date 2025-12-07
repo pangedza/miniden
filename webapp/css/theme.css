@@ -1075,6 +1075,36 @@ footer a {
   gap: 12px;
 }
 
+.product-review-form {
+  gap: 10px;
+}
+
+.product-review-form h3 {
+  margin: 0;
+}
+
+.product-review-form__form {
+  display: grid;
+  gap: 10px;
+}
+
+.product-review-form__form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.product-review-form__form select,
+.product-review-form__form textarea {
+  width: 100%;
+}
+
+.form-message {
+  min-height: 18px;
+  color: var(--color-text-muted);
+}
+
 .product-reviews__login-hint {
   padding: 12px;
   border-radius: 12px;

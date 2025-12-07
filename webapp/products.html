@@ -943,7 +943,7 @@
       try {
         const [ratingResponse, reviewsResponse] = await Promise.all([
           apiGet(`/products/${productId}/rating`).catch(() => null),
-          apiGet(`/products/${productId}/reviews`, { page: 1, limit: 20 }).catch(() => ({ items: [] })),
+          apiGet(`/products/${productId}/reviews`, { page: 1, limit: 20, with_meta: true }).catch(() => ({ items: [] })),
         ]);
 
         state.items = (reviewsResponse?.items || []).filter((item) => !item.is_deleted);
