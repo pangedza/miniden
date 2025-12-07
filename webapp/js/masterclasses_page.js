@@ -403,7 +403,7 @@
     groups.forEach((group) => {
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = 'mc-categories-nav__item';
+      btn.className = 'products-categories-nav__item mc-categories-nav__item';
       btn.dataset.categoryId = group.categoryId;
       btn.textContent = group.categoryName || 'Мастер-классы';
       btn.addEventListener('click', () => handleCategoryNavClick(group.categoryId));

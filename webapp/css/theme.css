@@ -554,7 +554,8 @@ footer a {
   margin: 0 0 20px;
 }
 
-.products-categories-nav__item {
+.products-categories-nav__item,
+.mc-categories-nav__item {
   padding: 10px 14px;
   border-radius: 12px;
   background: var(--color-bg-card);
@@ -565,9 +566,20 @@ footer a {
   transition: transform 0.15s ease, border 0.15s ease;
 }
 
-.products-categories-nav__item:hover {
+.products-categories-nav__item:hover,
+.mc-categories-nav__item:hover {
   transform: translateY(-1px);
   border-color: var(--color-accent-secondary);
+}
+
+.products-categories-nav__item.is-active,
+.products-categories-nav__item.active,
+.mc-categories-nav__item.is-active,
+.mc-categories-nav__item.active {
+  background: var(--color-bg-card-elevated);
+  border-color: var(--color-accent-secondary);
+  box-shadow: var(--shadow-strong);
+  color: var(--color-text-main);
 }
 
 .products-by-category {
