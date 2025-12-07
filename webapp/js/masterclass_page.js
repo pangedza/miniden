@@ -153,7 +153,7 @@
 
   const loadMasterclass = async () => {
     if (!masterclassId) {
-      renderMessage('Мастер-класс не найден');
+      renderMessage('Мастер-класс не найден (нет ID в ссылке).');
       return;
     }
 
@@ -162,7 +162,7 @@
       renderMasterclass(masterclass);
     } catch (error) {
       if (error.status === 404) {
-        renderMessage('Мастер-класс не найден');
+        renderMessage('Мастер-класс не найден или недоступен.');
       } else {
         renderMessage('Произошла ошибка при загрузке мастер-класса');
       }

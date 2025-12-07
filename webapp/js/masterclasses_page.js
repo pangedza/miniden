@@ -202,12 +202,13 @@
     detailsBtn.textContent = 'Подробнее';
     detailsBtn.addEventListener('click', () => openCourseModal(item.id, currentImageIndex));
 
+    const openBtn = document.createElement('a');
+    openBtn.className = 'btn btn-primary';
+    openBtn.textContent = 'Перейти к мастер-классу';
+    openBtn.style.textAlign = 'center';
+    openBtn.href = `masterclass.html?id=${encodeURIComponent(item.id)}`;
+
     if (Number(item.price || 0) === 0 || hasAccess) {
-      const openBtn = document.createElement('a');
-      openBtn.className = 'btn btn-primary';
-      openBtn.textContent = 'Перейти к мастер-классу';
-      openBtn.style.textAlign = 'center';
-      openBtn.href = `masterclass.html?id=${encodeURIComponent(item.id)}`;
       buttonsRow.append(detailsBtn, openBtn);
     } else {
       const addBtn = document.createElement('button');
@@ -220,7 +221,7 @@
       note.style.color = 'var(--muted)';
       note.textContent = profile ? 'Доступ появится после оплаты' : 'Войдите и оплатите, чтобы открыть уроки';
 
-      buttonsRow.append(detailsBtn, addBtn);
+      buttonsRow.append(detailsBtn, addBtn, openBtn);
       actions.appendChild(note);
     }
 
