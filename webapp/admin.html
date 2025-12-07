@@ -1153,9 +1153,11 @@
         allOption.value = '';
         allOption.textContent = 'Все категории';
         targetSelect.appendChild(allOption);
+
         categories.forEach((cat) => {
+          if (cat?.id === undefined || cat?.id === null) return;
           const option = document.createElement('option');
-          option.value = cat.id ?? '';
+          option.value = String(cat.id);
           option.textContent = cat.name;
           targetSelect.appendChild(option);
         });
@@ -1812,7 +1814,7 @@
         courseItems = items;
         const catFilter = courseCategoryFilter.value;
         if (catFilter) {
-          items = items.filter((i) => String(i.category_slug || i.category_id || '') === String(catFilter));
+          items = items.filter((i) => String(i.category_id ?? '') === String(catFilter));
         }
         renderProductTable(items, coursesTable, 'course');
       } catch (e) {
