@@ -34,6 +34,7 @@
         </div>
         <button class="nav-btn" data-view="home-cms">Главная страница</button>
         <button class="nav-btn" data-view="reviews">Отзывы</button>
+        <button class="nav-btn" data-view="faq">FAQ (база знаний)</button>
         <div class="nav-group" data-group="promocodes">
           <button class="nav-btn nav-parent" data-group-toggle="promocodes" data-default-view="promocode-list">Промокоды</button>
           <div class="nav-submenu">
@@ -682,6 +683,59 @@
         </div>
       </section>
 
+      <section id="faq" class="card admin-view" data-view="faq" style="display:none;">
+        <div class="section-header">
+          <div>
+            <h2>База знаний / FAQ</h2>
+            <p class="muted">Управляйте разделами и ответами на популярные вопросы.</p>
+          </div>
+          <div class="filters-row">
+            <label for="faq-category-filter" class="muted" style="margin:0;">Категория</label>
+            <select id="faq-category-filter">
+              <option value="">Все категории</option>
+            </select>
+            <button class="btn primary" type="button" id="faq-add-btn">Добавить вопрос</button>
+          </div>
+        </div>
+
+        <div class="table-wrapper" style="margin-bottom:16px;">
+          <table aria-label="FAQ" style="width:100%;">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Категория</th>
+                <th>Вопрос</th>
+                <th>Порядок</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="faq-table"></tbody>
+          </table>
+        </div>
+
+        <div class="card" style="background: rgba(255,255,255,0.03);">
+          <h3 id="faq-form-title">Добавить вопрос</h3>
+          <form id="faq-form" class="stacked-form">
+            <label for="faq-category">Категория</label>
+            <input type="text" id="faq-category" name="category" required />
+
+            <label for="faq-question">Вопрос</label>
+            <textarea id="faq-question" name="question" rows="3" required></textarea>
+
+            <label for="faq-answer">Ответ</label>
+            <textarea id="faq-answer" name="answer" rows="4" required></textarea>
+
+            <label for="faq-sort">Порядок</label>
+            <input type="number" id="faq-sort" name="sort_order" min="0" value="0" />
+
+            <div class="form-actions">
+              <button class="btn primary" type="submit">Сохранить</button>
+              <button class="btn secondary" type="button" id="faq-reset">Сбросить</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
       <section id="stats" class="card admin-view" data-view="stats" style="display:none;">
         <h2>Статистика</h2>
         <p class="muted">Статистика заказов и продаж остаётся доступной через существующий API. Эта вкладка — заглушка для будущего UI.</p>
@@ -722,6 +776,17 @@
     const reviewsCountPending = document.getElementById('reviews-count-pending');
     const reviewsCountApproved = document.getElementById('reviews-count-approved');
     const reviewsCountRejected = document.getElementById('reviews-count-rejected');
+
+    const faqTableBody = document.getElementById('faq-table');
+    const faqCategoryFilter = document.getElementById('faq-category-filter');
+    const faqAddBtn = document.getElementById('faq-add-btn');
+    const faqForm = document.getElementById('faq-form');
+    const faqFormTitle = document.getElementById('faq-form-title');
+    const faqCategoryInput = document.getElementById('faq-category');
+    const faqQuestionInput = document.getElementById('faq-question');
+    const faqAnswerInput = document.getElementById('faq-answer');
+    const faqSortInput = document.getElementById('faq-sort');
+    const faqResetBtn = document.getElementById('faq-reset');
 
     const productCategoryFilter = document.getElementById('products-category');
     const courseCategoryFilter = document.getElementById('courses-category');
@@ -869,6 +934,12 @@
       sort_order: 0,
       is_active: true,
     };
+    const faqDefaults = {
+      category: '',
+      question: '',
+      answer: '',
+      sort_order: 0,
+    };
 
     const productFormState = createSectionFormState(productFormDefaults);
     const courseFormState = createSectionFormState(courseFormDefaults);
@@ -876,10 +947,12 @@
     const homeBannerState = createSectionFormState(homeBannerDefaults);
     const homeSectionState = createSectionFormState(homeSectionDefaults);
     const homePostState = createSectionFormState(homePostDefaults);
+    const faqFormState = createSectionFormState(faqDefaults);
     let editingProductCategoryId = null;
     let editingCourseCategoryId = null;
     let promocodeItems = [];
     let reviewItems = [];
+    let faqItems = [];
     let productItems = [];
     let courseItems = [];
     let homeBannerItems = [];
@@ -891,6 +964,7 @@
     let currentBannerId = null;
     let currentSectionId = null;
     let currentPostId = null;
+    let currentFaqId = null;
     const productSubmitBtn = productForm?.querySelector('button[type="submit"]');
     const courseSubmitBtn = courseForm?.querySelector('button[type="submit"]');
     const promoSubmitBtn = promoCreateForm?.querySelector('button[type="submit"]');
@@ -919,6 +993,26 @@
     function handleError(error, fallback = 'Произошла ошибка') {
       console.error(error);
       setStatus(getErrorMessage(error, fallback), true);
+    }
+
+    async function apiPut(path, body, params) {
+      const res = await fetch(buildUrl(path, params), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      return handleResponse(res);
+    }
+
+    async function apiDelete(path, params) {
+      const res = await fetch(buildUrl(path, params), { method: 'DELETE' });
+      return handleResponse(res);
+    }
+
+    function truncateText(text, limit = 80) {
+      if (!text) return '';
+      if (text.length <= limit) return text;
+      return `${text.slice(0, limit)}…`;
     }
 
     function showImageListPlaceholder(target, message) {
@@ -985,6 +1079,9 @@
       if (view === 'reviews') {
         loadReviews();
       }
+      if (view === 'faq') {
+        loadFaqItems();
+      }
       if (view === 'home-cms') {
         showHomeTab('banners');
         loadHomeBanners();
@@ -1042,6 +1139,44 @@
           handleViewNavigation(defaultView);
         }
       });
+    });
+
+    faqAddBtn?.addEventListener('click', () => {
+      resetFaqFormState();
+      faqForm?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+
+    faqResetBtn?.addEventListener('click', () => {
+      resetFaqFormState();
+    });
+
+    faqCategoryFilter?.addEventListener('change', () => {
+      renderFaqTable(getFilteredFaqItems());
+    });
+
+    faqForm?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!currentUser) return handleError(new Error('Нет данных пользователя'));
+      const payload = {
+        category: (faqCategoryInput.value || '').trim(),
+        question: (faqQuestionInput.value || '').trim(),
+        answer: (faqAnswerInput.value || '').trim(),
+        sort_order: Number(faqSortInput.value) || 0,
+      };
+
+      try {
+        if (currentFaqId) {
+          await apiPut(`/admin/faq/${currentFaqId}`, payload, { user_id: currentUser.telegram_id });
+          setStatus('Вопрос обновлён');
+        } else {
+          await apiPost(`/admin/faq?user_id=${currentUser.telegram_id}`, payload);
+          setStatus('Вопрос создан');
+        }
+        resetFaqFormState();
+        await loadFaqItems();
+      } catch (error) {
+        handleError(error, 'Не удалось сохранить вопрос');
+      }
     });
 
     function requireAdmin(profile) {
@@ -1193,6 +1328,118 @@
         return userName.includes(query) || userIdMatch;
       });
     }
+
+    function renderFaqCategories(items) {
+      if (!faqCategoryFilter) return;
+      const current = faqCategoryFilter.value;
+      const categories = Array.from(
+        new Set(items.map((item) => item.category).filter(Boolean))
+      ).sort((a, b) => a.localeCompare(b));
+
+      faqCategoryFilter.innerHTML = '<option value="">Все категории</option>';
+      categories.forEach((category) => {
+        const option = document.createElement('option');
+        option.value = category;
+        option.textContent = category;
+        faqCategoryFilter.appendChild(option);
+      });
+
+      if (current) {
+        faqCategoryFilter.value = current;
+      }
+    }
+
+    function renderFaqTable(items) {
+      if (!faqTableBody) return;
+      faqTableBody.innerHTML = '';
+
+      if (!items.length) {
+        const row = document.createElement('tr');
+        const cell = document.createElement('td');
+        cell.colSpan = 5;
+        cell.textContent = 'FAQ не найдены';
+        cell.className = 'muted';
+        row.appendChild(cell);
+        faqTableBody.appendChild(row);
+        return;
+      }
+
+      items.forEach((item) => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>#${item.id}</td>
+          <td>${item.category || '—'}</td>
+          <td>${truncateText(item.question || '', 80)}</td>
+          <td>${item.sort_order ?? 0}</td>
+          <td></td>
+        `;
+
+        const actionsCell = row.querySelector('td:last-child');
+        const editBtn = document.createElement('button');
+        editBtn.className = 'btn secondary';
+        editBtn.textContent = 'Редактировать';
+        editBtn.addEventListener('click', () => openFaqForm(item));
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'btn secondary danger';
+        deleteBtn.textContent = 'Удалить';
+        deleteBtn.addEventListener('click', () => deleteFaqItem(item));
+
+        actionsCell.appendChild(editBtn);
+        actionsCell.appendChild(deleteBtn);
+        faqTableBody.appendChild(row);
+      });
+    }
+
+    function getFilteredFaqItems() {
+      const category = faqCategoryFilter?.value || '';
+      if (!category) return faqItems;
+      return faqItems.filter((item) => item.category === category);
+    }
+
+    function openFaqForm(item) {
+      currentFaqId = item?.id || null;
+      faqFormState.mode = currentFaqId ? 'edit' : 'create';
+      faqFormState.currentId = currentFaqId;
+      faqFormTitle.textContent = currentFaqId ? 'Редактировать вопрос' : 'Добавить вопрос';
+      resetFormState(faqFormState.formData, { ...faqDefaults, ...(item || {}) });
+      applyStateToForm(faqForm, faqFormState.formData);
+    }
+
+    function resetFaqFormState() {
+      currentFaqId = null;
+      faqFormTitle.textContent = 'Добавить вопрос';
+      faqFormState.mode = 'create';
+      faqFormState.currentId = null;
+      resetFormState(faqFormState.formData, faqDefaults);
+      applyStateToForm(faqForm, faqFormState.formData);
+    }
+
+    async function loadFaqItems() {
+      if (!currentUser) return;
+      try {
+        const data = await apiGet('/admin/faq', { user_id: currentUser.telegram_id });
+        faqItems = data.items || [];
+        renderFaqCategories(faqItems);
+        renderFaqTable(getFilteredFaqItems());
+      } catch (error) {
+        handleError(error, 'Не удалось загрузить FAQ');
+      }
+    }
+
+    async function deleteFaqItem(item) {
+      if (!item?.id || !currentUser) return;
+      const confirmed = window.confirm('Удалить этот вопрос?');
+      if (!confirmed) return;
+      try {
+        await apiDelete(`/admin/faq/${item.id}`, { user_id: currentUser.telegram_id });
+        setStatus('Вопрос удалён');
+        await loadFaqItems();
+      } catch (error) {
+        handleError(error, 'Не удалось удалить вопрос');
+      }
+    }
+
 
     async function loadReviewProducts() {
       try {
@@ -2898,6 +3145,7 @@
         resetHomeBannerForm();
         resetHomeSectionForm();
         resetHomePostForm();
+        resetFaqFormState();
 
         await Promise.all([
           loadCategories(productCategoryFilter, 'basket', { includeAllOption: true }),
