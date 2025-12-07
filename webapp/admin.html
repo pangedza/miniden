@@ -491,13 +491,13 @@
           </div>
         </div>
 
-        <div class="admin-tabs" id="home-tabs">
-          <button class="admin-tab active" data-home-tab="banners">Баннеры</button>
-          <button class="admin-tab" data-home-tab="sections">Блоки</button>
-          <button class="admin-tab" data-home-tab="posts">Мини-блог</button>
+        <div class="home-admin-tabs admin-tabs" id="home-tabs">
+          <button class="home-admin-tab admin-tab active" data-tab="banners">Баннеры</button>
+          <button class="home-admin-tab admin-tab" data-tab="sections">Блоки</button>
+          <button class="home-admin-tab admin-tab" data-tab="posts">Мини-блог</button>
         </div>
 
-        <div class="admin-tab-view" data-home-tab-view="banners">
+        <div class="home-admin-tab-panel admin-tab-view" data-panel="banners">
           <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px;">
             <div class="table-wrapper">
               <table aria-label="Баннеры главной">
@@ -511,7 +511,7 @@
                     <th></th>
                   </tr>
                 </thead>
-                <tbody id="home-banners-table"></tbody>
+                <tbody id="home-banners-list"></tbody>
               </table>
             </div>
             <div class="card" style="background: rgba(255,255,255,0.03);">
@@ -544,14 +544,14 @@
                 </label>
                 <div class="form-actions">
                   <button class="btn primary" type="submit">Сохранить</button>
-                  <button class="btn secondary" type="button" id="home-banner-reset">Сбросить</button>
+                  <button class="btn secondary" type="button" id="home-banner-reset">Создать баннер</button>
                 </div>
               </form>
             </div>
           </div>
         </div>
 
-        <div class="admin-tab-view" data-home-tab-view="sections" style="display:none;">
+        <div class="home-admin-tab-panel admin-tab-view" data-panel="sections" style="display:none;">
           <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px;">
             <div class="table-wrapper">
               <table aria-label="Текстовые блоки главной">
@@ -565,7 +565,7 @@
                     <th></th>
                   </tr>
                 </thead>
-                <tbody id="home-sections-table"></tbody>
+                <tbody id="home-sections-list"></tbody>
               </table>
             </div>
             <div class="card" style="background: rgba(255,255,255,0.03);">
@@ -586,14 +586,14 @@
                 </label>
                 <div class="form-actions">
                   <button class="btn primary" type="submit">Сохранить</button>
-                  <button class="btn secondary" type="button" id="home-section-reset">Сбросить</button>
+                  <button class="btn secondary" type="button" id="home-section-reset">Создать блок</button>
                 </div>
               </form>
             </div>
           </div>
         </div>
 
-        <div class="admin-tab-view" data-home-tab-view="posts" style="display:none;">
+        <div class="home-admin-tab-panel admin-tab-view" data-panel="posts" style="display:none;">
           <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px;">
             <div class="table-wrapper">
               <table aria-label="Мини-блог">
@@ -607,7 +607,7 @@
                     <th></th>
                   </tr>
                 </thead>
-                <tbody id="home-posts-table"></tbody>
+                <tbody id="home-posts-list"></tbody>
               </table>
             </div>
             <div class="card" style="background: rgba(255,255,255,0.03);">
@@ -626,7 +626,7 @@
                 </label>
                 <div class="form-actions">
                   <button class="btn primary" type="submit">Сохранить</button>
-                  <button class="btn secondary" type="button" id="home-post-reset">Сбросить</button>
+                  <button class="btn secondary" type="button" id="home-post-reset">Создать пост</button>
                 </div>
               </form>
             </div>
@@ -768,12 +768,11 @@
     const promoCreateActive = document.getElementById('promo-create-active');
     const promoCreateOnePerUser = document.getElementById('promo-create-one-per-user');
     const promoCreateReset = document.getElementById('promo-create-reset');
-    const homeTabs = document.getElementById('home-tabs');
-    const homeTabButtons = document.querySelectorAll('[data-home-tab]');
-    const homeTabViews = document.querySelectorAll('[data-home-tab-view]');
-    const homeBannersTable = document.getElementById('home-banners-table');
-    const homeSectionsTable = document.getElementById('home-sections-table');
-    const homePostsTable = document.getElementById('home-posts-table');
+    const homeTabButtons = document.querySelectorAll('.home-admin-tab');
+    const homeTabPanels = document.querySelectorAll('.home-admin-tab-panel');
+    const homeBannersList = document.getElementById('home-banners-list');
+    const homeSectionsList = document.getElementById('home-sections-list');
+    const homePostsList = document.getElementById('home-posts-list');
     const homeBannerForm = document.getElementById('home-banner-form');
     const homeBannerImageFileInput = document.getElementById('home-banner-image-file');
     const homeBannerImageUrlInput = document.getElementById('home-banner-image-url');
@@ -889,6 +888,9 @@
     let productCurrentId = null;
     let masterclassCurrentId = null;
     let promoCurrentId = null;
+    let currentBannerId = null;
+    let currentSectionId = null;
+    let currentPostId = null;
     const productSubmitBtn = productForm?.querySelector('button[type="submit"]');
     const courseSubmitBtn = courseForm?.querySelector('button[type="submit"]');
     const promoSubmitBtn = promoCreateForm?.querySelector('button[type="submit"]');
@@ -2099,18 +2101,19 @@
 
     function showHomeTab(tabName = 'banners') {
       homeTabButtons.forEach((btn) => {
-        const isActive = btn.dataset.homeTab === tabName;
+        const isActive = btn.dataset.tab === tabName;
         btn.classList.toggle('active', isActive);
       });
-      homeTabViews.forEach((view) => {
-        const isActive = view.dataset.homeTabView === tabName;
-        view.style.display = isActive ? 'block' : 'none';
+      homeTabPanels.forEach((panel) => {
+        const isActive = panel.dataset.panel === tabName;
+        panel.style.display = isActive ? '' : 'none';
       });
     }
 
     function resetHomeBannerForm() {
       homeBannerState.mode = 'create';
       homeBannerState.currentId = null;
+      currentBannerId = null;
       homeBannerFormTitle.textContent = 'Создать баннер';
       if (homeBannerSubmit) homeBannerSubmit.textContent = 'Сохранить';
       resetFormState(homeBannerState.formData, homeBannerDefaults);
@@ -2122,6 +2125,7 @@
     function resetHomeSectionForm() {
       homeSectionState.mode = 'create';
       homeSectionState.currentId = null;
+      currentSectionId = null;
       homeSectionFormTitle.textContent = 'Создать блок';
       if (homeSectionSubmit) homeSectionSubmit.textContent = 'Сохранить';
       resetFormState(homeSectionState.formData, homeSectionDefaults);
@@ -2131,6 +2135,7 @@
     function resetHomePostForm() {
       homePostState.mode = 'create';
       homePostState.currentId = null;
+      currentPostId = null;
       homePostFormTitle.textContent = 'Создать пост';
       if (homePostSubmit) homePostSubmit.textContent = 'Сохранить';
       resetFormState(homePostState.formData, homePostDefaults);
@@ -2182,7 +2187,7 @@
     }
 
     function renderHomeBanners(items) {
-      homeBannersTable.innerHTML = '';
+      homeBannersList.innerHTML = '';
       if (!items.length) {
         const row = document.createElement('tr');
         const cell = document.createElement('td');
@@ -2190,7 +2195,7 @@
         cell.textContent = 'Баннеры отсутствуют';
         cell.className = 'muted';
         row.appendChild(cell);
-        homeBannersTable.appendChild(row);
+        homeBannersList.appendChild(row);
         return;
       }
 
@@ -2203,33 +2208,19 @@
           <td>${banner.is_active ? 'Да' : 'Нет'}</td>
           <td>${banner.sort_order ?? 0}</td>
           <td>${date}</td>
-          <td></td>
+          <td>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+              <button class="btn secondary" type="button" data-action="edit-banner" data-id="${banner.id}">Редактировать</button>
+              <button class="btn secondary danger" type="button" data-action="delete-banner" data-id="${banner.id}">Удалить</button>
+            </div>
+          </td>
         `;
-        const actions = document.createElement('div');
-        actions.style.display = 'flex';
-        actions.style.gap = '6px';
-
-        const editBtn = document.createElement('button');
-        editBtn.className = 'btn secondary';
-        editBtn.type = 'button';
-        editBtn.textContent = 'Редактировать';
-        editBtn.addEventListener('click', () => openHomeBannerEdit(banner));
-
-        const deleteBtn = document.createElement('button');
-        deleteBtn.className = 'btn secondary danger';
-        deleteBtn.type = 'button';
-        deleteBtn.textContent = 'Удалить';
-        deleteBtn.addEventListener('click', () => deleteHomeBanner(banner.id));
-
-        actions.appendChild(editBtn);
-        actions.appendChild(deleteBtn);
-        row.lastElementChild.appendChild(actions);
-        homeBannersTable.appendChild(row);
+        homeBannersList.appendChild(row);
       });
     }
 
     function renderHomeSections(items) {
-      homeSectionsTable.innerHTML = '';
+      homeSectionsList.innerHTML = '';
       if (!items.length) {
         const row = document.createElement('tr');
         const cell = document.createElement('td');
@@ -2237,7 +2228,7 @@
         cell.textContent = 'Блоки отсутствуют';
         cell.className = 'muted';
         row.appendChild(cell);
-        homeSectionsTable.appendChild(row);
+        homeSectionsList.appendChild(row);
         return;
       }
 
@@ -2249,33 +2240,19 @@
           <td>${section.title}</td>
           <td>${section.is_active ? 'Да' : 'Нет'}</td>
           <td>${section.sort_order ?? 0}</td>
-          <td></td>
+          <td>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+              <button class="btn secondary" type="button" data-action="edit-section" data-id="${section.id}">Редактировать</button>
+              <button class="btn secondary danger" type="button" data-action="delete-section" data-id="${section.id}">Удалить</button>
+            </div>
+          </td>
         `;
-        const actions = document.createElement('div');
-        actions.style.display = 'flex';
-        actions.style.gap = '6px';
-
-        const editBtn = document.createElement('button');
-        editBtn.className = 'btn secondary';
-        editBtn.type = 'button';
-        editBtn.textContent = 'Редактировать';
-        editBtn.addEventListener('click', () => openHomeSectionEdit(section));
-
-        const deleteBtn = document.createElement('button');
-        deleteBtn.className = 'btn secondary danger';
-        deleteBtn.type = 'button';
-        deleteBtn.textContent = 'Удалить';
-        deleteBtn.addEventListener('click', () => deleteHomeSection(section.id));
-
-        actions.appendChild(editBtn);
-        actions.appendChild(deleteBtn);
-        row.lastElementChild.appendChild(actions);
-        homeSectionsTable.appendChild(row);
+        homeSectionsList.appendChild(row);
       });
     }
 
     function renderHomePosts(items) {
-      homePostsTable.innerHTML = '';
+      homePostsList.innerHTML = '';
       if (!items.length) {
         const row = document.createElement('tr');
         const cell = document.createElement('td');
@@ -2283,7 +2260,7 @@
         cell.textContent = 'Постов пока нет';
         cell.className = 'muted';
         row.appendChild(cell);
-        homePostsTable.appendChild(row);
+        homePostsList.appendChild(row);
         return;
       }
 
@@ -2296,28 +2273,14 @@
           <td>${post.is_active ? 'Да' : 'Нет'}</td>
           <td>${post.sort_order ?? 0}</td>
           <td>${date}</td>
-          <td></td>
+          <td>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+              <button class="btn secondary" type="button" data-action="edit-post" data-id="${post.id}">Редактировать</button>
+              <button class="btn secondary danger" type="button" data-action="delete-post" data-id="${post.id}">Удалить</button>
+            </div>
+          </td>
         `;
-        const actions = document.createElement('div');
-        actions.style.display = 'flex';
-        actions.style.gap = '6px';
-
-        const editBtn = document.createElement('button');
-        editBtn.className = 'btn secondary';
-        editBtn.type = 'button';
-        editBtn.textContent = 'Редактировать';
-        editBtn.addEventListener('click', () => openHomePostEdit(post));
-
-        const deleteBtn = document.createElement('button');
-        deleteBtn.className = 'btn secondary danger';
-        deleteBtn.type = 'button';
-        deleteBtn.textContent = 'Удалить';
-        deleteBtn.addEventListener('click', () => deleteHomePost(post.id));
-
-        actions.appendChild(editBtn);
-        actions.appendChild(deleteBtn);
-        row.lastElementChild.appendChild(actions);
-        homePostsTable.appendChild(row);
+        homePostsList.appendChild(row);
       });
     }
 
@@ -2354,9 +2317,25 @@
       }
     }
 
+    async function fetchHomeBanner(id) {
+      if (!currentUser || !id) return null;
+      return apiGet(`/admin/home/banners/${id}`, { user_id: currentUser.telegram_id });
+    }
+
+    async function fetchHomeSection(id) {
+      if (!currentUser || !id) return null;
+      return apiGet(`/admin/home/sections/${id}`, { user_id: currentUser.telegram_id });
+    }
+
+    async function fetchHomePost(id) {
+      if (!currentUser || !id) return null;
+      return apiGet(`/admin/home/posts/${id}`, { user_id: currentUser.telegram_id });
+    }
+
     function openHomeBannerEdit(banner) {
       homeBannerState.mode = 'edit';
       homeBannerState.currentId = banner.id;
+      currentBannerId = banner.id;
       homeBannerFormTitle.textContent = `Редактировать баннер #${banner.id}`;
       if (homeBannerSubmit) homeBannerSubmit.textContent = 'Обновить баннер';
       resetFormState(homeBannerState.formData, { ...homeBannerDefaults, ...banner });
@@ -2367,6 +2346,7 @@
     function openHomeSectionEdit(section) {
       homeSectionState.mode = 'edit';
       homeSectionState.currentId = section.id;
+      currentSectionId = section.id;
       homeSectionFormTitle.textContent = `Редактировать блок #${section.id}`;
       if (homeSectionSubmit) homeSectionSubmit.textContent = 'Обновить блок';
       resetFormState(homeSectionState.formData, { ...homeSectionDefaults, ...section });
@@ -2376,6 +2356,7 @@
     function openHomePostEdit(post) {
       homePostState.mode = 'edit';
       homePostState.currentId = post.id;
+      currentPostId = post.id;
       homePostFormTitle.textContent = `Редактировать пост #${post.id}`;
       if (homePostSubmit) homePostSubmit.textContent = 'Обновить пост';
       resetFormState(homePostState.formData, { ...homePostDefaults, ...post });
@@ -2415,12 +2396,75 @@
       }
     }
 
+    async function handleHomeActionClick(event) {
+      const btn = event.target.closest('button[data-action]');
+      if (!btn) return;
+      const action = btn.dataset.action;
+      const id = btn.dataset.id;
+      if (!action || !id) return;
+
+      if (action === 'edit-banner') {
+        try {
+          const banner = await fetchHomeBanner(id);
+          if (banner) {
+            showHomeTab('banners');
+            openHomeBannerEdit(banner);
+            homeBannerForm?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        } catch (e) {
+          handleError(e, 'Не удалось загрузить баннер');
+        }
+        return;
+      }
+
+      if (action === 'edit-section') {
+        try {
+          const section = await fetchHomeSection(id);
+          if (section) {
+            showHomeTab('sections');
+            openHomeSectionEdit(section);
+            homeSectionForm?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        } catch (e) {
+          handleError(e, 'Не удалось загрузить блок');
+        }
+        return;
+      }
+
+      if (action === 'edit-post') {
+        try {
+          const post = await fetchHomePost(id);
+          if (post) {
+            showHomeTab('posts');
+            openHomePostEdit(post);
+            homePostForm?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        } catch (e) {
+          handleError(e, 'Не удалось загрузить пост');
+        }
+        return;
+      }
+
+      if (action === 'delete-banner') {
+        deleteHomeBanner(id);
+        return;
+      }
+      if (action === 'delete-section') {
+        deleteHomeSection(id);
+        return;
+      }
+      if (action === 'delete-post') {
+        deleteHomePost(id);
+      }
+    }
+
     async function handleHomeBannerSubmit(event) {
       event.preventDefault();
       if (!currentUser) return;
       const payload = serializeForm(homeBannerForm);
       payload.sort_order = payload.sort_order ? Number(payload.sort_order) : 0;
       const query = `?user_id=${currentUser.telegram_id}`;
+      homeBannerState.currentId = currentBannerId;
       const path = homeBannerState.currentId
         ? `/admin/home/banners/${homeBannerState.currentId}${query}`
         : `/admin/home/banners${query}`;
@@ -2441,6 +2485,7 @@
       const payload = serializeForm(homeSectionForm);
       payload.sort_order = payload.sort_order ? Number(payload.sort_order) : 0;
       const query = `?user_id=${currentUser.telegram_id}`;
+      homeSectionState.currentId = currentSectionId;
       const path = homeSectionState.currentId
         ? `/admin/home/sections/${homeSectionState.currentId}${query}`
         : `/admin/home/sections${query}`;
@@ -2461,6 +2506,7 @@
       const payload = serializeForm(homePostForm);
       payload.sort_order = payload.sort_order ? Number(payload.sort_order) : 0;
       const query = `?user_id=${currentUser.telegram_id}`;
+      homePostState.currentId = currentPostId;
       const path = homePostState.currentId
         ? `/admin/home/posts/${homePostState.currentId}${query}`
         : `/admin/home/posts${query}`;
@@ -2812,13 +2858,14 @@
 
     homeTabButtons.forEach((btn) => {
       btn.addEventListener('click', () => {
-        const tab = btn.dataset.homeTab || 'banners';
+        const tab = btn.dataset.tab || 'banners';
         showHomeTab(tab);
         if (tab === 'banners') loadHomeBanners();
         if (tab === 'sections') loadHomeSections();
         if (tab === 'posts') loadHomePosts();
       });
     });
+    document.addEventListener('click', handleHomeActionClick);
 
     reviewStatusFilter?.addEventListener('change', loadReviews);
     reviewProductFilter?.addEventListener('change', loadReviews);
