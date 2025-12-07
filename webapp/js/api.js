@@ -60,6 +60,33 @@ async function apiPost(path, body) {
 
 const isTelegramWebApp = !!(window.Telegram && window.Telegram.WebApp);
 
+async function getTelegramInitDataWithRetry(maxAttempts = 20, delayMs = 100) {
+  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      if (window.Telegram && window.Telegram.WebApp) {
+        const raw = window.Telegram.WebApp.initData || "";
+        if (raw) return raw;
+      }
+
+      const searchParams = new URLSearchParams(window.location.search || "");
+      const queryInitData = searchParams.get("tgWebAppData");
+      if (queryInitData) {
+        return queryInitData;
+      }
+    } catch (error) {
+      console.warn("Failed to read Telegram initData", error);
+    }
+
+    if (attempt < maxAttempts) {
+      await wait(delayMs);
+    }
+  }
+
+  return null;
+}
+
 function normalizeError(message, status) {
   const error = new Error(message);
   if (status) error.status = status;
@@ -144,7 +171,7 @@ async function telegramWebAppAutoLogin() {
     return { ok: false, reason: "not_webapp" };
   }
 
-  const initData = window.Telegram.WebApp.initData;
+  const initData = await getTelegramInitDataWithRetry();
   if (!initData) {
     console.warn("Telegram WebApp initData is empty");
     return { ok: false, reason: "empty_init_data" };
@@ -155,6 +182,7 @@ async function telegramWebAppAutoLogin() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ init_data: initData }),
+      credentials: "include",
     });
 
     if (!response.ok) {
@@ -211,7 +239,7 @@ async function ensureTelegramWebAppAuth() {
       console.warn("Profile check failed", error);
     }
 
-    const initData = window.Telegram.WebApp.initData;
+    const initData = await getTelegramInitDataWithRetry();
     if (!initData) {
       window._telegramWebAppAuthState = {
         status: "no_init_data",
@@ -433,3 +461,4 @@ window.processTelegramAuthFromUrl = processTelegramAuthFromUrl;
 window.startTelegramOAuthFlow = startTelegramOAuthFlow;
 window.isTelegramWebApp = isTelegramWebApp;
 window.telegramWebAppAutoLogin = telegramWebAppAutoLogin;
+window.getTelegramInitDataWithRetry = getTelegramInitDataWithRetry;
