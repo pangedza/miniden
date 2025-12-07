@@ -215,7 +215,6 @@
       if (isTelegramWebApp) {
         loginButton.disabled = true;
         try {
-          await telegramWebAppAutoLogin();
           await loadSession();
         } finally {
           loginButton.disabled = false;
@@ -231,10 +230,6 @@
         console.error('Telegram auth via browser failed', error);
         showToast(error?.message || 'Не удалось авторизоваться через Telegram');
       });
-
-      if (isTelegramWebApp) {
-        await telegramWebAppAutoLogin();
-      }
 
       await loadSession();
     }
