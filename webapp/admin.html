@@ -526,7 +526,17 @@
                 <label>Ссылка кнопки</label>
                 <input type="text" name="button_link" />
                 <label>URL картинки</label>
-                <input type="text" name="image_url" />
+                <input type="text" name="image_url" id="home-banner-image-url" readonly />
+                <div class="home-banner-image-upload" style="display:flex; flex-direction:column; gap:8px;">
+                  <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                    <input type="file" id="home-banner-image-file" accept="image/*" style="display:none;" />
+                    <label for="home-banner-image-file" class="btn secondary">Выбрать файл</label>
+                    <span class="muted" style="font-size:13px;">Файл загрузится на сервер, ссылка заполнится автоматически.</span>
+                  </div>
+                  <div class="home-banner-image-preview" style="border: 1px dashed var(--border); padding:10px; border-radius:12px; background: rgba(255,255,255,0.02);">
+                    <img id="home-banner-image-preview-img" alt="Превью баннера" style="display:none; max-width:100%; border-radius:12px;" />
+                  </div>
+                </div>
                 <label>Порядок сортировки</label>
                 <input type="number" name="sort_order" value="0" />
                 <label style="display:flex; gap:8px; align-items:center;">
@@ -765,6 +775,9 @@
     const homeSectionsTable = document.getElementById('home-sections-table');
     const homePostsTable = document.getElementById('home-posts-table');
     const homeBannerForm = document.getElementById('home-banner-form');
+    const homeBannerImageFileInput = document.getElementById('home-banner-image-file');
+    const homeBannerImageUrlInput = document.getElementById('home-banner-image-url');
+    const homeBannerImagePreview = document.getElementById('home-banner-image-preview-img');
     const homeSectionForm = document.getElementById('home-section-form');
     const homePostForm = document.getElementById('home-post-form');
     const homeBannerFormTitle = document.getElementById('home-banner-form-title');
@@ -2102,6 +2115,8 @@
       if (homeBannerSubmit) homeBannerSubmit.textContent = 'Сохранить';
       resetFormState(homeBannerState.formData, homeBannerDefaults);
       applyStateToForm(homeBannerForm, homeBannerState.formData);
+      setHomeBannerImage(homeBannerState.formData.image_url);
+      if (homeBannerImageFileInput) homeBannerImageFileInput.value = '';
     }
 
     function resetHomeSectionForm() {
@@ -2120,6 +2135,50 @@
       if (homePostSubmit) homePostSubmit.textContent = 'Сохранить';
       resetFormState(homePostState.formData, homePostDefaults);
       applyStateToForm(homePostForm, homePostState.formData);
+    }
+
+    function setHomeBannerImage(url) {
+      const normalized = url || '';
+      if (homeBannerImageUrlInput) {
+        homeBannerImageUrlInput.value = normalized;
+      }
+      if (homeBannerImagePreview) {
+        if (normalized) {
+          homeBannerImagePreview.src = normalized;
+          homeBannerImagePreview.style.display = 'block';
+        } else {
+          homeBannerImagePreview.src = '';
+          homeBannerImagePreview.style.display = 'none';
+        }
+      }
+    }
+
+    async function uploadHomeBannerImage(file) {
+      const formData = new FormData();
+      formData.append('kind', 'home');
+      formData.append('file', file);
+      const res = await fetch(`${API_BASE}/admin/upload-image`, {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await handleResponse(res);
+      return data?.url;
+    }
+
+    async function handleHomeBannerImageChange(event) {
+      const file = event.target?.files?.[0];
+      if (!file) return;
+      try {
+        const url = await uploadHomeBannerImage(file);
+        if (url) {
+          setHomeBannerImage(url);
+          setStatus('Изображение загружено');
+        }
+      } catch (e) {
+        handleError(e, 'Не удалось загрузить изображение баннера');
+      } finally {
+        event.target.value = '';
+      }
     }
 
     function renderHomeBanners(items) {
@@ -2302,6 +2361,7 @@
       if (homeBannerSubmit) homeBannerSubmit.textContent = 'Обновить баннер';
       resetFormState(homeBannerState.formData, { ...homeBannerDefaults, ...banner });
       applyStateToForm(homeBannerForm, homeBannerState.formData);
+      setHomeBannerImage(banner.image_url || homeBannerState.formData.image_url);
     }
 
     function openHomeSectionEdit(section) {
@@ -2695,6 +2755,10 @@
     productForm.addEventListener('submit', handleProductFormSubmit);
     courseForm.addEventListener('submit', handleCourseFormSubmit);
     homeBannerForm?.addEventListener('submit', handleHomeBannerSubmit);
+    homeBannerImageFileInput?.addEventListener('change', handleHomeBannerImageChange);
+    homeBannerImageUrlInput?.addEventListener('input', (event) => {
+      setHomeBannerImage(event.target.value);
+    });
     homeSectionForm?.addEventListener('submit', handleHomeSectionSubmit);
     homePostForm?.addEventListener('submit', handleHomePostSubmit);
     productCategoryForm?.addEventListener('submit', handleProductCategoryFormSubmit);
