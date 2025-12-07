@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class HomeBannerIn(BaseModel):
@@ -16,8 +16,7 @@ class HomeBannerOut(HomeBannerIn):
     created_at: str | None = None
     updated_at: str | None = None
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class HomeSectionIn(BaseModel):
@@ -32,8 +31,7 @@ class HomeSectionIn(BaseModel):
 class HomeSectionOut(HomeSectionIn):
     id: int
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class HomePostIn(BaseModel):
@@ -48,6 +46,5 @@ class HomePostOut(HomePostIn):
     id: int
     created_at: str | None = None
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
