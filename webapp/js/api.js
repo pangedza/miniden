@@ -48,7 +48,7 @@ async function apiPost(path, body) {
   return handleResponse(res);
 }
 
-const isTelegramWebApp = Boolean(window.Telegram?.WebApp);
+const isTelegramWebApp = !!(window.Telegram && window.Telegram.WebApp);
 
 function normalizeError(message, status) {
   const error = new Error(message);
@@ -128,8 +128,45 @@ async function fetchAuthSession(includeNotes) {
   return data.user || null;
 }
 
+async function telegramWebAppAutoLogin() {
+  if (!isTelegramWebApp || !window.Telegram || !window.Telegram.WebApp) {
+    console.warn("Not in Telegram WebApp environment");
+    return { ok: false, reason: "not_webapp" };
+  }
+
+  const initData = window.Telegram.WebApp.initData;
+  if (!initData) {
+    console.warn("Telegram WebApp initData is empty");
+    return { ok: false, reason: "empty_init_data" };
+  }
+
+  try {
+    const response = await fetch("/api/auth/telegram_webapp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ init_data: initData }),
+    });
+
+    if (!response.ok) {
+      console.error("WebApp auth failed with status", response.status);
+      return { ok: false, reason: "http_" + response.status };
+    }
+
+    const data = await response.json();
+    if (data.status === "ok") {
+      return { ok: true, user: data.user };
+    }
+
+    console.error("WebApp auth error payload", data);
+    return { ok: false, reason: data.error || "unknown" };
+  } catch (e) {
+    console.error("WebApp auth exception", e);
+    return { ok: false, reason: "exception" };
+  }
+}
+
 async function ensureTelegramWebAppAuth() {
-  if (!isTelegramWebApp) {
+  if (!isTelegramWebApp || !window.Telegram || !window.Telegram.WebApp) {
     return { status: "skipped" };
   }
 
@@ -137,8 +174,6 @@ async function ensureTelegramWebAppAuth() {
     return window._telegramWebAppAuthPromise;
   }
 
-  const telegram = window.Telegram.WebApp;
-  const initData = telegram?.initData;
   window._telegramWebAppAuthState = {
     status: "pending",
     profile: null,
@@ -146,11 +181,42 @@ async function ensureTelegramWebAppAuth() {
   };
 
   const authPromise = (async () => {
+    try {
+      const sessionRes = await fetch(buildUrl(AUTH_SESSION_PATH));
+      if (sessionRes.ok) {
+        const sessionData = await sessionRes.json();
+        if (sessionData?.authenticated && sessionData.user) {
+          window._currentProfile = sessionData.user;
+          window._currentUser = sessionData.user;
+          window._currentProfileLoaded = true;
+          window._telegramWebAppAuthState = {
+            status: "authorized",
+            profile: sessionData.user,
+            error: null,
+          };
+          return window._telegramWebAppAuthState;
+        }
+      }
+    } catch (error) {
+      console.warn("Profile check failed", error);
+    }
+
+    const initData = window.Telegram.WebApp.initData;
     if (!initData) {
       window._telegramWebAppAuthState = {
         status: "no_init_data",
         profile: null,
         error: null,
+      };
+      return window._telegramWebAppAuthState;
+    }
+
+    const authResult = await telegramWebAppAutoLogin();
+    if (!authResult.ok) {
+      window._telegramWebAppAuthState = {
+        status: "auth_failed",
+        profile: null,
+        error: authResult.reason,
       };
       return window._telegramWebAppAuthState;
     }
@@ -169,70 +235,15 @@ async function ensureTelegramWebAppAuth() {
         return window._telegramWebAppAuthState;
       }
     } catch (error) {
-      console.warn("Profile check failed", error);
-      window._telegramWebAppAuthState = {
-        status: "profile_error",
-        profile: null,
-        error,
-      };
-      return window._telegramWebAppAuthState;
-    }
-
-    try {
-      const res = await fetch(`${API_BASE}${TELEGRAM_WEBAPP_AUTH_PATH}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ init_data: initData, auth_query: null }),
-      });
-
-      const text = await res.text();
-      const data = text ? JSON.parse(text) : null;
-
-      if (!res.ok || data?.status !== "ok") {
-        const message =
-          (data && (data.detail || data.message)) ||
-          text ||
-          "Не удалось авторизоваться через Telegram";
-        const error = normalizeError(message, res.status);
-        window._telegramWebAppAuthState = {
-          status: "auth_failed",
-          profile: null,
-          error,
-        };
-        return window._telegramWebAppAuthState;
-      }
-    } catch (error) {
-      console.error("Telegram WebApp auth failed", error);
-      window._telegramWebAppAuthState = {
-        status: "auth_failed",
-        profile: null,
-        error,
-      };
-      return window._telegramWebAppAuthState;
-    }
-
-    try {
-      const profile = await fetchAuthSession();
-      if (profile) {
-        window._currentProfile = profile;
-        window._currentProfileLoaded = true;
-        window._currentUser = profile;
-      }
-      window._telegramWebAppAuthState = {
-        status: "authorized",
-        profile: window._currentProfile || null,
-        error: null,
-      };
-      return window._telegramWebAppAuthState;
-    } catch (error) {
       console.warn("Failed to load profile after Telegram auth", error);
-      window._telegramWebAppAuthState = {
-        status: "authorized",
-        profile: window._currentProfile || null,
-        error: null,
-      };
-      return window._telegramWebAppAuthState;
     }
+
+    window._telegramWebAppAuthState = {
+      status: "authorized",
+      profile: window._currentProfile || null,
+      error: null,
+    };
+    return window._telegramWebAppAuthState;
   })();
 
   window._telegramWebAppAuthPromise = authPromise;
@@ -241,48 +252,6 @@ async function ensureTelegramWebAppAuth() {
 
 if (isTelegramWebApp) {
   ensureTelegramWebAppAuth();
-}
-
-async function telegramWebAppAutoLogin(options = {}) {
-  if (!isTelegramWebApp || !window.Telegram?.WebApp) {
-    return { status: "skipped", profile: null, error: null };
-  }
-
-  const { refreshProfile = false, force = false } = options;
-
-  if (force || window._telegramWebAppAuthState?.status === "auth_failed" || window._telegramWebAppAuthState?.status === "profile_error") {
-    window._telegramWebAppAuthPromise = null;
-  }
-
-  try {
-    const res = await fetch(buildUrl(AUTH_SESSION_PATH));
-    if (res.ok) {
-      const data = await res.json();
-      if (data?.authenticated) {
-        return { status: "authorized", profile: data.user || null, error: null };
-      }
-    }
-  } catch (error) {
-    console.warn("Session check before Telegram WebApp auto-login failed", error);
-  }
-
-  const state = await ensureTelegramWebAppAuth();
-
-  if (refreshProfile && state?.status === "authorized" && !state.profile) {
-    try {
-      const profile = await fetchAuthSession();
-      if (profile) {
-        window._currentProfile = profile;
-        window._currentUser = profile;
-        window._currentProfileLoaded = true;
-        return { status: "authorized", profile, error: null };
-      }
-    } catch (error) {
-      console.warn("Failed to refresh profile after Telegram WebApp auth", error);
-    }
-  }
-
-  return state;
 }
 
 async function getCurrentUser(options = {}) {

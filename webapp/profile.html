@@ -177,27 +177,42 @@
       profileGrid?.style.setProperty('display', 'none');
     }
 
-    async function checkSessionAndMaybeAutoLogin({ showProgress = true, force = false } = {}) {
-      if (!isTelegramWebApp) return false;
+    function showWebAppAuthError(reason) {
+      const messageMap = {
+        empty_init_data: 'Данные для авторизации Telegram не получены. Попробуйте обновить окно WebApp.',
+        not_webapp: 'Эта кнопка доступна только внутри Telegram WebApp.',
+        auth_failed: 'Не удалось авторизоваться через Telegram WebApp. Попробуйте ещё раз.',
+        invalid_signature: 'Не удалось подтвердить данные Telegram. Попробуйте обновить окно WebApp.',
+        invalid_user: 'Не удалось получить данные профиля из Telegram.',
+      };
+      const fallback = 'Не удалось авторизоваться через Telegram WebApp. Попробуйте ещё раз.';
+      const normalizedReason = typeof reason === 'string' && reason.startsWith('http_') ? reason : reason;
+      const message = messageMap[normalizedReason] || fallback;
+      showLoginHint(message, true);
+    }
 
-      if (showProgress) {
-        setStatus('Авторизуем через ваш Telegram-аккаунт...', false);
-      }
-
+    async function loadProfileData() {
       try {
-        const res = await fetch('/api/auth/session');
-        if (res.ok) {
-          const data = await res.json();
-          if (data?.authenticated) {
-            return true;
-          }
-        }
-      } catch (error) {
-        console.warn('Session check before Telegram WebApp auth failed', error);
+        currentUser = await getCurrentUserProfile({ includeNotes: true, forceRefresh: true });
+      } catch (e) {
+        console.error('Failed to load profile data', e);
+        currentUser = null;
       }
 
-      const state = await telegramWebAppAutoLogin({ refreshProfile: true, force });
-      return state?.status === 'authorized';
+      if (!currentUser) {
+        showLoginHint(
+          isTelegramWebApp
+            ? 'Вы не авторизованы. Данные для авторизации Telegram не получены. Попробуйте обновить окно WebApp.'
+            : 'Вы не авторизованы. Перейдите на главную страницу и выполните вход через Telegram.',
+          true,
+        );
+        return;
+      }
+
+      updateAdminLinkVisibility();
+      loginHint?.style.setProperty('display', 'none');
+      setStatus('');
+      renderProfile(currentUser);
     }
 
     async function saveProfileUpdates(updates) {
@@ -493,36 +508,6 @@
       }
     }
 
-    async function initProfile() {
-      try {
-        currentUser = await getCurrentUserProfile({ includeNotes: true });
-        if (!currentUser) {
-          if (isTelegramWebApp) {
-            const authState = window.getTelegramWebAppAuthState?.();
-            const stateStatus = authState?.status;
-            if (stateStatus === 'auth_failed' || stateStatus === 'profile_error') {
-              showLoginHint('Не удалось авторизоваться через Telegram. Закройте WebApp и откройте его снова из чата бота.', true);
-            } else if (stateStatus === 'no_init_data') {
-              showLoginHint('Данные для авторизации Telegram не получены. Попробуйте обновить окно WebApp.', true);
-            } else {
-              showLoginHint('Идёт попытка входа через Telegram. Если данных нет, перезапустите WebApp.', false);
-            }
-            return;
-          }
-
-          showLoginHint('Вы не авторизованы. Перейдите на главную страницу и выполните вход через Telegram.', true);
-          return;
-        }
-        updateAdminLinkVisibility();
-        loginHint?.style.setProperty('display', 'none');
-        setStatus('');
-        renderProfile(currentUser);
-      } catch (e) {
-        console.error(e);
-        showLoginHint('Не удалось загрузить профиль. Попробуйте войти через Telegram позже.');
-      }
-    }
-
     switchUserBtn?.addEventListener('click', logout);
     editFullNameBtn?.addEventListener('click', () => startEditing('full_name'));
     editPhoneBtn?.addEventListener('click', () => startEditing('phone'));
@@ -544,12 +529,12 @@
         loginButton.disabled = true;
         setStatus('Пробуем авторизовать через Telegram...', false);
         try {
-          const authorized = await checkSessionAndMaybeAutoLogin({ showProgress: false, force: true });
-          await initProfile();
-          if (!authorized) {
-            setStatus('Не удалось авторизоваться через Telegram WebApp. Попробуйте ещё раз.', true);
-          } else {
+          const result = await telegramWebAppAutoLogin();
+          if (result.ok) {
+            await loadProfileData();
             setStatus('');
+          } else {
+            showWebAppAuthError(result.reason);
           }
         } catch (error) {
           console.error('Telegram WebApp re-auth failed', error);
@@ -568,17 +553,44 @@
       window.Telegram.WebApp.ready();
     }
 
-    processTelegramAuthFromUrl()
-      .catch((error) => {
+    async function handleNonWebAppProfile() {
+      await processTelegramAuthFromUrl().catch((error) => {
         console.error('Failed to authorize via Telegram auth params', error);
         showToast(error?.message || 'Не удалось авторизоваться через Telegram');
-      })
-      .finally(async () => {
-        if (isTelegramWebApp) {
-          await checkSessionAndMaybeAutoLogin();
-        }
-        await initProfile();
       });
+
+      await loadProfileData();
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      if (isTelegramWebApp) {
+        let isAuth = false;
+        try {
+          const r = await fetch('/api/auth/session');
+          if (r.ok) {
+            const s = await r.json();
+            isAuth = !!s.authenticated;
+          }
+        } catch (e) {
+          console.error('auth/session error', e);
+        }
+
+        if (!isAuth) {
+          const result = await telegramWebAppAutoLogin();
+          if (result.ok) {
+            await loadProfileData();
+            return;
+          } else {
+            showWebAppAuthError(result.reason);
+            return;
+          }
+        }
+
+        await loadProfileData();
+      } else {
+        await handleNonWebAppProfile();
+      }
+    });
   </script>
 
 </body>
