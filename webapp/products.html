@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/theme.css?v=20241222" />
+  <link rel="stylesheet" href="css/theme.css?v=20250122" />
 
 </head>
 <body data-theme="purple" class="page-products">
@@ -41,8 +41,26 @@
   <main>
     <h1>Товары</h1>
 
-    <div class="tabs" id="tabs"></div>
-    <div class="catalog-grid products-grid" id="cards"></div>
+    <section class="products-search">
+      <label for="product-search-input">Поиск по товарам</label>
+      <div class="products-search__row">
+        <input
+          id="product-search-input"
+          type="search"
+          placeholder="Введите название или описание"
+          autocomplete="off"
+        />
+        <button id="product-search-clear" type="button">✕</button>
+      </div>
+      <p class="products-search__hint">
+        Можно искать по названию, краткому описанию и категории.
+      </p>
+    </section>
+
+    <nav class="products-categories-nav" id="products-categories-nav"></nav>
+
+    <section id="products-by-category" class="products-by-category"></section>
+
     <div class="note" id="note"></div>
   </main>
 
@@ -136,13 +154,15 @@
       </div>
     </div>
 
-    <script src="js/app.js?v=20241222"></script>
-    <script src="js/api.js?v=20241222"></script>
+    <script src="js/app.js?v=20250122"></script>
+    <script src="js/api.js?v=20250122"></script>
   <script>
     const adminLink = document.getElementById('admin-link');
-    const tabsEl = document.getElementById('tabs');
-    const cardsEl = document.getElementById('cards');
     const noteEl = document.getElementById('note');
+    const productsByCategoryEl = document.getElementById('products-by-category');
+    const categoriesNavEl = document.getElementById('products-categories-nav');
+    const productSearchInput = document.getElementById('product-search-input');
+    const productSearchClear = document.getElementById('product-search-clear');
     const productModal = document.getElementById('product-modal');
     const productModalClose = document.getElementById('product-modal-close');
     const productModalCloseBtn = document.getElementById('product-modal-close-btn');
@@ -187,11 +207,13 @@
 
     let profile = null;
     let categories = [];
-    let products = [];
-    let active = null;
+    let allProducts = [];
+    let productsByCategory = new Map();
+    let orderedCategories = [];
     let productMap = new Map();
     let currentProduct = null;
     let productModalIndex = 0;
+    let currentSearchText = '';
 
     if (isTelegramWebApp && window.Telegram?.WebApp?.ready) {
       window.Telegram.WebApp.ready();
@@ -306,33 +328,6 @@
         adminLink.style.display = profile?.is_admin ? '' : 'none';
       }
 
-    function renderTabs() {
-      if (!tabsEl) return;
-      tabsEl.innerHTML = '';
-
-      const allBtn = document.createElement('button');
-      allBtn.type = 'button';
-      allBtn.className = `tab${active === null ? ' active' : ''}`;
-      allBtn.textContent = 'Все';
-      allBtn.addEventListener('click', () => {
-        active = null;
-        loadProducts();
-      });
-      tabsEl.appendChild(allBtn);
-
-      (categories || []).forEach((cat) => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = `tab${active === cat.slug ? ' active' : ''}`;
-        btn.textContent = cat.name;
-        btn.addEventListener('click', () => {
-          active = cat.slug;
-          loadProducts();
-        });
-        tabsEl.appendChild(btn);
-      });
-    }
-
     const MARKETPLACES = [
       { key: 'wb_url', label: 'WB' },
       { key: 'ozon_url', label: 'Ozon' },
@@ -365,134 +360,256 @@
         .join(', ');
     }
 
-    function renderCards() {
-      cardsEl.innerHTML = '';
+    const normalizeCategoryKey = (value) => String(value ?? 'uncategorized');
+    const buildCategoryAnchorId = (value) => {
+      const base = normalizeCategoryKey(value).trim();
+      const sanitized = base.replace(/\s+/g, '-').replace(/[^0-9A-Za-zА-Яа-яЁё_-]/g, '');
+      return `category-${sanitized || 'category'}`;
+    };
 
-      if (!products.length) {
-        noteEl.textContent = 'Нет товаров для выбранной категории.';
-        return;
+    function createProductCard(item) {
+      const card = document.createElement('article');
+      card.className = 'catalog-card product-card';
+
+      const cover = document.createElement('div');
+      cover.className = 'product-card__image-wrapper catalog-card-image';
+      const coverImage = document.createElement('img');
+      coverImage.className = 'product-card__image';
+      const coverPlaceholder = document.createElement('div');
+      coverPlaceholder.className = 'product-card__placeholder';
+      coverPlaceholder.textContent = item.category_name || item.category?.name || 'Товары';
+      cover.append(coverImage, coverPlaceholder);
+
+      const images = item.images && item.images.length ? item.images : [];
+      let currentImageIndex = 0;
+
+      const prevBtn = document.createElement('button');
+      prevBtn.type = 'button';
+      prevBtn.className = 'product-card__nav product-card__nav--prev';
+      prevBtn.textContent = '‹';
+
+      const nextBtn = document.createElement('button');
+      nextBtn.type = 'button';
+      nextBtn.className = 'product-card__nav product-card__nav--next';
+      nextBtn.textContent = '›';
+
+      if (images.length > 1) {
+        cover.append(prevBtn, nextBtn);
       }
 
-      noteEl.textContent = '';
-
-      products.forEach((item) => {
-        const card = document.createElement('article');
-        card.className = 'catalog-card product-card';
-
-        const cover = document.createElement('div');
-        cover.className = 'product-card__image-wrapper catalog-card-image';
-        const coverImage = document.createElement('img');
-        coverImage.className = 'product-card__image';
-        const coverPlaceholder = document.createElement('div');
-        coverPlaceholder.className = 'product-card__placeholder';
-        coverPlaceholder.textContent = item.category_name || 'Товары';
-        cover.append(coverImage, coverPlaceholder);
-
-        const images = item.images && item.images.length ? item.images : [];
-        let currentImageIndex = 0;
-
-        const prevBtn = document.createElement('button');
-        prevBtn.type = 'button';
-        prevBtn.className = 'product-card__nav product-card__nav--prev';
-        prevBtn.textContent = '‹';
-
-        const nextBtn = document.createElement('button');
-        nextBtn.type = 'button';
-        nextBtn.className = 'product-card__nav product-card__nav--next';
-        nextBtn.textContent = '›';
-
-        if (images.length > 1) {
-          cover.append(prevBtn, nextBtn);
+      const updateCardImage = () => {
+        if (images.length) {
+          currentImageIndex = (currentImageIndex + images.length) % images.length;
+          coverImage.src = images[currentImageIndex];
+          coverImage.style.display = 'block';
+          coverPlaceholder.style.display = 'none';
+        } else {
+          coverImage.removeAttribute('src');
+          coverImage.style.display = 'none';
+          coverPlaceholder.style.display = 'flex';
         }
 
-        const updateCardImage = () => {
-          if (images.length) {
-            currentImageIndex = (currentImageIndex + images.length) % images.length;
-            coverImage.src = images[currentImageIndex];
-            coverImage.style.display = 'block';
-            coverPlaceholder.style.display = 'none';
-          } else {
-            coverImage.removeAttribute('src');
-            coverImage.style.display = 'none';
-            coverPlaceholder.style.display = 'flex';
+        const showNav = images.length > 1;
+        prevBtn.style.display = showNav ? '' : 'none';
+        nextBtn.style.display = showNav ? '' : 'none';
+      };
+
+      prevBtn.addEventListener('click', () => {
+        if (!images.length) return;
+        currentImageIndex = (currentImageIndex - 1 + images.length) % images.length;
+        updateCardImage();
+      });
+
+      nextBtn.addEventListener('click', () => {
+        if (!images.length) return;
+        currentImageIndex = (currentImageIndex + 1) % images.length;
+        updateCardImage();
+      });
+
+      updateCardImage();
+
+      const body = document.createElement('div');
+      body.className = 'catalog-card-body product-card-body';
+
+      const title = document.createElement('h3');
+      title.className = 'catalog-card-title';
+      title.textContent = item.name || item.title || 'Товар';
+
+      const price = document.createElement('div');
+      price.className = 'price';
+      price.textContent = formatPrice(item.price);
+
+      const actions = document.createElement('div');
+      actions.className = 'product-card__actions';
+
+      const detailsBtn = document.createElement('button');
+      detailsBtn.type = 'button';
+      detailsBtn.className = 'btn secondary';
+      detailsBtn.textContent = 'Подробнее';
+      detailsBtn.addEventListener('click', () => openProductModal(item.id, currentImageIndex));
+
+      const btn = document.createElement('button');
+      btn.className = 'btn';
+      btn.textContent = 'В корзину';
+      btn.addEventListener('click', () => handleAddToCart(item));
+
+      actions.append(detailsBtn, btn);
+
+      body.append(title, price, actions);
+
+      card.append(cover, body);
+      return card;
+    }
+
+    function buildProductsByCategory() {
+      productsByCategory = new Map();
+      orderedCategories = [];
+
+      allProducts.forEach((item) => {
+        const keySource = item.category_id ?? item.category_slug ?? item.category?.id ?? item.category?.slug ?? item.category_name ?? 'uncategorized';
+        const key = normalizeCategoryKey(keySource);
+        const name = item.category_name || item.category?.name || item.category_slug || 'Без категории';
+        const slug = item.category_slug || item.category?.slug || null;
+        const id = item.category_id ?? item.category?.id ?? null;
+
+        if (!productsByCategory.has(key)) {
+          productsByCategory.set(key, {
+            id,
+            slug,
+            name,
+            anchorId: buildCategoryAnchorId(key),
+            products: [],
+          });
+        }
+
+        productsByCategory.get(key).products.push(item);
+      });
+
+      const ordered = [];
+      const addCategoryIfHasProducts = (key, fallbackName, fallbackSlug, fallbackId) => {
+        const entry = productsByCategory.get(key);
+        if (!entry || !entry.products.length) return;
+        const exists = ordered.some((cat) => cat.key === key);
+        if (exists) return;
+        ordered.push({
+          key,
+          id: entry.id ?? fallbackId ?? null,
+          slug: entry.slug ?? fallbackSlug ?? null,
+          name: entry.name || fallbackName || 'Категория',
+          anchorId: entry.anchorId || buildCategoryAnchorId(key),
+          products: entry.products,
+        });
+      };
+
+      (categories || []).forEach((cat) => {
+        const key = normalizeCategoryKey(cat.id ?? cat.slug ?? cat.name ?? cat.title);
+        addCategoryIfHasProducts(key, cat.name || cat.title, cat.slug, cat.id);
+      });
+
+      productsByCategory.forEach((_value, key) => addCategoryIfHasProducts(key));
+
+      orderedCategories = ordered;
+    }
+
+    function renderCategoriesNav() {
+      if (!categoriesNavEl) return;
+      categoriesNavEl.innerHTML = '';
+
+      orderedCategories.forEach((cat) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'products-categories-nav__item';
+        btn.dataset.categoryId = cat.id ?? cat.slug ?? cat.key;
+        btn.textContent = cat.name || 'Категория';
+
+        btn.addEventListener('click', () => {
+          const target = document.getElementById(cat.anchorId);
+          const searchIsActive = Boolean(currentSearchText);
+          if (!target && searchIsActive) {
+            currentSearchText = '';
+            if (productSearchInput) productSearchInput.value = '';
+            renderProductsByCategory(currentSearchText);
+            requestAnimationFrame(() => {
+              const refreshedTarget = document.getElementById(cat.anchorId);
+              refreshedTarget?.scrollIntoView({ behavior: 'smooth' });
+            });
+            return;
           }
 
-          const showNav = images.length > 1;
-          prevBtn.style.display = showNav ? '' : 'none';
-          nextBtn.style.display = showNav ? '' : 'none';
-        };
-
-        prevBtn.addEventListener('click', () => {
-          if (!images.length) return;
-          currentImageIndex = (currentImageIndex - 1 + images.length) % images.length;
-          updateCardImage();
+          target?.scrollIntoView({ behavior: 'smooth' });
         });
 
-        nextBtn.addEventListener('click', () => {
-          if (!images.length) return;
-          currentImageIndex = (currentImageIndex + 1) % images.length;
-          updateCardImage();
-        });
-
-        updateCardImage();
-
-        const body = document.createElement('div');
-        body.className = 'catalog-card-body product-card-body';
-
-        const title = document.createElement('h3');
-        title.className = 'catalog-card-title';
-        title.textContent = item.name;
-
-        const price = document.createElement('div');
-        price.className = 'price';
-        price.textContent = formatPrice(item.price);
-
-        const actions = document.createElement('div');
-        actions.className = 'product-card__actions';
-
-        const detailsBtn = document.createElement('button');
-        detailsBtn.type = 'button';
-        detailsBtn.className = 'btn secondary';
-        detailsBtn.textContent = 'Подробнее';
-        detailsBtn.addEventListener('click', () => openProductModal(item.id, currentImageIndex));
-
-        const btn = document.createElement('button');
-        btn.className = 'btn';
-        btn.textContent = 'В корзину';
-        btn.addEventListener('click', () => handleAddToCart(item));
-
-        actions.append(detailsBtn, btn);
-
-        body.append(title, price, actions);
-
-        card.append(cover, body);
-        cardsEl.appendChild(card);
+        categoriesNavEl.appendChild(btn);
       });
+    }
+
+    function renderProductsByCategory(filterText = '') {
+      if (!productsByCategoryEl) return;
+      const query = (filterText || '').trim().toLowerCase();
+      productsByCategoryEl.innerHTML = '';
+      let renderedProductsCount = 0;
+
+      orderedCategories.forEach((cat) => {
+        const categoryName = (cat.name || '').toLowerCase();
+        const items = (cat.products || []).filter((product) => {
+          if (!query) return true;
+          const nameText = (product.name || product.title || '').toLowerCase();
+          const descText = (product.short_description || product.description || '').toLowerCase();
+          return nameText.includes(query) || descText.includes(query) || categoryName.includes(query);
+        });
+
+        if (!items.length) return;
+
+        const section = document.createElement('section');
+        section.className = 'products-category-section';
+        section.id = cat.anchorId;
+
+        const title = document.createElement('h2');
+        title.className = 'products-category-title';
+        title.textContent = cat.name || 'Категория';
+
+        const grid = document.createElement('div');
+        grid.className = 'products-category-grid catalog-grid products-grid';
+
+        items.forEach((item) => {
+          grid.appendChild(createProductCard(item));
+          renderedProductsCount += 1;
+        });
+
+        section.append(title, grid);
+        productsByCategoryEl.appendChild(section);
+      });
+
+      if (!renderedProductsCount) {
+        const empty = document.createElement('div');
+        empty.className = 'note';
+        empty.textContent = 'По Вашему запросу ничего не найдено';
+        productsByCategoryEl.appendChild(empty);
+      }
+
+      if (noteEl && renderedProductsCount) {
+        noteEl.textContent = '';
+      }
     }
 
     async function loadCategories() {
       try {
         categories = await apiGet('/categories', { type: 'basket' });
-        if (!active) {
-          active = categories?.[0]?.slug ?? null;
-        }
-        renderTabs();
       } catch (e) {
-        noteEl.textContent = 'Не удалось загрузить категории. Попробуйте обновить страницу.';
+        console.warn('Не удалось загрузить категории', e);
+        categories = [];
       }
     }
 
     async function loadProducts() {
       try {
         const params = { type: 'basket' };
-        if (active) params.category_slug = active;
-        products = (await apiGet('/products', params)).map((item) => normalizeImages(item, ['product_images']));
-        productMap = new Map(products.map((p) => [p.id, p]));
-        renderTabs();
-        renderCards();
+        allProducts = (await apiGet('/products', params)).map((item) => normalizeImages(item, ['product_images']));
+        productMap = new Map(allProducts.map((p) => [p.id, p]));
       } catch (e) {
         noteEl.textContent = 'Не удалось загрузить товары. Попробуйте обновить страницу.';
-        cardsEl.innerHTML = '';
+        allProducts = [];
+        throw e;
       }
     }
 
@@ -919,12 +1036,50 @@
       profile = currentProfile;
       updateAdminLinkVisibility();
 
-      await loadCategories();
-      await loadProducts();
+      try {
+        await Promise.all([loadCategories(), loadProducts()]);
+        buildProductsByCategory();
+        renderCategoriesNav();
+        renderProductsByCategory(currentSearchText);
 
-      if (!profile) {
-        noteEl.textContent = 'Каталог доступен для просмотра. Чтобы оформить заказ, войдите через Telegram.';
+        if (!profile) {
+          noteEl.textContent = 'Каталог доступен для просмотра. Чтобы оформить заказ, войдите через Telegram.';
+        } else if (noteEl) {
+          noteEl.textContent = '';
+        }
+      } catch (e) {
+        if (noteEl) {
+          noteEl.textContent = 'Не удалось загрузить каталог. Попробуйте обновить страницу.';
+        }
       }
+    }
+
+    function debounce(fn, delay = 300) {
+      let timer = null;
+      return (...args) => {
+        clearTimeout(timer);
+        timer = setTimeout(() => fn(...args), delay);
+      };
+    }
+
+    function initProductsSearch() {
+      if (!productSearchInput) return;
+      const runSearch = debounce((value) => {
+        currentSearchText = (value || '').toString().trim().toLowerCase();
+        renderProductsByCategory(currentSearchText);
+      }, 350);
+
+      productSearchInput.addEventListener('input', (event) => {
+        const value = event.target?.value || '';
+        runSearch(value);
+      });
+
+      productSearchClear?.addEventListener('click', () => {
+        productSearchInput.value = '';
+        currentSearchText = '';
+        renderProductsByCategory(currentSearchText);
+        productSearchInput.focus();
+      });
     }
 
     async function initProductsPage() {
@@ -936,6 +1091,7 @@
       }
 
       await loadProductCategoriesAndItems(currentProfile);
+      initProductsSearch();
     }
 
     initProductsPage().catch(console.error);
