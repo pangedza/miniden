@@ -39,40 +39,12 @@
 
   <main class="page masterclass-page">
     <div id="masterclass-details-root"></div>
-    <section id="mc-reviews" class="mc-reviews product-reviews">
-      <h2>Отзывы</h2>
-
-      <div id="mc-reviews-list" class="product-reviews__list"></div>
-      <div id="mc-reviews-empty" class="muted" style="display:none;">
-        Пока нет отзывов. Будьте первым!
-      </div>
-
-      <div id="mc-review-form-wrapper" class="product-review-form product-reviews__form">
-        <h3>Оставить отзыв</h3>
-        <form id="mc-review-form" class="product-review-form__form">
-          <label>
-            Оценка
-            <select name="rating" required>
-              <option value="5">5 — отлично</option>
-              <option value="4">4</option>
-              <option value="3">3</option>
-              <option value="2">2</option>
-              <option value="1">1</option>
-            </select>
-          </label>
-          <label>
-            Отзыв
-            <textarea name="text" rows="4" required></textarea>
-          </label>
-          <button type="submit" class="btn-primary">Отправить отзыв</button>
-        </form>
-        <div id="mc-review-message" class="form-message"></div>
-      </div>
-    </section>
+    <div id="masterclass-reviews-root"></div>
   </main>
 
   <script src="js/app.js?v=20250412"></script>
   <script src="js/api.js?v=20250412"></script>
+  <script src="js/reviews_widget.js?v=20250412"></script>
   <script src="js/masterclass_page.js?v=20250412"></script>
 </body>
 </html>

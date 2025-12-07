@@ -1,15 +1,10 @@
 (function () {
   const root = document.getElementById('product-details-root');
   const adminLink = document.getElementById('admin-link');
-  const reviewSection = document.getElementById('product-reviews');
-  const reviewsList = document.getElementById('product-reviews-list');
-  const reviewsEmpty = document.getElementById('product-reviews-empty');
-  const reviewForm = document.getElementById('product-review-form');
-  const reviewMessage = document.getElementById('product-review-message');
+  const reviewsRoot = document.getElementById('product-reviews-root');
   const params = new URLSearchParams(window.location.search);
   const productId = params.get('id');
-  const reviewsUrl = productId ? `/api/products/${productId}/reviews` : null;
-  let reviewFormInitialized = false;
+  let reviewsWidgetInitialized = false;
 
   if (!root) return;
 
@@ -41,19 +36,6 @@
     push(item?.image_url || item?.image);
     (Array.isArray(item?.images) ? item.images : []).forEach(push);
     return Array.from(urls);
-  };
-
-  const escapeHtml = (value) => {
-    const div = document.createElement('div');
-    div.textContent = value ?? '';
-    return div.innerHTML;
-  };
-
-  const formatDate = (value) => {
-    if (!value) return '';
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return '';
-    return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
   };
 
   const updateAdminLinkVisibility = async () => {
@@ -156,126 +138,14 @@
     root.appendChild(card);
   };
 
-  const renderReviews = (items) => {
-    if (!reviewsList || !reviewsEmpty) return;
-
-    reviewsList.innerHTML = '';
-    reviewsEmpty.style.display = 'none';
-
-    const reviews = Array.isArray(items) ? items : [];
-    if (!reviews.length) {
-      reviewsEmpty.style.display = '';
-      return;
-    }
-
-    reviews.forEach((review) => {
-      const card = document.createElement('article');
-      card.className = 'review-card product-review-card';
-
-      const header = document.createElement('div');
-      header.className = 'review-card__header product-review-header';
-
-      const author = document.createElement('div');
-      author.className = 'review-card__author';
-      author.textContent = review.user_name || review.author_name || 'Покупатель';
-
-      const rating = document.createElement('div');
-      rating.className = 'review-card__rating product-review-rating';
-      const safeRating = Math.max(0, Math.min(5, Number(review.rating) || 0));
-      rating.textContent = `${'★'.repeat(safeRating)}${'☆'.repeat(5 - safeRating)}`;
-
-      const date = document.createElement('div');
-      date.className = 'review-card__date product-review-date';
-      date.textContent = formatDate(review.created_at);
-
-      header.append(author, rating, date);
-
-      const text = document.createElement('p');
-      text.className = 'review-card__text product-review-text';
-      text.innerHTML = escapeHtml(review.text || '');
-
-      card.append(header, text);
-      reviewsList.appendChild(card);
+  const initReviewsWidget = () => {
+    if (reviewsWidgetInitialized || !reviewsRoot || !window.initReviewsWidget || !productId) return;
+    window.initReviewsWidget({
+      rootEl: reviewsRoot,
+      type: 'product',
+      itemId: productId,
     });
-  };
-
-  const loadProductReviews = async (id) => {
-    if (!id || !reviewSection || !reviewsUrl) return;
-    if (reviewsList) reviewsList.innerHTML = '';
-    if (reviewsEmpty) reviewsEmpty.style.display = 'none';
-
-    try {
-      const res = await fetch(reviewsUrl);
-      if (!res.ok) {
-        console.error('Failed to load reviews', res.status);
-        return;
-      }
-
-      const data = await res.json();
-      const items = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : [];
-      renderReviews(items);
-    } catch (error) {
-      console.error('Failed to load reviews', error);
-    }
-  };
-
-  const handleReviewSubmit = async (event) => {
-    if (!reviewForm || !reviewMessage) return;
-    event.preventDefault();
-    reviewMessage.textContent = '';
-
-    const formData = new FormData(reviewForm);
-    const payload = {
-      rating: Number(formData.get('rating')),
-      text: formData.get('text')?.toString().trim(),
-    };
-
-    if (!productId || !reviewsUrl) {
-      reviewMessage.textContent = 'Товар не найден.';
-      return;
-    }
-
-    if (!payload.rating || payload.rating < 1 || payload.rating > 5) {
-      reviewMessage.textContent = 'Поставьте оценку от 1 до 5.';
-      return;
-    }
-
-    if (!payload.text) {
-      reviewMessage.textContent = 'Пожалуйста, напишите текст отзыва.';
-      return;
-    }
-
-    try {
-      const res = await fetch(reviewsUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        let msg = (data && (data.detail || data.message)) || 'Не удалось отправить отзыв.';
-        if (res.status === 401 || res.status === 403) {
-          msg = 'Только авторизованные пользователи могут оставлять отзывы.';
-        }
-        reviewMessage.textContent = msg;
-        return;
-      }
-
-      reviewForm.reset();
-      reviewMessage.textContent = 'Спасибо! Отзыв отправлен.';
-      await loadProductReviews(productId);
-    } catch (err) {
-      console.error(err);
-      reviewMessage.textContent = 'Ошибка сети. Попробуйте позже.';
-    }
-  };
-
-  const initReviewForm = () => {
-    if (reviewFormInitialized || !reviewForm || !productId) return;
-    reviewForm.addEventListener('submit', handleReviewSubmit);
-    reviewFormInitialized = true;
+    reviewsWidgetInitialized = true;
   };
 
   const loadProduct = async () => {
@@ -287,8 +157,7 @@
     try {
       const product = await apiGet(`/products/${productId}`);
       renderProduct(product);
-      initReviewForm();
-      await loadProductReviews(product.id);
+      initReviewsWidget();
     } catch (error) {
       if (error.status === 404) {
         renderMessage('Товар не найден или недоступен');
