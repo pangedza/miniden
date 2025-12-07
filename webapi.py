@@ -1070,6 +1070,53 @@ def api_masterclass_detail(masterclass_id: int):
     return masterclass
 
 
+@app.post("/api/masterclasses/{masterclass_id}/reviews")
+def create_masterclass_review(
+    masterclass_id: int, payload: ReviewCreatePayload, request: Request
+):
+    with get_session() as session:
+        user = _get_current_user_from_cookie(session, request)
+        if not user:
+            raise HTTPException(status_code=401, detail="Not authenticated")
+
+    masterclass = products_service.get_course_by_id(masterclass_id)
+    if not masterclass or not masterclass.get("is_active", True):
+        raise HTTPException(status_code=404, detail="Masterclass not found")
+
+    try:
+        review_id = reviews_service.create_masterclass_review(
+            masterclass_id,
+            user,
+            payload.rating,
+            payload.text,
+            payload.photos,
+            payload.order_id,
+        )
+    except ValueError as exc:  # pragma: no cover - defensive
+        detail = "Invalid payload"
+        if str(exc) == "masterclass_not_found":
+            detail = "Masterclass not found"
+        elif str(exc) == "rating must be between 1 and 5":
+            detail = str(exc)
+        raise HTTPException(status_code=400, detail=detail)
+
+    return {"success": True, "review_id": review_id, "status": "pending"}
+
+
+@app.get("/api/masterclasses/{masterclass_id}/reviews")
+def get_masterclass_reviews(
+    masterclass_id: int, page: int = 1, limit: int = 20, with_meta: bool = False
+):
+    masterclass = products_service.get_course_by_id(masterclass_id)
+    if not masterclass:
+        raise HTTPException(status_code=404, detail="Masterclass not found")
+
+    reviews = reviews_service.get_reviews_for_masterclass(masterclass_id, page=page, limit=limit)
+    if with_meta:
+        return {"items": reviews, "page": page, "limit": limit}
+    return reviews
+
+
 @app.post("/api/products/{product_id}/reviews")
 def create_product_review(product_id: int, payload: ReviewCreatePayload, request: Request):
     with get_session() as session:

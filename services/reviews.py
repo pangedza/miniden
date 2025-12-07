@@ -25,7 +25,8 @@ def _serialize_review(review: ProductReview, user_map: dict[int, User]) -> dict[
 
     return {
         "id": int(review.id),
-        "product_id": int(review.product_id),
+        "product_id": int(review.product_id) if review.product_id is not None else None,
+        "masterclass_id": int(review.masterclass_id) if review.masterclass_id is not None else None,
         "user_id": int(review.user_id) if review.user_id is not None else None,
         "user_name": user_name,
         "rating": int(review.rating),
@@ -58,25 +59,38 @@ def get_review_by_id(review_id: int) -> ProductReview | None:
 
 
 def create_review(
-    product_id: int,
+    product_id: int | None,
     user: User,
     rating: int,
     text: str,
     photos: list[str] | None = None,
     order_id: int | None = None,
+    *,
+    masterclass_id: int | None = None,
 ) -> int:
     if rating < 1 or rating > 5:
         raise ValueError("rating must be between 1 and 5")
 
-    product = products_service.get_product_by_id(product_id)
-    if not product or not product.get("is_active", True):
-        raise ValueError("product_not_found")
+    if product_id is None and masterclass_id is None:
+        raise ValueError("target_required")
+    if product_id is not None and masterclass_id is not None:
+        raise ValueError("multiple_targets")
+
+    if product_id is not None:
+        product = products_service.get_basket_by_id(product_id)
+        if not product or not product.get("is_active", True):
+            raise ValueError("product_not_found")
+    if masterclass_id is not None:
+        masterclass = products_service.get_course_by_id(masterclass_id)
+        if not masterclass or not masterclass.get("is_active", True):
+            raise ValueError("masterclass_not_found")
 
     users_service.get_or_create_user_from_telegram({"id": user.telegram_id})
 
     with get_session() as session:
         review = ProductReview(
             product_id=product_id,
+            masterclass_id=masterclass_id,
             user_id=int(user.telegram_id),
             order_id=order_id,
             rating=int(rating),
@@ -87,6 +101,25 @@ def create_review(
         session.add(review)
         session.flush()
         return int(review.id)
+
+
+def create_masterclass_review(
+    masterclass_id: int,
+    user: User,
+    rating: int,
+    text: str,
+    photos: list[str] | None = None,
+    order_id: int | None = None,
+) -> int:
+    return create_review(
+        None,
+        user,
+        rating,
+        text,
+        photos,
+        order_id,
+        masterclass_id=masterclass_id,
+    )
 
 
 def get_reviews_for_product(
@@ -100,7 +133,40 @@ def get_reviews_for_product(
 
     with get_session() as session:
         query = select(ProductReview).where(
-            ProductReview.product_id == product_id, ProductReview.is_deleted.is_(False)
+            ProductReview.product_id == product_id,
+            ProductReview.masterclass_id.is_(None),
+            ProductReview.is_deleted.is_(False),
+        )
+        if status:
+            query = query.where(ProductReview.status == status)
+
+        rows = (
+            session.scalars(
+                query.order_by(ProductReview.created_at.desc()).offset(offset).limit(current_limit)
+            )
+            .unique()
+            .all()
+        )
+
+        user_ids = {int(row.user_id) for row in rows if row.user_id is not None}
+        user_map = _load_users(session, user_ids)
+
+        return [_serialize_review(row, user_map) for row in rows]
+
+
+def get_reviews_for_masterclass(
+    masterclass_id: int,
+    *,
+    status: str | None = "approved",
+    page: int = 1,
+    limit: int = 20,
+) -> list[dict[str, Any]]:
+    offset, current_limit = _normalize_pagination(page, limit)
+
+    with get_session() as session:
+        query = select(ProductReview).where(
+            ProductReview.masterclass_id == masterclass_id,
+            ProductReview.is_deleted.is_(False),
         )
         if status:
             query = query.where(ProductReview.status == status)
@@ -123,6 +189,7 @@ def admin_list_reviews(
     *,
     status: str | None = None,
     product_id: int | None = None,
+    masterclass_id: int | None = None,
     user_id: int | None = None,
     page: int = 1,
     limit: int = 50,
@@ -135,6 +202,8 @@ def admin_list_reviews(
             query = query.where(ProductReview.status == status)
         if product_id is not None:
             query = query.where(ProductReview.product_id == product_id)
+        if masterclass_id is not None:
+            query = query.where(ProductReview.masterclass_id == masterclass_id)
         if user_id is not None:
             query = query.where(ProductReview.user_id == user_id)
 
@@ -152,10 +221,19 @@ def admin_list_reviews(
         product_cache: dict[int, dict[str, Any] | None] = {}
         serialized: list[dict[str, Any]] = []
         for row in rows:
-            product_meta = product_cache.get(int(row.product_id))
-            if product_meta is None:
-                product_meta = products_service.get_product_by_id(int(row.product_id), include_inactive=True)
-                product_cache[int(row.product_id)] = product_meta
+            target_id = row.product_id or row.masterclass_id
+            product_meta = None
+            if target_id is not None:
+                cache_key = int(target_id)
+                product_meta = product_cache.get(cache_key)
+                if product_meta is None:
+                    if row.masterclass_id is not None:
+                        product_meta = products_service.get_course_by_id(cache_key, include_inactive=True)
+                    else:
+                        product_meta = products_service.get_product_by_id(
+                            cache_key, include_inactive=True
+                        )
+                    product_cache[cache_key] = product_meta
 
             serialized.append({
                 **_serialize_review(row, user_map),
@@ -247,6 +325,7 @@ def get_rating_summary(product_id: int, *, status: str = "approved") -> dict[str
             func.count(ProductReview.id),
         ).where(
             ProductReview.product_id == product_id,
+            ProductReview.masterclass_id.is_(None),
             ProductReview.is_deleted.is_(False),
         )
         if status:

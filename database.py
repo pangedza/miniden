@@ -66,6 +66,8 @@ def init_db() -> None:
             "ALTER TABLE products_baskets ADD COLUMN IF NOT EXISTS short_description TEXT",
             "ALTER TABLE products_courses ADD COLUMN IF NOT EXISTS short_description TEXT",
             "ALTER TABLE products_courses ADD COLUMN IF NOT EXISTS masterclass_url TEXT",
+            "ALTER TABLE product_reviews ADD COLUMN IF NOT EXISTS masterclass_id INTEGER",
+            "ALTER TABLE product_reviews ALTER COLUMN product_id DROP NOT NULL",
         ]
 
         with engine.begin() as conn:
