@@ -242,7 +242,12 @@ class ProductReview(Base):
     __tablename__ = "product_reviews"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    product_id = Column(Integer, ForeignKey("products_baskets.id", ondelete="CASCADE"), nullable=False)
+    product_id = Column(
+        Integer, ForeignKey("products_baskets.id", ondelete="CASCADE"), nullable=True
+    )
+    masterclass_id = Column(
+        Integer, ForeignKey("products_courses.id", ondelete="CASCADE"), nullable=True
+    )
     user_id = Column(BigInteger, ForeignKey("users.telegram_id", ondelete="SET NULL"), nullable=True)
     order_id = Column(Integer, ForeignKey("orders.id", ondelete="SET NULL"), nullable=True)
     rating = Column(SmallInteger, nullable=False)
@@ -255,6 +260,7 @@ class ProductReview(Base):
 
     user = relationship("User", foreign_keys=[user_id])
     product = relationship("ProductBasket", foreign_keys=[product_id])
+    masterclass = relationship("ProductCourse", foreign_keys=[masterclass_id])
     order = relationship("Order", foreign_keys=[order_id])
 
 

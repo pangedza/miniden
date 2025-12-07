@@ -3,6 +3,12 @@
   const adminLink = document.getElementById('admin-link');
   const params = new URLSearchParams(window.location.search);
   const masterclassId = params.get('id');
+  const reviewsList = document.getElementById('mc-reviews-list');
+  const reviewsEmpty = document.getElementById('mc-reviews-empty');
+  const reviewForm = document.getElementById('mc-review-form');
+  const reviewMessage = document.getElementById('mc-review-message');
+
+  let reviewFormInitialized = false;
 
   if (!root) return;
 
@@ -34,6 +40,19 @@
     push(item?.image_url || item?.image);
     (Array.isArray(item?.images) ? item.images : []).forEach(push);
     return Array.from(urls);
+  };
+
+  const escapeHtml = (value) => {
+    const div = document.createElement('div');
+    div.textContent = value ?? '';
+    return div.innerHTML;
+  };
+
+  const formatDate = (value) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
   };
 
   const updateAdminLinkVisibility = async () => {
@@ -151,6 +170,60 @@
     root.appendChild(card);
   };
 
+  const loadMasterclassReviews = async (mcId) => {
+    if (!mcId || !reviewsList || !reviewsEmpty) return;
+
+    reviewsList.innerHTML = '';
+    reviewsEmpty.style.display = 'none';
+
+    try {
+      const res = await fetch(`/api/masterclasses/${mcId}/reviews`);
+      if (!res.ok) {
+        console.error('Failed to load masterclass reviews', res.status);
+        return;
+      }
+
+      const reviews = await res.json();
+
+      if (!reviews || !reviews.length) {
+        reviewsEmpty.style.display = '';
+        return;
+      }
+
+      reviews.forEach((review) => {
+        const card = document.createElement('div');
+        card.className = 'review-card mc-review-card';
+
+        const header = document.createElement('div');
+        header.className = 'review-card__header mc-review-header';
+
+        const author = document.createElement('div');
+        author.className = 'review-card__author';
+        author.textContent = review.author_name || review.user_name || 'Ученик';
+
+        const rating = document.createElement('div');
+        rating.className = 'review-card__rating mc-review-rating';
+        const safeRating = Math.max(0, Math.min(5, Number(review.rating) || 0));
+        rating.textContent = `${'★'.repeat(safeRating)}${'☆'.repeat(5 - safeRating)}`;
+
+        const date = document.createElement('div');
+        date.className = 'review-card__date mc-review-date';
+        date.textContent = formatDate(review.created_at);
+
+        header.append(author, rating, date);
+
+        const text = document.createElement('p');
+        text.className = 'review-card__text mc-review-text';
+        text.innerHTML = escapeHtml(review.text || '');
+
+        card.append(header, text);
+        reviewsList.appendChild(card);
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const loadMasterclass = async () => {
     if (!masterclassId) {
       renderMessage('Мастер-класс не найден (нет ID в ссылке).');
@@ -160,6 +233,7 @@
     try {
       const masterclass = await apiGet(`/masterclasses/${masterclassId}`);
       renderMasterclass(masterclass);
+      loadMasterclassReviews(masterclassId);
     } catch (error) {
       if (error.status === 404) {
         renderMessage('Мастер-класс не найден или недоступен.');
@@ -169,6 +243,63 @@
     }
   };
 
+  const handleReviewSubmit = async (event) => {
+    if (!reviewForm || !reviewMessage) return;
+    event.preventDefault();
+    reviewMessage.textContent = '';
+
+    const formData = new FormData(reviewForm);
+    const payload = {
+      rating: Number(formData.get('rating')),
+      text: formData.get('text')?.toString().trim(),
+    };
+
+    if (!masterclassId) {
+      reviewMessage.textContent = 'Мастер-класс не найден.';
+      return;
+    }
+
+    if (!payload.rating || payload.rating < 1 || payload.rating > 5) {
+      reviewMessage.textContent = 'Поставьте оценку от 1 до 5.';
+      return;
+    }
+
+    if (!payload.text) {
+      reviewMessage.textContent = 'Пожалуйста, напишите текст отзыва.';
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/masterclasses/${masterclassId}/reviews`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        const msg = (data && (data.detail || data.message)) || 'Не удалось отправить отзыв.';
+        reviewMessage.textContent = msg;
+        return;
+      }
+
+      reviewForm.reset();
+      reviewMessage.textContent = 'Спасибо! Отзыв отправлен.';
+      await loadMasterclassReviews(masterclassId);
+    } catch (err) {
+      console.error(err);
+      reviewMessage.textContent = 'Ошибка сети. Попробуйте позже.';
+    }
+  };
+
+  const initReviewForm = () => {
+    if (reviewFormInitialized || !reviewForm || !masterclassId) return;
+    reviewForm.addEventListener('submit', handleReviewSubmit);
+    reviewFormInitialized = true;
+  };
+
   updateAdminLinkVisibility();
   loadMasterclass();
+  initReviewForm();
 })();
