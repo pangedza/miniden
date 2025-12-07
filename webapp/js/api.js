@@ -1,14 +1,7 @@
 const API_BASE = "/api";
 const TELEGRAM_AUTH_PATH = "/auth/telegram";
-const TELEGRAM_WEBAPP_AUTH_PATH = "/auth/telegram_webapp";
 const AUTH_SESSION_PATH = "/auth/session";
 const TELEGRAM_BOT_USERNAME = "BotMiniden_bot";
-
-window._telegramWebAppAuthState = window._telegramWebAppAuthState || {
-  status: "idle",
-  profile: null,
-  error: null,
-};
 
 function buildUrl(path, params = {}) {
   const url = new URL(`${API_BASE}${path}`, window.location.origin);
@@ -59,33 +52,6 @@ async function apiPost(path, body) {
 }
 
 const isTelegramWebApp = !!(window.Telegram && window.Telegram.WebApp);
-
-async function getTelegramInitDataWithRetry(maxAttempts = 20, delayMs = 100) {
-  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      if (window.Telegram && window.Telegram.WebApp) {
-        const raw = window.Telegram.WebApp.initData || "";
-        if (raw) return raw;
-      }
-
-      const searchParams = new URLSearchParams(window.location.search || "");
-      const queryInitData = searchParams.get("tgWebAppData");
-      if (queryInitData) {
-        return queryInitData;
-      }
-    } catch (error) {
-      console.warn("Failed to read Telegram initData", error);
-    }
-
-    if (attempt < maxAttempts) {
-      await wait(delayMs);
-    }
-  }
-
-  return null;
-}
 
 function normalizeError(message, status) {
   const error = new Error(message);
@@ -165,146 +131,12 @@ async function fetchAuthSession(includeNotes) {
   return data.user || null;
 }
 
-async function telegramWebAppAutoLogin() {
-  if (!isTelegramWebApp || !window.Telegram || !window.Telegram.WebApp) {
-    console.warn("Not in Telegram WebApp environment");
-    return { ok: false, reason: "not_webapp" };
-  }
-
-  const initData = await getTelegramInitDataWithRetry();
-  if (!initData) {
-    console.warn("Telegram WebApp initData is empty");
-    return { ok: false, reason: "empty_init_data" };
-  }
-
-  try {
-    const response = await fetch("/api/auth/telegram_webapp", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ init_data: initData }),
-      credentials: "include",
-    });
-
-    if (!response.ok) {
-      console.error("WebApp auth failed with status", response.status);
-      return { ok: false, reason: "http_" + response.status };
-    }
-
-    const data = await response.json();
-    if (data.status === "ok") {
-      return { ok: true, user: data.user };
-    }
-
-    console.error("WebApp auth error payload", data);
-    return { ok: false, reason: data.error || "unknown" };
-  } catch (e) {
-    console.error("WebApp auth exception", e);
-    return { ok: false, reason: "exception" };
-  }
-}
-
-async function ensureTelegramWebAppAuth() {
-  if (!isTelegramWebApp || !window.Telegram || !window.Telegram.WebApp) {
-    return { status: "skipped" };
-  }
-
-  if (window._telegramWebAppAuthPromise) {
-    return window._telegramWebAppAuthPromise;
-  }
-
-  window._telegramWebAppAuthState = {
-    status: "pending",
-    profile: null,
-    error: null,
-  };
-
-  const authPromise = (async () => {
-    try {
-      const sessionRes = await fetch(buildUrl(AUTH_SESSION_PATH));
-      if (sessionRes.ok) {
-        const sessionData = await sessionRes.json();
-        if (sessionData?.authenticated && sessionData.user) {
-          window._currentProfile = sessionData.user;
-          window._currentUser = sessionData.user;
-          window._currentProfileLoaded = true;
-          window._telegramWebAppAuthState = {
-            status: "authorized",
-            profile: sessionData.user,
-            error: null,
-          };
-          return window._telegramWebAppAuthState;
-        }
-      }
-    } catch (error) {
-      console.warn("Profile check failed", error);
-    }
-
-    const initData = await getTelegramInitDataWithRetry();
-    if (!initData) {
-      window._telegramWebAppAuthState = {
-        status: "no_init_data",
-        profile: null,
-        error: null,
-      };
-      return window._telegramWebAppAuthState;
-    }
-
-    const authResult = await telegramWebAppAutoLogin();
-    if (!authResult.ok) {
-      window._telegramWebAppAuthState = {
-        status: "auth_failed",
-        profile: null,
-        error: authResult.reason,
-      };
-      return window._telegramWebAppAuthState;
-    }
-
-    try {
-      const profile = await fetchAuthSession();
-      if (profile) {
-        window._currentProfile = profile;
-        window._currentProfileLoaded = true;
-        window._currentUser = profile;
-        window._telegramWebAppAuthState = {
-          status: "authorized",
-          profile,
-          error: null,
-        };
-        return window._telegramWebAppAuthState;
-      }
-    } catch (error) {
-      console.warn("Failed to load profile after Telegram auth", error);
-    }
-
-    window._telegramWebAppAuthState = {
-      status: "authorized",
-      profile: window._currentProfile || null,
-      error: null,
-    };
-    return window._telegramWebAppAuthState;
-  })();
-
-  window._telegramWebAppAuthPromise = authPromise;
-  return authPromise;
-}
-
-if (isTelegramWebApp) {
-  ensureTelegramWebAppAuth();
-}
-
 async function getCurrentUser(options = {}) {
   if (window._currentUser && !options.forceRefresh) {
     return window._currentUser;
   }
 
   const includeNotes = Boolean(options.includeNotes);
-
-  if (isTelegramWebApp) {
-    await ensureTelegramWebAppAuth();
-    if (window._currentUser && !options.forceRefresh) {
-      return window._currentUser;
-    }
-  }
 
   try {
     const profile = await fetchAuthSession(includeNotes);
@@ -330,14 +162,6 @@ async function getCurrentUserProfile(options = {}) {
   }
 
   const includeNotes = Boolean(options.includeNotes);
-
-  if (isTelegramWebApp) {
-    await ensureTelegramWebAppAuth();
-    if (window._currentProfile && !options.forceRefresh) {
-      window._currentProfileLoaded = true;
-      return window._currentProfile;
-    }
-  }
 
   window._currentProfileLoaded = true;
 
@@ -455,10 +279,6 @@ window.clearGuestCart = clearGuestCart;
 window.syncGuestCartToServer = syncGuestCartToServer;
 window.showToast = showToast;
 window.API_BASE = API_BASE;
-window.ensureTelegramWebAppAuth = ensureTelegramWebAppAuth;
-window.getTelegramWebAppAuthState = () => window._telegramWebAppAuthState;
 window.processTelegramAuthFromUrl = processTelegramAuthFromUrl;
 window.startTelegramOAuthFlow = startTelegramOAuthFlow;
 window.isTelegramWebApp = isTelegramWebApp;
-window.telegramWebAppAutoLogin = telegramWebAppAutoLogin;
-window.getTelegramInitDataWithRetry = getTelegramInitDataWithRetry;

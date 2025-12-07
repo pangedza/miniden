@@ -46,6 +46,7 @@ from services import stats as stats_service
 from services import user_admin as user_admin_service
 from services import user_stats as user_stats_service
 from services import users as users_service
+from services.telegram_webapp_auth import authenticate_telegram_webapp_user
 from utils.texts import format_order_for_admin
 from schemas.home import HomeBannerIn, HomePostIn, HomeSectionIn
 
@@ -705,16 +706,25 @@ def _wrap_home_banner_error(action: str, func):
 
 
 @app.get("/api/auth/session")
-def api_auth_session(request: Request, include_notes: bool = False):
+async def api_auth_session(request: Request, response: Response, include_notes: bool = False):
     """
-    Авторизация из браузера по ранее установленной cookie tg_user_id.
+    Авторизация из браузера или Telegram WebApp по cookie tg_user_id.
 
-    Если cookie отсутствует или невалидна — возвращает `{"authenticated": false}`
-    без ошибки 401. При наличии валидной сессии — профиль пользователя в поле
-    `user` с флагом `authenticated`.
+    Если cookie отсутствует, пробует авторизовать пользователя по initData
+    из запроса Telegram WebApp. Если сессия не найдена — возвращает
+    `{"authenticated": false}` без ошибки 401.
     """
     with get_session() as session:
         user = _get_current_user_from_cookie(session, request)
+        if not user:
+            user = await authenticate_telegram_webapp_user(
+                request,
+                session,
+                _validate_telegram_webapp_init_data,
+                response=response,
+                cookie_max_age=COOKIE_MAX_AGE,
+            )
+
         if not user:
             return {"authenticated": False}
 
