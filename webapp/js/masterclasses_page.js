@@ -189,7 +189,6 @@
     price.textContent = formatPrice(item.price);
 
     const hasAccess = profile?.courses?.some((c) => c.id === item.id) ?? false;
-    const linkHref = courseLink(item);
 
     const actions = document.createElement('div');
     actions.className = 'catalog-card-actions';
@@ -205,18 +204,10 @@
 
     if (Number(item.price || 0) === 0 || hasAccess) {
       const openBtn = document.createElement('a');
-      openBtn.className = 'btn';
+      openBtn.className = 'btn btn-primary';
       openBtn.textContent = 'Перейти к мастер-классу';
       openBtn.style.textAlign = 'center';
-      openBtn.href = linkHref || '#';
-      openBtn.target = linkHref ? '_blank' : '';
-      openBtn.rel = linkHref ? 'noopener' : '';
-      openBtn.addEventListener('click', (e) => {
-        if (!linkHref) {
-          e.preventDefault();
-          alert('Ссылка появится позже.');
-        }
-      });
+      openBtn.href = `masterclass.html?id=${encodeURIComponent(item.id)}`;
       buttonsRow.append(detailsBtn, openBtn);
     } else {
       const addBtn = document.createElement('button');

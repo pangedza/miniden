@@ -442,11 +442,10 @@
       const actions = document.createElement('div');
       actions.className = 'product-card__actions';
 
-      const detailsBtn = document.createElement('button');
-      detailsBtn.type = 'button';
-      detailsBtn.className = 'btn secondary';
+      const detailsBtn = document.createElement('a');
+      detailsBtn.className = 'btn secondary btn-secondary';
       detailsBtn.textContent = 'Подробнее';
-      detailsBtn.addEventListener('click', () => openProductModal(item.id, currentImageIndex));
+      detailsBtn.href = `product.html?id=${encodeURIComponent(item.id)}`;
 
       const btn = document.createElement('button');
       btn.className = 'btn';
