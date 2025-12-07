@@ -2239,3 +2239,213 @@ body.page-index .pill:nth-child(2) {
 .home-post-card p {
   margin-bottom: 8px;
 }
+
+.reviews-widget {
+  margin-top: 24px;
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.14);
+}
+
+.reviews-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.reviews-header h2 {
+  margin: 0;
+  font-size: 1.3rem;
+}
+
+.reviews-toggle-btn {
+  padding: 10px 16px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: var(--color-accent-primary);
+  color: var(--color-btn-on-accent, #0b0c10);
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.2s ease;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.18);
+}
+
+.reviews-toggle-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.2);
+  background: var(--color-accent-primary-strong);
+}
+
+.reviews-accordion {
+  margin-top: 12px;
+  background: var(--color-bg-card-elevated);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 14px;
+  padding: 16px;
+  transition: max-height 0.3s ease, opacity 0.3s ease, padding 0.3s ease, margin 0.3s ease, border-color 0.3s ease;
+  max-height: 1200px;
+  overflow: hidden;
+}
+
+.reviews-accordion--collapsed {
+  max-height: 0;
+  opacity: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  margin-top: 0;
+  border-color: transparent;
+  pointer-events: none;
+}
+
+.reviews-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.reviews-rating {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.reviews-rating-label {
+  color: var(--color-text-muted);
+}
+
+.reviews-stars {
+  display: inline-flex;
+  gap: 6px;
+  font-size: 22px;
+  color: var(--color-accent-primary);
+  cursor: pointer;
+}
+
+.reviews-stars span {
+  opacity: 0.4;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.reviews-stars span:hover {
+  transform: translateY(-1px);
+  opacity: 1;
+}
+
+.reviews-star--active {
+  opacity: 1 !important;
+}
+
+.reviews-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--color-text-main);
+  font-weight: 600;
+}
+
+.reviews-field textarea,
+.reviews-field input[type="file"] {
+  border-radius: 12px;
+  border: 1px solid var(--color-border-subtle);
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--color-text-main);
+  padding: 12px;
+  font: inherit;
+}
+
+.reviews-photos-preview,
+.review-photos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.reviews-photos-preview img,
+.review-photos img {
+  width: 82px;
+  height: 82px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid var(--color-border-subtle);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+}
+
+.reviews-form-message {
+  min-height: 18px;
+  color: var(--color-text-muted);
+}
+
+.reviews-list-wrapper {
+  margin-top: 18px;
+}
+
+.reviews-empty {
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--color-text-muted);
+  border: 1px dashed var(--color-border-subtle);
+}
+
+.reviews-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.review-card {
+  background: var(--color-bg-card-elevated);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 14px;
+  padding: 14px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.14);
+}
+
+.review-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.review-author {
+  font-size: 1rem;
+}
+
+.review-rating {
+  color: var(--color-accent-primary);
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.review-text {
+  margin: 0 0 10px;
+  line-height: 1.5;
+}
+
+.review-date {
+  margin-top: 10px;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+@media (max-width: 640px) {
+  .reviews-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .reviews-toggle-btn {
+    width: 100%;
+    text-align: center;
+  }
+
+  .reviews-list {
+    grid-template-columns: 1fr;
+  }
+}
