@@ -37,6 +37,7 @@ from models import AuthSession, User
 from services import admin_notes as admin_notes_service
 from services import cart as cart_service
 from services import favorites as favorites_service
+from services import home as home_service
 from services import orders as orders_service
 from services import products as products_service
 from services import promocodes as promocodes_service
@@ -46,6 +47,7 @@ from services import user_admin as user_admin_service
 from services import user_stats as user_stats_service
 from services import users as users_service
 from utils.texts import format_order_for_admin
+from schemas.home import HomeBannerIn, HomePostIn, HomeSectionIn
 
 
 app = FastAPI(title="MiniDeN Web API", version="1.0.0")
@@ -140,6 +142,11 @@ def api_env():
         "bot_link": f"https://t.me/{bot_username}",
         "channel_link": settings.required_channel_link,
     }
+
+
+@app.get("/api/home")
+def api_home():
+    return home_service.get_active_home_data()
 
 
 def _validate_type(product_type: str) -> str:
@@ -1504,6 +1511,129 @@ def admin_update_review_status(
         raise HTTPException(status_code=404, detail="Review not found")
 
     return {"ok": True, "status": review.status, "is_deleted": review.is_deleted}
+
+
+@app.get("/api/admin/home/banners")
+def admin_home_banners(user_id: int):
+    _ensure_admin(user_id)
+    items = home_service.list_banners()
+    return {"items": [item.dict() for item in items]}
+
+
+@app.post("/api/admin/home/banners")
+def admin_create_home_banner(payload: HomeBannerIn, user_id: int):
+    _ensure_admin(user_id)
+    banner = home_service.create_banner(payload)
+    return banner.dict()
+
+
+@app.get("/api/admin/home/banners/{banner_id}")
+def admin_get_home_banner(banner_id: int, user_id: int):
+    _ensure_admin(user_id)
+    banner = home_service.get_banner(banner_id)
+    if not banner:
+        raise HTTPException(status_code=404, detail="Banner not found")
+    return banner.dict()
+
+
+@app.put("/api/admin/home/banners/{banner_id}")
+def admin_update_home_banner(banner_id: int, payload: HomeBannerIn, user_id: int):
+    _ensure_admin(user_id)
+    banner = home_service.update_banner(banner_id, payload)
+    if not banner:
+        raise HTTPException(status_code=404, detail="Banner not found")
+    return banner.dict()
+
+
+@app.delete("/api/admin/home/banners/{banner_id}")
+def admin_delete_home_banner(banner_id: int, user_id: int):
+    _ensure_admin(user_id)
+    deleted = home_service.delete_banner(banner_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Banner not found")
+    return {"ok": True}
+
+
+@app.get("/api/admin/home/sections")
+def admin_home_sections(user_id: int):
+    _ensure_admin(user_id)
+    items = home_service.list_sections()
+    return {"items": [item.dict() for item in items]}
+
+
+@app.post("/api/admin/home/sections")
+def admin_create_home_section(payload: HomeSectionIn, user_id: int):
+    _ensure_admin(user_id)
+    section = home_service.create_section(payload)
+    return section.dict()
+
+
+@app.get("/api/admin/home/sections/{section_id}")
+def admin_get_home_section(section_id: int, user_id: int):
+    _ensure_admin(user_id)
+    section = home_service.get_section(section_id)
+    if not section:
+        raise HTTPException(status_code=404, detail="Section not found")
+    return section.dict()
+
+
+@app.put("/api/admin/home/sections/{section_id}")
+def admin_update_home_section(section_id: int, payload: HomeSectionIn, user_id: int):
+    _ensure_admin(user_id)
+    section = home_service.update_section(section_id, payload)
+    if not section:
+        raise HTTPException(status_code=404, detail="Section not found")
+    return section.dict()
+
+
+@app.delete("/api/admin/home/sections/{section_id}")
+def admin_delete_home_section(section_id: int, user_id: int):
+    _ensure_admin(user_id)
+    deleted = home_service.delete_section(section_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Section not found")
+    return {"ok": True}
+
+
+@app.get("/api/admin/home/posts")
+def admin_home_posts(user_id: int):
+    _ensure_admin(user_id)
+    items = home_service.list_posts()
+    return {"items": [item.dict() for item in items]}
+
+
+@app.post("/api/admin/home/posts")
+def admin_create_home_post(payload: HomePostIn, user_id: int):
+    _ensure_admin(user_id)
+    post = home_service.create_post(payload)
+    return post.dict()
+
+
+@app.get("/api/admin/home/posts/{post_id}")
+def admin_get_home_post(post_id: int, user_id: int):
+    _ensure_admin(user_id)
+    post = home_service.get_post(post_id)
+    if not post:
+        raise HTTPException(status_code=404, detail="Post not found")
+    return post.dict()
+
+
+@app.put("/api/admin/home/posts/{post_id}")
+def admin_update_home_post(post_id: int, payload: HomePostIn, user_id: int):
+    _ensure_admin(user_id)
+    post = home_service.update_post(post_id, payload)
+    if not post:
+        raise HTTPException(status_code=404, detail="Post not found")
+    return post.dict()
+
+
+@app.delete("/api/admin/home/posts/{post_id}")
+def admin_delete_home_post(post_id: int, user_id: int):
+    _ensure_admin(user_id)
+    deleted = home_service.delete_post(post_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Post not found")
+    return {"ok": True}
 
 
 # ----------------------------

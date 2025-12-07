@@ -19,6 +19,7 @@ from sqlalchemy import (
     SmallInteger,
     String,
     Text,
+    func,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
@@ -284,6 +285,45 @@ class AuthSession(Base):
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
 
+class HomeBanner(Base):
+    __tablename__ = "home_banners"
+
+    id = Column(Integer, primary_key=True)
+    title = Column(String(255), nullable=False)
+    subtitle = Column(Text, nullable=True)
+    button_text = Column(String(100), nullable=True)
+    button_link = Column(String(500), nullable=True)
+    image_url = Column(String(500), nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+    sort_order = Column(Integer, default=0, nullable=False)
+    created_at = Column(DateTime, default=func.now(), nullable=False)
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=False)
+
+
+class HomeSection(Base):
+    __tablename__ = "home_sections"
+
+    id = Column(Integer, primary_key=True)
+    slug = Column(String(100), unique=True, nullable=False)
+    title = Column(String(255), nullable=False)
+    text = Column(Text, nullable=False)
+    icon = Column(String(100), nullable=True)
+    sort_order = Column(Integer, default=0, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+
+
+class HomePost(Base):
+    __tablename__ = "home_posts"
+
+    id = Column(Integer, primary_key=True)
+    title = Column(String(255), nullable=False)
+    short_text = Column(Text, nullable=False)
+    link = Column(String(500), nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=func.now(), nullable=False)
+    sort_order = Column(Integer, default=0, nullable=False)
+
+
 __all__ = [
     "Base",
     "AdminNote",
@@ -301,4 +341,7 @@ __all__ = [
     "UserBan",
     "UserStats",
     "User",
+    "HomeBanner",
+    "HomeSection",
+    "HomePost",
 ]
