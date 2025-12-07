@@ -27,7 +27,7 @@ from fastapi import (
     UploadFile,
 )
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -63,6 +63,12 @@ app.add_middleware(
 )
 
 
+@app.exception_handler(Exception)
+async def json_exception_handler(request: Request, exc: Exception) -> JSONResponse:  # noqa: WPS430
+    logger.exception("Unhandled application error", exc_info=exc)
+    return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
+
+
 ALLOWED_TYPES = {"basket", "course"}
 
 SETTINGS = get_settings()
@@ -75,6 +81,7 @@ REQUIRED_DIRS = [
     MEDIA_ROOT / "users",
     MEDIA_ROOT / "products",
     MEDIA_ROOT / "courses",
+    MEDIA_ROOT / "home",
     MEDIA_ROOT / "reviews",
     MEDIA_ROOT / "tmp",
     MEDIA_ROOT / "tmp/products",
@@ -124,6 +131,7 @@ def _delete_media_file(url: str | None) -> None:
 class AdminImageKind(str, Enum):
     product = "product"
     course = "course"
+    home = "home"
 
 
 @app.on_event("startup")
@@ -684,6 +692,16 @@ def api_auth_telegram_login(request: Request):
         samesite="lax",
     )
     return response
+
+
+def _wrap_home_banner_error(action: str, func):
+    try:
+        return func()
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: WPS430
+        logger.exception("Home banner %s failed", action)
+        raise HTTPException(status_code=500, detail="Ошибка сервера") from exc
 
 
 @app.get("/api/auth/session")
@@ -1399,7 +1417,12 @@ def admin_upload_image(
     Загрузка изображения для товара/курса из админки.
     Сохраняет файл в файловой системе и возвращает URL, который потом пишется в image_url.
     """
-    base_folder = "products" if kind == AdminImageKind.product else "courses"
+    base_folder_by_kind = {
+        AdminImageKind.product: "products",
+        AdminImageKind.course: "courses",
+        AdminImageKind.home: "home",
+    }
+    base_folder = base_folder_by_kind.get(kind, "products")
     url = _save_uploaded_image(file, base_folder)
 
     return {"ok": True, "url": url}
@@ -1516,21 +1539,21 @@ def admin_update_review_status(
 @app.get("/api/admin/home/banners")
 def admin_home_banners(user_id: int):
     _ensure_admin(user_id)
-    items = home_service.list_banners()
+    items = _wrap_home_banner_error("list", home_service.list_banners)
     return {"items": [item.dict() for item in items]}
 
 
 @app.post("/api/admin/home/banners")
 def admin_create_home_banner(payload: HomeBannerIn, user_id: int):
     _ensure_admin(user_id)
-    banner = home_service.create_banner(payload)
+    banner = _wrap_home_banner_error("create", lambda: home_service.create_banner(payload))
     return banner.dict()
 
 
 @app.get("/api/admin/home/banners/{banner_id}")
 def admin_get_home_banner(banner_id: int, user_id: int):
     _ensure_admin(user_id)
-    banner = home_service.get_banner(banner_id)
+    banner = _wrap_home_banner_error("get", lambda: home_service.get_banner(banner_id))
     if not banner:
         raise HTTPException(status_code=404, detail="Banner not found")
     return banner.dict()
@@ -1539,7 +1562,9 @@ def admin_get_home_banner(banner_id: int, user_id: int):
 @app.put("/api/admin/home/banners/{banner_id}")
 def admin_update_home_banner(banner_id: int, payload: HomeBannerIn, user_id: int):
     _ensure_admin(user_id)
-    banner = home_service.update_banner(banner_id, payload)
+    banner = _wrap_home_banner_error(
+        "update", lambda: home_service.update_banner(banner_id, payload)
+    )
     if not banner:
         raise HTTPException(status_code=404, detail="Banner not found")
     return banner.dict()
@@ -1548,7 +1573,7 @@ def admin_update_home_banner(banner_id: int, payload: HomeBannerIn, user_id: int
 @app.delete("/api/admin/home/banners/{banner_id}")
 def admin_delete_home_banner(banner_id: int, user_id: int):
     _ensure_admin(user_id)
-    deleted = home_service.delete_banner(banner_id)
+    deleted = _wrap_home_banner_error("delete", lambda: home_service.delete_banner(banner_id))
     if not deleted:
         raise HTTPException(status_code=404, detail="Banner not found")
     return {"ok": True}

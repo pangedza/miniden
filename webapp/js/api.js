@@ -23,7 +23,17 @@ function buildUrl(path, params = {}) {
 async function handleResponse(res) {
   if (res.status === 204) return null;
   const text = await res.text();
-  const data = text ? JSON.parse(text) : null;
+  let data = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch (error) {
+    console.error("Failed to parse JSON", error, text);
+    const parseError = new Error("Ошибка сервера: неверный формат ответа");
+    parseError.status = res.status;
+    parseError.data = { raw: text };
+    throw parseError;
+  }
+
   if (!res.ok) {
     const message = (data && (data.detail || data.message)) || text || "Ошибка API";
     const error = new Error(message);

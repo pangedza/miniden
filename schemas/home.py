@@ -13,6 +13,8 @@ class HomeBannerIn(BaseModel):
 
 class HomeBannerOut(HomeBannerIn):
     id: int
+    created_at: str | None = None
+    updated_at: str | None = None
 
     class Config:
         orm_mode = True
