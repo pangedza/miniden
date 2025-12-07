@@ -141,6 +141,7 @@ def _serialize_order_summary(order: Order) -> dict[str, Any]:
         "total": int(order.total_amount or 0),
         "status": order.status or STATUS_NEW,
         "created_at": order.created_at.isoformat() if order.created_at else None,
+        **_extract_client_info(order),
     }
 
 
@@ -164,6 +165,31 @@ def _serialize_order_item(item: OrderItem, order_status: str | None = None) -> d
         "detail_url": (product or {}).get("detail_url"),
         "masterclass_url": (product or {}).get("masterclass_url"),
         "can_access": item.type == "course" and _course_item_available(status, price),
+    }
+
+
+def _extract_client_info(order: Order) -> dict[str, Any]:
+    user = order.user
+    telegram_id = None
+    telegram_username = None
+    client_phone = None
+
+    if user:
+        telegram_id = int(user.telegram_id) if user.telegram_id is not None else None
+        telegram_username = user.username
+        client_phone = user.phone
+
+    if telegram_id is None and order.user_id is not None:
+        telegram_id = int(order.user_id)
+
+    contact_phone = order.contact or client_phone
+    client_name = order.customer_name or (user.first_name if user else None)
+
+    return {
+        "client_name": client_name,
+        "client_phone": contact_phone,
+        "telegram_id": telegram_id,
+        "telegram_username": telegram_username,
     }
 
 
@@ -232,6 +258,7 @@ def get_order_by_id(order_id: int) -> Optional[dict[str, Any]]:
             if order.discount_amount is not None
             else None,
             "order_text": order.order_text,
+            **_extract_client_info(order),
             "items": serialized_items,
         }
 
