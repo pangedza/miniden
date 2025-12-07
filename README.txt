@@ -62,6 +62,10 @@ MiniDeN — Telegram-бот и веб-магазин
 
 - Исправлены Pydantic-модели страниц главной (home_banners, home_posts, home_sections) для совместимости с Pydantic v2. Теперь используются model_config = ConfigDict(from_attributes=True), что позволяет корректно применять from_orm() для SQLAlchemy-объектов. Эндпоинты возвращают корректный JSON.
 
+### Главная страница — баннеры
+
+- Исправлена Pydantic-схема `HomeBannerOut`: поля `created_at` и `updated_at` теперь имеют тип `datetime`, соответствующий типам в ORM-модели. Благодаря этому вызов `HomeBannerOut.from_orm()` больше не вызывает ошибок валидации, и API `/api/admin/home/banners` стабильно возвращает корректный JSON.
+
 Структура проекта
 -----------------
 - `bot.py` — точка входа Telegram-бота.
