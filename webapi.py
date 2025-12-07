@@ -174,7 +174,7 @@ class TelegramAuthPayload(BaseModel):
 
 
 class TelegramWebAppAuthPayload(BaseModel):
-    init_data: str
+    init_data: str | None = None
 
 
 class ProfileUpdatePayload(BaseModel):
@@ -219,7 +219,7 @@ def _validate_telegram_webapp_init_data(
     init_data: str, bot_token: str | None = None
 ) -> dict[str, Any]:
     if not init_data:
-        raise HTTPException(status_code=400, detail="init_data is empty")
+        raise HTTPException(status_code=400, detail="init_data_missing")
 
     try:
         parsed_pairs = list(parse_qsl(init_data, keep_blank_values=True))
@@ -235,7 +235,7 @@ def _validate_telegram_webapp_init_data(
             filtered_pairs.append((key, value))
 
     if not received_hash:
-        raise HTTPException(status_code=401, detail="Missing hash")
+        raise HTTPException(status_code=401, detail="invalid_signature")
 
     resolved_bot_token = bot_token or BOT_TOKEN
     secret_key = hashlib.sha256(resolved_bot_token.encode()).digest()
@@ -244,7 +244,7 @@ def _validate_telegram_webapp_init_data(
 
     if not hmac.compare_digest(calculated_hash, str(received_hash)):
         logger.warning("Telegram WebApp auth failed: invalid signature")
-        raise HTTPException(status_code=401, detail="Invalid init_data signature")
+        raise HTTPException(status_code=401, detail="invalid_signature")
 
     data_dict = {k: v for k, v in filtered_pairs}
 
@@ -253,14 +253,14 @@ def _validate_telegram_webapp_init_data(
         try:
             auth_date = int(auth_date_raw)
         except ValueError:
-            raise HTTPException(status_code=401, detail="Invalid auth_date")
+            raise HTTPException(status_code=401, detail="invalid_signature")
 
         if time.time() - auth_date > 24 * 60 * 60:
-            raise HTTPException(status_code=401, detail="auth_date is too old")
+            raise HTTPException(status_code=401, detail="invalid_signature")
 
     user_json = data_dict.get("user")
     if not user_json:
-        raise HTTPException(status_code=401, detail="User data is missing")
+        raise HTTPException(status_code=401, detail="invalid_signature")
 
     try:
         return json.loads(user_json)
@@ -503,11 +503,26 @@ def _build_cart_response(user_id: int) -> dict[str, Any]:
 def api_auth_telegram_webapp(payload: TelegramWebAppAuthPayload, response: Response):
     """Авторизация WebApp через init_data внутри Telegram."""
 
-    user_data = _validate_telegram_webapp_init_data(payload.init_data, BOT_TOKEN)
+    init_data = (payload.init_data or "").strip()
+    if not init_data:
+        response.status_code = 400
+        return {"status": "error", "error": "init_data_missing"}
+
+    try:
+        user_data = _validate_telegram_webapp_init_data(init_data, BOT_TOKEN)
+    except HTTPException as exc:
+        response.status_code = exc.status_code
+        error_code = exc.detail if isinstance(exc.detail, str) else "invalid_signature"
+        if error_code == "init_data is empty":
+            error_code = "init_data_missing"
+        if error_code not in {"init_data_missing", "invalid_signature"}:
+            error_code = "invalid_signature"
+        return {"status": "error", "error": error_code}
 
     telegram_id = user_data.get("id")
     if telegram_id is None:
-        raise HTTPException(status_code=400, detail="Missing user id")
+        response.status_code = 400
+        return {"status": "error", "error": "invalid_user"}
 
     first_name = user_data.get("first_name") or ""
     last_name = user_data.get("last_name") or ""
@@ -523,9 +538,11 @@ def api_auth_telegram_webapp(payload: TelegramWebAppAuthPayload, response: Respo
                 phone=user_data.get("phone"),
             )
         except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid user data")
+            response.status_code = 400
+            return {"status": "error", "error": "invalid_user"}
         except Exception:
-            raise HTTPException(status_code=500, detail="Failed to authorize user")
+            response.status_code = 500
+            return {"status": "error", "error": "authorization_failed"}
 
         response.set_cookie(
             key="tg_user_id",

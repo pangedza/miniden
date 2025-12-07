@@ -208,7 +208,7 @@
       if (isTelegramWebApp) {
         loginButton.disabled = true;
         try {
-          await telegramWebAppAutoLogin({ refreshProfile: true, force: true });
+          await telegramWebAppAutoLogin();
           await loadSession();
         } finally {
           loginButton.disabled = false;
@@ -226,7 +226,7 @@
       });
 
       if (isTelegramWebApp) {
-        await telegramWebAppAutoLogin({ refreshProfile: true });
+        await telegramWebAppAutoLogin();
       }
 
       await loadSession();
