@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/theme.css?v=20250411" />
+  <link rel="stylesheet" href="css/theme.css?v=20250412" />
 
 </head>
 <body data-theme="purple" class="page-admin">
@@ -32,6 +32,7 @@
             <button class="nav-btn nav-sub" data-view="course-categories">Категории мастер-классов</button>
           </div>
         </div>
+        <button class="nav-btn" data-view="home-cms">Главная страница</button>
         <button class="nav-btn" data-view="reviews">Отзывы</button>
         <div class="nav-group" data-group="promocodes">
           <button class="nav-btn nav-parent" data-group-toggle="promocodes" data-default-view="promocode-list">Промокоды</button>
@@ -482,6 +483,147 @@
         </div>
       </section>
 
+      <section id="home-cms" class="card admin-view" data-view="home-cms" style="display:none;">
+        <div class="section-header">
+          <div>
+            <h2>Главная страница</h2>
+            <p class="muted">Управляйте баннерами, текстовыми блоками и мини-блогом главной страницы.</p>
+          </div>
+        </div>
+
+        <div class="admin-tabs" id="home-tabs">
+          <button class="admin-tab active" data-home-tab="banners">Баннеры</button>
+          <button class="admin-tab" data-home-tab="sections">Блоки</button>
+          <button class="admin-tab" data-home-tab="posts">Мини-блог</button>
+        </div>
+
+        <div class="admin-tab-view" data-home-tab-view="banners">
+          <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px;">
+            <div class="table-wrapper">
+              <table aria-label="Баннеры главной">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Заголовок</th>
+                    <th>Активен</th>
+                    <th>Порядок</th>
+                    <th>Дата</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="home-banners-table"></tbody>
+              </table>
+            </div>
+            <div class="card" style="background: rgba(255,255,255,0.03);">
+              <h3 id="home-banner-form-title">Создать баннер</h3>
+              <form id="home-banner-form" class="stacked-form">
+                <label>Заголовок</label>
+                <input type="text" name="title" required />
+                <label>Подзаголовок</label>
+                <textarea name="subtitle" rows="2"></textarea>
+                <label>Текст кнопки</label>
+                <input type="text" name="button_text" />
+                <label>Ссылка кнопки</label>
+                <input type="text" name="button_link" />
+                <label>URL картинки</label>
+                <input type="text" name="image_url" />
+                <label>Порядок сортировки</label>
+                <input type="number" name="sort_order" value="0" />
+                <label style="display:flex; gap:8px; align-items:center;">
+                  <input type="checkbox" name="is_active" checked /> Активен
+                </label>
+                <div class="form-actions">
+                  <button class="btn primary" type="submit">Сохранить</button>
+                  <button class="btn secondary" type="button" id="home-banner-reset">Сбросить</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <div class="admin-tab-view" data-home-tab-view="sections" style="display:none;">
+          <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px;">
+            <div class="table-wrapper">
+              <table aria-label="Текстовые блоки главной">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Slug</th>
+                    <th>Заголовок</th>
+                    <th>Активен</th>
+                    <th>Порядок</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="home-sections-table"></tbody>
+              </table>
+            </div>
+            <div class="card" style="background: rgba(255,255,255,0.03);">
+              <h3 id="home-section-form-title">Создать блок</h3>
+              <form id="home-section-form" class="stacked-form">
+                <label>Slug</label>
+                <input type="text" name="slug" placeholder="why_1, how_step1" required />
+                <label>Заголовок</label>
+                <input type="text" name="title" required />
+                <label>Текст</label>
+                <textarea name="text" rows="3" required></textarea>
+                <label>Иконка/эмодзи</label>
+                <input type="text" name="icon" placeholder="✨" />
+                <label>Порядок сортировки</label>
+                <input type="number" name="sort_order" value="0" />
+                <label style="display:flex; gap:8px; align-items:center;">
+                  <input type="checkbox" name="is_active" checked /> Активен
+                </label>
+                <div class="form-actions">
+                  <button class="btn primary" type="submit">Сохранить</button>
+                  <button class="btn secondary" type="button" id="home-section-reset">Сбросить</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <div class="admin-tab-view" data-home-tab-view="posts" style="display:none;">
+          <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px;">
+            <div class="table-wrapper">
+              <table aria-label="Мини-блог">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Заголовок</th>
+                    <th>Активен</th>
+                    <th>Порядок</th>
+                    <th>Дата</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="home-posts-table"></tbody>
+              </table>
+            </div>
+            <div class="card" style="background: rgba(255,255,255,0.03);">
+              <h3 id="home-post-form-title">Создать пост</h3>
+              <form id="home-post-form" class="stacked-form">
+                <label>Заголовок</label>
+                <input type="text" name="title" required />
+                <label>Краткий текст</label>
+                <textarea name="short_text" rows="3" required></textarea>
+                <label>Ссылка (опционально)</label>
+                <input type="text" name="link" />
+                <label>Порядок сортировки</label>
+                <input type="number" name="sort_order" value="0" />
+                <label style="display:flex; gap:8px; align-items:center;">
+                  <input type="checkbox" name="is_active" checked /> Активен
+                </label>
+                <div class="form-actions">
+                  <button class="btn primary" type="submit">Сохранить</button>
+                  <button class="btn secondary" type="button" id="home-post-reset">Сбросить</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section id="reviews" class="card admin-view" data-view="reviews" style="display:none;">
         <div class="section-header" style="align-items:flex-start; gap:12px;">
           <div>
@@ -537,8 +679,8 @@
     </main>
   </div>
 
-  <script src="js/app.js?v=20250411"></script>
-  <script src="js/api.js?v=20250411"></script>
+  <script src="js/app.js?v=20250412"></script>
+  <script src="js/api.js?v=20250412"></script>
   <script>
     const statusBox = document.getElementById('status');
     const accessDenied = document.getElementById('access-denied');
@@ -616,6 +758,24 @@
     const promoCreateActive = document.getElementById('promo-create-active');
     const promoCreateOnePerUser = document.getElementById('promo-create-one-per-user');
     const promoCreateReset = document.getElementById('promo-create-reset');
+    const homeTabs = document.getElementById('home-tabs');
+    const homeTabButtons = document.querySelectorAll('[data-home-tab]');
+    const homeTabViews = document.querySelectorAll('[data-home-tab-view]');
+    const homeBannersTable = document.getElementById('home-banners-table');
+    const homeSectionsTable = document.getElementById('home-sections-table');
+    const homePostsTable = document.getElementById('home-posts-table');
+    const homeBannerForm = document.getElementById('home-banner-form');
+    const homeSectionForm = document.getElementById('home-section-form');
+    const homePostForm = document.getElementById('home-post-form');
+    const homeBannerFormTitle = document.getElementById('home-banner-form-title');
+    const homeSectionFormTitle = document.getElementById('home-section-form-title');
+    const homePostFormTitle = document.getElementById('home-post-form-title');
+    const homeBannerReset = document.getElementById('home-banner-reset');
+    const homeSectionReset = document.getElementById('home-section-reset');
+    const homePostReset = document.getElementById('home-post-reset');
+    const homeBannerSubmit = homeBannerForm?.querySelector('button[type="submit"]');
+    const homeSectionSubmit = homeSectionForm?.querySelector('button[type="submit"]');
+    const homePostSubmit = homePostForm?.querySelector('button[type="submit"]');
     const productCategoriesTable = document.getElementById('product-categories-table');
     const courseCategoriesTable = document.getElementById('course-categories-table');
     const productCategoryForm = document.getElementById('product-category-form');
@@ -673,16 +833,46 @@
       active: true,
       one_per_user: false,
     };
+    const homeBannerDefaults = {
+      title: '',
+      subtitle: '',
+      button_text: '',
+      button_link: '',
+      image_url: '',
+      sort_order: 0,
+      is_active: true,
+    };
+    const homeSectionDefaults = {
+      slug: '',
+      title: '',
+      text: '',
+      icon: '',
+      sort_order: 0,
+      is_active: true,
+    };
+    const homePostDefaults = {
+      title: '',
+      short_text: '',
+      link: '',
+      sort_order: 0,
+      is_active: true,
+    };
 
     const productFormState = createSectionFormState(productFormDefaults);
     const courseFormState = createSectionFormState(courseFormDefaults);
     const promoCreateState = createSectionFormState(promoFormDefaults);
+    const homeBannerState = createSectionFormState(homeBannerDefaults);
+    const homeSectionState = createSectionFormState(homeSectionDefaults);
+    const homePostState = createSectionFormState(homePostDefaults);
     let editingProductCategoryId = null;
     let editingCourseCategoryId = null;
     let promocodeItems = [];
     let reviewItems = [];
     let productItems = [];
     let courseItems = [];
+    let homeBannerItems = [];
+    let homeSectionItems = [];
+    let homePostItems = [];
     let productCurrentId = null;
     let masterclassCurrentId = null;
     let promoCurrentId = null;
@@ -779,6 +969,12 @@
       }
       if (view === 'reviews') {
         loadReviews();
+      }
+      if (view === 'home-cms') {
+        showHomeTab('banners');
+        loadHomeBanners();
+        loadHomeSections();
+        loadHomePosts();
       }
     }
 
@@ -1888,6 +2084,337 @@
       return items;
     }
 
+    function showHomeTab(tabName = 'banners') {
+      homeTabButtons.forEach((btn) => {
+        const isActive = btn.dataset.homeTab === tabName;
+        btn.classList.toggle('active', isActive);
+      });
+      homeTabViews.forEach((view) => {
+        const isActive = view.dataset.homeTabView === tabName;
+        view.style.display = isActive ? 'block' : 'none';
+      });
+    }
+
+    function resetHomeBannerForm() {
+      homeBannerState.mode = 'create';
+      homeBannerState.currentId = null;
+      homeBannerFormTitle.textContent = 'Создать баннер';
+      if (homeBannerSubmit) homeBannerSubmit.textContent = 'Сохранить';
+      resetFormState(homeBannerState.formData, homeBannerDefaults);
+      applyStateToForm(homeBannerForm, homeBannerState.formData);
+    }
+
+    function resetHomeSectionForm() {
+      homeSectionState.mode = 'create';
+      homeSectionState.currentId = null;
+      homeSectionFormTitle.textContent = 'Создать блок';
+      if (homeSectionSubmit) homeSectionSubmit.textContent = 'Сохранить';
+      resetFormState(homeSectionState.formData, homeSectionDefaults);
+      applyStateToForm(homeSectionForm, homeSectionState.formData);
+    }
+
+    function resetHomePostForm() {
+      homePostState.mode = 'create';
+      homePostState.currentId = null;
+      homePostFormTitle.textContent = 'Создать пост';
+      if (homePostSubmit) homePostSubmit.textContent = 'Сохранить';
+      resetFormState(homePostState.formData, homePostDefaults);
+      applyStateToForm(homePostForm, homePostState.formData);
+    }
+
+    function renderHomeBanners(items) {
+      homeBannersTable.innerHTML = '';
+      if (!items.length) {
+        const row = document.createElement('tr');
+        const cell = document.createElement('td');
+        cell.colSpan = 6;
+        cell.textContent = 'Баннеры отсутствуют';
+        cell.className = 'muted';
+        row.appendChild(cell);
+        homeBannersTable.appendChild(row);
+        return;
+      }
+
+      items.forEach((banner) => {
+        const row = document.createElement('tr');
+        const date = banner.created_at ? new Date(banner.created_at).toLocaleString('ru-RU') : '—';
+        row.innerHTML = `
+          <td>#${banner.id}</td>
+          <td>${banner.title || '—'}</td>
+          <td>${banner.is_active ? 'Да' : 'Нет'}</td>
+          <td>${banner.sort_order ?? 0}</td>
+          <td>${date}</td>
+          <td></td>
+        `;
+        const actions = document.createElement('div');
+        actions.style.display = 'flex';
+        actions.style.gap = '6px';
+
+        const editBtn = document.createElement('button');
+        editBtn.className = 'btn secondary';
+        editBtn.type = 'button';
+        editBtn.textContent = 'Редактировать';
+        editBtn.addEventListener('click', () => openHomeBannerEdit(banner));
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'btn secondary danger';
+        deleteBtn.type = 'button';
+        deleteBtn.textContent = 'Удалить';
+        deleteBtn.addEventListener('click', () => deleteHomeBanner(banner.id));
+
+        actions.appendChild(editBtn);
+        actions.appendChild(deleteBtn);
+        row.lastElementChild.appendChild(actions);
+        homeBannersTable.appendChild(row);
+      });
+    }
+
+    function renderHomeSections(items) {
+      homeSectionsTable.innerHTML = '';
+      if (!items.length) {
+        const row = document.createElement('tr');
+        const cell = document.createElement('td');
+        cell.colSpan = 6;
+        cell.textContent = 'Блоки отсутствуют';
+        cell.className = 'muted';
+        row.appendChild(cell);
+        homeSectionsTable.appendChild(row);
+        return;
+      }
+
+      items.forEach((section) => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>#${section.id}</td>
+          <td>${section.slug}</td>
+          <td>${section.title}</td>
+          <td>${section.is_active ? 'Да' : 'Нет'}</td>
+          <td>${section.sort_order ?? 0}</td>
+          <td></td>
+        `;
+        const actions = document.createElement('div');
+        actions.style.display = 'flex';
+        actions.style.gap = '6px';
+
+        const editBtn = document.createElement('button');
+        editBtn.className = 'btn secondary';
+        editBtn.type = 'button';
+        editBtn.textContent = 'Редактировать';
+        editBtn.addEventListener('click', () => openHomeSectionEdit(section));
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'btn secondary danger';
+        deleteBtn.type = 'button';
+        deleteBtn.textContent = 'Удалить';
+        deleteBtn.addEventListener('click', () => deleteHomeSection(section.id));
+
+        actions.appendChild(editBtn);
+        actions.appendChild(deleteBtn);
+        row.lastElementChild.appendChild(actions);
+        homeSectionsTable.appendChild(row);
+      });
+    }
+
+    function renderHomePosts(items) {
+      homePostsTable.innerHTML = '';
+      if (!items.length) {
+        const row = document.createElement('tr');
+        const cell = document.createElement('td');
+        cell.colSpan = 6;
+        cell.textContent = 'Постов пока нет';
+        cell.className = 'muted';
+        row.appendChild(cell);
+        homePostsTable.appendChild(row);
+        return;
+      }
+
+      items.forEach((post) => {
+        const row = document.createElement('tr');
+        const date = post.created_at ? new Date(post.created_at).toLocaleString('ru-RU') : '—';
+        row.innerHTML = `
+          <td>#${post.id}</td>
+          <td>${post.title}</td>
+          <td>${post.is_active ? 'Да' : 'Нет'}</td>
+          <td>${post.sort_order ?? 0}</td>
+          <td>${date}</td>
+          <td></td>
+        `;
+        const actions = document.createElement('div');
+        actions.style.display = 'flex';
+        actions.style.gap = '6px';
+
+        const editBtn = document.createElement('button');
+        editBtn.className = 'btn secondary';
+        editBtn.type = 'button';
+        editBtn.textContent = 'Редактировать';
+        editBtn.addEventListener('click', () => openHomePostEdit(post));
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'btn secondary danger';
+        deleteBtn.type = 'button';
+        deleteBtn.textContent = 'Удалить';
+        deleteBtn.addEventListener('click', () => deleteHomePost(post.id));
+
+        actions.appendChild(editBtn);
+        actions.appendChild(deleteBtn);
+        row.lastElementChild.appendChild(actions);
+        homePostsTable.appendChild(row);
+      });
+    }
+
+    async function loadHomeBanners() {
+      if (!currentUser) return;
+      try {
+        const data = await apiGet('/admin/home/banners', { user_id: currentUser.telegram_id });
+        homeBannerItems = data.items || data || [];
+        renderHomeBanners(homeBannerItems);
+      } catch (e) {
+        handleError(e, 'Не удалось загрузить баннеры');
+      }
+    }
+
+    async function loadHomeSections() {
+      if (!currentUser) return;
+      try {
+        const data = await apiGet('/admin/home/sections', { user_id: currentUser.telegram_id });
+        homeSectionItems = data.items || data || [];
+        renderHomeSections(homeSectionItems);
+      } catch (e) {
+        handleError(e, 'Не удалось загрузить блоки');
+      }
+    }
+
+    async function loadHomePosts() {
+      if (!currentUser) return;
+      try {
+        const data = await apiGet('/admin/home/posts', { user_id: currentUser.telegram_id });
+        homePostItems = data.items || data || [];
+        renderHomePosts(homePostItems);
+      } catch (e) {
+        handleError(e, 'Не удалось загрузить посты');
+      }
+    }
+
+    function openHomeBannerEdit(banner) {
+      homeBannerState.mode = 'edit';
+      homeBannerState.currentId = banner.id;
+      homeBannerFormTitle.textContent = `Редактировать баннер #${banner.id}`;
+      if (homeBannerSubmit) homeBannerSubmit.textContent = 'Обновить баннер';
+      resetFormState(homeBannerState.formData, { ...homeBannerDefaults, ...banner });
+      applyStateToForm(homeBannerForm, homeBannerState.formData);
+    }
+
+    function openHomeSectionEdit(section) {
+      homeSectionState.mode = 'edit';
+      homeSectionState.currentId = section.id;
+      homeSectionFormTitle.textContent = `Редактировать блок #${section.id}`;
+      if (homeSectionSubmit) homeSectionSubmit.textContent = 'Обновить блок';
+      resetFormState(homeSectionState.formData, { ...homeSectionDefaults, ...section });
+      applyStateToForm(homeSectionForm, homeSectionState.formData);
+    }
+
+    function openHomePostEdit(post) {
+      homePostState.mode = 'edit';
+      homePostState.currentId = post.id;
+      homePostFormTitle.textContent = `Редактировать пост #${post.id}`;
+      if (homePostSubmit) homePostSubmit.textContent = 'Обновить пост';
+      resetFormState(homePostState.formData, { ...homePostDefaults, ...post });
+      applyStateToForm(homePostForm, homePostState.formData);
+    }
+
+    async function deleteHomeBanner(id) {
+      if (!currentUser || !id) return;
+      try {
+        await sendJson(`/admin/home/banners/${id}?user_id=${currentUser.telegram_id}`, 'DELETE');
+        await loadHomeBanners();
+        showToast('Баннер удалён');
+      } catch (e) {
+        handleError(e, 'Не удалось удалить баннер');
+      }
+    }
+
+    async function deleteHomeSection(id) {
+      if (!currentUser || !id) return;
+      try {
+        await sendJson(`/admin/home/sections/${id}?user_id=${currentUser.telegram_id}`, 'DELETE');
+        await loadHomeSections();
+        showToast('Блок удалён');
+      } catch (e) {
+        handleError(e, 'Не удалось удалить блок');
+      }
+    }
+
+    async function deleteHomePost(id) {
+      if (!currentUser || !id) return;
+      try {
+        await sendJson(`/admin/home/posts/${id}?user_id=${currentUser.telegram_id}`, 'DELETE');
+        await loadHomePosts();
+        showToast('Пост удалён');
+      } catch (e) {
+        handleError(e, 'Не удалось удалить пост');
+      }
+    }
+
+    async function handleHomeBannerSubmit(event) {
+      event.preventDefault();
+      if (!currentUser) return;
+      const payload = serializeForm(homeBannerForm);
+      payload.sort_order = payload.sort_order ? Number(payload.sort_order) : 0;
+      const query = `?user_id=${currentUser.telegram_id}`;
+      const path = homeBannerState.currentId
+        ? `/admin/home/banners/${homeBannerState.currentId}${query}`
+        : `/admin/home/banners${query}`;
+      const method = homeBannerState.currentId ? 'PUT' : 'POST';
+      try {
+        await sendJson(path, method, payload);
+        setStatus('Баннер сохранён');
+        resetHomeBannerForm();
+        await loadHomeBanners();
+      } catch (e) {
+        handleError(e, 'Не удалось сохранить баннер');
+      }
+    }
+
+    async function handleHomeSectionSubmit(event) {
+      event.preventDefault();
+      if (!currentUser) return;
+      const payload = serializeForm(homeSectionForm);
+      payload.sort_order = payload.sort_order ? Number(payload.sort_order) : 0;
+      const query = `?user_id=${currentUser.telegram_id}`;
+      const path = homeSectionState.currentId
+        ? `/admin/home/sections/${homeSectionState.currentId}${query}`
+        : `/admin/home/sections${query}`;
+      const method = homeSectionState.currentId ? 'PUT' : 'POST';
+      try {
+        await sendJson(path, method, payload);
+        setStatus('Блок сохранён');
+        resetHomeSectionForm();
+        await loadHomeSections();
+      } catch (e) {
+        handleError(e, 'Не удалось сохранить блок');
+      }
+    }
+
+    async function handleHomePostSubmit(event) {
+      event.preventDefault();
+      if (!currentUser) return;
+      const payload = serializeForm(homePostForm);
+      payload.sort_order = payload.sort_order ? Number(payload.sort_order) : 0;
+      const query = `?user_id=${currentUser.telegram_id}`;
+      const path = homePostState.currentId
+        ? `/admin/home/posts/${homePostState.currentId}${query}`
+        : `/admin/home/posts${query}`;
+      const method = homePostState.currentId ? 'PUT' : 'POST';
+      try {
+        await sendJson(path, method, payload);
+        setStatus('Пост сохранён');
+        resetHomePostForm();
+        await loadHomePosts();
+      } catch (e) {
+        handleError(e, 'Не удалось сохранить пост');
+      }
+    }
+
     function findPromocodeById(id) {
       return promocodeItems.find((p) => String(p.id) === String(id));
     }
@@ -2158,12 +2685,18 @@
     bindStateToForm(productForm, productFormState.formData);
     bindStateToForm(courseForm, courseFormState.formData);
     bindStateToForm(promoCreateForm, promoCreateState.formData);
+    bindStateToForm(homeBannerForm, homeBannerState.formData);
+    bindStateToForm(homeSectionForm, homeSectionState.formData);
+    bindStateToForm(homePostForm, homePostState.formData);
 
     promoCreateForm?.addEventListener('submit', submitPromocodeCreate);
     promoCreateReset?.addEventListener('click', resetPromoCreateForm);
     promoCreateScope?.addEventListener('change', () => updatePromoTargetState(promoCreateScope, promoCreateTarget));
     productForm.addEventListener('submit', handleProductFormSubmit);
     courseForm.addEventListener('submit', handleCourseFormSubmit);
+    homeBannerForm?.addEventListener('submit', handleHomeBannerSubmit);
+    homeSectionForm?.addEventListener('submit', handleHomeSectionSubmit);
+    homePostForm?.addEventListener('submit', handleHomePostSubmit);
     productCategoryForm?.addEventListener('submit', handleProductCategoryFormSubmit);
     courseCategoryForm?.addEventListener('submit', handleCourseCategoryFormSubmit);
     productsTable?.addEventListener('click', handleProductTableClick);
@@ -2195,6 +2728,9 @@
       editingCourseCategoryId = null;
       resetCategoryForm(courseCategoryForm, courseCategoryFormTitle, 'Создать категорию');
     });
+    homeBannerReset?.addEventListener('click', resetHomeBannerForm);
+    homeSectionReset?.addEventListener('click', resetHomeSectionForm);
+    homePostReset?.addEventListener('click', resetHomePostForm);
 
     productImageFileInput?.addEventListener('change', uploadProductImageFile);
     courseImageFileInput?.addEventListener('change', uploadCourseImageFile);
@@ -2208,6 +2744,16 @@
     });
     promoStatusFilter?.addEventListener('change', () => {
       renderPromocodes(applyPromocodeFilters(promocodeItems));
+    });
+
+    homeTabButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const tab = btn.dataset.homeTab || 'banners';
+        showHomeTab(tab);
+        if (tab === 'banners') loadHomeBanners();
+        if (tab === 'sections') loadHomeSections();
+        if (tab === 'posts') loadHomePosts();
+      });
     });
 
     reviewStatusFilter?.addEventListener('change', loadReviews);
@@ -2238,6 +2784,10 @@
         currentUser = await getCurrentUser({ includeNotes: true });
         if (!requireAdmin(currentUser)) return;
 
+        resetHomeBannerForm();
+        resetHomeSectionForm();
+        resetHomePostForm();
+
         await Promise.all([
           loadCategories(productCategoryFilter, 'basket', { includeAllOption: true }),
           loadCategories(productCategorySelect, 'basket'),
@@ -2254,6 +2804,7 @@
         await loadPromocodes();
         await loadReviewProducts();
         await loadReviews();
+        await Promise.all([loadHomeBanners(), loadHomeSections(), loadHomePosts()]);
         showSection('orders');
         console.log('[admin] initApp done');
       } catch (e) {
