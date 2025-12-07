@@ -1052,6 +1052,24 @@ def api_products(type: str, category_slug: str | None = None):
     return products_service.list_products(product_type, category_slug=category_slug, is_active=True)
 
 
+@app.get("/api/products/{product_id}")
+def api_product_detail(product_id: int):
+    """Возвращает данные одного товара или мастер-класса по ID."""
+    product = products_service.get_product_by_id(product_id)
+    if not product or not product.get("is_active"):
+        raise HTTPException(status_code=404, detail="Product not found")
+    return product
+
+
+@app.get("/api/masterclasses/{masterclass_id}")
+def api_masterclass_detail(masterclass_id: int):
+    """Возвращает данные мастер-класса по ID."""
+    masterclass = products_service.get_course_by_id(masterclass_id)
+    if not masterclass or not masterclass.get("is_active"):
+        raise HTTPException(status_code=404, detail="Masterclass not found")
+    return masterclass
+
+
 @app.post("/api/products/{product_id}/reviews")
 def create_product_review(product_id: int, payload: ReviewCreatePayload, request: Request):
     with get_session() as session:
