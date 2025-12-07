@@ -121,6 +121,13 @@
               <div id="detail-client">—</div>
               <div class="muted" style="margin-top:8px;">Контакт</div>
               <div id="detail-contact">—</div>
+              <div class="muted" style="margin-top:8px;">Telegram ID</div>
+              <div id="detail-telegram-id">—</div>
+              <div class="muted" style="margin-top:12px;">Связаться</div>
+              <div class="order-contact-actions" style="display:flex; gap:8px; margin-top:4px; flex-wrap:wrap;">
+                <a id="order-call-link" class="btn secondary" target="_blank" rel="noopener" style="display:none;">Позвонить</a>
+                <a id="order-telegram-link" class="btn secondary" target="_blank" rel="noopener" style="display:none;">Написать в Telegram</a>
+              </div>
               <div class="muted" style="margin-top:8px;">Промокод</div>
               <div id="detail-promocode">—</div>
             </div>
@@ -546,6 +553,9 @@
     const saveStatusBtn = document.getElementById('save-status');
     const detailClient = document.getElementById('detail-client');
     const detailContact = document.getElementById('detail-contact');
+    const detailTelegramId = document.getElementById('detail-telegram-id');
+    const orderCallLink = document.getElementById('order-call-link');
+    const orderTelegramLink = document.getElementById('order-telegram-link');
     const detailPromocode = document.getElementById('detail-promocode');
     const detailComment = document.getElementById('detail-comment');
     const detailItems = document.getElementById('detail-items');
@@ -615,11 +625,17 @@
     const productCategoryReset = document.getElementById('product-category-reset');
     const courseCategoryReset = document.getElementById('course-category-reset');
 
+    const DEFAULT_ORDER_STATUS = 'new';
+
     let currentUser = null;
     const categoryMaps = {
       basket: new Map(),
       course: new Map(),
     };
+
+    if (statusFilter) {
+      statusFilter.value = DEFAULT_ORDER_STATUS;
+    }
     let selectedOrder = null;
     const productFormDefaults = {
       category_id: '',
@@ -1064,9 +1080,10 @@
       orders.forEach((order) => {
         const row = document.createElement('tr');
         const date = order.created_at ? new Date(order.created_at).toLocaleString('ru-RU') : '';
+        const clientName = order.client_name || order.customer_name || order.name || 'Без имени';
         row.innerHTML = `
           <td>#${order.id}</td>
-          <td>${order.customer_name || 'Без имени'}</td>
+          <td>${clientName}</td>
           <td>${order.total || 0} ₽</td>
           <td>${order.status || 'new'}</td>
           <td>${date}</td>
@@ -1082,8 +1099,38 @@
       orderDetail.style.display = 'block';
       detailId.textContent = `#${order.id}`;
       detailStatus.value = order.status || 'new';
-      detailClient.textContent = order.customer_name || '—';
-      detailContact.textContent = order.contact || '—';
+      const clientName = order.client_name || order.customer_name || order.name || 'Без имени';
+      const clientPhone = order.client_phone || order.contact || order.phone || null;
+      const telegramId = order.telegram_id || null;
+      const telegramUsername = order.telegram_username || null;
+
+      detailClient.textContent = clientName || '—';
+      detailContact.textContent = clientPhone || order.contact || '—';
+      if (detailTelegramId) {
+        detailTelegramId.textContent = telegramId || '—';
+      }
+
+      if (orderCallLink) {
+        if (clientPhone) {
+          const normalized = String(clientPhone).replace(/\s+/g, '');
+          orderCallLink.href = `tel:${normalized}`;
+          orderCallLink.style.display = '';
+        } else {
+          orderCallLink.style.display = 'none';
+        }
+      }
+
+      if (orderTelegramLink) {
+        if (telegramUsername) {
+          orderTelegramLink.href = `https://t.me/${telegramUsername.replace(/^@/, '')}`;
+          orderTelegramLink.style.display = '';
+        } else if (telegramId) {
+          orderTelegramLink.href = `tg://user?id=${telegramId}`;
+          orderTelegramLink.style.display = '';
+        } else {
+          orderTelegramLink.style.display = 'none';
+        }
+      }
       detailPromocode.textContent = order.promocode_code || '—';
       detailComment.textContent = order.comment || '—';
       detailItems.innerHTML = '';
