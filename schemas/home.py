@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict
 
 
@@ -13,8 +15,8 @@ class HomeBannerIn(BaseModel):
 
 class HomeBannerOut(HomeBannerIn):
     id: int
-    created_at: str | None = None
-    updated_at: str | None = None
+    created_at: datetime
+    updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -44,7 +46,7 @@ class HomePostIn(BaseModel):
 
 class HomePostOut(HomePostIn):
     id: int
-    created_at: str | None = None
+    created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 
