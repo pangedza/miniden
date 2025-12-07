@@ -6,26 +6,10 @@
   const searchInput = document.getElementById('mc-search-input');
   const searchClearBtn = document.getElementById('mc-search-clear');
 
-  const courseModal = document.getElementById('course-modal');
-  const courseModalClose = document.getElementById('course-modal-close');
-  const courseModalBackdrop = document.getElementById('course-modal-backdrop');
-  const courseModalImage = document.getElementById('course-modal-image');
-  const courseModalPlaceholder = document.getElementById('course-modal-placeholder');
-  const courseModalPrev = document.getElementById('course-modal-prev');
-  const courseModalNext = document.getElementById('course-modal-next');
-  const courseModalTitle = document.getElementById('course-modal-title');
-  const courseModalMeta = document.getElementById('course-modal-meta');
-  const courseModalDescription = document.getElementById('course-modal-description');
-  const courseModalPrice = document.getElementById('course-modal-price');
-  const courseModalActions = document.getElementById('course-modal-actions');
-
   const mcsByCategory = new Map();
   let categories = [];
   let allMasterclasses = [];
-  let courseMap = new Map();
   let profile = null;
-  let currentCourse = null;
-  let courseModalIndex = 0;
   let debounceTimer = null;
   let currentSearchValue = '';
 
@@ -84,10 +68,6 @@
   function updateAdminLinkVisibility() {
     if (!adminLink) return;
     adminLink.style.display = profile?.is_admin ? '' : 'none';
-  }
-
-  function courseLink(item) {
-    return item.masterclass_url || item.detail_url || null;
   }
 
   function matchesSearch(item, filter) {
@@ -196,21 +176,13 @@
     const buttonsRow = document.createElement('div');
     buttonsRow.className = 'course-card__buttons';
 
-    const detailsBtn = document.createElement('button');
-    detailsBtn.type = 'button';
-    detailsBtn.className = 'btn secondary';
-    detailsBtn.textContent = 'Подробнее';
-    detailsBtn.addEventListener('click', () => openCourseModal(item.id, currentImageIndex));
-
     const openBtn = document.createElement('a');
     openBtn.className = 'btn btn-primary';
     openBtn.textContent = 'Перейти к мастер-классу';
     openBtn.style.textAlign = 'center';
     openBtn.href = `masterclass.html?id=${encodeURIComponent(item.id)}`;
 
-    if (Number(item.price || 0) === 0 || hasAccess) {
-      buttonsRow.append(detailsBtn, openBtn);
-    } else {
+    if (Number(item.price || 0) !== 0 && !hasAccess) {
       const addBtn = document.createElement('button');
       addBtn.type = 'button';
       addBtn.className = 'btn';
@@ -221,8 +193,10 @@
       note.style.color = 'var(--muted)';
       note.textContent = profile ? 'Доступ появится после оплаты' : 'Войдите и оплатите, чтобы открыть уроки';
 
-      buttonsRow.append(detailsBtn, addBtn, openBtn);
+      buttonsRow.append(addBtn, openBtn);
       actions.appendChild(note);
+    } else {
+      buttonsRow.append(openBtn);
     }
 
     footer.append(price);
@@ -233,103 +207,6 @@
 
     return card;
   }
-
-  function closeCourseModal() {
-    if (!courseModal) return;
-    courseModal.classList.add('hidden');
-    courseModal.setAttribute('aria-hidden', 'true');
-    currentCourse = null;
-    courseModalIndex = 0;
-    if (courseModalActions) courseModalActions.innerHTML = '';
-  }
-
-  function setCourseModalImage() {
-    if (!courseModalImage) return;
-    const images = currentCourse?.images || [];
-
-    if (images.length) {
-      courseModalIndex = (courseModalIndex + images.length) % images.length;
-      courseModalImage.src = images[courseModalIndex];
-      courseModalImage.style.display = 'block';
-      courseModalPlaceholder.style.display = 'none';
-    } else {
-      courseModalImage.removeAttribute('src');
-      courseModalImage.style.display = 'none';
-      courseModalPlaceholder.style.display = 'block';
-    }
-
-    const showNav = images.length > 1;
-    [courseModalPrev, courseModalNext].forEach((btn) => {
-      if (btn) btn.style.display = showNav ? '' : 'none';
-    });
-  }
-
-  function openCourseModal(courseId, startIndex = 0) {
-    if (!courseModal) return;
-    const item = courseMap.get(courseId);
-    if (!item) return;
-    currentCourse = item;
-    courseModalIndex = Math.max(0, Math.min(startIndex || 0, (item.images?.length || 1) - 1));
-
-    setCourseModalImage();
-
-    courseModalTitle.textContent = item.name || 'Мастер-класс';
-    courseModalMeta.textContent = metaBySlug[item.category_slug] || '';
-    courseModalDescription.textContent = item.description || item.short_description || 'Описание появится позже.';
-    courseModalPrice.textContent = formatPrice(item.price);
-
-    if (courseModalActions) {
-      courseModalActions.innerHTML = '';
-      const detailsAccess = profile?.courses?.some((c) => c.id === item.id) ?? false;
-      const linkHref = courseLink(item);
-      if (Number(item.price || 0) === 0 || detailsAccess) {
-        const openBtn = document.createElement('a');
-        openBtn.className = 'btn';
-        openBtn.textContent = 'Открыть урок';
-        openBtn.href = linkHref || '#';
-        openBtn.target = linkHref ? '_blank' : '';
-        openBtn.rel = linkHref ? 'noopener' : '';
-        openBtn.addEventListener('click', (e) => {
-          if (!linkHref) {
-            e.preventDefault();
-            alert('Ссылка появится позже.');
-          }
-        });
-        courseModalActions.appendChild(openBtn);
-      } else {
-        const addBtn = document.createElement('button');
-        addBtn.type = 'button';
-        addBtn.className = 'btn';
-        addBtn.textContent = 'Добавить в корзину';
-        addBtn.addEventListener('click', () => handleAddToCart(item));
-
-        const infoBtn = document.createElement('button');
-        infoBtn.type = 'button';
-        infoBtn.className = 'btn secondary';
-        infoBtn.textContent = 'Закрыть';
-        infoBtn.addEventListener('click', closeCourseModal);
-
-        courseModalActions.append(addBtn, infoBtn);
-      }
-    }
-
-    courseModal.classList.remove('hidden');
-    courseModal.setAttribute('aria-hidden', 'false');
-  }
-
-  [courseModalPrev, courseModalNext].forEach((btn, index) => {
-    btn?.addEventListener('click', () => {
-      const images = currentCourse?.images || [];
-      if (!images.length) return;
-      const step = index === 0 ? -1 : 1;
-      courseModalIndex = (courseModalIndex + step + images.length) % images.length;
-      setCourseModalImage();
-    });
-  });
-
-  [courseModalClose, courseModalBackdrop].forEach((el) => {
-    el?.addEventListener('click', closeCourseModal);
-  });
 
   async function handleAddToCart(course) {
     const currentProfile = await getCurrentUserProfile();
@@ -481,7 +358,6 @@
 
     try {
       allMasterclasses = (await apiGet('/products', { type: 'course' })).map((item) => normalizeImages(item, ['masterclass_images']));
-      courseMap = new Map(allMasterclasses.map((c) => [c.id, c]));
     } catch (e) {
       allMasterclasses = [];
       mcsByCategory.clear();
