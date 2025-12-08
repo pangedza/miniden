@@ -215,7 +215,7 @@ def api_faq_detail(faq_id: int):
 
 
 @app.post("/api/webchat/start")
-def api_webchat_start(payload: WebChatStartPayload):
+async def api_webchat_start(payload: WebChatStartPayload):
     session = webchat_service.get_session_by_key(payload.session_key)
     created = False
     if not session:
@@ -237,7 +237,7 @@ def api_webchat_start(payload: WebChatStartPayload):
 
 
 @app.post("/api/webchat/message")
-def api_webchat_message(payload: WebChatMessagePayload):
+async def api_webchat_message(payload: WebChatMessagePayload):
     session = webchat_service.get_session_by_key(payload.session_key)
     if not session:
         session = webchat_service.get_or_create_session(payload.session_key)
@@ -283,7 +283,7 @@ def api_webchat_messages(session_key: str, limit: int = 50):
 
 
 @app.post("/api/webchat/manager_reply")
-def api_webchat_manager_reply(payload: WebChatManagerReplyPayload):
+async def api_webchat_manager_reply(payload: WebChatManagerReplyPayload):
     session = webchat_service.get_session_by_id(payload.session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -365,7 +365,6 @@ class WebChatMessagePayload(BaseModel):
 class WebChatManagerReplyPayload(BaseModel):
     session_id: int
     text: str
-    sort_order: int | None = 0
 
 
 class FaqUpdatePayload(BaseModel):
