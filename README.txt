@@ -364,3 +364,9 @@ Legacy
 - Добавлены Pydantic-модели WebChatStartPayload, WebChatMessagePayload, WebChatManagerReplyPayload.
 - Это исправило ошибку NameError при старте сервиса, когда webapi.py не мог импортироваться из-за отсутствия класса.
 - Модели применяются для эндпоинтов /api/webchat/start, /api/webchat/message и /api/webchat/manager_reply.
+
+Фикс веб-чата
+-------------
+- В webapi.py добавлен `from __future__ import annotations`, чтобы отложить вычисление аннотаций типов и избежать NameError при импортe.
+- Дополнительно добавлены и уточнены Pydantic-модели `WebChatStartPayload`, `WebChatMessagePayload`, `WebChatManagerReplyPayload`.
+- Эти модели используются эндпоинтами `/api/webchat/start`, `/api/webchat/message`, `/api/webchat/manager_reply` для корректной валидации payload'ов.
