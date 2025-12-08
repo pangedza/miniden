@@ -2,6 +2,9 @@
   'use strict';
 
   const TELEGRAM_BOT_URL = 'https://t.me/YOUR_BOT_USERNAME?start=help_from_site'; // TODO: Замените на реальный username бота
+  const SESSION_STORAGE_KEY = 'support_widget_session_key';
+  const POLL_INTERVAL_MS = 4000;
+  const CHAT_ERROR_MESSAGE = 'Сбой связи с сервером, попробуйте ещё раз.';
   const STATE = {
     faqs: [],
     faqsByCategory: new Map(),
@@ -11,6 +14,14 @@
     error: null,
     currentCategory: null,
     currentQuestionId: null,
+    mode: 'faq',
+    sessionKey: null,
+    sessionId: null,
+    chatStatus: 'open',
+    chatMessages: [],
+    chatTimer: null,
+    chatError: null,
+    chatElements: null,
   };
 
   const createElement = (tag, className, text) => {
@@ -27,6 +38,243 @@
   const body = document.body;
   if (!body) {
     return;
+  }
+
+  function renderChatMessages() {
+    if (!STATE.chatElements || !STATE.chatElements.messages) {
+      return;
+    }
+
+    const messagesWrap = STATE.chatElements.messages;
+    messagesWrap.innerHTML = '';
+
+    const statusEl = STATE.chatElements.status;
+    if (statusEl) {
+      if (STATE.chatStatus === 'waiting_manager') {
+        statusEl.textContent = 'Менеджер ответит вам здесь, как только будет свободен.';
+      } else if (STATE.chatStatus === 'closed') {
+        statusEl.textContent = 'Чат закрыт.';
+      } else {
+        statusEl.textContent = 'Мы на связи. Менеджер ответит в этом окне.';
+      }
+    }
+
+    if (STATE.chatError && STATE.chatElements.error) {
+      STATE.chatElements.error.textContent = STATE.chatError;
+      STATE.chatElements.error.style.display = '';
+    } else if (STATE.chatElements.error) {
+      STATE.chatElements.error.textContent = '';
+      STATE.chatElements.error.style.display = 'none';
+    }
+
+    STATE.chatMessages.forEach((msg) => {
+      const sender = msg.sender || 'user';
+      const item = createElement('div', `support-chat-message support-chat-${sender}`);
+      const text = createElement('div', 'support-chat-text');
+      text.textContent = msg.text || '';
+      item.appendChild(text);
+
+      if (msg.created_at) {
+        const meta = createElement('div', 'support-chat-meta');
+        try {
+          meta.textContent = new Date(msg.created_at).toLocaleString();
+        } catch (e) {
+          meta.textContent = msg.created_at;
+        }
+        item.appendChild(meta);
+      }
+
+      messagesWrap.appendChild(item);
+    });
+
+    messagesWrap.scrollTop = messagesWrap.scrollHeight;
+  }
+
+  function renderChat() {
+    STATE.mode = 'chat';
+    bodyContainer.innerHTML = '';
+
+    const title = createElement('h4', null, 'Чат с менеджером');
+    const helper = createElement('p', null, 'Менеджер ответит вам здесь, как только будет свободен.');
+    const statusEl = createElement('div', 'support-chat-status');
+
+    const messagesWrap = createElement('div', 'support-chat-messages');
+    const errorEl = createElement('div', 'support-chat-error');
+    errorEl.style.display = 'none';
+
+    const input = createElement('textarea', 'support-chat-input');
+    input.setAttribute('rows', '3');
+    input.placeholder = 'Напишите сообщение менеджеру...';
+
+    const sendButton = createElement('button', 'support-widget-action-btn', 'Отправить');
+    sendButton.type = 'button';
+
+    const backBtn = createElement('button', 'support-widget-action-btn', 'Назад к FAQ');
+    backBtn.type = 'button';
+
+    const buttons = createElement('div', 'support-widget-nav');
+    buttons.appendChild(sendButton);
+    buttons.appendChild(backBtn);
+
+    const form = createElement('div', 'support-chat-form');
+    form.appendChild(input);
+    form.appendChild(buttons);
+
+    bodyContainer.appendChild(title);
+    bodyContainer.appendChild(helper);
+    bodyContainer.appendChild(statusEl);
+    bodyContainer.appendChild(messagesWrap);
+    bodyContainer.appendChild(errorEl);
+    bodyContainer.appendChild(form);
+
+    STATE.chatElements = {
+      messages: messagesWrap,
+      input,
+      status: statusEl,
+      error: errorEl,
+    };
+
+    function submitMessage() {
+      const value = input.value.trim();
+      if (!value) return;
+      input.value = '';
+      const now = new Date().toISOString();
+      STATE.chatMessages.push({ sender: 'user', text: value, created_at: now });
+      renderChatMessages();
+      sendChatMessage(value)?.then(fetchAndRenderMessages);
+    }
+
+    sendButton.addEventListener('click', submitMessage);
+    backBtn.addEventListener('click', () => {
+      STATE.mode = 'faq';
+      stopChatPolling();
+      renderCategories();
+    });
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        submitMessage();
+      }
+    });
+
+    renderChatMessages();
+  }
+
+  function switchToChat() {
+    ensureSessionKey();
+    startChatSession();
+    renderChat();
+    startChatPolling();
+  }
+
+  function generateSessionKey() {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      return crypto.randomUUID();
+    }
+    return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  }
+
+  function ensureSessionKey() {
+    if (STATE.sessionKey) {
+      return STATE.sessionKey;
+    }
+    let key = null;
+    try {
+      key = localStorage.getItem(SESSION_STORAGE_KEY);
+    } catch (e) {
+      // ignore
+    }
+    if (!key) {
+      key = generateSessionKey();
+      try {
+        localStorage.setItem(SESSION_STORAGE_KEY, key);
+      } catch (e) {
+        // ignore
+      }
+    }
+    STATE.sessionKey = key;
+    return key;
+  }
+
+  function stopChatPolling() {
+    if (STATE.chatTimer) {
+      clearInterval(STATE.chatTimer);
+      STATE.chatTimer = null;
+    }
+  }
+
+  function startChatPolling() {
+    stopChatPolling();
+    STATE.chatTimer = setInterval(fetchAndRenderMessages, POLL_INTERVAL_MS);
+    fetchAndRenderMessages();
+  }
+
+  function startChatSession() {
+    const session_key = ensureSessionKey();
+    return fetch('/api/webchat/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_key, page: window.location.href }),
+    })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error('Request failed');
+        }
+        return response.json();
+      })
+      .then((data) => {
+        STATE.sessionId = data?.session_id || null;
+        STATE.chatStatus = data?.status || 'open';
+        STATE.chatError = null;
+        return data;
+      })
+      .catch((err) => {
+        console.error('Support widget: failed to start chat', err);
+        STATE.chatError = CHAT_ERROR_MESSAGE;
+      });
+  }
+
+  function fetchAndRenderMessages() {
+    const session_key = ensureSessionKey();
+    fetch(`/api/webchat/messages?session_key=${encodeURIComponent(session_key)}&limit=50`)
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error('Request failed');
+        }
+        return response.json();
+      })
+      .then((data) => {
+        STATE.chatStatus = data?.status || 'open';
+        STATE.chatMessages = Array.isArray(data?.messages) ? data.messages : [];
+        STATE.chatError = null;
+        renderChatMessages();
+      })
+      .catch((err) => {
+        console.error('Support widget: failed to fetch messages', err);
+        STATE.chatError = CHAT_ERROR_MESSAGE;
+        renderChatMessages();
+      });
+  }
+
+  function sendChatMessage(text) {
+    const session_key = ensureSessionKey();
+    return fetch('/api/webchat/message', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_key, text }),
+    })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error('Request failed');
+        }
+        STATE.chatError = null;
+        return response.json();
+      })
+      .catch((err) => {
+        console.error('Support widget: failed to send message', err);
+        STATE.chatError = CHAT_ERROR_MESSAGE;
+        renderChatMessages();
+      });
   }
 
   const floatingButton = createElement('button', 'support-widget-floating-button', '❔');
@@ -76,7 +324,11 @@
 
     if (isOpen) {
       ensureFaqLoaded();
-      renderCategories();
+      if (STATE.mode === 'chat') {
+        switchToChat();
+      } else {
+        renderCategories();
+      }
     }
   }
 
@@ -85,6 +337,7 @@
       panel.classList.remove('open');
       panel.setAttribute('aria-hidden', 'true');
       floatingButton.setAttribute('aria-expanded', 'false');
+      stopChatPolling();
     }
   }
 
@@ -166,10 +419,19 @@
   function renderCategories() {
     bodyContainer.innerHTML = '';
 
+    STATE.mode = 'faq';
+    stopChatPolling();
+
     const introTitle = createElement('h4', null, 'Здравствуйте! Чем я могу помочь?');
     const introText = createElement('p', null, 'Выберите категорию, чтобы увидеть популярные вопросы. Все ответы собраны в базе знаний MiniDeN.');
+    const contactManager = createElement('button', 'support-widget-action-btn', 'Нужна помощь менеджера');
+    contactManager.type = 'button';
+    contactManager.addEventListener('click', () => {
+      switchToChat();
+    });
     bodyContainer.appendChild(introTitle);
     bodyContainer.appendChild(introText);
+    bodyContainer.appendChild(contactManager);
 
     if (STATE.loading) {
       const loading = createElement('div', 'support-widget-loading', 'Загружаем подсказки...');
@@ -335,6 +597,13 @@
     backToCategories.type = 'button';
     backToCategories.addEventListener('click', renderCategories);
     nav.appendChild(backToCategories);
+
+    const openChat = createElement('button', 'support-widget-action-btn', 'Нужна помощь менеджера');
+    openChat.type = 'button';
+    openChat.addEventListener('click', () => {
+      switchToChat();
+    });
+    nav.appendChild(openChat);
 
     const openTelegram = createElement('a', 'support-widget-telegram', 'Открыть чат в Telegram');
     openTelegram.href = TELEGRAM_BOT_URL;
