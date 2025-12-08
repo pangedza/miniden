@@ -361,3 +361,6 @@ Legacy
 - Сообщения пользователя сохраняются в БД и пересылаются администратору в Telegram.
 - Менеджер отвечает из Telegram, а ответ отображается прямо в окне веб-чата на сайте.
 - Вся логика работает без AI: только переписка пользователя и менеджера и внутренняя обработка сообщений.
+- Добавлены Pydantic-модели WebChatStartPayload, WebChatMessagePayload, WebChatManagerReplyPayload.
+- Это исправило ошибку NameError при старте сервиса, когда webapi.py не мог импортироваться из-за отсутствия класса.
+- Модели применяются для эндпоинтов /api/webchat/start, /api/webchat/message и /api/webchat/manager_reply.
