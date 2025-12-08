@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+from pydantic import BaseModel
+
 import hashlib
 import hmac
 import json
@@ -31,7 +33,7 @@ from fastapi import (
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
-from pydantic import BaseModel, Field
+from pydantic import Field
 from sqlalchemy.orm import Session
 
 from config import get_settings

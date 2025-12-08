@@ -382,3 +382,9 @@ Legacy
 - Виджет помощника теперь связан с API веб-чата: используется `/api/webchat/start` для старта сессии, `/api/webchat/message` для отправки сообщений и `/api/webchat/messages` для получения истории.
 - Ключ сессии сохраняется в `localStorage` под именем `support_widget_session_key`, благодаря чему история сообщений восстанавливается после перезагрузки страницы.
 - Пользовательские сообщения отправляются в backend и могут быть пересланы менеджеру в Telegram, а ответы менеджера подхватываются и отображаются в виджете через периодический опрос API.
+
+Добавлена корректная Pydantic-валидация для веб-чата:
+- WebChatStartPayload
+- WebChatMessagePayload
+- WebChatManagerReplyPayload
+Этим исправлена ошибка 422 при вызове /api/webchat/start и /api/webchat/message.
