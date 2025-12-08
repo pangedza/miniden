@@ -12,7 +12,8 @@ from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qsl
+from urllib.parse import parse_qsl, urlencode
+import urllib.request
 from uuid import uuid4
 
 from fastapi import (
@@ -47,6 +48,7 @@ from services import stats as stats_service
 from services import user_admin as user_admin_service
 from services import user_stats as user_stats_service
 from services import users as users_service
+from services import webchat_service
 from services.telegram_webapp_auth import authenticate_telegram_webapp_user
 from utils.texts import format_order_for_admin
 from schemas.home import HomeBannerIn, HomePostIn, HomeSectionIn
@@ -94,6 +96,45 @@ REQUIRED_DIRS = [
 def ensure_media_dirs() -> None:
     for d in REQUIRED_DIRS:
         d.mkdir(parents=True, exist_ok=True)
+
+
+def _send_message_to_admins(text: str) -> int | None:
+    admin_ids = list(getattr(SETTINGS, "admin_ids", set()) or [])
+    primary_admin = getattr(SETTINGS, "admin_chat_id", None)
+    if primary_admin and primary_admin not in admin_ids:
+        admin_ids.append(primary_admin)
+
+    if not BOT_TOKEN or not admin_ids:
+        return None
+
+    api_url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    message_id: int | None = None
+
+    for chat_id in admin_ids:
+        payload = urlencode({"chat_id": chat_id, "text": text}).encode()
+        try:
+            with urllib.request.urlopen(api_url, data=payload, timeout=10) as response:
+                data = json.load(response)
+        except Exception:
+            logger.exception("Failed to notify admin via Telegram")
+            continue
+
+        if data.get("ok") and message_id is None:
+            try:
+                message_id = int(data["result"]["message_id"])
+            except Exception:
+                message_id = None
+    return message_id
+
+
+def _notify_admin_about_chat(chat_session, preview_text: str) -> int | None:
+    snippet = (preview_text or "")[:200]
+    text = (
+        f"Новый чат с сайта #{chat_session.id}\n"
+        f"Текст: {snippet}\n"
+        "Чтобы ответить — ответьте на это сообщение."
+    )
+    return _send_message_to_admins(text)
 
 
 def _save_uploaded_image(file: UploadFile, base_folder: str) -> str:
@@ -173,6 +214,88 @@ def api_faq_detail(faq_id: int):
     return _faq_to_dict(item)
 
 
+@app.post("/api/webchat/start")
+def api_webchat_start(payload: WebChatStartPayload):
+    session = webchat_service.get_session_by_key(payload.session_key)
+    created = False
+    if not session:
+        session = webchat_service.get_or_create_session(payload.session_key)
+        created = True
+
+    if created:
+        try:
+            webchat_service.add_system_message(session, "Чат начат")
+        except Exception:
+            logger.exception("Failed to add system message for webchat start")
+
+    return {
+        "ok": True,
+        "session_id": int(session.id),
+        "status": session.status,
+        "created_at": session.created_at.isoformat() if session.created_at else None,
+    }
+
+
+@app.post("/api/webchat/message")
+def api_webchat_message(payload: WebChatMessagePayload):
+    session = webchat_service.get_session_by_key(payload.session_key)
+    if not session:
+        session = webchat_service.get_or_create_session(payload.session_key)
+
+    webchat_service.add_user_message(session, payload.text)
+
+    current_session = webchat_service.get_session_by_key(payload.session_key) or session
+    if current_session.status == "open":
+        webchat_service.mark_waiting_manager(current_session)
+
+    current_session = webchat_service.get_session_by_key(payload.session_key) or current_session
+    if (
+        current_session.status == "waiting_manager"
+        and not current_session.telegram_thread_message_id
+    ):
+        message_id = _notify_admin_about_chat(current_session, payload.text)
+        if message_id:
+            webchat_service.set_thread_message_id(current_session, message_id)
+
+    return {"ok": True}
+
+
+@app.get("/api/webchat/messages")
+def api_webchat_messages(session_key: str, limit: int = 50):
+    session = webchat_service.get_session_by_key(session_key)
+    if not session:
+        return {"ok": True, "status": "open", "messages": []}
+
+    messages = webchat_service.get_messages(session, limit=limit)
+
+    return {
+        "ok": True,
+        "status": session.status,
+        "messages": [
+            {
+                "sender": msg.sender,
+                "text": msg.text,
+                "created_at": msg.created_at.isoformat() if msg.created_at else None,
+            }
+            for msg in messages
+        ],
+    }
+
+
+@app.post("/api/webchat/manager_reply")
+def api_webchat_manager_reply(payload: WebChatManagerReplyPayload):
+    session = webchat_service.get_session_by_id(payload.session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    webchat_service.add_manager_message(session, payload.text)
+
+    if session.status == "waiting_manager":
+        webchat_service.mark_open(session)
+
+    return {"ok": True}
+
+
 def _validate_type(product_type: str) -> str:
     if product_type not in ALLOWED_TYPES:
         raise HTTPException(status_code=400, detail="type must be 'basket' or 'course'")
@@ -227,6 +350,21 @@ class FaqCreatePayload(BaseModel):
     category: str
     question: str
     answer: str
+
+
+class WebChatStartPayload(BaseModel):
+    session_key: str
+    page: str | None = None
+
+
+class WebChatMessagePayload(BaseModel):
+    session_key: str
+    text: str
+
+
+class WebChatManagerReplyPayload(BaseModel):
+    session_id: int
+    text: str
     sort_order: int | None = 0
 
 

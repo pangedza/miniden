@@ -347,6 +347,36 @@ class FaqItem(Base):
     )
 
 
+class WebChatSession(Base):
+    __tablename__ = "webchat_sessions"
+
+    id = Column(Integer, primary_key=True)
+    session_id = Column(String(64), unique=True, index=True, nullable=False)
+    status = Column(String(16), default="open", index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    telegram_thread_message_id = Column(BigInteger, nullable=True)
+
+    messages = relationship(
+        "WebChatMessage",
+        back_populates="session",
+        cascade="all, delete-orphan",
+        order_by="WebChatMessage.created_at",
+    )
+
+
+class WebChatMessage(Base):
+    __tablename__ = "webchat_messages"
+
+    id = Column(Integer, primary_key=True)
+    session_id = Column(Integer, ForeignKey("webchat_sessions.id"), nullable=False, index=True)
+    sender = Column(String(16), nullable=False)
+    text = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    session = relationship("WebChatSession", back_populates="messages")
+
+
 __all__ = [
     "Base",
     "AdminNote",
@@ -368,4 +398,6 @@ __all__ = [
     "HomeSection",
     "HomePost",
     "FaqItem",
+    "WebChatSession",
+    "WebChatMessage",
 ]
