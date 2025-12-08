@@ -370,3 +370,4 @@ Legacy
 - В webapi.py добавлен `from __future__ import annotations`, чтобы отложить вычисление аннотаций типов и избежать NameError при импортe.
 - Дополнительно добавлены и уточнены Pydantic-модели `WebChatStartPayload`, `WebChatMessagePayload`, `WebChatManagerReplyPayload`.
 - Эти модели используются эндпоинтами `/api/webchat/start`, `/api/webchat/message`, `/api/webchat/manager_reply` для корректной валидации payload'ов.
+- Добавлен виджет помощника (support_widget.css и support_widget.js), подключён на главной и ключевых страницах сайта. На текущем этапе показывает плавающую кнопку и простое окно чата без интеграции с API, чтобы проверить отображение.
