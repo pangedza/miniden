@@ -424,3 +424,8 @@ Legacy
 Исправлена отправка ответов менеджера с Telegram на сайт.
 session_id теперь передаётся как query-параметр, как ожидает FastAPI.
 Ошибка 400 session_id is required устранена.
+[FIX] WebChat manager_reply совместимость
+- POST /api/webchat/manager_reply теперь принимает session_id из query ИЛИ JSON body.
+- text берётся из body.
+- Ответ менеджера сохраняется в ту же историю сообщений, которую читает /api/webchat/messages.
+- /api/webchat/messages возвращает user+manager без фильтрации.
