@@ -397,3 +397,4 @@ Legacy
 - Админ отвечает reply на сообщение "Новый чат с сайта #ID" в Telegram.
 - Бот отправляет текст ответа на backend через POST /api/webchat/manager_reply.
 - Ответ отображается в веб-виджете на сайте через polling /api/webchat/messages.
+Исправлено: бот отправляет ответы менеджера на сайт через POST /api/webchat/manager_reply, раньше ошибочно использовался GET и backend отвечал 405 Method Not Allowed.
