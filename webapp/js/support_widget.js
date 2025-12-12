@@ -77,7 +77,8 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             session_key: sessionKey,
-            page: window.location.pathname || null
+            page: window.location.pathname || null,
+            user_identifier: sessionKey
           })
         });
         if (!resp.ok) {
@@ -103,8 +104,10 @@
 
       if (sender === 'user') {
         msg.classList.add('support-widget-msg--user', 'user');
-      } else {
+      } else if (sender === 'manager') {
         msg.classList.add('support-widget-msg--manager', 'manager');
+      } else {
+        msg.classList.add('support-widget-msg--manager', 'system');
       }
 
       msg.textContent = text;
@@ -166,7 +169,7 @@
     function renderMessages(messages) {
       if (!bodyEl || !Array.isArray(messages)) return;
       messages.forEach(function (m) {
-        const sender = m && m.sender === 'user' ? 'user' : 'manager';
+        const sender = m && m.sender ? m.sender : 'system';
         const key =
           m && m.id !== undefined && m.id !== null
             ? `id-${m.id}`

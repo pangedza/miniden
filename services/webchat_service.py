@@ -177,3 +177,43 @@ def set_thread_message_id(session: WebChatSession, message_id: int | None) -> No
             return
         chat_session.telegram_thread_message_id = message_id
         chat_session.updated_at = datetime.utcnow()
+
+
+def list_sessions(
+    *, status: str | None = None, limit: int | None = 100
+) -> list[tuple[WebChatSession, WebChatMessage | None]]:
+    with get_session() as db:
+        query = select(WebChatSession)
+        if status and status != "all":
+            query = query.where(WebChatSession.status == status)
+        query = query.order_by(WebChatSession.updated_at.desc(), WebChatSession.id.desc())
+        if limit:
+            query = query.limit(limit)
+
+        sessions: list[WebChatSession] = list(db.scalars(query).all())
+        last_messages: dict[int, WebChatMessage | None] = {}
+
+        for session in sessions:
+            last_messages[int(session.id)] = db.scalars(
+                select(WebChatMessage)
+                .where(WebChatMessage.session_id == session.id)
+                .order_by(WebChatMessage.created_at.desc(), WebChatMessage.id.desc())
+                .limit(1)
+            ).first()
+
+    return [(session, last_messages.get(int(session.id))) for session in sessions]
+
+
+def get_messages_by_session_id(session_id: int, limit: int | None = None) -> list[WebChatMessage]:
+    session = get_session_by_id(session_id)
+    if not session:
+        return []
+    return get_messages(session, limit=limit or 0)
+
+
+def close_session(session_id: int) -> bool:
+    session = get_session_by_id(session_id)
+    if not session:
+        return False
+    mark_closed(session)
+    return True

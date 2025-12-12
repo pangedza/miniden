@@ -9,6 +9,122 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/theme.css?v=20250521" />
 
+  <style>
+    .support-chat-layout {
+      display: grid;
+      grid-template-columns: minmax(220px, 280px) 1fr;
+      gap: 12px;
+      align-items: start;
+    }
+    .support-sessions {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.03);
+      max-height: 540px;
+      overflow-y: auto;
+    }
+    .support-session-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      text-align: left;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+    .support-session-item:hover,
+    .support-session-item:focus-visible {
+      background: rgba(255, 255, 255, 0.05);
+    }
+    .support-session-item.active {
+      background: rgba(255, 255, 255, 0.1);
+    }
+    .support-session-meta {
+      display: flex;
+      justify-content: space-between;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--muted-color, #9ea0ab);
+    }
+    .support-session-text {
+      font-size: 14px;
+      color: var(--text-primary, #fff);
+    }
+    .support-chat-pane {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.03);
+      padding: 12px;
+      min-height: 360px;
+    }
+    .support-messages-box {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+      min-height: 260px;
+      max-height: 420px;
+      overflow-y: auto;
+      background: rgba(255, 255, 255, 0.02);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .support-chat-message {
+      max-width: 80%;
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.08);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .support-chat-message.user {
+      margin-left: auto;
+      background: rgba(74, 222, 128, 0.12);
+    }
+    .support-chat-message.manager {
+      margin-right: auto;
+      background: rgba(255, 255, 255, 0.12);
+    }
+    .support-chat-message.system {
+      margin: 0 auto;
+      background: transparent;
+      color: var(--muted-color, #9ea0ab);
+      font-size: 13px;
+    }
+    .support-chat-actions {
+      margin-top: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .support-chat-buttons {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .support-chat-actions textarea {
+      width: 100%;
+      min-height: 70px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      padding: 8px;
+      background: rgba(255, 255, 255, 0.04);
+      color: inherit;
+    }
+    @media (max-width: 900px) {
+      .support-chat-layout {
+        grid-template-columns: 1fr;
+      }
+      .support-session-item {
+        padding: 8px 10px;
+      }
+      .support-chat-message {
+        max-width: 100%;
+      }
+    }
+  </style>
+
 </head>
 <body data-theme="purple" class="page-admin">
   <div class="admin-layout">
@@ -35,6 +151,7 @@
         <button class="nav-btn" data-view="home-cms">Главная страница</button>
         <button class="nav-btn" data-view="reviews">Отзывы</button>
         <button class="nav-btn" data-view="faq">FAQ (база знаний)</button>
+        <button class="nav-btn" data-view="support-chats">Чаты поддержки</button>
         <div class="nav-group" data-group="promocodes">
           <button class="nav-btn nav-parent" data-group-toggle="promocodes" data-default-view="promocode-list">Промокоды</button>
           <div class="nav-submenu">
@@ -736,6 +853,40 @@
         </div>
       </section>
 
+      <section id="support-chats" class="card admin-view" data-view="support-chats" style="display:none;">
+        <div class="section-header">
+          <div>
+            <h2>Чаты поддержки</h2>
+            <p class="muted">Отвечайте на вопросы клиентов прямо в админке.</p>
+          </div>
+          <div class="filters-row" style="gap:8px; align-items:center;">
+            <label for="support-status-filter" class="muted" style="margin:0;">Статус</label>
+            <select id="support-status-filter">
+              <option value="open">Открытые</option>
+              <option value="waiting_manager">Ожидают ответа</option>
+              <option value="closed">Закрытые</option>
+              <option value="all">Все</option>
+            </select>
+            <button class="btn secondary" type="button" id="support-refresh-btn">Обновить</button>
+          </div>
+        </div>
+
+        <div class="support-chat-layout">
+          <div class="support-sessions" id="support-sessions-list" aria-label="Список чатов поддержки"></div>
+          <div class="support-chat-pane">
+            <div id="support-chat-header" class="muted" style="margin-bottom:6px;">Выберите чат слева, чтобы начать диалог.</div>
+            <div id="support-messages" class="support-messages-box" aria-live="polite"></div>
+            <div class="support-chat-actions">
+              <textarea id="support-message-input" placeholder="Ответ менеджера..." aria-label="Ответ менеджера"></textarea>
+              <div class="support-chat-buttons">
+                <button class="btn primary" type="button" id="support-send-btn" disabled>Отправить</button>
+                <button class="btn secondary" type="button" id="support-close-btn" disabled>Закрыть чат</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section id="stats" class="card admin-view" data-view="stats" style="display:none;">
         <h2>Статистика</h2>
         <p class="muted">Статистика заказов и продаж остаётся доступной через существующий API. Эта вкладка — заглушка для будущего UI.</p>
@@ -787,6 +938,17 @@
     const faqAnswerInput = document.getElementById('faq-answer');
     const faqSortInput = document.getElementById('faq-sort');
     const faqResetBtn = document.getElementById('faq-reset');
+
+    const supportStatusFilter = document.getElementById('support-status-filter');
+    const supportSessionsList = document.getElementById('support-sessions-list');
+    const supportMessagesBox = document.getElementById('support-messages');
+    const supportMessageInput = document.getElementById('support-message-input');
+    const supportSendBtn = document.getElementById('support-send-btn');
+    const supportCloseBtn = document.getElementById('support-close-btn');
+    const supportRefreshBtn = document.getElementById('support-refresh-btn');
+    const supportChatHeader = document.getElementById('support-chat-header');
+
+    if (supportMessageInput) supportMessageInput.disabled = true;
 
     const productCategoryFilter = document.getElementById('products-category');
     const courseCategoryFilter = document.getElementById('courses-category');
@@ -965,6 +1127,11 @@
     let currentSectionId = null;
     let currentPostId = null;
     let currentFaqId = null;
+    let supportSessions = [];
+    let activeSupportSessionId = null;
+    let supportSessionsTimer = null;
+    let supportMessagesTimer = null;
+    let currentView = 'orders';
     const productSubmitBtn = productForm?.querySelector('button[type="submit"]');
     const courseSubmitBtn = courseForm?.querySelector('button[type="submit"]');
     const promoSubmitBtn = promoCreateForm?.querySelector('button[type="submit"]');
@@ -1042,10 +1209,233 @@
       return handleResponse(res);
     }
 
+    function stopSupportMessagesPolling() {
+      if (supportMessagesTimer) {
+        window.clearInterval(supportMessagesTimer);
+        supportMessagesTimer = null;
+      }
+    }
+
+    function stopSupportPolling() {
+      stopSupportMessagesPolling();
+      if (supportSessionsTimer) {
+        window.clearInterval(supportSessionsTimer);
+        supportSessionsTimer = null;
+      }
+    }
+
+    function startSupportSessionsPolling() {
+      if (supportSessionsTimer) window.clearInterval(supportSessionsTimer);
+      supportSessionsTimer = window.setInterval(() => {
+        if (currentView === 'support-chats') {
+          loadSupportSessions();
+        }
+      }, 8000);
+    }
+
+    function startSupportMessagesPolling() {
+      stopSupportMessagesPolling();
+      if (!activeSupportSessionId) return;
+      supportMessagesTimer = window.setInterval(() => {
+        if (currentView === 'support-chats') {
+          loadSupportMessages();
+        }
+      }, 3000);
+    }
+
+    function findSupportSession(sessionId) {
+      return supportSessions.find((s) => Number(s.session_id) === Number(sessionId));
+    }
+
+    function renderSupportSessions(items = []) {
+      if (!supportSessionsList) return;
+      supportSessionsList.innerHTML = '';
+      if (!items.length) {
+        const empty = document.createElement('div');
+        empty.className = 'muted';
+        empty.style.padding = '12px';
+        empty.textContent = 'Нет чатов поддержки';
+        supportSessionsList.appendChild(empty);
+        return;
+      }
+
+      items.forEach((session) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'support-session-item';
+        if (Number(session.session_id) === Number(activeSupportSessionId)) {
+          btn.classList.add('active');
+        }
+
+        const header = document.createElement('div');
+        header.className = 'support-session-meta';
+        const status = session.status || 'open';
+        const dateLabel = session.updated_at
+          ? new Date(session.updated_at).toLocaleString('ru-RU')
+          : session.created_at
+            ? new Date(session.created_at).toLocaleString('ru-RU')
+            : '';
+        header.innerHTML = `<span>#${session.session_id}</span><span>${status}</span>`;
+
+        const text = document.createElement('div');
+        text.className = 'support-session-text';
+        const preview = truncateText(session.last_message || 'Без сообщений', 90);
+        const senderLabel = session.last_sender === 'user' ? 'Клиент' : session.last_sender === 'manager' ? 'Менеджер' : '—';
+        text.textContent = `${senderLabel !== '—' ? senderLabel + ': ' : ''}${preview}`;
+
+        const footer = document.createElement('div');
+        footer.className = 'support-session-meta';
+        footer.innerHTML = `<span>${session.session_key || ''}</span><span>${dateLabel}</span>`;
+
+        btn.appendChild(header);
+        btn.appendChild(text);
+        btn.appendChild(footer);
+
+        btn.addEventListener('click', () => openSupportSession(session.session_id));
+        supportSessionsList.appendChild(btn);
+      });
+    }
+
+    async function loadSupportSessions() {
+      if (!currentUser) return;
+      try {
+        const status = supportStatusFilter?.value || 'open';
+        const data = await apiGet('/admin/support/sessions', {
+          user_id: currentUser.telegram_id,
+          status,
+        });
+        supportSessions = data?.items || [];
+        renderSupportSessions(supportSessions);
+
+        if (activeSupportSessionId) {
+          const stillExists = findSupportSession(activeSupportSessionId);
+          if (!stillExists) {
+            activeSupportSessionId = null;
+            stopSupportMessagesPolling();
+            supportSendBtn.disabled = true;
+            supportCloseBtn.disabled = true;
+            if (supportMessageInput) supportMessageInput.disabled = true;
+            supportChatHeader.textContent = 'Выберите чат слева, чтобы начать диалог.';
+            if (supportMessagesBox) supportMessagesBox.innerHTML = '';
+          }
+        }
+      } catch (e) {
+        handleError(e, 'Не удалось загрузить чаты поддержки');
+      }
+    }
+
+    function renderSupportMessages(messages = []) {
+      if (!supportMessagesBox) return;
+      supportMessagesBox.innerHTML = '';
+      if (!messages.length) {
+        const empty = document.createElement('div');
+        empty.className = 'muted';
+        empty.textContent = 'Сообщений пока нет';
+        supportMessagesBox.appendChild(empty);
+        return;
+      }
+
+      messages.forEach((msg) => {
+        const wrapper = document.createElement('div');
+        const sender = msg.sender || 'system';
+        wrapper.className = `support-chat-message ${sender}`;
+
+        const text = document.createElement('div');
+        text.textContent = msg.text || '';
+        wrapper.appendChild(text);
+
+        if (msg.created_at) {
+          const meta = document.createElement('div');
+          meta.className = 'muted';
+          meta.style.fontSize = '11px';
+          meta.style.marginTop = '4px';
+          meta.textContent = new Date(msg.created_at).toLocaleString('ru-RU');
+          wrapper.appendChild(meta);
+        }
+
+        supportMessagesBox.appendChild(wrapper);
+      });
+
+      supportMessagesBox.scrollTop = supportMessagesBox.scrollHeight;
+    }
+
+    async function loadSupportMessages() {
+      if (!currentUser || !activeSupportSessionId) return;
+      try {
+        const data = await apiGet('/admin/support/messages', {
+          user_id: currentUser.telegram_id,
+          session_id: activeSupportSessionId,
+        });
+        renderSupportMessages(data?.items || []);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function openSupportSession(sessionId) {
+      activeSupportSessionId = sessionId;
+      const session = findSupportSession(sessionId);
+      renderSupportSessions(supportSessions);
+      const isClosed = !session || session.status === 'closed';
+      if (supportMessageInput) supportMessageInput.disabled = isClosed;
+      supportSendBtn.disabled = !session || isClosed;
+      supportCloseBtn.disabled = !session || session.status === 'closed';
+      supportChatHeader.textContent = session
+        ? `Чат #${session.session_id} · ${session.status || 'open'}`
+        : 'Чат не найден';
+      await loadSupportMessages();
+      startSupportMessagesPolling();
+    }
+
+    async function sendSupportMessage() {
+      if (!currentUser || !activeSupportSessionId || !supportMessageInput) return;
+      const text = supportMessageInput.value.trim();
+      if (!text) return;
+      try {
+        supportSendBtn.disabled = true;
+        await apiPost('/admin/support/message', {
+          user_id: currentUser.telegram_id,
+          session_id: activeSupportSessionId,
+          text,
+        });
+        supportMessageInput.value = '';
+        await Promise.all([loadSupportMessages(), loadSupportSessions()]);
+      } catch (e) {
+        handleError(e, 'Не удалось отправить сообщение');
+      } finally {
+        supportSendBtn.disabled = false;
+      }
+    }
+
+    async function closeSupportSession() {
+      if (!currentUser || !activeSupportSessionId) return;
+      try {
+        supportCloseBtn.disabled = true;
+        await apiPost('/admin/support/close', {
+          user_id: currentUser.telegram_id,
+          session_id: activeSupportSessionId,
+        });
+        await loadSupportSessions();
+        await loadSupportMessages();
+        const session = findSupportSession(activeSupportSessionId);
+        if (session?.status === 'closed') {
+          supportSendBtn.disabled = true;
+          if (supportMessageInput) supportMessageInput.disabled = true;
+          supportCloseBtn.disabled = true;
+        }
+      } catch (e) {
+        handleError(e, 'Не удалось закрыть чат');
+      } finally {
+        const sessionAfter = findSupportSession(activeSupportSessionId);
+        supportCloseBtn.disabled = sessionAfter?.status === 'closed';
+      }
+    }
+
     function showSection(id) {
       document.querySelectorAll('.admin-view').forEach((el) => {
         el.style.display = el.dataset.view === id ? 'block' : 'none';
       });
+      currentView = id;
       navLinks.forEach((btn) => {
         const isActive = btn.dataset.view === id;
         btn.classList.toggle('active', isActive);
@@ -1057,6 +1447,9 @@
     }
 
     function handleViewNavigation(view) {
+      if (view !== 'support-chats') {
+        stopSupportPolling();
+      }
       showSection(view);
       if (view === 'product-categories') {
         loadProductCategories();
@@ -1081,6 +1474,11 @@
       }
       if (view === 'faq') {
         loadFaqItems();
+      }
+      if (view === 'support-chats') {
+        loadSupportSessions();
+        startSupportSessionsPolling();
+        startSupportMessagesPolling();
       }
       if (view === 'home-cms') {
         showHomeTab('banners');
@@ -1139,6 +1537,23 @@
           handleViewNavigation(defaultView);
         }
       });
+    });
+
+    supportStatusFilter?.addEventListener('change', () => {
+      loadSupportSessions();
+    });
+
+    supportRefreshBtn?.addEventListener('click', () => {
+      loadSupportSessions();
+    });
+
+    supportSendBtn?.addEventListener('click', sendSupportMessage);
+    supportCloseBtn?.addEventListener('click', closeSupportSession);
+    supportMessageInput?.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+        event.preventDefault();
+        sendSupportMessage();
+      }
     });
 
     faqAddBtn?.addEventListener('click', () => {
