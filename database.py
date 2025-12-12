@@ -72,6 +72,10 @@ def init_db() -> None:
             "ALTER TABLE webchat_sessions ADD COLUMN IF NOT EXISTS user_identifier TEXT",
             "ALTER TABLE webchat_sessions ADD COLUMN IF NOT EXISTS user_agent TEXT",
             "ALTER TABLE webchat_sessions ADD COLUMN IF NOT EXISTS client_ip VARCHAR(64)",
+            "ALTER TABLE webchat_sessions ADD COLUMN IF NOT EXISTS last_message_at TIMESTAMP",
+            "ALTER TABLE webchat_sessions ADD COLUMN IF NOT EXISTS unread_for_manager INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE webchat_messages ADD COLUMN IF NOT EXISTS is_read_by_manager BOOLEAN NOT NULL DEFAULT FALSE",
+            "ALTER TABLE webchat_messages ADD COLUMN IF NOT EXISTS is_read_by_client BOOLEAN NOT NULL DEFAULT FALSE",
         ]
 
         with engine.begin() as conn:
@@ -81,6 +85,16 @@ def init_db() -> None:
             conn.execute(
                 text(
                     "UPDATE webchat_sessions SET session_key = session_id WHERE session_key IS NULL"
+                )
+            )
+
+            conn.execute(
+                text(
+                    """
+                    UPDATE webchat_sessions
+                    SET last_message_at = COALESCE(last_message_at, updated_at, created_at)
+                    WHERE last_message_at IS NULL
+                    """
                 )
             )
 

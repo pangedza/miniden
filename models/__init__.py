@@ -359,6 +359,8 @@ class WebChatSession(Base):
     status = Column(String(16), default="open", index=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    last_message_at = Column(DateTime, nullable=True, index=True)
+    unread_for_manager = Column(Integer, default=0, nullable=False)
     telegram_thread_message_id = Column(BigInteger, nullable=True)
 
     messages = relationship(
@@ -377,6 +379,8 @@ class WebChatMessage(Base):
     sender = Column(String(16), nullable=False)
     text = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    is_read_by_manager = Column(Boolean, nullable=False, default=False)
+    is_read_by_client = Column(Boolean, nullable=False, default=False)
 
     session = relationship("WebChatSession", back_populates="messages")
 

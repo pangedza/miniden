@@ -128,15 +128,22 @@ def ensure_media_dirs() -> None:
 
 
 class WebChatStartPayload(BaseModel):
-    session_key: str
+    session_key: str | None = None
     page: str | None = None
+    referrer: str | None = None
     user_identifier: str | None = None
+
+    class Config:
+        extra = "ignore"
 
 
 class WebChatMessagePayload(BaseModel):
-    session_key: str
-    text: str
+    session_key: str | None = None
+    text: str | None = None
     user_identifier: str | None = None
+
+    class Config:
+        extra = "ignore"
 
 
 class WebChatManagerReplyPayload(BaseModel):
@@ -145,6 +152,15 @@ class WebChatManagerReplyPayload(BaseModel):
     text: str | None = None
     message: str | None = None
     reply: str | None = None
+
+
+class AdminWebChatSendPayload(BaseModel):
+    session_id: int
+    text: str
+
+
+class AdminWebChatClosePayload(BaseModel):
+    session_id: int
 
 
 def _send_message_to_admins(text: str) -> list[int]:
@@ -276,7 +292,9 @@ def api_faq_detail(faq_id: int):
 
 
 @app.post("/api/webchat/start")
-async def api_webchat_start(request: Request, payload: WebChatStartPayload = Body(...)):
+async def api_webchat_start(
+    request: Request, payload: WebChatStartPayload = Body(default=WebChatStartPayload())
+):
     """
     Старт/инициализация сессии веб-чата.
     Ожидается JSON:
@@ -335,7 +353,9 @@ async def api_webchat_start(request: Request, payload: WebChatStartPayload = Bod
 
 
 @app.post("/api/webchat/message")
-async def api_webchat_message(request: Request, payload: WebChatMessagePayload = Body(...)):
+async def api_webchat_message(
+    request: Request, payload: WebChatMessagePayload = Body(default=WebChatMessagePayload())
+):
     """
     Приём сообщения пользователя из веб-чата.
     Ожидается JSON:
@@ -362,23 +382,14 @@ async def api_webchat_message(request: Request, payload: WebChatMessagePayload =
         user_identifier,
     )
 
-    session = webchat_service.get_session_by_key(session_key)
-    if not session:
-        session = webchat_service.get_or_create_session(
-            session_key,
-            user_identifier=user_identifier,
-            user_agent=user_agent,
-            client_ip=client_ip,
-        )
-    else:
-        session = webchat_service.get_or_create_session(
-            session_key,
-            user_identifier=user_identifier,
-            user_agent=user_agent,
-            client_ip=client_ip,
-        )
+    session = webchat_service.get_or_create_session(
+        session_key,
+        user_identifier=user_identifier,
+        user_agent=user_agent,
+        client_ip=client_ip,
+    )
 
-    webchat_service.add_user_message(session, text)
+    message = webchat_service.add_user_message(session, text)
 
     current_session = webchat_service.get_session_by_key(session_key) or session
     if current_session.status == "open":
@@ -393,16 +404,20 @@ async def api_webchat_message(request: Request, payload: WebChatMessagePayload =
         if message_ids:
             webchat_service.set_thread_message_id(current_session, message_ids[0])
 
-    return {"ok": True}
+    return {"ok": True, "message_id": int(message.id), "text": text}
 
 
 @app.get("/api/webchat/messages", response_model=WebChatMessagesResponse)
-def api_webchat_messages(session_key: str, limit: Optional[int] = None):
+def api_webchat_messages(
+    session_key: str, limit: Optional[int] = None, after_id: int = 0
+):
     session = webchat_service.get_session_by_key(session_key)
     if not session:
         return {"ok": True, "status": "open", "messages": []}
 
-    messages = webchat_service.get_messages(session, limit=limit)
+    messages = webchat_service.get_messages(
+        session, limit=limit, after_id=after_id, mark_read_for="client"
+    )
 
     payload_messages = []
     for msg in messages:
@@ -412,6 +427,8 @@ def api_webchat_messages(session_key: str, limit: Optional[int] = None):
                 "sender": msg.sender,
                 "text": msg.text,
                 "created_at": msg.created_at.isoformat() if msg.created_at else None,
+                "is_read_by_manager": msg.is_read_by_manager,
+                "is_read_by_client": msg.is_read_by_client,
             }
         )
 
@@ -446,11 +463,11 @@ async def _handle_manager_reply(
 
 @app.post("/api/webchat/manager_reply")
 async def api_webchat_manager_reply(
+    payload: WebChatManagerReplyPayload = Body(default=WebChatManagerReplyPayload()),
     session_id: int | None = Query(default=None),
     text: str | None = Query(default=None),
-    payload: WebChatManagerReplyPayload = Body(default=WebChatManagerReplyPayload()),
 ):
-    sid = session_id if session_id is not None else payload.session_id
+    sid = payload.session_id if payload.session_id is not None else session_id
     session_key = payload.session_key
     reply_text = payload.text or payload.message or payload.reply or text
 
@@ -2244,7 +2261,88 @@ def _serialize_webchat_message(msg) -> dict:
         "text": msg.text,
         "sender": msg.sender,
         "created_at": msg.created_at.isoformat() if msg.created_at else None,
+        "is_read_by_manager": getattr(msg, "is_read_by_manager", None),
+        "is_read_by_client": getattr(msg, "is_read_by_client", None),
     }
+
+
+@app.get("/api/admin/webchat/sessions", response_model=SupportSessionList)
+def admin_webchat_sessions(
+    request: Request,
+    status: str = "open",
+    search: str | None = None,
+    page: int = 1,
+    limit: int = 50,
+    admin: User = Depends(get_admin_user),
+):
+    normalized_status = status if status != "all" else None
+    sessions = webchat_service.list_sessions(
+        status=normalized_status, limit=limit, search=search, page=page
+    )
+
+    items = []
+    for session, last_message in sessions:
+        items.append(
+            {
+                "session_id": int(session.id),
+                "session_key": session.session_key or session.session_id,
+                "status": session.status,
+                "created_at": session.created_at.isoformat() if session.created_at else None,
+                "updated_at": session.updated_at.isoformat() if session.updated_at else None,
+                "last_message": last_message.text if last_message else None,
+                "last_sender": last_message.sender if last_message else None,
+                "last_message_at": session.last_message_at.isoformat()
+                if session.last_message_at
+                else None,
+                "unread_for_manager": int(session.unread_for_manager or 0),
+            }
+        )
+
+    return {"items": items}
+
+
+@app.get("/api/admin/webchat/messages", response_model=SupportMessageList)
+def admin_webchat_messages(
+    session_id: int,
+    after_id: int = 0,
+    limit: int | None = None,
+    admin: User = Depends(get_admin_user),
+):
+    session = webchat_service.get_session_by_id(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    messages = webchat_service.get_messages(
+        session, limit=limit, after_id=after_id, mark_read_for="manager"
+    )
+    return {"items": [_serialize_webchat_message(msg) for msg in messages]}
+
+
+@app.post("/api/admin/webchat/send", response_model=SupportMessage)
+def admin_webchat_send(
+    payload: AdminWebChatSendPayload, admin: User = Depends(get_admin_user)
+):
+    if not payload.text:
+        raise HTTPException(status_code=400, detail="text is required")
+
+    session = webchat_service.get_session_by_id(payload.session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    message = webchat_service.add_manager_message(session, payload.text)
+    return _serialize_webchat_message(message)
+
+
+@app.post("/api/admin/webchat/close")
+def admin_webchat_close(
+    payload: AdminWebChatClosePayload, admin: User = Depends(get_admin_user)
+):
+    session = webchat_service.get_session_by_id(payload.session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    webchat_service.mark_closed(session)
+    return {"ok": True}
 
 
 @app.get("/api/admin/support/sessions", response_model=SupportSessionList)
@@ -2277,7 +2375,9 @@ def admin_support_messages(user_id: int, session_id: int):
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    messages = webchat_service.get_messages(session, limit=None)
+    messages = webchat_service.get_messages(
+        session, limit=None, mark_read_for="manager"
+    )
     return {"items": [_serialize_webchat_message(msg) for msg in messages]}
 
 

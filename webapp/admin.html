@@ -151,7 +151,7 @@
         <button class="nav-btn" data-view="home-cms">Главная страница</button>
         <button class="nav-btn" data-view="reviews">Отзывы</button>
         <button class="nav-btn" data-view="faq">FAQ (база знаний)</button>
-        <button class="nav-btn" data-view="support-chats">Чаты поддержки</button>
+        <button class="nav-btn" data-view="support-chats">Чаты</button>
         <div class="nav-group" data-group="promocodes">
           <button class="nav-btn nav-parent" data-group-toggle="promocodes" data-default-view="promocode-list">Промокоды</button>
           <div class="nav-submenu">
@@ -856,7 +856,7 @@
       <section id="support-chats" class="card admin-view" data-view="support-chats" style="display:none;">
         <div class="section-header">
           <div>
-            <h2>Чаты поддержки</h2>
+            <h2>Чаты</h2>
             <p class="muted">Отвечайте на вопросы клиентов прямо в админке.</p>
           </div>
           <div class="filters-row" style="gap:8px; align-items:center;">
@@ -1131,6 +1131,7 @@
     let activeSupportSessionId = null;
     let supportSessionsTimer = null;
     let supportMessagesTimer = null;
+    let supportLastMessageId = 0;
     let currentView = 'orders';
     const productSubmitBtn = productForm?.querySelector('button[type="submit"]');
     const courseSubmitBtn = courseForm?.querySelector('button[type="submit"]');
@@ -1238,7 +1239,7 @@
       if (!activeSupportSessionId) return;
       supportMessagesTimer = window.setInterval(() => {
         if (currentView === 'support-chats') {
-          loadSupportMessages();
+          loadSupportMessages({ append: true });
         }
       }, 3000);
     }
@@ -1269,13 +1270,25 @@
 
         const header = document.createElement('div');
         header.className = 'support-session-meta';
+        header.style.alignItems = 'center';
+        header.style.gap = '6px';
         const status = session.status || 'open';
-        const dateLabel = session.updated_at
-          ? new Date(session.updated_at).toLocaleString('ru-RU')
-          : session.created_at
-            ? new Date(session.created_at).toLocaleString('ru-RU')
-            : '';
+        const dateLabel = session.last_message_at
+          ? new Date(session.last_message_at).toLocaleString('ru-RU')
+          : session.updated_at
+            ? new Date(session.updated_at).toLocaleString('ru-RU')
+            : session.created_at
+              ? new Date(session.created_at).toLocaleString('ru-RU')
+              : '';
         header.innerHTML = `<span>#${session.session_id}</span><span>${status}</span>`;
+        const unread = Number(session.unread_for_manager || 0);
+        if (unread > 0) {
+          const unreadBadge = document.createElement('span');
+          unreadBadge.className = 'admin-pill';
+          unreadBadge.textContent = unread > 99 ? '99+' : unread;
+          unreadBadge.title = 'Новые сообщения клиента';
+          header.appendChild(unreadBadge);
+        }
 
         const text = document.createElement('div');
         text.className = 'support-session-text';
@@ -1300,9 +1313,9 @@
       if (!currentUser) return;
       try {
         const status = supportStatusFilter?.value || 'open';
-        const data = await apiGet('/admin/support/sessions', {
-          user_id: currentUser.telegram_id,
+        const data = await apiGet('/admin/webchat/sessions', {
           status,
+          limit: 50,
         });
         supportSessions = data?.items || [];
         renderSupportSessions(supportSessions);
@@ -1324,10 +1337,16 @@
       }
     }
 
-    function renderSupportMessages(messages = []) {
+    function renderSupportMessages(messages = [], options = {}) {
+      const { append = false } = options;
       if (!supportMessagesBox) return;
-      supportMessagesBox.innerHTML = '';
-      if (!messages.length) {
+
+      if (!append) {
+        supportLastMessageId = 0;
+        supportMessagesBox.innerHTML = '';
+      }
+
+      if (!messages.length && !supportMessagesBox.children.length) {
         const empty = document.createElement('div');
         empty.className = 'muted';
         empty.textContent = 'Сообщений пока нет';
@@ -1353,20 +1372,32 @@
           wrapper.appendChild(meta);
         }
 
+        if (msg.id) {
+          supportLastMessageId = Math.max(supportLastMessageId, Number(msg.id));
+        }
+
         supportMessagesBox.appendChild(wrapper);
       });
 
       supportMessagesBox.scrollTop = supportMessagesBox.scrollHeight;
     }
 
-    async function loadSupportMessages() {
+    async function loadSupportMessages(options = {}) {
       if (!currentUser || !activeSupportSessionId) return;
+      const { append = false } = options;
       try {
-        const data = await apiGet('/admin/support/messages', {
-          user_id: currentUser.telegram_id,
+        const data = await apiGet('/admin/webchat/messages', {
           session_id: activeSupportSessionId,
+          after_id: append ? supportLastMessageId : 0,
         });
-        renderSupportMessages(data?.items || []);
+        const items = data?.items || [];
+        if (!items.length && append) return;
+        renderSupportMessages(items, { append });
+        const activeSession = findSupportSession(activeSupportSessionId);
+        if (activeSession) {
+          activeSession.unread_for_manager = 0;
+          renderSupportSessions(supportSessions);
+        }
       } catch (e) {
         console.error(e);
       }
@@ -1375,6 +1406,10 @@
     async function openSupportSession(sessionId) {
       activeSupportSessionId = sessionId;
       const session = findSupportSession(sessionId);
+      supportLastMessageId = 0;
+      if (session) {
+        session.unread_for_manager = 0;
+      }
       renderSupportSessions(supportSessions);
       const isClosed = !session || session.status === 'closed';
       if (supportMessageInput) supportMessageInput.disabled = isClosed;
@@ -1393,13 +1428,12 @@
       if (!text) return;
       try {
         supportSendBtn.disabled = true;
-        await apiPost('/admin/support/message', {
-          user_id: currentUser.telegram_id,
+        await apiPost('/admin/webchat/send', {
           session_id: activeSupportSessionId,
           text,
         });
         supportMessageInput.value = '';
-        await Promise.all([loadSupportMessages(), loadSupportSessions()]);
+        await Promise.all([loadSupportMessages({ append: true }), loadSupportSessions()]);
       } catch (e) {
         handleError(e, 'Не удалось отправить сообщение');
       } finally {
@@ -1411,8 +1445,7 @@
       if (!currentUser || !activeSupportSessionId) return;
       try {
         supportCloseBtn.disabled = true;
-        await apiPost('/admin/support/close', {
-          user_id: currentUser.telegram_id,
+        await apiPost('/admin/webchat/close', {
           session_id: activeSupportSessionId,
         });
         await loadSupportSessions();
