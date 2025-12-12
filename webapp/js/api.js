@@ -15,25 +15,38 @@ function buildUrl(path, params = {}) {
 
 async function handleResponse(res) {
   if (res.status === 204) return null;
+  const contentType = res.headers.get("content-type") || "";
+  const isJson = contentType.includes("application/json");
   const text = await res.text();
   let data = null;
-  try {
-    data = text ? JSON.parse(text) : null;
-  } catch (error) {
-    console.error("Failed to parse JSON", error, text);
-    const parseError = new Error("Ошибка сервера: неверный формат ответа");
-    parseError.status = res.status;
-    parseError.data = { raw: text };
-    throw parseError;
+
+  if (isJson) {
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch (error) {
+      console.error("Failed to parse JSON", error, text);
+      const parseError = new Error("Ошибка сервера: неверный формат ответа");
+      parseError.status = res.status;
+      parseError.data = { raw: text };
+      throw parseError;
+    }
   }
 
   if (!res.ok) {
-    const message = (data && (data.detail || data.message)) || text || "Ошибка API";
+    const message =
+      (data && (data.detail || data.message)) ||
+      (text && !isJson ? "Сервер временно недоступен" : text) ||
+      "Ошибка API";
     const error = new Error(message);
     error.status = res.status;
-    error.data = data;
+    error.data = data || { raw: text };
     throw error;
   }
+
+  if (!isJson) {
+    return { raw: text };
+  }
+
   return data;
 }
 
