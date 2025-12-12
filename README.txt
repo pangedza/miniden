@@ -398,3 +398,5 @@ Legacy
 - Бот отправляет текст ответа на backend через POST /api/webchat/manager_reply.
 - Ответ отображается в веб-виджете на сайте через polling /api/webchat/messages.
 Исправлено: бот отправляет ответы менеджера на сайт через POST /api/webchat/manager_reply, раньше ошибочно использовался GET и backend отвечал 405 Method Not Allowed.
+Исправлено: в handlers/site_chat.py функция _post_json теперь реально делает POST-запрос.
+Это устранило 405 Method Not Allowed при отправке ответа менеджера на /api/webchat/manager_reply.
