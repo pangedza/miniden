@@ -35,6 +35,7 @@ from fastapi import (
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.exceptions import RequestValidationError
 from pydantic import Field
 from sqlalchemy.orm import Session
 
@@ -87,6 +88,20 @@ async def json_exception_handler(request: Request, exc: Exception) -> JSONRespon
     return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
 
 
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(
+    request: Request, exc: RequestValidationError
+) -> JSONResponse:
+    body_preview = getattr(exc, "body", None)
+    logger.warning(
+        "Validation failed on %s: errors=%s body_keys=%s",
+        request.url.path,
+        exc.errors(),
+        list(body_preview.keys()) if isinstance(body_preview, dict) else None,
+    )
+    return JSONResponse(status_code=422, content={"detail": exc.errors()})
+
+
 ALLOWED_TYPES = {"basket", "course"}
 
 SETTINGS = get_settings()
@@ -110,6 +125,26 @@ REQUIRED_DIRS = [
 def ensure_media_dirs() -> None:
     for d in REQUIRED_DIRS:
         d.mkdir(parents=True, exist_ok=True)
+
+
+class WebChatStartPayload(BaseModel):
+    session_key: str
+    page: str | None = None
+    user_identifier: str | None = None
+
+
+class WebChatMessagePayload(BaseModel):
+    session_key: str
+    text: str
+    user_identifier: str | None = None
+
+
+class WebChatManagerReplyPayload(BaseModel):
+    session_id: int | None = None
+    session_key: str | None = None
+    text: str | None = None
+    message: str | None = None
+    reply: str | None = None
 
 
 def _send_message_to_admins(text: str) -> list[int]:
@@ -221,6 +256,11 @@ def api_home():
     return home_service.get_active_home_data()
 
 
+@app.get("/api/health")
+def api_health():
+    return {"ok": True}
+
+
 @app.get("/api/faq")
 def api_faq(category: str | None = None):
     items = faq_service.get_faq_list(category)
@@ -236,7 +276,7 @@ def api_faq_detail(faq_id: int):
 
 
 @app.post("/api/webchat/start")
-async def api_webchat_start(payload: dict = Body(...), request: Request | None = None):
+async def api_webchat_start(request: Request, payload: WebChatStartPayload = Body(...)):
     """
     Старт/инициализация сессии веб-чата.
     Ожидается JSON:
@@ -245,14 +285,21 @@ async def api_webchat_start(payload: dict = Body(...), request: Request | None =
       "page": "опционально, строка"
     }
     """
-    session_key = payload.get("session_key")
-    page = payload.get("page")
-    user_identifier = payload.get("user_identifier") or payload.get("user") or payload.get("username")
-    user_agent = request.headers.get("user-agent") if request else None
+    session_key = payload.session_key
+    page = payload.page
+    user_identifier = payload.user_identifier
+    user_agent = request.headers.get("user-agent")
     client_ip = request.client.host if request and request.client else None
 
     if not session_key:
         raise HTTPException(status_code=400, detail="session_key is required")
+
+    logger.info(
+        "webchat_start: session_key=%s page=%s user_identifier=%s",
+        session_key,
+        page,
+        user_identifier,
+    )
 
     session = webchat_service.get_session_by_key(session_key)
     created = False
@@ -281,13 +328,14 @@ async def api_webchat_start(payload: dict = Body(...), request: Request | None =
     return {
         "ok": True,
         "session_id": int(session.id),
+        "session_key": session.session_key,
         "status": session.status,
         "created_at": session.created_at.isoformat() if session.created_at else None,
     }
 
 
 @app.post("/api/webchat/message")
-async def api_webchat_message(payload: dict = Body(...), request: Request | None = None):
+async def api_webchat_message(request: Request, payload: WebChatMessagePayload = Body(...)):
     """
     Приём сообщения пользователя из веб-чата.
     Ожидается JSON:
@@ -296,16 +344,23 @@ async def api_webchat_message(payload: dict = Body(...), request: Request | None
       "text": "строка"
     }
     """
-    session_key = payload.get("session_key")
-    text = payload.get("text")
-    user_identifier = payload.get("user_identifier") or payload.get("user") or payload.get("username")
-    user_agent = request.headers.get("user-agent") if request else None
+    session_key = payload.session_key
+    text = payload.text
+    user_identifier = payload.user_identifier
+    user_agent = request.headers.get("user-agent")
     client_ip = request.client.host if request and request.client else None
 
     if not session_key:
         raise HTTPException(status_code=400, detail="session_key is required")
     if not text:
         raise HTTPException(status_code=400, detail="text is required")
+
+    logger.info(
+        "webchat_message: session_key=%s text_len=%s user_identifier=%s",
+        session_key,
+        len(text or ""),
+        user_identifier,
+    )
 
     session = webchat_service.get_session_by_key(session_key)
     if not session:
@@ -372,7 +427,10 @@ async def _handle_manager_reply(
 ):
     session = None
     if session_id is not None:
-        session = webchat_service.get_session_by_id(session_id)
+        try:
+            session = webchat_service.get_session_by_id(int(session_id))
+        except Exception:
+            session = None
     if not session and session_key:
         session = webchat_service.get_session_by_key(session_key)
     if not session:
@@ -390,13 +448,11 @@ async def _handle_manager_reply(
 async def api_webchat_manager_reply(
     session_id: int | None = Query(default=None),
     text: str | None = Query(default=None),
-    payload: dict = Body(default={}),
+    payload: WebChatManagerReplyPayload = Body(default=WebChatManagerReplyPayload()),
 ):
-    sid = session_id if session_id is not None else payload.get("session_id")
-    session_key = payload.get("session_key")
-    reply_text = payload.get("text") or payload.get("message") or payload.get("reply")
-    if reply_text is None:
-        reply_text = text
+    sid = session_id if session_id is not None else payload.session_id
+    session_key = payload.session_key
+    reply_text = payload.text or payload.message or payload.reply or text
 
     if sid is None and not session_key:
         raise HTTPException(status_code=400, detail="session_id is required")
@@ -410,17 +466,6 @@ async def api_webchat_manager_reply(
         len(reply_text or ""),
     )
     return await _handle_manager_reply(sid, reply_text, session_key=session_key)
-
-
-@app.get("/api/webchat/manager_reply")
-async def api_webchat_manager_reply_get(
-    session_id: int | None = None, text: str | None = None, session_key: str | None = None
-):
-    if session_id is None and not session_key:
-        raise HTTPException(status_code=400, detail="session_id is required (query)")
-    if not text:
-        raise HTTPException(status_code=400, detail="text is required (query)")
-    return await _handle_manager_reply(session_id, text, session_key=session_key)
 
 
 def _validate_type(product_type: str) -> str:
