@@ -28,8 +28,8 @@ def _extract_session_id(text: str) -> int | None:
 async def _post_manager_reply(
     backend_url: str, session_id: int, text: str, timeout: int = 15
 ):
-    url = f"{backend_url}/api/webchat/manager_reply"
-    payload = {"session_id": session_id, "text": text}
+    url = f"{backend_url}/api/webchat/manager_reply?session_id={session_id}"
+    payload = {"text": text}
     logging.info("MANAGER_REPLY POST %s payload=%s", url, payload)
 
     async with aiohttp.ClientSession() as session:
