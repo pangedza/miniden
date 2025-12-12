@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Iterable
+from typing import Iterable, Optional
 
 from sqlalchemy import select
 
@@ -35,16 +35,62 @@ def _add_message(chat_session: WebChatSession, sender: str, text: str) -> WebCha
         return message
 
 
-def get_or_create_session(session_key: str) -> WebChatSession:
+def _populate_session_key(session: WebChatSession, session_key: str) -> None:
+    if session.session_key and session.session_key == session_key:
+        return
+
+    session.session_key = session_key
+    if not session.session_id:
+        session.session_id = session_key
+
+
+def _apply_metadata(
+    session: WebChatSession,
+    user_identifier: Optional[str] = None,
+    user_agent: Optional[str] = None,
+    client_ip: Optional[str] = None,
+) -> None:
+    updated = False
+    if user_identifier and session.user_identifier != user_identifier:
+        session.user_identifier = user_identifier
+        updated = True
+    if user_agent and session.user_agent != user_agent:
+        session.user_agent = user_agent
+        updated = True
+    if client_ip and session.client_ip != client_ip:
+        session.client_ip = client_ip
+        updated = True
+    if updated:
+        session.updated_at = datetime.utcnow()
+
+
+def get_or_create_session(
+    session_key: str,
+    *,
+    user_identifier: Optional[str] = None,
+    user_agent: Optional[str] = None,
+    client_ip: Optional[str] = None,
+) -> WebChatSession:
     with get_session() as db:
         existing = db.scalars(
-            select(WebChatSession).where(WebChatSession.session_id == session_key)
+            select(WebChatSession).where(
+                (WebChatSession.session_key == session_key)
+                | (WebChatSession.session_id == session_key)
+            )
         ).first()
         if existing:
+            _populate_session_key(existing, session_key)
+            _apply_metadata(existing, user_identifier, user_agent, client_ip)
+            db.flush()
+            db.refresh(existing)
             return existing
 
         new_session = WebChatSession(
             session_id=session_key,
+            session_key=session_key,
+            user_identifier=user_identifier,
+            user_agent=user_agent,
+            client_ip=client_ip,
             status="open",
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow(),
@@ -68,7 +114,10 @@ def add_system_message(session: WebChatSession, text: str) -> WebChatMessage:
 def get_session_by_key(session_key: str) -> WebChatSession | None:
     with get_session() as db:
         return db.scalars(
-            select(WebChatSession).where(WebChatSession.session_id == session_key)
+            select(WebChatSession).where(
+                (WebChatSession.session_key == session_key)
+                | (WebChatSession.session_id == session_key)
+            )
         ).first()
 
 
@@ -84,16 +133,14 @@ def get_session_by_id(session_id: int | str) -> WebChatSession | None:
 
 def get_messages(session: WebChatSession, limit: int = 50) -> list[WebChatMessage]:
     with get_session() as db:
-        records: Iterable[WebChatMessage] = db.scalars(
-            select(WebChatMessage)
-            .where(WebChatMessage.session_id == session.id)
-            .order_by(WebChatMessage.created_at.desc())
-            .limit(limit)
-        ).all()
+        query = select(WebChatMessage).where(WebChatMessage.session_id == session.id)
+        query = query.order_by(WebChatMessage.created_at.asc(), WebChatMessage.id.asc())
+        if limit:
+            query = query.limit(limit)
 
-    messages = list(records)
-    messages.reverse()
-    return messages
+        records: Iterable[WebChatMessage] = db.scalars(query).all()
+
+    return list(records)
 
 
 def mark_waiting_manager(session: WebChatSession) -> None:

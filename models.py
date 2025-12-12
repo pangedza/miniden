@@ -352,6 +352,10 @@ class WebChatSession(Base):
 
     id = Column(Integer, primary_key=True)
     session_id = Column(String(64), unique=True, index=True, nullable=False)
+    session_key = Column(String(64), unique=True, index=True, nullable=True)
+    user_identifier = Column(Text, nullable=True)
+    user_agent = Column(Text, nullable=True)
+    client_ip = Column(String(64), nullable=True)
     status = Column(String(16), default="open", index=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)

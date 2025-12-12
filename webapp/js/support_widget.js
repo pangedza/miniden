@@ -7,6 +7,7 @@
   let isSessionInitialized = false;
   let pollTimer = null;
   let isPolling = false;
+  const renderedMessageKeys = new Set();
 
   console.log('Support widget script loaded');
 
@@ -91,8 +92,12 @@
       }
     }
 
-    function appendMessageToUI(sender, text) {
+    function appendMessageToUI(sender, text, key) {
       if (!bodyEl) return;
+      if (key && renderedMessageKeys.has(key)) return;
+      if (key) {
+        renderedMessageKeys.add(key);
+      }
       const msg = document.createElement('div');
       msg.classList.add('support-widget-msg', 'msg');
 
@@ -112,7 +117,6 @@
       const text = inputEl.value.trim();
       if (!text) return;
 
-      appendMessageToUI('user', text);
       inputEl.value = '';
 
       await ensureWebchatSessionStarted();
@@ -129,6 +133,8 @@
         if (!resp.ok) {
           console.error('Failed to send webchat message', resp.status);
           appendMessageToUI('system', 'Не удалось отправить сообщение. Попробуйте ещё раз.');
+        } else {
+          await fetchMessagesFromServer();
         }
       } catch (err) {
         console.error('Error sending webchat message', err);
@@ -158,11 +164,15 @@
     }
 
     function renderMessages(messages) {
-      if (!bodyEl) return;
-      bodyEl.innerHTML = '';
+      if (!bodyEl || !Array.isArray(messages)) return;
       messages.forEach(function (m) {
-        const sender = m && m.sender ? m.sender : 'manager';
-        appendMessageToUI(sender, m && m.text ? m.text : '');
+        const sender = m && m.sender === 'user' ? 'user' : 'manager';
+        const key =
+          m && m.id !== undefined && m.id !== null
+            ? `id-${m.id}`
+            : `${sender}-${m && m.created_at ? m.created_at : ''}-${m && m.text ? m.text : ''}`;
+
+        appendMessageToUI(sender, m && m.text ? m.text : '', key);
       });
     }
 
