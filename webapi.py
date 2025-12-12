@@ -21,6 +21,7 @@ import urllib.request
 from uuid import uuid4
 
 from fastapi import (
+    Body,
     Cookie,
     Depends,
     FastAPI,
@@ -219,11 +220,25 @@ def api_faq_detail(faq_id: int):
 
 
 @app.post("/api/webchat/start")
-async def api_webchat_start(payload: WebChatStartPayload):
-    session = webchat_service.get_session_by_key(payload.session_key)
+async def api_webchat_start(payload: dict = Body(...)):
+    """
+    Старт/инициализация сессии веб-чата.
+    Ожидается JSON:
+    {
+      "session_key": "строка",
+      "page": "опционально, строка"
+    }
+    """
+    session_key = payload.get("session_key")
+    page = payload.get("page")
+
+    if not session_key:
+        raise HTTPException(status_code=400, detail="session_key is required")
+
+    session = webchat_service.get_session_by_key(session_key)
     created = False
     if not session:
-        session = webchat_service.get_or_create_session(payload.session_key)
+        session = webchat_service.get_or_create_session(session_key)
         created = True
 
     if created:
@@ -241,23 +256,39 @@ async def api_webchat_start(payload: WebChatStartPayload):
 
 
 @app.post("/api/webchat/message")
-async def api_webchat_message(payload: WebChatMessagePayload):
-    session = webchat_service.get_session_by_key(payload.session_key)
+async def api_webchat_message(payload: dict = Body(...)):
+    """
+    Приём сообщения пользователя из веб-чата.
+    Ожидается JSON:
+    {
+      "session_key": "строка",
+      "text": "строка"
+    }
+    """
+    session_key = payload.get("session_key")
+    text = payload.get("text")
+
+    if not session_key:
+        raise HTTPException(status_code=400, detail="session_key is required")
+    if not text:
+        raise HTTPException(status_code=400, detail="text is required")
+
+    session = webchat_service.get_session_by_key(session_key)
     if not session:
-        session = webchat_service.get_or_create_session(payload.session_key)
+        session = webchat_service.get_or_create_session(session_key)
 
-    webchat_service.add_user_message(session, payload.text)
+    webchat_service.add_user_message(session, text)
 
-    current_session = webchat_service.get_session_by_key(payload.session_key) or session
+    current_session = webchat_service.get_session_by_key(session_key) or session
     if current_session.status == "open":
         webchat_service.mark_waiting_manager(current_session)
 
-    current_session = webchat_service.get_session_by_key(payload.session_key) or current_session
+    current_session = webchat_service.get_session_by_key(session_key) or current_session
     if (
         current_session.status == "waiting_manager"
         and not current_session.telegram_thread_message_id
     ):
-        message_id = _notify_admin_about_chat(current_session, payload.text)
+        message_id = _notify_admin_about_chat(current_session, text)
         if message_id:
             webchat_service.set_thread_message_id(current_session, message_id)
 
