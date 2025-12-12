@@ -308,6 +308,7 @@ def api_webchat_messages(session_key: str, limit: int = 50):
         "status": session.status,
         "messages": [
             {
+                "id": msg.id,
                 "sender": msg.sender,
                 "text": msg.text,
                 "created_at": msg.created_at.isoformat() if msg.created_at else None,

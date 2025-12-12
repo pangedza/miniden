@@ -416,3 +416,7 @@ Legacy
 - session_id извлекается из reply-сообщения по шаблону 'Новый чат с сайта #ID'
 - ответы отправляются на backend строго POST /api/webchat/manager_reply с JSON {session_id, text}
 - бот сообщает администратору, если reply сделан не на правильное сообщение или не найден #ID
+Веб-чат: исправлено отображение ответов менеджера на сайте.
+- /api/webchat/messages возвращает сообщения user и manager с полем sender.
+- manager_reply сохраняет сообщение в ту же историю по session_key.
+- support_widget.js отображает сообщения manager и не фильтрует их.
