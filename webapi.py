@@ -28,6 +28,7 @@ from fastapi import (
     File,
     Form,
     HTTPException,
+    Query,
     Request,
     Response,
     UploadFile,
@@ -318,7 +319,7 @@ def api_webchat_messages(session_key: str, limit: int = 50):
     }
 
 
-async def _handle_manager_reply(session_id: int, text: str):
+async def _handle_manager_reply(session_id: int | str, text: str):
     session = webchat_service.get_session_by_id(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -332,16 +333,22 @@ async def _handle_manager_reply(session_id: int, text: str):
 
 
 @app.post("/api/webchat/manager_reply")
-async def api_webchat_manager_reply(payload: dict = Body(...)):
-    session_id = payload.get("session_id")
-    text = payload.get("text")
+async def api_webchat_manager_reply(
+    session_id: int | None = Query(default=None),
+    text: str | None = Query(default=None),
+    payload: dict = Body(default={}),
+):
+    sid = session_id if session_id is not None else payload.get("session_id")
+    reply_text = payload.get("text") or payload.get("message") or payload.get("reply")
+    if reply_text is None:
+        reply_text = text
 
-    if session_id is None:
+    if sid is None:
         raise HTTPException(status_code=400, detail="session_id is required")
-    if not text:
+    if not reply_text:
         raise HTTPException(status_code=400, detail="text is required")
 
-    return await _handle_manager_reply(session_id, text)
+    return await _handle_manager_reply(sid, reply_text)
 
 
 @app.get("/api/webchat/manager_reply")
@@ -350,7 +357,7 @@ async def api_webchat_manager_reply_get(session_id: int | None = None, text: str
         raise HTTPException(status_code=400, detail="session_id is required (query)")
     if not text:
         raise HTTPException(status_code=400, detail="text is required (query)")
-    return await api_webchat_manager_reply({"session_id": session_id, "text": text})
+    return await _handle_manager_reply(session_id, text)
 
 
 def _validate_type(product_type: str) -> str:
