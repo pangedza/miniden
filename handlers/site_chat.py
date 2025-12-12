@@ -35,15 +35,18 @@ def _extract_session_id(text: str | None) -> int | None:
         return None
 
 
-async def _send_manager_reply(session_id: int, text: str):
-    url = f"{API_BASE_URL}/api/webchat/manager_reply"
-    payload = {"session_id": session_id, "text": text}
-    headers = {"Content-Type": "application/json"}
+async def _post_json(url: str, payload: dict, timeout: int = 10):
     async with aiohttp.ClientSession() as session:
-        async with session.post(url, headers=headers, json=payload) as response:
-            response_text = await response.text()
-            if response.status != 200:
-                raise BackendRequestError(response.status, response_text)
+        async with session.post(
+            url,
+            json=payload,
+            headers={"Content-Type": "application/json"},
+            timeout=timeout,
+        ) as response:
+            text = await response.text()
+            if response.status >= 400:
+                raise BackendRequestError(response.status, text)
+            return text
 
 
 @site_chat_router.message(F.reply_to_message)
@@ -66,7 +69,10 @@ async def handle_manager_reply(message: Message):
         return
 
     try:
-        await _send_manager_reply(session_id, text)
+        await _post_json(
+            f"{API_BASE_URL}/api/webchat/manager_reply",
+            {"session_id": session_id, "text": text},
+        )
     except BackendRequestError as exc:
         logging.exception("Failed to send manager reply to backend")
         await message.answer(
@@ -80,4 +86,4 @@ async def handle_manager_reply(message: Message):
         )
         return
 
-    await message.answer(f"✅ Отправлено на сайт (чат #{session_id}).")
+    await message.answer(f"✅ Ответ отправлен на сайт (чат #{session_id})")
