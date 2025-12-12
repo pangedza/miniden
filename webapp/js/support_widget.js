@@ -94,12 +94,14 @@
     function appendMessageToUI(sender, text) {
       if (!bodyEl) return;
       const msg = document.createElement('div');
-      msg.classList.add('support-widget-msg');
+      msg.classList.add('support-widget-msg', 'msg');
+
       if (sender === 'user') {
-        msg.classList.add('support-widget-msg--user');
-      } else if (sender === 'manager' || sender === 'system') {
-        msg.classList.add('support-widget-msg--manager');
+        msg.classList.add('support-widget-msg--user', 'user');
+      } else {
+        msg.classList.add('support-widget-msg--manager', 'manager');
       }
+
       msg.textContent = text;
       bodyEl.appendChild(msg);
       bodyEl.scrollTop = bodyEl.scrollHeight;
@@ -159,7 +161,8 @@
       if (!bodyEl) return;
       bodyEl.innerHTML = '';
       messages.forEach(function (m) {
-        appendMessageToUI(m.sender || 'manager', m.text || '');
+        const sender = m && m.sender ? m.sender : 'manager';
+        appendMessageToUI(sender, m && m.text ? m.text : '');
       });
     }
 
