@@ -335,7 +335,7 @@ async def api_webchat_manager_reply(payload: dict = Body(...)):
     session_id = payload.get("session_id")
     text = payload.get("text")
 
-    if not session_id:
+    if session_id is None:
         raise HTTPException(status_code=400, detail="session_id is required")
     if not text:
         raise HTTPException(status_code=400, detail="text is required")
@@ -344,8 +344,12 @@ async def api_webchat_manager_reply(payload: dict = Body(...)):
 
 
 @app.get("/api/webchat/manager_reply")
-async def api_webchat_manager_reply_get(session_id: int, text: str):
-    return await _handle_manager_reply(session_id, text)
+async def api_webchat_manager_reply_get(session_id: int | None = None, text: str | None = None):
+    if session_id is None:
+        raise HTTPException(status_code=400, detail="session_id is required (query)")
+    if not text:
+        raise HTTPException(status_code=400, detail="text is required (query)")
+    return await api_webchat_manager_reply({"session_id": session_id, "text": text})
 
 
 def _validate_type(product_type: str) -> str:
