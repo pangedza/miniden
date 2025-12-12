@@ -17,10 +17,10 @@ site_chat_router = Router()
 
 
 class BackendRequestError(Exception):
-    def __init__(self, status: int, text: str):
-        super().__init__(f"{status} {text}")
+    def __init__(self, status: int, body: str):
+        super().__init__(f"Backend request failed: {status} {body}")
         self.status = status
-        self.text = text
+        self.body = body
 
 
 def _extract_session_id(text: str | None) -> int | None:
@@ -35,18 +35,18 @@ def _extract_session_id(text: str | None) -> int | None:
         return None
 
 
-async def _post_json(url: str, payload: dict, timeout: int = 10):
+async def _post_json(url: str, payload: dict, timeout: int = 15) -> str:
     async with aiohttp.ClientSession() as session:
         async with session.post(
             url,
             json=payload,
             headers={"Content-Type": "application/json"},
             timeout=timeout,
-        ) as response:
-            text = await response.text()
-            if response.status >= 400:
-                raise BackendRequestError(response.status, text)
-            return text
+        ) as resp:
+            body = await resp.text()
+            if resp.status >= 400:
+                raise BackendRequestError(resp.status, body)
+            return body
 
 
 @site_chat_router.message(F.reply_to_message)
@@ -69,15 +69,20 @@ async def handle_manager_reply(message: Message):
         await message.answer("❌ Пустое сообщение.")
         return
 
+    url = f"{API_BASE_URL}/api/webchat/manager_reply"
+    logging.info(
+        "Sending manager reply via POST to %s, session_id=%s", url, session_id
+    )
+
     try:
         await _post_json(
-            f"{API_BASE_URL}/api/webchat/manager_reply",
-            {"session_id": session_id, "text": text},
+            url,
+            {"session_id": int(session_id), "text": text},
         )
     except BackendRequestError as exc:
         logging.exception("Failed to send manager reply to backend")
         await message.answer(
-            f"❌ Ошибка отправки на сайт: {exc.status} {exc.text}"
+            f"❌ Ошибка отправки на сайт: {exc.status} {exc.body}"
         )
         return
     except Exception as exc:

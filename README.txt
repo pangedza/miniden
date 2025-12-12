@@ -410,3 +410,5 @@ Legacy
 - Бот отправляет ответ менеджера через POST /api/webchat/manager_reply с JSON {session_id, text}.
 - Backend /api/webchat/manager_reply (POST) принимает payload как dict через Body(...) и валидирует вручную (без 422).
 - GET fallback оставлен, но параметры session_id/text сделаны optional и при отсутствии возвращается 400 вместо 422.
+Исправлено: бот отправляет ответы менеджера в веб-чат строго через POST /api/webchat/manager_reply
+с JSON телом {session_id, text}. Убран вызов GET без query параметров, который приводил к 400/422.
