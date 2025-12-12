@@ -66,6 +66,7 @@ async def handle_manager_reply(message: Message):
 
     text = message.text or message.caption
     if not text:
+        await message.answer("❌ Пустое сообщение.")
         return
 
     try:
