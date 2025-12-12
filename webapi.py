@@ -317,18 +317,35 @@ def api_webchat_messages(session_key: str, limit: int = 50):
     }
 
 
-@app.post("/api/webchat/manager_reply")
-async def api_webchat_manager_reply(payload: WebChatManagerReplyPayload):
-    session = webchat_service.get_session_by_id(payload.session_id)
+async def _handle_manager_reply(session_id: int, text: str):
+    session = webchat_service.get_session_by_id(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    webchat_service.add_manager_message(session, payload.text)
+    webchat_service.add_manager_message(session, text)
 
     if session.status == "waiting_manager":
         webchat_service.mark_open(session)
 
     return {"ok": True}
+
+
+@app.post("/api/webchat/manager_reply")
+async def api_webchat_manager_reply(payload: dict = Body(...)):
+    session_id = payload.get("session_id")
+    text = payload.get("text")
+
+    if not session_id:
+        raise HTTPException(status_code=400, detail="session_id is required")
+    if not text:
+        raise HTTPException(status_code=400, detail="text is required")
+
+    return await _handle_manager_reply(session_id, text)
+
+
+@app.get("/api/webchat/manager_reply")
+async def api_webchat_manager_reply_get(session_id: int, text: str):
+    return await _handle_manager_reply(session_id, text)
 
 
 def _validate_type(product_type: str) -> str:
@@ -395,12 +412,6 @@ class WebChatStartPayload(BaseModel):
 class WebChatMessagePayload(BaseModel):
     session_key: str
     text: str
-
-
-class WebChatManagerReplyPayload(BaseModel):
-    session_id: int
-    text: str
-
 
 class FaqUpdatePayload(BaseModel):
     category: str | None = None

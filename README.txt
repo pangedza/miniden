@@ -400,3 +400,9 @@ Legacy
 Исправлено: бот отправляет ответы менеджера на сайт через POST /api/webchat/manager_reply, раньше ошибочно использовался GET и backend отвечал 405 Method Not Allowed.
 Исправлено: в handlers/site_chat.py функция _post_json теперь реально делает POST-запрос.
 Это устранило 405 Method Not Allowed при отправке ответа менеджера на /api/webchat/manager_reply.
+Исправлена отправка ответов менеджера в веб-чат:
+- Бот отправляет manager_reply через POST /api/webchat/manager_reply.
+- В backend добавлен GET fallback для /api/webchat/manager_reply (на случай ошибочного метода),
+  принимающий session_id и text из query.
+- POST /api/webchat/manager_reply теперь принимает JSON как словарь и валидирует поля вручную,
+  чтобы избежать 422.
