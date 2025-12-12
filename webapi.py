@@ -344,8 +344,6 @@ def api_webchat_messages(session_key: str, limit: Optional[int] = None):
 
     payload_messages = []
     for msg in messages:
-        if msg.sender not in {"user", "manager"}:
-            continue
         payload_messages.append(
             {
                 "id": msg.id,
@@ -515,6 +513,15 @@ class ReviewCreatePayload(BaseModel):
 class ReviewStatusUpdatePayload(BaseModel):
     status: str
     is_deleted: bool | None = None
+
+
+class AdminSupportMessagePayload(BaseModel):
+    session_id: int
+    text: str
+
+
+class AdminSupportClosePayload(BaseModel):
+    session_id: int
 
 
 def _ensure_admin(user_id: int | None) -> int:
@@ -2176,6 +2183,74 @@ def admin_update_product_category(category_id: int, payload: AdminProductCategor
     )
     if not updated:
         raise HTTPException(status_code=404, detail="Category not found")
+    return {"ok": True}
+
+
+def _serialize_webchat_message(msg) -> dict:
+    return {
+        "id": msg.id,
+        "text": msg.text,
+        "sender": msg.sender,
+        "created_at": msg.created_at.isoformat() if msg.created_at else None,
+    }
+
+
+@app.get("/api/admin/support/sessions")
+def admin_support_sessions(user_id: int, status: str = "open", limit: int = 100):
+    _ensure_admin(user_id)
+    normalized_status = status if status != "all" else None
+    sessions = webchat_service.list_sessions(status=normalized_status, limit=limit)
+
+    items = []
+    for session, last_message in sessions:
+        items.append(
+            {
+                "session_id": int(session.id),
+                "session_key": session.session_key or session.session_id,
+                "status": session.status,
+                "created_at": session.created_at.isoformat() if session.created_at else None,
+                "updated_at": session.updated_at.isoformat() if session.updated_at else None,
+                "last_message": last_message.text if last_message else None,
+                "last_sender": last_message.sender if last_message else None,
+            }
+        )
+
+    return {"items": items}
+
+
+@app.get("/api/admin/support/messages")
+def admin_support_messages(user_id: int, session_id: int):
+    _ensure_admin(user_id)
+    session = webchat_service.get_session_by_id(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    messages = webchat_service.get_messages(session, limit=None)
+    return {"items": [_serialize_webchat_message(msg) for msg in messages]}
+
+
+@app.post("/api/admin/support/message")
+def admin_support_send_message(user_id: int, payload: AdminSupportMessagePayload):
+    _ensure_admin(user_id)
+    session = webchat_service.get_session_by_id(payload.session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    message = webchat_service.add_manager_message(session, payload.text)
+    if session.status == "waiting_manager":
+        webchat_service.mark_open(session)
+
+    return _serialize_webchat_message(message)
+
+
+@app.post("/api/admin/support/close")
+def admin_support_close(user_id: int, payload: AdminSupportClosePayload):
+    _ensure_admin(user_id)
+    session = webchat_service.get_session_by_id(payload.session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    webchat_service.mark_closed(session)
     return {"ok": True}
 
 
