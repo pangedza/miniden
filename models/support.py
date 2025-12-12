@@ -8,6 +8,8 @@ class SupportMessage(BaseModel):
     text: str
     sender: str
     created_at: datetime | None = None
+    is_read_by_manager: bool | None = None
+    is_read_by_client: bool | None = None
 
 
 class SupportSession(BaseModel):
@@ -16,8 +18,10 @@ class SupportSession(BaseModel):
     status: str
     created_at: datetime | None = None
     updated_at: datetime | None = None
+    last_message_at: datetime | None = None
     last_message: str | None = None
     last_sender: str | None = None
+    unread_for_manager: int | None = 0
 
 
 class SupportMessageList(BaseModel):
