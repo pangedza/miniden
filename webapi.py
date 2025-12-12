@@ -41,6 +41,13 @@ from sqlalchemy.orm import Session
 from config import get_settings
 from database import get_session, init_db
 from models import AuthSession, User
+from models.support import (
+    SupportMessage,
+    SupportMessageList,
+    SupportSession,
+    SupportSessionList,
+    WebChatMessagesResponse,
+)
 from services import admin_notes as admin_notes_service
 from services import cart as cart_service
 from services import favorites as favorites_service
@@ -334,7 +341,7 @@ async def api_webchat_message(payload: dict = Body(...), request: Request | None
     return {"ok": True}
 
 
-@app.get("/api/webchat/messages")
+@app.get("/api/webchat/messages", response_model=WebChatMessagesResponse)
 def api_webchat_messages(session_key: str, limit: Optional[int] = None):
     session = webchat_service.get_session_by_key(session_key)
     if not session:
@@ -2195,7 +2202,7 @@ def _serialize_webchat_message(msg) -> dict:
     }
 
 
-@app.get("/api/admin/support/sessions")
+@app.get("/api/admin/support/sessions", response_model=SupportSessionList)
 def admin_support_sessions(user_id: int, status: str = "open", limit: int = 100):
     _ensure_admin(user_id)
     normalized_status = status if status != "all" else None
@@ -2218,7 +2225,7 @@ def admin_support_sessions(user_id: int, status: str = "open", limit: int = 100)
     return {"items": items}
 
 
-@app.get("/api/admin/support/messages")
+@app.get("/api/admin/support/messages", response_model=SupportMessageList)
 def admin_support_messages(user_id: int, session_id: int):
     _ensure_admin(user_id)
     session = webchat_service.get_session_by_id(session_id)
@@ -2229,7 +2236,7 @@ def admin_support_messages(user_id: int, session_id: int):
     return {"items": [_serialize_webchat_message(msg) for msg in messages]}
 
 
-@app.post("/api/admin/support/message")
+@app.post("/api/admin/support/message", response_model=SupportMessage)
 def admin_support_send_message(user_id: int, payload: AdminSupportMessagePayload):
     _ensure_admin(user_id)
     session = webchat_service.get_session_by_id(payload.session_id)
