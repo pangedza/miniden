@@ -16,36 +16,27 @@ if API_BASE_URL.endswith("/api"):
 site_chat_router = Router()
 
 
-class BackendRequestError(Exception):
-    def __init__(self, status: int, body: str):
-        super().__init__(f"Backend request failed: {status} {body}")
-        self.status = status
-        self.body = body
-
-
-def _extract_session_id(text: str | None) -> int | None:
+def _extract_session_id(text: str) -> int | None:
     if not text:
         return None
-    match = re.search(r"Новый чат с сайта\s*#(\d+)", text)
-    if not match:
-        return None
-    try:
-        return int(match.group(1))
-    except (TypeError, ValueError):
-        return None
+    m = re.search(r"Новый чат с сайта\s*#(\d+)", text)
+    if not m:
+        m = re.search(r"#(\d+)", text)
+    return int(m.group(1)) if m else None
 
 
-async def _post_json(url: str, payload: dict, timeout: int = 15) -> str:
+async def _post_manager_reply(
+    backend_url: str, session_id: int, text: str, timeout: int = 15
+):
+    url = f"{backend_url}/api/webchat/manager_reply"
+    payload = {"session_id": session_id, "text": text}
+    logging.info("MANAGER_REPLY POST %s payload=%s", url, payload)
+
     async with aiohttp.ClientSession() as session:
-        async with session.post(
-            url,
-            json=payload,
-            headers={"Content-Type": "application/json"},
-            timeout=timeout,
-        ) as resp:
+        async with session.post(url, json=payload, timeout=timeout) as resp:
             body = await resp.text()
             if resp.status >= 400:
-                raise BackendRequestError(resp.status, body)
+                raise Exception(f"{resp.status} {body}")
             return body
 
 
@@ -58,10 +49,16 @@ async def handle_manager_reply(message: Message):
     if sender_id not in admin_ids and sender_id != primary_admin:
         return
 
+    if not message.reply_to_message:
+        return
+
     reply = message.reply_to_message
-    reply_text = (reply.text or reply.caption) if reply else None
-    session_id = _extract_session_id(reply_text)
+    reply_text = reply.text or reply.caption
+    session_id = _extract_session_id(reply_text or "")
     if not session_id:
+        await message.answer(
+            "❌ Не вижу номер чата (#ID). Ответь именно reply на сообщение 'Новый чат с сайта #...'"
+        )
         return
 
     text = message.text or message.caption
@@ -69,27 +66,11 @@ async def handle_manager_reply(message: Message):
         await message.answer("❌ Пустое сообщение.")
         return
 
-    url = f"{API_BASE_URL}/api/webchat/manager_reply"
-    logging.info(
-        "Sending manager reply via POST to %s, session_id=%s", url, session_id
-    )
-
     try:
-        await _post_json(
-            url,
-            {"session_id": int(session_id), "text": text},
-        )
-    except BackendRequestError as exc:
-        logging.exception("Failed to send manager reply to backend")
-        await message.answer(
-            f"❌ Ошибка отправки на сайт: {exc.status} {exc.body}"
-        )
-        return
+        await _post_manager_reply(API_BASE_URL, session_id, text)
     except Exception as exc:
         logging.exception("Failed to send manager reply to backend")
-        await message.answer(
-            f"❌ Не удалось отправить ответ на сайт: неизвестная ошибка ({exc})"
-        )
+        await message.answer(f"❌ Ошибка отправки на сайт: {exc}")
         return
 
-    await message.answer(f"✅ Ответ отправлен на сайт (чат #{session_id})")
+    await message.answer(f"✅ Отправлено на сайт (чат #{session_id})")
