@@ -15,7 +15,7 @@ import time
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 from urllib.parse import parse_qsl, urlencode
 import urllib.request
 from uuid import uuid4
@@ -55,6 +55,7 @@ from services import user_admin as user_admin_service
 from services import user_stats as user_stats_service
 from services import users as users_service
 from services import webchat_service
+from utils import site_chat_storage
 from services.telegram_webapp_auth import authenticate_telegram_webapp_user
 from utils.texts import format_order_for_admin
 from schemas.home import HomeBannerIn, HomePostIn, HomeSectionIn
@@ -104,17 +105,17 @@ def ensure_media_dirs() -> None:
         d.mkdir(parents=True, exist_ok=True)
 
 
-def _send_message_to_admins(text: str) -> int | None:
+def _send_message_to_admins(text: str) -> list[int]:
     admin_ids = list(getattr(SETTINGS, "admin_ids", set()) or [])
     primary_admin = getattr(SETTINGS, "admin_chat_id", None)
     if primary_admin and primary_admin not in admin_ids:
         admin_ids.append(primary_admin)
 
     if not BOT_TOKEN or not admin_ids:
-        return None
+        return []
 
     api_url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    message_id: int | None = None
+    message_ids: list[int] = []
 
     for chat_id in admin_ids:
         payload = urlencode({"chat_id": chat_id, "text": text}).encode()
@@ -125,22 +126,29 @@ def _send_message_to_admins(text: str) -> int | None:
             logger.exception("Failed to notify admin via Telegram")
             continue
 
-        if data.get("ok") and message_id is None:
+        if data.get("ok"):
             try:
                 message_id = int(data["result"]["message_id"])
+                message_ids.append(message_id)
             except Exception:
-                message_id = None
-    return message_id
+                continue
+    return message_ids
 
 
-def _notify_admin_about_chat(chat_session, preview_text: str) -> int | None:
+def _notify_admin_about_chat(chat_session, preview_text: str) -> list[int]:
     snippet = (preview_text or "")[:200]
     text = (
         f"Новый чат с сайта #{chat_session.id}\n"
         f"Текст: {snippet}\n"
         "Чтобы ответить — ответьте на это сообщение."
     )
-    return _send_message_to_admins(text)
+    message_ids = _send_message_to_admins(text)
+    for message_id in message_ids:
+        try:
+            site_chat_storage.remember_admin_message(message_id, int(chat_session.id))
+        except Exception:
+            logger.exception("Failed to persist mapping for admin notification")
+    return message_ids
 
 
 def _save_uploaded_image(file: UploadFile, base_folder: str) -> str:
@@ -221,7 +229,7 @@ def api_faq_detail(faq_id: int):
 
 
 @app.post("/api/webchat/start")
-async def api_webchat_start(payload: dict = Body(...)):
+async def api_webchat_start(payload: dict = Body(...), request: Request | None = None):
     """
     Старт/инициализация сессии веб-чата.
     Ожидается JSON:
@@ -232,6 +240,9 @@ async def api_webchat_start(payload: dict = Body(...)):
     """
     session_key = payload.get("session_key")
     page = payload.get("page")
+    user_identifier = payload.get("user_identifier") or payload.get("user") or payload.get("username")
+    user_agent = request.headers.get("user-agent") if request else None
+    client_ip = request.client.host if request and request.client else None
 
     if not session_key:
         raise HTTPException(status_code=400, detail="session_key is required")
@@ -239,8 +250,20 @@ async def api_webchat_start(payload: dict = Body(...)):
     session = webchat_service.get_session_by_key(session_key)
     created = False
     if not session:
-        session = webchat_service.get_or_create_session(session_key)
+        session = webchat_service.get_or_create_session(
+            session_key,
+            user_identifier=user_identifier,
+            user_agent=user_agent,
+            client_ip=client_ip,
+        )
         created = True
+    else:
+        webchat_service.get_or_create_session(
+            session_key,
+            user_identifier=user_identifier,
+            user_agent=user_agent,
+            client_ip=client_ip,
+        )
 
     if created:
         try:
@@ -257,7 +280,7 @@ async def api_webchat_start(payload: dict = Body(...)):
 
 
 @app.post("/api/webchat/message")
-async def api_webchat_message(payload: dict = Body(...)):
+async def api_webchat_message(payload: dict = Body(...), request: Request | None = None):
     """
     Приём сообщения пользователя из веб-чата.
     Ожидается JSON:
@@ -268,6 +291,9 @@ async def api_webchat_message(payload: dict = Body(...)):
     """
     session_key = payload.get("session_key")
     text = payload.get("text")
+    user_identifier = payload.get("user_identifier") or payload.get("user") or payload.get("username")
+    user_agent = request.headers.get("user-agent") if request else None
+    client_ip = request.client.host if request and request.client else None
 
     if not session_key:
         raise HTTPException(status_code=400, detail="session_key is required")
@@ -276,7 +302,19 @@ async def api_webchat_message(payload: dict = Body(...)):
 
     session = webchat_service.get_session_by_key(session_key)
     if not session:
-        session = webchat_service.get_or_create_session(session_key)
+        session = webchat_service.get_or_create_session(
+            session_key,
+            user_identifier=user_identifier,
+            user_agent=user_agent,
+            client_ip=client_ip,
+        )
+    else:
+        session = webchat_service.get_or_create_session(
+            session_key,
+            user_identifier=user_identifier,
+            user_agent=user_agent,
+            client_ip=client_ip,
+        )
 
     webchat_service.add_user_message(session, text)
 
@@ -289,38 +327,49 @@ async def api_webchat_message(payload: dict = Body(...)):
         current_session.status == "waiting_manager"
         and not current_session.telegram_thread_message_id
     ):
-        message_id = _notify_admin_about_chat(current_session, text)
-        if message_id:
-            webchat_service.set_thread_message_id(current_session, message_id)
+        message_ids = _notify_admin_about_chat(current_session, text)
+        if message_ids:
+            webchat_service.set_thread_message_id(current_session, message_ids[0])
 
     return {"ok": True}
 
 
 @app.get("/api/webchat/messages")
-def api_webchat_messages(session_key: str, limit: int = 50):
+def api_webchat_messages(session_key: str, limit: Optional[int] = None):
     session = webchat_service.get_session_by_key(session_key)
     if not session:
         return {"ok": True, "status": "open", "messages": []}
 
     messages = webchat_service.get_messages(session, limit=limit)
 
-    return {
-        "ok": True,
-        "status": session.status,
-        "messages": [
+    payload_messages = []
+    for msg in messages:
+        if msg.sender not in {"user", "manager"}:
+            continue
+        payload_messages.append(
             {
                 "id": msg.id,
                 "sender": msg.sender,
                 "text": msg.text,
                 "created_at": msg.created_at.isoformat() if msg.created_at else None,
             }
-            for msg in messages
-        ],
+        )
+
+    return {
+        "ok": True,
+        "status": session.status,
+        "messages": payload_messages,
     }
 
 
-async def _handle_manager_reply(session_id: int | str, text: str):
-    session = webchat_service.get_session_by_id(session_id)
+async def _handle_manager_reply(
+    session_id: int | str | None, text: str, session_key: str | None = None
+):
+    session = None
+    if session_id is not None:
+        session = webchat_service.get_session_by_id(session_id)
+    if not session and session_key:
+        session = webchat_service.get_session_by_key(session_key)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
@@ -339,25 +388,34 @@ async def api_webchat_manager_reply(
     payload: dict = Body(default={}),
 ):
     sid = session_id if session_id is not None else payload.get("session_id")
+    session_key = payload.get("session_key")
     reply_text = payload.get("text") or payload.get("message") or payload.get("reply")
     if reply_text is None:
         reply_text = text
 
-    if sid is None:
+    if sid is None and not session_key:
         raise HTTPException(status_code=400, detail="session_id is required")
     if not reply_text:
         raise HTTPException(status_code=400, detail="text is required")
 
-    return await _handle_manager_reply(sid, reply_text)
+    logger.info(
+        "manager_reply: session_id=%s session_key=%s text_len=%s",
+        sid,
+        session_key,
+        len(reply_text or ""),
+    )
+    return await _handle_manager_reply(sid, reply_text, session_key=session_key)
 
 
 @app.get("/api/webchat/manager_reply")
-async def api_webchat_manager_reply_get(session_id: int | None = None, text: str | None = None):
-    if session_id is None:
+async def api_webchat_manager_reply_get(
+    session_id: int | None = None, text: str | None = None, session_key: str | None = None
+):
+    if session_id is None and not session_key:
         raise HTTPException(status_code=400, detail="session_id is required (query)")
     if not text:
         raise HTTPException(status_code=400, detail="text is required (query)")
-    return await _handle_manager_reply(session_id, text)
+    return await _handle_manager_reply(session_id, text, session_key=session_key)
 
 
 def _validate_type(product_type: str) -> str:
