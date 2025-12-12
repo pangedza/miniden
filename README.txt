@@ -420,3 +420,7 @@ Legacy
 - /api/webchat/messages возвращает сообщения user и manager с полем sender.
 - manager_reply сохраняет сообщение в ту же историю по session_key.
 - support_widget.js отображает сообщения manager и не фильтрует их.
+[FIX] WebChat manager_reply
+Исправлена отправка ответов менеджера с Telegram на сайт.
+session_id теперь передаётся как query-параметр, как ожидает FastAPI.
+Ошибка 400 session_id is required устранена.
