@@ -388,3 +388,8 @@ Legacy
 - WebChatMessagePayload
 - WebChatManagerReplyPayload
 Этим исправлена ошибка 422 при вызове /api/webchat/start и /api/webchat/message.
+Добавлен фикс веб-чата:
+- эндпоинты /api/webchat/start и /api/webchat/message теперь принимают JSON
+  как словарь (payload: dict = Body(...));
+- поля session_key и text/page читаются вручную, поэтому больше не возникает
+  ошибки 422 Unprocessable Entity при несовпадении Pydantic-схем.
