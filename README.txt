@@ -393,3 +393,7 @@ Legacy
   как словарь (payload: dict = Body(...));
 - поля session_key и text/page читаются вручную, поэтому больше не возникает
   ошибки 422 Unprocessable Entity при несовпадении Pydantic-схем.
+Добавлен обратный канал поддержки:
+- Админ отвечает reply на сообщение "Новый чат с сайта #ID" в Telegram.
+- Бот отправляет текст ответа на backend через POST /api/webchat/manager_reply.
+- Ответ отображается в веб-виджете на сайте через polling /api/webchat/messages.
