@@ -54,7 +54,7 @@ async def main() -> None:
     dp.include_router(admin.router)
     dp.include_router(webapp.router)
     dp.include_router(faq.faq_router)
-    dp.include_router(site_chat.router)
+    dp.include_router(site_chat.site_chat_router)
     dp.include_router(support.support_router)
 
     # Старт поллинга
