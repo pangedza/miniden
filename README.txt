@@ -473,3 +473,10 @@ session_id теперь передаётся как query-параметр, ка
 * Блоки главной страницы приходят с `/api/homepage/blocks` и идентифицируются по `block_key` (`hero_main`, `tile_home_kids`, `tile_process`, `tile_baskets`, `tile_learning`, `about_short`, `process_text`, `shop_entry`, `learning_entry`). Поля блока: `title`, `subtitle`, `body`, `button_text`, `button_url`, `image_url`, `is_active`, `order`.
 * В админке раздел «Главная страница» управляет всеми блоками: можно выбрать `block_key`, редактировать тексты, ссылки, порядок, активность и картинки (загрузка через существующий аплоад). Табуляторы Hero/Плитки/Тексты/Переходы фильтруют список.
 * Изображения на новой главной временно берутся по внешним HTTPS-ссылкам; при недоступности срабатывают градиентные фоны, позже можно будет заменить URL через админку.
+
+Апдейт: миграция home_banners + стабильность главной
+----------------------------------------------------
+* При инициализации БД добавляются (если отсутствуют) колонки `block_key`, `subtitle`, `body`, `button_text`, `button_link`, `image_url`, `is_active` (DEFAULT TRUE), `sort_order` (DEFAULT 0), `created_at`, `updated_at` в таблицу `home_banners`. Старым записям без ключа выставляется `block_key='legacy_banner'`.
+* `/api/homepage/blocks` всегда возвращает JSON `{items: []}` даже при сбоях, нормальный ответ — блоки, отсортированные по `sort_order`, `updated_at`, `created_at`, только активные по умолчанию.
+* Фронтенд главной оборачивает загрузку API в try/catch и при любой ошибке подставляет встроенные блоки с безопасными HTTPS-картинками (Unsplash с `?auto=format&fit=crop&w=1200&q=80`). Картинки имеют fallback на градиент через `data-fallback`/`image-fallback`.
+* Тема сохраняется в `localStorage` (`miniden_theme`) и при загрузке ставится на `<html data-theme>` и `<body data-theme>`, чтобы Lifestyle применялась на всех страницах.

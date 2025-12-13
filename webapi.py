@@ -283,7 +283,11 @@ def api_home():
 
 @app.get("/api/homepage/blocks")
 def api_homepage_blocks():
-    blocks = home_service.list_blocks(include_inactive=False)
+    try:
+        blocks = home_service.list_blocks(include_inactive=False)
+    except Exception:
+        logger.exception("Failed to load homepage blocks")
+        return {"items": []}
     return {"items": [block.dict() for block in blocks]}
 
 

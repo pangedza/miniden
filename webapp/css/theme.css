@@ -325,9 +325,9 @@ a:hover {
 }
 
 main {
-  max-width: 1100px;
+  max-width: 1120px;
   margin: 0 auto;
-  padding-top: 28px;
+  padding: 28px 18px 80px;
 }
 
 .hero {
@@ -619,8 +619,8 @@ p {
 
 .visual-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 18px;
 }
 
 .visual-tile {
@@ -629,8 +629,8 @@ p {
   border-radius: var(--radius-tile);
   background: var(--tile-gradient);
   border: 1px solid var(--color-border-subtle);
-  min-height: 200px;
-  aspect-ratio: 4 / 3;
+  min-height: 160px;
+  aspect-ratio: 16 / 10;
   display: flex;
   align-items: flex-end;
   padding: 18px;
@@ -657,12 +657,23 @@ p {
   transition: transform 0.4s ease, filter 0.4s ease, background-position 0.4s ease;
 }
 
+.image-fallback {
+  background: var(--tile-gradient);
+  object-fit: cover;
+}
+
 @media (min-width: 900px) {
   .visual-tile {
-    min-height: 260px;
+    min-height: 220px;
   }
   .hero-visual {
     min-height: 320px;
+  }
+}
+
+@media (min-width: 760px) {
+  .visual-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

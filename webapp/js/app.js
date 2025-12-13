@@ -88,5 +88,7 @@ function initLayout() {
   initSidebar();
 }
 
-applyTheme(readStoredTheme() || DEFAULT_THEME);
+const initialTheme =
+  readStoredTheme() || document.documentElement.dataset.theme || document.body.dataset.theme || DEFAULT_THEME;
+applyTheme(initialTheme);
 document.addEventListener('DOMContentLoaded', initLayout);

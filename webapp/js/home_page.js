@@ -27,6 +27,9 @@ const learningEntryText = learningEntry?.querySelector('p');
 const learningEntryButton = learningEntry?.querySelector('.btn');
 const learningEntryImage = learningEntry?.querySelector('img');
 
+const GRADIENT_PLACEHOLDER =
+  'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="g" x1="0" x2="1" y1="0" y2="1"><stop offset="0%" stop-color="%23f3e7e9"/><stop offset="100%" stop-color="%23e3eeff"/></linearGradient></defs><rect width="800" height="500" fill="url(%23g)"/></svg>';
+
 const DEFAULT_BLOCKS = [
   {
     block_key: 'hero_main',
@@ -36,7 +39,7 @@ const DEFAULT_BLOCKS = [
     button_text: 'Узнать историю',
     button_url: '#story',
     image_url:
-      'https://images.unsplash.com/photo-1513542789411-b6a5d4f31634?auto=format&fit=crop&w=1400&q=80',
+      'https://images.unsplash.com/photo-1513542789411-b6a5d4f31634?auto=format&fit=crop&w=1200&q=80',
     is_active: true,
     order: 1,
   },
@@ -44,7 +47,7 @@ const DEFAULT_BLOCKS = [
     block_key: 'tile_home_kids',
     title: 'Дом и дети',
     image_url:
-      'https://images.unsplash.com/photo-1526481280695-3c687fd643ed?auto=format&fit=crop&w=1400&q=80',
+      'https://images.unsplash.com/photo-1526481280695-3c687fd643ed?auto=format&fit=crop&w=1200&q=80',
     is_active: true,
     order: 10,
   },
@@ -52,7 +55,7 @@ const DEFAULT_BLOCKS = [
     block_key: 'tile_process',
     title: 'Процесс',
     image_url:
-      'https://images.unsplash.com/photo-1520975682031-a1a4f852cddf?auto=format&fit=crop&w=1400&q=80',
+      'https://images.unsplash.com/photo-1520975682031-a1a4f852cddf?auto=format&fit=crop&w=1200&q=80',
     is_active: true,
     order: 20,
   },
@@ -60,7 +63,7 @@ const DEFAULT_BLOCKS = [
     block_key: 'tile_baskets',
     title: 'Мои корзинки',
     image_url:
-      'https://images.unsplash.com/photo-1526481280695-3c687fd643ed?auto=format&fit=crop&w=1400&q=80',
+      'https://images.unsplash.com/photo-1526481280695-3c687fd643ed?auto=format&fit=crop&w=1200&q=80',
     button_url: 'products.html',
     is_active: true,
     order: 30,
@@ -69,7 +72,7 @@ const DEFAULT_BLOCKS = [
     block_key: 'tile_learning',
     title: 'Обучение',
     image_url:
-      'https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=1400&q=80',
+      'https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=1200&q=80',
     button_url: 'masterclasses.html',
     is_active: true,
     order: 40,
@@ -79,7 +82,7 @@ const DEFAULT_BLOCKS = [
     title: 'Немного обо мне',
     body: 'Я вяжу дома. Учу так, как училась сама: без спешки, в тишине и с акцентом на уютные вещи для семьи.',
     image_url:
-      'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=400&q=80',
+      'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=800&q=80',
     is_active: true,
     order: 50,
   },
@@ -125,6 +128,18 @@ function safeUrl(url, fallback) {
   return trimmed;
 }
 
+function applyImageWithFallback(img, url) {
+  if (!img) return;
+  const fallback = safeUrl(img.dataset.fallback, GRADIENT_PLACEHOLDER) || GRADIENT_PLACEHOLDER;
+  img.onerror = () => {
+    img.onerror = null;
+    img.src = fallback;
+    img.classList.add('image-fallback');
+  };
+  img.src = safeUrl(url, fallback);
+  img.loading = 'lazy';
+}
+
 function applyBlockOrder(element, orderValue) {
   if (!element) return;
   const value = Number.isFinite(orderValue) ? orderValue : 0;
@@ -141,9 +156,8 @@ function applyHero(block) {
     heroButton.href = block?.button_url || heroButton.getAttribute('href') || '#story';
   }
   if (heroImage) {
-    heroImage.src = safeUrl(block?.image_url, heroImage.src);
+    applyImageWithFallback(heroImage, block?.image_url || heroImage.src);
     heroImage.alt = block?.title || 'Главный баннер';
-    heroImage.loading = 'lazy';
   }
   applyBlockOrder(heroSection, block?.order);
 }
@@ -155,9 +169,8 @@ function applyTile(tileEl, block) {
   if (label && block.title) label.textContent = block.title;
   const img = tileEl.querySelector('img');
   if (img) {
-    img.src = safeUrl(block.image_url, img.dataset.fallback || img.src);
+    applyImageWithFallback(img, block.image_url || img.src);
     img.alt = block.title || img.alt || 'Плитка';
-    img.loading = 'lazy';
   }
   if (block.button_url) tileEl.href = block.button_url;
   applyBlockOrder(tileEl, block.order);
@@ -200,9 +213,8 @@ function applyCta(section, block) {
     if (block.button_url) buttonEl.href = block.button_url;
   }
   if (imageEl) {
-    imageEl.src = safeUrl(block.image_url, imageEl.dataset.fallback || imageEl.src);
+    applyImageWithFallback(imageEl, block.image_url || imageEl.src);
     imageEl.alt = block.title || imageEl.alt || '';
-    imageEl.loading = 'lazy';
   }
   applyBlockOrder(section, block.order);
 }
@@ -285,15 +297,21 @@ function initRevealOnScroll() {
 
 async function loadHomeData() {
   let blocksLoaded = false;
+
   try {
     const blocksRes = await apiGet('/homepage/blocks');
     applyBlocks(blocksRes?.items || blocksRes || []);
     blocksLoaded = true;
+  } catch (e) {
+    console.warn('Не удалось загрузить блоки главной страницы', e);
+    applyBlocks(DEFAULT_BLOCKS);
+  }
 
+  try {
     const data = await apiGet('/home');
     if (data?.posts) renderPosts(data.posts);
   } catch (e) {
-    console.warn('Не удалось загрузить данные главной страницы', e);
+    console.warn('Не удалось загрузить посты главной страницы', e);
     if (!blocksLoaded) {
       applyBlocks(DEFAULT_BLOCKS);
     }
