@@ -570,8 +570,11 @@
                 <label>Ссылка кнопки</label>
                 <input type="text" name="button_url" />
 
-                <label>Image URL (https)</label>
+                <label>Image URL (https или /uploads)</label>
                 <input type="text" name="image_url" id="home-block-image-url" placeholder="https://..." />
+                <div class="muted" id="home-block-image-link" style="font-size:13px; margin-top:-6px;">
+                  Текущий URL: <a href="#" id="home-block-image-href" target="_blank" rel="noopener">—</a>
+                </div>
                 <div class="home-banner-image-preview" style="border: 1px dashed var(--border); padding:10px; border-radius:12px; background: rgba(255,255,255,0.02); display:flex; align-items:center; justify-content:center;">
                   <img id="home-block-image-preview" alt="Превью блока" style="max-width:100%; border-radius:12px;" />
                 </div>
@@ -910,6 +913,8 @@
     const homeBlockImageFileInput = document.getElementById('home-block-image-file');
     const homeBlockImageUrlInput = document.getElementById('home-block-image-url');
     const homeBlockImagePreview = document.getElementById('home-block-image-preview');
+    const homeBlockImageLink = document.getElementById('home-block-image-link');
+    const homeBlockImageHref = document.getElementById('home-block-image-href');
     const homeBlockIdInput = document.getElementById('home-block-id');
     const homeBlockMeta = document.getElementById('home-block-form-meta');
     const homeBlockKeySelect = document.getElementById('home-block-key');
@@ -996,7 +1001,8 @@
       sort_order: 0,
       is_active: true,
     };
-    const HOME_IMAGE_PLACEHOLDER =
+    const HOME_IMAGE_PLACEHOLDER = '/static/img/home-placeholder.svg';
+    const HOME_IMAGE_GRADIENT =
       'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 360"><defs><linearGradient id="g" x1="0" x2="1" y1="0" y2="1"><stop offset="0%" stop-color="%23f3e7e9"/><stop offset="100%" stop-color="%23e3eeff"/></linearGradient></defs><rect width="600" height="360" fill="url(%23g)"/><rect x="140" y="110" width="320" height="140" rx="16" fill="rgba(0,0,0,0.05)"/></svg>';
     const faqDefaults = {
       category: '',
@@ -2427,6 +2433,37 @@
       entries: ['shop_entry', 'learning_entry'],
     };
 
+    function cacheBustUrl(url, version) {
+      if (!url) return '';
+      const trimmed = url.trim();
+      if (!trimmed) return '';
+      const needsHttps = trimmed.startsWith('http://');
+      const base = needsHttps ? trimmed.replace('http://', 'https://') : trimmed;
+      if (!version) return base;
+      const separator = base.includes('?') ? '&' : '?';
+      return `${base}${separator}v=${version}`;
+    }
+
+    function normalizeHomeBlockFromApi(item) {
+      if (!item) return null;
+      const baseImageUrl = item.image_url || '';
+      const imageUrlWithVersion = item.image_url_with_version || cacheBustUrl(baseImageUrl, item.image_version);
+      return {
+        ...item,
+        order: item.order ?? item.sort_order ?? 0,
+        button_url: item.button_url || item.button_link || '',
+        block_key: item.block_key || item.slug || 'custom',
+        image_url: baseImageUrl,
+        image_url_with_version: imageUrlWithVersion || item.image_url_with_version || '',
+        image_version: item.image_version,
+      };
+    }
+
+    function getPreferredBlockImage(block) {
+      if (!block) return '';
+      return block.image_url_with_version || cacheBustUrl(block.image_url, block.image_version) || '';
+    }
+
     function getTabForBlockKey(key) {
       if (!key) return 'hero';
       const match = Object.entries(HOME_BLOCK_GROUPS).find(([, list]) => list.includes(key));
@@ -2486,21 +2523,32 @@
       applyStateToForm(homePostForm, homePostState.formData);
     }
 
-    function setHomeBlockImage(url) {
+    function setHomeBlockImage(url, previewUrl = null) {
       const normalized = (url || '').trim();
+      const previewNormalized = (previewUrl ?? url ?? '').trim();
       const safeUrl = normalized.startsWith('http://')
         ? normalized.replace('http://', 'https://')
         : normalized;
+      const safePreview = previewNormalized.startsWith('http://')
+        ? previewNormalized.replace('http://', 'https://')
+        : previewNormalized;
       if (homeBlockImageUrlInput) {
         homeBlockImageUrlInput.value = normalized;
       }
+      if (homeBlockImageHref && homeBlockImageLink) {
+        const hasPreview = Boolean(safePreview);
+        homeBlockImageHref.textContent = hasPreview ? safePreview : '—';
+        homeBlockImageHref.href = hasPreview ? safePreview : '#';
+        homeBlockImageLink.style.visibility = hasPreview ? 'visible' : 'hidden';
+      }
       if (homeBlockImagePreview) {
-        const fallback = HOME_IMAGE_PLACEHOLDER;
+        const fallback = HOME_IMAGE_PLACEHOLDER || HOME_IMAGE_GRADIENT;
+        const gradientFallback = HOME_IMAGE_GRADIENT || HOME_IMAGE_PLACEHOLDER;
         homeBlockImagePreview.onerror = () => {
           homeBlockImagePreview.onerror = null;
-          homeBlockImagePreview.src = fallback;
+          homeBlockImagePreview.src = gradientFallback;
         };
-        homeBlockImagePreview.src = safeUrl || fallback;
+        homeBlockImagePreview.src = safePreview || fallback || gradientFallback;
         homeBlockImagePreview.style.display = 'block';
       }
     }
@@ -2605,12 +2653,8 @@
       try {
         const data = await apiGet('/admin/home/blocks', { user_id: currentUser.telegram_id });
         homeBlockItems = (data.items || data || [])
-          .map((item) => ({
-            ...item,
-            order: item.order ?? item.sort_order ?? 0,
-            button_url: item.button_url || item.button_link || '',
-            block_key: item.block_key || item.slug || 'custom',
-          }))
+          .map((item) => normalizeHomeBlockFromApi(item))
+          .filter(Boolean)
           .sort(
             (a, b) => (a.order ?? 0) - (b.order ?? 0) || Number(a.id || 0) - Number(b.id || 0)
           );
@@ -2647,7 +2691,8 @@
 
     async function fetchHomeBlock(id) {
       if (!currentUser || !id) return null;
-      return apiGet(`/admin/home/blocks/${id}`, { user_id: currentUser.telegram_id });
+      const item = await apiGet(`/admin/home/blocks/${id}`, { user_id: currentUser.telegram_id });
+      return normalizeHomeBlockFromApi(item);
     }
 
     async function fetchHomePost(id) {
@@ -2663,7 +2708,7 @@
       if (homeBlockSubmit) homeBlockSubmit.textContent = 'Обновить блок';
       resetFormState(homeBlockState.formData, { ...homeBlockDefaults, ...block });
       applyStateToForm(homeBlockForm, homeBlockState.formData);
-      setHomeBlockImage(block.image_url || homeBlockState.formData.image_url);
+      setHomeBlockImage(block.image_url, getPreferredBlockImage(block));
       setHomeBlockMeta(block);
       renderHomeBlocks(homeBlockItems, homeBlockFilter?.value || 'all');
     }
@@ -2724,12 +2769,7 @@
         try {
           const block = await fetchHomeBlock(id);
           if (block) {
-            const normalized = {
-              ...homeBlockDefaults,
-              ...block,
-              order: block.order ?? block.sort_order ?? 0,
-              button_url: block.button_url || block.button_link || '',
-            };
+            const normalized = { ...homeBlockDefaults, ...block };
             const existingIndex = homeBlockItems.findIndex(
               (item) => String(item.id) === String(normalized.id)
             );
