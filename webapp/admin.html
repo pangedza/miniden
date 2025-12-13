@@ -570,6 +570,10 @@
                 <label>Ссылка кнопки</label>
                 <input type="text" name="button_url" />
 
+                <label for="home-block-image-file">Загрузить изображение</label>
+                <input type="file" id="home-block-image-file" accept="image/*" />
+                <div class="muted" style="font-size:13px; margin-top:-6px;">Файл сохранится в /media/home/</div>
+
                 <label>Image URL (https или /uploads)</label>
                 <input type="text" name="image_url" id="home-block-image-url" placeholder="https://..." />
                 <div class="muted" id="home-block-image-link" style="font-size:13px; margin-top:-6px;">
@@ -1929,6 +1933,36 @@
       }
     }
 
+    async function uploadHomeBlockImageFile() {
+      const file = homeBlockImageFileInput?.files?.[0];
+      if (!file) return;
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      try {
+        const response = await fetch('/api/admin/home/upload_image', { method: 'POST', body: formData });
+        const data = await response.json();
+        const imageUrl = data.url;
+        if (!response.ok || !imageUrl) {
+          throw new Error(data?.detail || 'Ошибка загрузки изображения');
+        }
+
+        homeBlockState.formData.image_url = imageUrl;
+        setHomeBlockImage(imageUrl, imageUrl);
+
+        if (currentUser && (homeBlockState.currentId || currentBlockId)) {
+          await saveHomeBlockImageUrl(imageUrl);
+        } else {
+          setStatus('Изображение загружено. Сохраните блок, чтобы применить.');
+        }
+      } catch (e) {
+        handleError(e, 'Не удалось загрузить изображение блока');
+      } finally {
+        if (homeBlockImageFileInput) homeBlockImageFileInput.value = '';
+      }
+    }
+
     function renderImageRow(image, type, reloadFn) {
       const row = document.createElement('div');
       row.className = 'image-row';
@@ -2509,6 +2543,7 @@
       homeBlockState.formData.block_key = getDefaultKeyForTab(currentHomeTab || 'hero');
       applyStateToForm(homeBlockForm, homeBlockState.formData);
       setHomeBlockImage(homeBlockState.formData.image_url);
+      if (homeBlockImageFileInput) homeBlockImageFileInput.value = '';
       setHomeBlockMeta(null);
       renderHomeBlocks(homeBlockItems, homeBlockFilter?.value || 'all');
     }
@@ -2809,6 +2844,23 @@
       }
       if (action === 'delete-post') {
         deleteHomePost(id);
+      }
+    }
+
+    async function saveHomeBlockImageUrl(imageUrl) {
+      const targetId = homeBlockState.currentId || currentBlockId;
+      if (!targetId || !currentUser || !homeBlockForm) return;
+      const payload = serializeForm(homeBlockForm);
+      payload.order = payload.order ? Number(payload.order) : 0;
+      payload.block_key = payload.block_key || homeBlockState.formData.block_key;
+      payload.image_url = imageUrl;
+      const path = `/admin/home/blocks/${targetId}?user_id=${currentUser.telegram_id}`;
+      try {
+        await sendJson(path, 'PUT', payload);
+        setStatus('Изображение блока обновлено');
+        await loadHomeBlocks(targetId);
+      } catch (e) {
+        handleError(e, 'Изображение загружено, но не удалось сохранить блок');
       }
     }
 
@@ -3176,6 +3228,7 @@
 
     productImageFileInput?.addEventListener('change', uploadProductImageFile);
     courseImageFileInput?.addEventListener('change', uploadCourseImageFile);
+    homeBlockImageFileInput?.addEventListener('change', uploadHomeBlockImageFile);
     productGalleryInput?.addEventListener('change', uploadProductGalleryFiles);
     courseGalleryInput?.addEventListener('change', uploadCourseGalleryFiles);
     productImageUrlInput?.addEventListener('input', () => setProductImagePreview(productImageUrlInput.value.trim()));

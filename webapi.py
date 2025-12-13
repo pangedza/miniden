@@ -36,6 +36,7 @@ from fastapi import (
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.exceptions import RequestValidationError
+from fastapi.staticfiles import StaticFiles
 from pydantic import Field
 from sqlalchemy.orm import Session
 
@@ -126,6 +127,9 @@ REQUIRED_DIRS = [
 def ensure_media_dirs() -> None:
     for d in REQUIRED_DIRS:
         d.mkdir(parents=True, exist_ok=True)
+
+
+app.mount("/media", StaticFiles(directory=MEDIA_ROOT), name="media")
 
 
 class WebChatStartPayload(BaseModel):
@@ -1901,6 +1905,16 @@ def admin_upload_image(
     base_folder = base_folder_by_kind.get(kind, "products")
     url = _save_uploaded_image(file, base_folder)
 
+    return {"ok": True, "url": url}
+
+
+@app.post("/api/admin/home/upload_image")
+def admin_upload_home_image(file: UploadFile = File(...), admin_user=Depends(get_admin_user)):
+    """
+    Загрузка изображения для блоков главной страницы.
+    Путь отличается от общего upload-image, но использует ту же базу `/media/home/`.
+    """
+    url = _save_uploaded_image(file, "home")
     return {"ok": True, "url": url}
 
 
