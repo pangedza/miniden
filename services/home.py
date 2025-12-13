@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from sqlalchemy import asc, desc, select
 
 from database import get_session
 from models import HomeBanner, HomePost, HomeSection
+from utils.home_images import append_cache_busting, image_version_from_timestamp, normalize_home_image_url
 from schemas.home import HomeBlockIn, HomeBlockOut, HomePostIn, HomePostOut, HomeSectionIn, HomeSectionOut
 
 
@@ -11,6 +14,15 @@ def _model_to_out(instance, schema_cls):
     if not instance:
         return None
     return schema_cls.from_orm(instance)
+
+
+def _augment_image_fields(block: HomeBlockOut | None) -> HomeBlockOut | None:
+    if not block:
+        return None
+    block.image_url = normalize_home_image_url(block.image_url)
+    block.image_version = image_version_from_timestamp(getattr(block, "updated_at", None))
+    block.image_url_with_version = append_cache_busting(block.image_url, getattr(block, "updated_at", None))
+    return block
 
 
 def get_active_home_data() -> dict[str, list]:
@@ -32,22 +44,24 @@ def _list_blocks_query(include_inactive: bool):
 def list_blocks(include_inactive: bool = True) -> list[HomeBlockOut]:
     with get_session() as session:
         rows = session.execute(_list_blocks_query(include_inactive)).scalars().all()
-        return [HomeBlockOut.from_orm(item) for item in rows]
+        return [_augment_image_fields(HomeBlockOut.from_orm(item)) for item in rows]
 
 
 def get_block(block_id: int) -> HomeBlockOut | None:
     with get_session() as session:
         banner = session.get(HomeBanner, block_id)
-        return _model_to_out(banner, HomeBlockOut)
+        return _augment_image_fields(_model_to_out(banner, HomeBlockOut))
 
 
 def create_block(payload: HomeBlockIn) -> HomeBlockOut:
     with get_session() as session:
-        record = HomeBanner(**payload.model_dump(by_alias=True))
+        payload_dict = payload.model_dump(by_alias=True)
+        payload_dict["image_url"] = normalize_home_image_url(payload_dict.get("image_url"))
+        record = HomeBanner(**payload_dict)
         session.add(record)
         session.flush()
         session.refresh(record)
-        return HomeBlockOut.from_orm(record)
+        return _augment_image_fields(HomeBlockOut.from_orm(record))
 
 
 def update_block(block_id: int, payload: HomeBlockIn) -> HomeBlockOut | None:
@@ -56,10 +70,13 @@ def update_block(block_id: int, payload: HomeBlockIn) -> HomeBlockOut | None:
         if not banner:
             return None
         for key, value in payload.model_dump(by_alias=True).items():
+            if key == "image_url":
+                value = normalize_home_image_url(value)
             setattr(banner, key, value)
+        banner.updated_at = datetime.utcnow()
         session.flush()
         session.refresh(banner)
-        return HomeBlockOut.from_orm(banner)
+        return _augment_image_fields(HomeBlockOut.from_orm(banner))
 
 
 def delete_block(block_id: int) -> bool:

@@ -23,6 +23,8 @@ class HomeBlockOut(HomeBlockBase):
     id: int
     created_at: datetime
     updated_at: datetime
+    image_version: int | None = None
+    image_url_with_version: str | None = None
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 

@@ -12,6 +12,8 @@ from typing import Iterator
 from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
+from utils.home_images import HOME_PLACEHOLDER_URL
+
 
 DB_NAME = os.getenv("DB_NAME", "miniden")
 DB_USER = os.getenv("DB_USER", "miniden_user")
@@ -258,7 +260,7 @@ def init_db() -> None:
                 "body": "Мини-истории о корзинках, детских комнатах и спокойных вечерах. Всё, что делаю — про уют, семью и обучение без спешки.",
                 "button_text": "Узнать историю",
                 "button_link": "#story",
-                "image_url": "https://images.unsplash.com/photo-1519710164239-da123dc03ef4?auto=format&fit=crop&w=1400&q=80",
+                "image_url": HOME_PLACEHOLDER_URL,
                 "is_active": True,
                 "sort_order": 10,
             },
@@ -267,7 +269,7 @@ def init_db() -> None:
                 "title": "Дом и дети",
                 "body": "Тёплые вещи для дома",
                 "button_link": "/products",
-                "image_url": "https://images.unsplash.com/photo-1521334726092-b509a19597c5?auto=format&fit=crop&w=1400&q=80",
+                "image_url": HOME_PLACEHOLDER_URL,
                 "is_active": True,
                 "sort_order": 20,
             },
@@ -276,7 +278,7 @@ def init_db() -> None:
                 "title": "Процесс",
                 "body": "От пряжи до упаковки",
                 "button_link": "/masterclasses",
-                "image_url": "https://images.unsplash.com/photo-1518837695005-2083093ee35b?auto=format&fit=crop&w=1400&q=80",
+                "image_url": HOME_PLACEHOLDER_URL,
                 "is_active": True,
                 "sort_order": 21,
             },
@@ -285,7 +287,7 @@ def init_db() -> None:
                 "title": "Мои корзинки",
                 "body": "Корзинки и наборы",
                 "button_link": "/products",
-                "image_url": "https://images.unsplash.com/photo-1523413651479-597eb2da0ad6?auto=format&fit=crop&w=1400&q=80",
+                "image_url": HOME_PLACEHOLDER_URL,
                 "is_active": True,
                 "sort_order": 22,
             },
@@ -294,7 +296,7 @@ def init_db() -> None:
                 "title": "Обучение",
                 "body": "Начните с нуля",
                 "button_link": "/masterclasses",
-                "image_url": "https://images.unsplash.com/photo-1520975958225-d7f5d3c6f5a0?auto=format&fit=crop&w=1400&q=80",
+                "image_url": HOME_PLACEHOLDER_URL,
                 "is_active": True,
                 "sort_order": 23,
             },
@@ -318,7 +320,7 @@ def init_db() -> None:
                 "body": "Небольшие вещи, которые собирают дом воедино.",
                 "button_text": "Перейти в каталог",
                 "button_link": "/products",
-                "image_url": "https://images.unsplash.com/photo-1452860606245-08befc0ff44b?auto=format&fit=crop&w=1400&q=80",
+                "image_url": HOME_PLACEHOLDER_URL,
                 "is_active": True,
                 "sort_order": 50,
             },
@@ -328,7 +330,7 @@ def init_db() -> None:
                 "body": "Простые шаги, поддержка и вдохновение, чтобы связать своё первое изделие.",
                 "button_text": "Смотреть обучение",
                 "button_link": "/masterclasses",
-                "image_url": "https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=1400&q=80",
+                "image_url": HOME_PLACEHOLDER_URL,
                 "is_active": True,
                 "sort_order": 60,
             },

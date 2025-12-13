@@ -29,6 +29,10 @@ const learningEntryImage = learningEntry?.querySelector('img');
 const loginSection = document.getElementById('telegram-login-section');
 const authStatusSection = document.getElementById('auth-status');
 
+const HOME_PLACEHOLDER = '/static/img/home-placeholder.svg';
+const DEBUG_HOME_IMAGES =
+  Boolean(window?.MINIDEN_DEBUG_HOME_IMAGES) || localStorage?.getItem('miniden.debug_home_images') === '1';
+
 const GRADIENT_PLACEHOLDER =
   'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="g" x1="0" x2="1" y1="0" y2="1"><stop offset="0%" stop-color="%23f3e7e9"/><stop offset="100%" stop-color="%23e3eeff"/></linearGradient></defs><rect width="800" height="500" fill="url(%23g)"/></svg>';
 
@@ -40,7 +44,7 @@ const DEFAULT_BLOCKS = [
     body: 'Мини-истории о корзинках, детских комнатах и спокойных вечерах. Всё, что делаю — про уют, семью и обучение без спешки.',
     button_text: 'Узнать историю',
     button_url: '#story',
-    image_url: 'https://images.unsplash.com/photo-1519710164239-da123dc03ef4?auto=format&fit=crop&w=1400&q=80',
+    image_url: HOME_PLACEHOLDER,
     is_active: true,
     order: 10,
   },
@@ -49,7 +53,7 @@ const DEFAULT_BLOCKS = [
     title: 'Дом и дети',
     body: 'Тёплые вещи для дома',
     button_url: '/products',
-    image_url: 'https://images.unsplash.com/photo-1521334726092-b509a19597c5?auto=format&fit=crop&w=1400&q=80',
+    image_url: HOME_PLACEHOLDER,
     is_active: true,
     order: 20,
   },
@@ -58,7 +62,7 @@ const DEFAULT_BLOCKS = [
     title: 'Процесс',
     body: 'От пряжи до упаковки',
     button_url: '/masterclasses',
-    image_url: 'https://images.unsplash.com/photo-1518837695005-2083093ee35b?auto=format&fit=crop&w=1400&q=80',
+    image_url: HOME_PLACEHOLDER,
     is_active: true,
     order: 21,
   },
@@ -67,7 +71,7 @@ const DEFAULT_BLOCKS = [
     title: 'Мои корзинки',
     body: 'Корзинки и наборы',
     button_url: '/products',
-    image_url: 'https://images.unsplash.com/photo-1523413651479-597eb2da0ad6?auto=format&fit=crop&w=1400&q=80',
+    image_url: HOME_PLACEHOLDER,
     is_active: true,
     order: 22,
   },
@@ -76,7 +80,7 @@ const DEFAULT_BLOCKS = [
     title: 'Обучение',
     body: 'Начните с нуля',
     button_url: '/masterclasses',
-    image_url: 'https://images.unsplash.com/photo-1520975958225-d7f5d3c6f5a0?auto=format&fit=crop&w=1400&q=80',
+    image_url: HOME_PLACEHOLDER,
     is_active: true,
     order: 23,
   },
@@ -100,7 +104,7 @@ const DEFAULT_BLOCKS = [
     body: 'Небольшие вещи, которые собирают дом воедино.',
     button_text: 'Перейти в каталог',
     button_url: '/products',
-    image_url: 'https://images.unsplash.com/photo-1452860606245-08befc0ff44b?auto=format&fit=crop&w=1400&q=80',
+    image_url: HOME_PLACEHOLDER,
     is_active: true,
     order: 50,
   },
@@ -110,7 +114,7 @@ const DEFAULT_BLOCKS = [
     body: 'Простые шаги, поддержка и вдохновение, чтобы связать своё первое изделие.',
     button_text: 'Смотреть обучение',
     button_url: '/masterclasses',
-    image_url: 'https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=1400&q=80',
+    image_url: HOME_PLACEHOLDER,
     is_active: true,
     order: 60,
   },
@@ -123,6 +127,9 @@ function normalizeBlock(raw) {
     : Number.isFinite(raw.sort_order)
       ? raw.sort_order
       : 0;
+  const image_url = raw.image_url_with_version
+    ? safeUrl(raw.image_url_with_version, '')
+    : applyCacheBust(raw.image_url, raw.image_version);
   return {
     ...raw,
     block_key: raw.block_key,
@@ -131,7 +138,9 @@ function normalizeBlock(raw) {
     body: raw.body ?? raw.subtitle ?? '',
     button_text: raw.button_text,
     button_url: raw.button_url || raw.button_link || raw.buttonHref,
-    image_url: raw.image_url,
+    image_url,
+    image_url_with_version: image_url,
+    image_version: raw.image_version,
     is_active: raw.is_active !== false,
     order,
   };
@@ -144,20 +153,34 @@ function safeUrl(url, fallback) {
   if (trimmed.startsWith('http://')) {
     return trimmed.replace('http://', 'https://');
   }
-  if (!trimmed.startsWith('http')) return fallback;
-  return trimmed;
+  if (trimmed.startsWith('https://') || trimmed.startsWith('http://')) return trimmed;
+  if (trimmed.startsWith('/') || trimmed.startsWith('data:')) return trimmed;
+  return fallback || trimmed;
+}
+
+function applyCacheBust(url, version) {
+  const normalized = safeUrl(url, '');
+  if (!normalized) return '';
+  if (!version) return normalized;
+  const separator = normalized.includes('?') ? '&' : '?';
+  return `${normalized}${separator}v=${version}`;
 }
 
 function applyImageWithFallback(img, url) {
   if (!img) return;
-  const fallback = safeUrl(img.dataset.fallback, GRADIENT_PLACEHOLDER) || GRADIENT_PLACEHOLDER;
+  const fallback = safeUrl(img.dataset?.fallback, HOME_PLACEHOLDER) || HOME_PLACEHOLDER;
+  const fallbackWithGradient = safeUrl(fallback, GRADIENT_PLACEHOLDER) || GRADIENT_PLACEHOLDER;
   img.onerror = () => {
     img.onerror = null;
-    img.src = fallback;
+    img.src = fallbackWithGradient;
     img.classList.add('image-fallback');
   };
-  img.src = safeUrl(url, fallback);
+  const resolvedUrl = safeUrl(url, fallbackWithGradient) || fallbackWithGradient;
+  img.src = resolvedUrl;
   img.loading = 'lazy';
+  if (DEBUG_HOME_IMAGES) {
+    console.debug('[home:image]', img.alt || img.id || 'image', '=>', resolvedUrl);
+  }
 }
 
 function applyBlockOrder(element, orderValue) {
@@ -176,7 +199,7 @@ function applyHero(block) {
     heroButton.href = block?.button_url || heroButton.getAttribute('href') || '#story';
   }
   if (heroImage) {
-    applyImageWithFallback(heroImage, block?.image_url || heroImage.src);
+    applyImageWithFallback(heroImage, block?.image_url || HOME_PLACEHOLDER);
     heroImage.alt = block?.title || 'Главный баннер';
   }
   applyBlockOrder(heroSection, block?.order);
@@ -189,7 +212,7 @@ function applyTile(tileEl, block) {
   if (label && block.title) label.textContent = block.title;
   const img = tileEl.querySelector('img');
   if (img) {
-    applyImageWithFallback(img, block.image_url || img.src);
+    applyImageWithFallback(img, block.image_url || HOME_PLACEHOLDER);
     img.alt = block.title || img.alt || 'Плитка';
   }
   if (block.button_url) tileEl.href = block.button_url;
@@ -233,7 +256,7 @@ function applyCta(section, block) {
     if (block.button_url) buttonEl.href = block.button_url;
   }
   if (imageEl) {
-    applyImageWithFallback(imageEl, block.image_url || imageEl.src);
+    applyImageWithFallback(imageEl, block.image_url || HOME_PLACEHOLDER);
     imageEl.alt = block.title || imageEl.alt || '';
   }
   applyBlockOrder(section, block.order);
