@@ -41,7 +41,7 @@ const DEFAULT_BLOCKS = [
     image_url:
       'https://images.unsplash.com/photo-1513542789411-b6a5d4f31634?auto=format&fit=crop&w=1200&q=80',
     is_active: true,
-    order: 1,
+    order: 10,
   },
   {
     block_key: 'tile_home_kids',
@@ -49,7 +49,7 @@ const DEFAULT_BLOCKS = [
     image_url:
       'https://images.unsplash.com/photo-1526481280695-3c687fd643ed?auto=format&fit=crop&w=1200&q=80',
     is_active: true,
-    order: 10,
+    order: 20,
   },
   {
     block_key: 'tile_process',
@@ -57,7 +57,7 @@ const DEFAULT_BLOCKS = [
     image_url:
       'https://images.unsplash.com/photo-1520975682031-a1a4f852cddf?auto=format&fit=crop&w=1200&q=80',
     is_active: true,
-    order: 20,
+    order: 21,
   },
   {
     block_key: 'tile_baskets',
@@ -66,7 +66,7 @@ const DEFAULT_BLOCKS = [
       'https://images.unsplash.com/photo-1526481280695-3c687fd643ed?auto=format&fit=crop&w=1200&q=80',
     button_url: 'products.html',
     is_active: true,
-    order: 30,
+    order: 22,
   },
   {
     block_key: 'tile_learning',
@@ -75,7 +75,7 @@ const DEFAULT_BLOCKS = [
       'https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=1200&q=80',
     button_url: 'masterclasses.html',
     is_active: true,
-    order: 40,
+    order: 23,
   },
   {
     block_key: 'about_short',
@@ -84,14 +84,14 @@ const DEFAULT_BLOCKS = [
     image_url:
       'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=800&q=80',
     is_active: true,
-    order: 50,
+    order: 30,
   },
   {
     block_key: 'process_text',
     title: 'Процесс',
     body: 'От выбора пряжи до упаковки — всё делаю сама, небольшими партиями и с вниманием к мелочам. Так изделия получаются тёплыми и долгими в носке.',
     is_active: true,
-    order: 60,
+    order: 40,
   },
   {
     block_key: 'shop_entry',
@@ -102,7 +102,7 @@ const DEFAULT_BLOCKS = [
     image_url:
       'https://images.unsplash.com/photo-1545239351-1141bd82e8a6?auto=format&fit=crop&w=1200&q=80',
     is_active: true,
-    order: 70,
+    order: 50,
   },
   {
     block_key: 'learning_entry',
@@ -113,7 +113,7 @@ const DEFAULT_BLOCKS = [
     image_url:
       'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?auto=format&fit=crop&w=1200&q=80',
     is_active: true,
-    order: 80,
+    order: 60,
   },
 ];
 

@@ -23,9 +23,7 @@ def get_active_home_data() -> dict[str, list]:
 
 
 def _list_blocks_query(include_inactive: bool):
-    query = select(HomeBanner).order_by(
-        asc(HomeBanner.sort_order), asc(HomeBanner.updated_at), asc(HomeBanner.created_at)
-    )
+    query = select(HomeBanner).order_by(asc(HomeBanner.sort_order), asc(HomeBanner.id))
     if not include_inactive:
         query = query.where(HomeBanner.is_active.is_(True))
     return query

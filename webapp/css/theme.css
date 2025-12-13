@@ -524,9 +524,9 @@ p {
 }
 
 .page-index main {
-  max-width: 1180px;
+  width: min(1120px, 100% - 32px);
   margin: 0 auto;
-  padding-top: 32px;
+  padding: 32px 0 0;
   display: flex;
   flex-direction: column;
   gap: 32px;
@@ -545,7 +545,8 @@ p {
   padding: clamp(24px, 5vw, 44px);
   box-shadow: var(--shadow-strong);
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  align-items: stretch;
   gap: clamp(18px, 3vw, 32px);
 }
 
@@ -597,7 +598,7 @@ p {
   border-radius: var(--radius-card);
   overflow: hidden;
   background: var(--tile-gradient);
-  min-height: 260px;
+  min-height: 280px;
   aspect-ratio: 4 / 3;
   display: grid;
   place-items: center;
@@ -629,8 +630,8 @@ p {
   border-radius: var(--radius-tile);
   background: var(--tile-gradient);
   border: 1px solid var(--color-border-subtle);
-  min-height: 160px;
-  aspect-ratio: 16 / 10;
+  min-height: 180px;
+  aspect-ratio: 4 / 3;
   display: flex;
   align-items: flex-end;
   padding: 18px;
@@ -664,10 +665,13 @@ p {
 
 @media (min-width: 900px) {
   .visual-tile {
-    min-height: 220px;
+    min-height: 240px;
   }
   .hero-visual {
-    min-height: 320px;
+    min-height: 360px;
+  }
+  .lifestyle-hero {
+    grid-template-columns: minmax(360px, 1.1fr) minmax(360px, 0.9fr);
   }
 }
 
@@ -2114,6 +2118,16 @@ textarea {
 .table-wrapper {
   width: 100%;
   overflow-x: auto;
+}
+
+.table-selectable tbody tr {
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.table-selectable tbody tr.selected {
+  background: rgba(126, 87, 194, 0.08);
+  outline: 1px solid var(--color-border-subtle);
 }
 
 .admin-card {

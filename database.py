@@ -259,21 +259,21 @@ def init_db() -> None:
                 "button_link": "#story",
                 "image_url": "https://images.unsplash.com/photo-1513542789411-b6a5d4f31634?auto=format&fit=crop&w=1200&q=80",
                 "is_active": True,
-                "sort_order": 1,
+                "sort_order": 10,
             },
             {
                 "block_key": "tile_home_kids",
                 "title": "Дом и дети",
                 "image_url": "https://images.unsplash.com/photo-1526481280695-3c687fd643ed?auto=format&fit=crop&w=1200&q=80",
                 "is_active": True,
-                "sort_order": 10,
+                "sort_order": 20,
             },
             {
                 "block_key": "tile_process",
                 "title": "Процесс",
                 "image_url": "https://images.unsplash.com/photo-1520975682031-a1a4f852cddf?auto=format&fit=crop&w=1200&q=80",
                 "is_active": True,
-                "sort_order": 20,
+                "sort_order": 21,
             },
             {
                 "block_key": "tile_baskets",
@@ -281,7 +281,7 @@ def init_db() -> None:
                 "image_url": "https://images.unsplash.com/photo-1526481280695-3c687fd643ed?auto=format&fit=crop&w=1200&q=80",
                 "button_link": "products.html",
                 "is_active": True,
-                "sort_order": 30,
+                "sort_order": 22,
             },
             {
                 "block_key": "tile_learning",
@@ -289,7 +289,7 @@ def init_db() -> None:
                 "image_url": "https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=1200&q=80",
                 "button_link": "masterclasses.html",
                 "is_active": True,
-                "sort_order": 40,
+                "sort_order": 23,
             },
             {
                 "block_key": "about_short",
@@ -297,14 +297,14 @@ def init_db() -> None:
                 "body": "Я вяжу дома. Учу так, как училась сама: без спешки, в тишине и с акцентом на уютные вещи для семьи.",
                 "image_url": "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=800&q=80",
                 "is_active": True,
-                "sort_order": 50,
+                "sort_order": 30,
             },
             {
                 "block_key": "process_text",
                 "title": "Процесс",
                 "body": "От выбора пряжи до упаковки — всё делаю сама, небольшими партиями и с вниманием к мелочам.",
                 "is_active": True,
-                "sort_order": 60,
+                "sort_order": 40,
             },
             {
                 "block_key": "shop_entry",
@@ -314,7 +314,7 @@ def init_db() -> None:
                 "button_link": "products.html",
                 "image_url": "https://images.unsplash.com/photo-1545239351-1141bd82e8a6?auto=format&fit=crop&w=1200&q=80",
                 "is_active": True,
-                "sort_order": 70,
+                "sort_order": 50,
             },
             {
                 "block_key": "learning_entry",
@@ -324,16 +324,24 @@ def init_db() -> None:
                 "button_link": "masterclasses.html",
                 "image_url": "https://images.unsplash.com/photo-1512436991641-6745cdb1723f?auto=format&fit=crop&w=1200&q=80",
                 "is_active": True,
-                "sort_order": 80,
+                "sort_order": 60,
             },
         ]
 
         with get_session() as session:
-            existing_keys = set(session.scalars(select(HomeBanner.block_key)).all())
+            existing = {
+                row.block_key: row
+                for row in session.execute(
+                    select(HomeBanner).where(HomeBanner.block_key.in_([b["block_key"] for b in required_blocks]))
+                ).scalars()
+            }
             for block in required_blocks:
-                if block["block_key"] in existing_keys:
-                    continue
-                session.add(HomeBanner(**block))
+                current = existing.get(block["block_key"])
+                if current:
+                    if not current.sort_order:
+                        current.sort_order = block["sort_order"]
+                else:
+                    session.add(HomeBanner(**block))
 
     _ensure_home_block_seed()
 

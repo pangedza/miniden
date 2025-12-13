@@ -515,7 +515,7 @@
                   <option value="entries">Переходы</option>
                 </select>
               </div>
-              <table aria-label="Блоки главной">
+              <table aria-label="Блоки главной" class="table-selectable">
                 <thead>
                   <tr>
                     <th>ID</th>
@@ -561,17 +561,10 @@
                 <label>Ссылка кнопки</label>
                 <input type="text" name="button_url" />
 
-                <label>URL картинки</label>
-                <input type="text" name="image_url" id="home-block-image-url" readonly />
-                <div class="home-banner-image-upload" style="display:flex; flex-direction:column; gap:8px;">
-                  <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-                    <input type="file" id="home-block-image-file" accept="image/*" style="display:none;" />
-                    <label for="home-block-image-file" class="btn secondary">Выбрать файл</label>
-                    <span class="muted" style="font-size:13px;">Файл загрузится на сервер, ссылка заполнится автоматически.</span>
-                  </div>
-                  <div class="home-banner-image-preview" style="border: 1px dashed var(--border); padding:10px; border-radius:12px; background: rgba(255,255,255,0.02);">
-                    <img id="home-block-image-preview" alt="Превью блока" style="display:none; max-width:100%; border-radius:12px;" />
-                  </div>
+                <label>Image URL (https)</label>
+                <input type="text" name="image_url" id="home-block-image-url" placeholder="https://..." />
+                <div class="home-banner-image-preview" style="border: 1px dashed var(--border); padding:10px; border-radius:12px; background: rgba(255,255,255,0.02); display:flex; align-items:center; justify-content:center;">
+                  <img id="home-block-image-preview" alt="Превью блока" style="max-width:100%; border-radius:12px;" />
                 </div>
 
                 <label>Порядок</label>
@@ -992,6 +985,8 @@
       sort_order: 0,
       is_active: true,
     };
+    const HOME_IMAGE_PLACEHOLDER =
+      'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 360"><defs><linearGradient id="g" x1="0" x2="1" y1="0" y2="1"><stop offset="0%" stop-color="%23f3e7e9"/><stop offset="100%" stop-color="%23e3eeff"/></linearGradient></defs><rect width="600" height="360" fill="url(%23g)"/><rect x="140" y="110" width="320" height="140" rx="16" fill="rgba(0,0,0,0.05)"/></svg>';
     const faqDefaults = {
       category: '',
       question: '',
@@ -2469,7 +2464,7 @@
       homeBlockState.formData.block_key = getDefaultKeyForTab(currentHomeTab || 'hero');
       applyStateToForm(homeBlockForm, homeBlockState.formData);
       setHomeBlockImage(homeBlockState.formData.image_url);
-      if (homeBlockImageFileInput) homeBlockImageFileInput.value = '';
+      renderHomeBlocks(homeBlockItems, currentHomeTab);
     }
 
     function resetHomePostForm() {
@@ -2483,46 +2478,21 @@
     }
 
     function setHomeBlockImage(url) {
-      const normalized = url || '';
+      const normalized = (url || '').trim();
+      const safeUrl = normalized.startsWith('http://')
+        ? normalized.replace('http://', 'https://')
+        : normalized;
       if (homeBlockImageUrlInput) {
         homeBlockImageUrlInput.value = normalized;
       }
       if (homeBlockImagePreview) {
-        if (normalized) {
-          homeBlockImagePreview.src = normalized;
-          homeBlockImagePreview.style.display = 'block';
-        } else {
-          homeBlockImagePreview.src = '';
-          homeBlockImagePreview.style.display = 'none';
-        }
-      }
-    }
-
-    async function uploadHomeBlockImage(file) {
-      const formData = new FormData();
-      formData.append('kind', 'home');
-      formData.append('file', file);
-      const res = await fetch(`${API_BASE}/admin/upload-image`, {
-        method: 'POST',
-        body: formData,
-      });
-      const data = await handleResponse(res);
-      return data?.url;
-    }
-
-    async function handleHomeBlockImageChange(event) {
-      const file = event.target?.files?.[0];
-      if (!file) return;
-      try {
-        const url = await uploadHomeBlockImage(file);
-        if (url) {
-          setHomeBlockImage(url);
-          setStatus('Изображение загружено');
-        }
-      } catch (e) {
-        handleError(e, 'Не удалось загрузить изображение');
-      } finally {
-        event.target.value = '';
+        const fallback = HOME_IMAGE_PLACEHOLDER;
+        homeBlockImagePreview.onerror = () => {
+          homeBlockImagePreview.onerror = null;
+          homeBlockImagePreview.src = fallback;
+        };
+        homeBlockImagePreview.src = safeUrl || fallback;
+        homeBlockImagePreview.style.display = 'block';
       }
     }
 
@@ -2551,6 +2521,8 @@
 
       filtered.forEach((block) => {
         const row = document.createElement('tr');
+        row.dataset.blockId = block.id;
+        row.classList.toggle('selected', String(block.id) === String(currentBlockId));
         const date = block.updated_at ? new Date(block.updated_at).toLocaleString('ru-RU') : '—';
         row.innerHTML = `
           <td>#${block.id}</td>
@@ -2604,7 +2576,7 @@
       });
     }
 
-    async function loadHomeBlocks() {
+    async function loadHomeBlocks(selectId = null) {
       if (!currentUser) return;
       try {
         const data = await apiGet('/admin/home/blocks', { user_id: currentUser.telegram_id });
@@ -2614,7 +2586,18 @@
           button_url: item.button_url || item.button_link || '',
           block_key: item.block_key || item.slug || 'custom',
         }));
-        renderHomeBlocks(homeBlockItems, currentHomeTab);
+        const filtered = filterBlocksByTab(homeBlockItems, currentHomeTab);
+        const preferredId = selectId ?? currentBlockId ?? filtered[0]?.id;
+        const selected = preferredId
+          ? filtered.find((block) => String(block.id) === String(preferredId))
+          : null;
+        if (selected) {
+          openHomeBlockEdit(selected);
+        } else {
+          currentBlockId = null;
+          renderHomeBlocks(homeBlockItems, currentHomeTab);
+          resetHomeBlockForm();
+        }
       } catch (e) {
         handleError(e, 'Не удалось загрузить блоки');
       }
@@ -2650,6 +2633,7 @@
       resetFormState(homeBlockState.formData, { ...homeBlockDefaults, ...block });
       applyStateToForm(homeBlockForm, homeBlockState.formData);
       setHomeBlockImage(block.image_url || homeBlockState.formData.image_url);
+      renderHomeBlocks(homeBlockItems, currentHomeTab);
     }
 
     function openHomePostEdit(post) {
@@ -2684,6 +2668,19 @@
       }
     }
 
+    function handleHomeBlocksRowClick(event) {
+      const actionBtn = event.target.closest('button[data-action]');
+      if (actionBtn) return;
+      const row = event.target.closest('tr[data-block-id]');
+      if (!row) return;
+      const block = homeBlockItems.find((item) => String(item.id) === String(row.dataset.blockId));
+      if (!block) return;
+      const tab = getTabForBlockKey(block.block_key);
+      showHomeTab(tab);
+      openHomeBlockEdit(block);
+      homeBlockForm?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
     async function handleHomeActionClick(event) {
       const btn = event.target.closest('button[data-action]');
       if (!btn) return;
@@ -2695,9 +2692,23 @@
         try {
           const block = await fetchHomeBlock(id);
           if (block) {
-            const tab = getTabForBlockKey(block.block_key);
+            const normalized = {
+              ...homeBlockDefaults,
+              ...block,
+              order: block.order ?? block.sort_order ?? 0,
+              button_url: block.button_url || block.button_link || '',
+            };
+            const existingIndex = homeBlockItems.findIndex(
+              (item) => String(item.id) === String(normalized.id)
+            );
+            if (existingIndex >= 0) {
+              homeBlockItems[existingIndex] = { ...homeBlockItems[existingIndex], ...normalized };
+            } else {
+              homeBlockItems.push(normalized);
+            }
+            const tab = getTabForBlockKey(normalized.block_key);
             showHomeTab(tab);
-            openHomeBlockEdit(block);
+            openHomeBlockEdit(normalized);
             homeBlockForm?.scrollIntoView({ behavior: 'smooth', block: 'start' });
           }
         } catch (e) {
@@ -2741,10 +2752,13 @@
         : `/admin/home/blocks${query}`;
       const method = homeBlockState.currentId ? 'PUT' : 'POST';
       try {
-        await sendJson(path, method, payload);
-        setStatus('Блок сохранён');
-        resetHomeBlockForm();
-        await loadHomeBlocks();
+        const saved = await sendJson(path, method, payload);
+        const targetId = saved?.id || homeBlockState.currentId || currentBlockId;
+        setStatus('Сохранено');
+        await loadHomeBlocks(targetId);
+        if (!targetId) {
+          resetHomeBlockForm();
+        }
       } catch (e) {
         handleError(e, 'Не удалось сохранить блок');
       }
@@ -3042,6 +3056,7 @@
     bindStateToForm(promoCreateForm, promoCreateState.formData);
     bindStateToForm(homeBlockForm, homeBlockState.formData);
     bindStateToForm(homePostForm, homePostState.formData);
+    setHomeBlockImage(homeBlockState.formData.image_url || '');
 
     promoCreateForm?.addEventListener('submit', submitPromocodeCreate);
     promoCreateReset?.addEventListener('click', resetPromoCreateForm);
@@ -3049,7 +3064,6 @@
     productForm.addEventListener('submit', handleProductFormSubmit);
     courseForm.addEventListener('submit', handleCourseFormSubmit);
     homeBlockForm?.addEventListener('submit', handleHomeBlockSubmit);
-    homeBlockImageFileInput?.addEventListener('change', handleHomeBlockImageChange);
     homeBlockImageUrlInput?.addEventListener('input', (event) => {
       setHomeBlockImage(event.target.value);
     });
@@ -3123,6 +3137,7 @@
         }
       });
     });
+    homeBlocksList?.addEventListener('click', handleHomeBlocksRowClick);
     document.addEventListener('click', handleHomeActionClick);
 
     reviewStatusFilter?.addEventListener('change', loadReviews);
