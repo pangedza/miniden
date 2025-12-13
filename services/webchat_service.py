@@ -160,14 +160,18 @@ def get_session_by_id(session_id: int | str) -> WebChatSession | None:
         return db.get(WebChatSession, numeric_id)
 
 
-def _mark_messages_read_by_manager(db, session_obj: WebChatSession) -> None:
+def _mark_messages_read_by_manager(
+    db, session_obj: WebChatSession, *, last_read_message_id: int | None = None
+) -> None:
     updated = False
-    unread_messages = db.scalars(
-        select(WebChatMessage).where(
-            WebChatMessage.session_id == session_obj.id,
-            WebChatMessage.is_read_by_manager.is_(False),
-        )
-    ).all()
+    query = select(WebChatMessage).where(
+        WebChatMessage.session_id == session_obj.id,
+        WebChatMessage.is_read_by_manager.is_(False),
+    )
+    if last_read_message_id:
+        query = query.where(WebChatMessage.id <= last_read_message_id)
+
+    unread_messages = db.scalars(query).all()
     for msg in unread_messages:
         msg.is_read_by_manager = True
         updated = True
@@ -201,6 +205,7 @@ def get_messages(
     *,
     after_id: int = 0,
     mark_read_for: str | None = None,
+    last_read_message_id: int | None = None,
 ) -> list[WebChatMessage]:
     with get_session() as db:
         session_obj = db.get(WebChatSession, session.id)
@@ -217,7 +222,9 @@ def get_messages(
         records: Iterable[WebChatMessage] = db.scalars(query).all()
 
         if mark_read_for == "manager":
-            _mark_messages_read_by_manager(db, session_obj)
+            _mark_messages_read_by_manager(
+                db, session_obj, last_read_message_id=last_read_message_id
+            )
         elif mark_read_for == "client":
             _mark_messages_read_by_client(db, session_obj)
 
@@ -304,12 +311,23 @@ def list_sessions(
 
 
 def get_messages_by_session_id(
-    session_id: int, *, limit: int | None = None, after_id: int = 0, mark_read_for: str | None = None
+    session_id: int,
+    *,
+    limit: int | None = None,
+    after_id: int = 0,
+    mark_read_for: str | None = None,
+    last_read_message_id: int | None = None,
 ) -> list[WebChatMessage]:
     session = get_session_by_id(session_id)
     if not session:
         return []
-    return get_messages(session, limit=limit or 0, after_id=after_id, mark_read_for=mark_read_for)
+    return get_messages(
+        session,
+        limit=limit or 0,
+        after_id=after_id,
+        mark_read_for=mark_read_for,
+        last_read_message_id=last_read_message_id,
+    )
 
 
 def close_session(session_id: int) -> bool:
@@ -317,4 +335,20 @@ def close_session(session_id: int) -> bool:
     if not session:
         return False
     mark_closed(session)
+    return True
+
+
+def mark_read_for_manager(session_id: int, *, last_read_message_id: int | None = None) -> bool:
+    """Mark messages as read for manager side and reset unread counter."""
+
+    with get_session() as db:
+        session_obj = db.get(WebChatSession, session_id)
+        if not session_obj:
+            return False
+
+        _mark_messages_read_by_manager(
+            db, session_obj, last_read_message_id=last_read_message_id
+        )
+        db.flush()
+
     return True

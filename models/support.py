@@ -24,6 +24,11 @@ class SupportSession(BaseModel):
     unread_for_manager: int | None = 0
 
 
+class SupportSessionDetail(BaseModel):
+    session: SupportSession
+    messages: list[SupportMessage]
+
+
 class SupportMessageList(BaseModel):
     items: list[SupportMessage]
 

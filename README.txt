@@ -20,6 +20,12 @@ MiniDeN — Telegram-бот и веб-магазин
 - Эндпоинты веб-чата принимают гибкие JSON-поля: `session_key` и `text` обязательны, остальные поля опциональны; ошибки валидации логируются в backend.
 - В ответе `/api/webchat/start` теперь всегда приходят `session_id` и `session_key`, чтобы виджет и бот могли надёжно продолжать сессию.
 - Эндпоинт `/api/webchat/manager_reply` принимает POST с параметрами в query или JSON-ключами (`session_id`/`session_key`, `text`/`message`/`reply`) и возвращает `{ "ok": true }`.
+- Добавлены отдельные админские эндпоинты для чатов в стиле мессенджера:
+  - `GET /api/webchat/sessions` — список сессий с поиском/статусом/пагинацией;
+  - `GET /api/webchat/sessions/{session_id}` — метаданные сессии и сообщения;
+  - `POST /api/webchat/sessions/{session_id}/reply` — ответ менеджера через body {"text": "..."};
+  - `POST /api/webchat/sessions/{session_id}/read` — отметка прочитанного (опционально `{ "last_read_message_id": N }`);
+  - `POST /api/webchat/sessions/{session_id}/close` — закрытие диалога.
 - Виджет (`webapp/js/api.js`) корректно обрабатывает не-JSON ответы (например, HTML от 502) и больше не падает на JSON.parse.
 - Логи веб-чата стали подробнее: старт, пользовательские сообщения и ответы менеджера пишутся с ключевыми атрибутами, а ошибки валидации фиксируются с перечислением полей.
 

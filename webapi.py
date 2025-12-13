@@ -46,6 +46,7 @@ from models.support import (
     SupportMessage,
     SupportMessageList,
     SupportSession,
+    SupportSessionDetail,
     SupportSessionList,
     WebChatMessagesResponse,
 )
@@ -161,6 +162,14 @@ class AdminWebChatSendPayload(BaseModel):
 
 class AdminWebChatClosePayload(BaseModel):
     session_id: int
+
+
+class AdminWebChatReadPayload(BaseModel):
+    last_read_message_id: int | None = None
+
+
+class AdminWebChatReplyBody(BaseModel):
+    text: str
 
 
 def _send_message_to_admins(text: str) -> list[int]:
@@ -2338,6 +2347,120 @@ def admin_webchat_close(
     payload: AdminWebChatClosePayload, admin: User = Depends(get_admin_user)
 ):
     session = webchat_service.get_session_by_id(payload.session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    webchat_service.mark_closed(session)
+    return {"ok": True}
+
+
+@app.get("/api/webchat/sessions", response_model=SupportSessionList)
+def api_admin_webchat_sessions(
+    status: str = "open",
+    search: str | None = None,
+    page: int = 1,
+    limit: int = 50,
+    admin: User = Depends(get_admin_user),
+):
+    normalized_status = status if status != "all" else None
+    sessions = webchat_service.list_sessions(
+        status=normalized_status, limit=limit, search=search, page=page
+    )
+
+    items: list[dict[str, Any]] = []
+    for session, last_message in sessions:
+        items.append(
+            {
+                "session_id": int(session.id),
+                "session_key": session.session_key or session.session_id,
+                "status": session.status,
+                "created_at": session.created_at,
+                "updated_at": session.updated_at,
+                "last_message_at": session.last_message_at,
+                "last_message": last_message.text if last_message else None,
+                "last_sender": last_message.sender if last_message else None,
+                "unread_for_manager": int(session.unread_for_manager or 0),
+            }
+        )
+
+    return {"items": items}
+
+
+@app.get("/api/webchat/sessions/{session_id}", response_model=SupportSessionDetail)
+def api_admin_webchat_session_detail(
+    session_id: int,
+    after_id: int = 0,
+    limit: int | None = None,
+    admin: User = Depends(get_admin_user),
+):
+    session = webchat_service.get_session_by_id(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    messages = webchat_service.get_messages(
+        session,
+        limit=limit,
+        after_id=after_id,
+        mark_read_for="manager",
+    )
+
+    return {
+        "session": {
+            "session_id": int(session.id),
+            "session_key": session.session_key or session.session_id,
+            "status": session.status,
+            "created_at": session.created_at,
+            "updated_at": session.updated_at,
+            "last_message_at": session.last_message_at,
+            "last_message": messages[-1].text if messages else None,
+            "last_sender": messages[-1].sender if messages else None,
+            "unread_for_manager": int(session.unread_for_manager or 0),
+        },
+        "messages": [_serialize_webchat_message(msg) for msg in messages],
+    }
+
+
+@app.post("/api/webchat/sessions/{session_id}/reply", response_model=SupportMessage)
+def api_admin_webchat_reply(
+    session_id: int,
+    payload: AdminWebChatReplyBody,
+    admin: User = Depends(get_admin_user),
+):
+    if not payload.text:
+        raise HTTPException(status_code=400, detail="text is required")
+
+    session = webchat_service.get_session_by_id(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    message = webchat_service.add_manager_message(session, payload.text)
+    if session.status == "waiting_manager":
+        webchat_service.mark_open(session)
+
+    return _serialize_webchat_message(message)
+
+
+@app.post("/api/webchat/sessions/{session_id}/read")
+def api_admin_webchat_mark_read(
+    session_id: int,
+    payload: AdminWebChatReadPayload = Body(default=AdminWebChatReadPayload()),
+    admin: User = Depends(get_admin_user),
+):
+    session = webchat_service.get_session_by_id(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    webchat_service.mark_read_for_manager(
+        session.id, last_read_message_id=payload.last_read_message_id
+    )
+    return {"ok": True}
+
+
+@app.post("/api/webchat/sessions/{session_id}/close")
+def api_admin_webchat_close(
+    session_id: int, admin: User = Depends(get_admin_user)
+):
+    session = webchat_service.get_session_by_id(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
