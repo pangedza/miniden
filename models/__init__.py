@@ -295,8 +295,10 @@ class HomeBanner(Base):
     __tablename__ = "home_banners"
 
     id = Column(Integer, primary_key=True)
+    block_key = Column(String(100), nullable=True, index=True)
     title = Column(String(255), nullable=False)
     subtitle = Column(Text, nullable=True)
+    body = Column(Text, nullable=True)
     button_text = Column(String(100), nullable=True)
     button_link = Column(String(500), nullable=True)
     image_url = Column(String(500), nullable=True)
