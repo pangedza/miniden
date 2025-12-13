@@ -8,16 +8,17 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/theme.css?v=20250521" />
-  <link rel="stylesheet" href="css/support_widget.css?v=20250521" />
+  <link rel="stylesheet" href="css/theme.css?v=20250605" />
+  <link rel="stylesheet" href="css/support_widget.css?v=20250605" />
 </head>
-<body data-theme="purple" class="page-index">
+<body data-theme="lifestyle" class="page-index">
   <header class="top-nav">
     <div class="brand">MiniDeN<span>уютные корзинки и мастер-классы</span></div>
     <div class="header-actions">
       <div class="theme-switcher">
         <label for="theme-select">Тема</label>
         <select id="theme-select">
+          <option value="lifestyle">Lifestyle</option>
           <option value="purple">Фиолетовая</option>
           <option value="dark">Тёмная</option>
           <option value="light">Светлая</option>
@@ -27,6 +28,10 @@
       <button class="menu-toggle" aria-label="Открыть меню">☰</button>
     </div>
     <nav class="nav-links app-sidebar">
+      <div class="sidebar-brand">
+        <strong>Miniden</strong>
+        <span>уют, семья, вязание</span>
+      </div>
       <a href="index.html" class="active">Главная</a>
       <a href="products.html">Товары</a>
       <a href="masterclasses.html">Мастер-классы</a>
@@ -40,92 +45,103 @@
   <div id="toast-container"></div>
 
   <main>
-    <section class="hero">
-      <div>
-        <h1>MiniDeN — уютные корзинки и мастер-классы по вязанию</h1>
-        <p>Авторские наборы для дома и подарков, а также онлайн-уроки, которые помогут связать свои первые корзинки и сумки. Всё в одном тёплом каталоге MiniDeN.</p>
+    <section class="lifestyle-hero reveal">
+      <div class="hero-body">
+        <span class="hero-eyebrow">Miniden • домашнее вязание</span>
+        <h1 class="hero-title">Дом, который вяжется руками</h1>
+        <p class="hero-subtitle">Мини-истории о корзинках, детских комнатах и спокойных вечерах. Всё, что делаю, — про уют, семью и обучение без спешки.</p>
         <div class="hero-cta">
-          <a class="btn" href="products.html">Перейти к товарам</a>
-          <a class="btn secondary" href="masterclasses.html">Мастер-классы</a>
-        </div>
-        <div class="pill-row">
-          <span class="pill">Handmade</span>
-          <span class="pill">Тёмная тема</span>
-          <span class="pill">Доставка и забота</span>
+          <a class="btn secondary" href="#story">Узнать историю</a>
         </div>
       </div>
-      <div class="card home-banner-card" id="home-banner-card">
-        <div class="label">Популярный набор</div>
-        <div class="category-cover" id="home-banner-cover">🧺 «Домашний уют»</div>
-        <h3 id="home-banner-title">Корзинка + свеча + плед</h3>
-        <p id="home-banner-subtitle">Тёплый подарок с фактурной корзинкой, ароматной свечой и мягким пледом. Собираем вручную.</p>
-        <a class="btn" id="home-banner-button" href="products.html">Смотреть в каталоге</a>
+      <div class="hero-visual hover-lift">
+        <img src="https://images.unsplash.com/photo-1513542789411-b6a5d4f31634?auto=format&fit=crop&w=1400&q=80" alt="Уютный дом и вязание" />
       </div>
     </section>
 
-    <h2>Популярные категории</h2>
-    <div class="grid">
-      <div class="card">
-        <div class="category-cover">🧺 Корзинки</div>
-        <h3>Корзинки</h3>
-        <p>Фактурные органайзеры и подарочные наборы. Подойдут для дома и уютных сюрпризов.</p>
-        <a class="btn" href="products.html">Смотреть</a>
+    <section class="visual-grid reveal" aria-label="Темы MiniDeN">
+      <a class="visual-tile hover-lift" href="#story" id="tile-home-kids">
+        <img src="https://images.unsplash.com/photo-1526481280695-3c687fd643ed?auto=format&fit=crop&w=1400&q=80" alt="Дом и дети" />
+        <span>Дом и дети</span>
+      </a>
+      <a class="visual-tile hover-lift" href="#process" id="tile-process">
+        <img src="https://images.unsplash.com/photo-1520975682031-a1a4f852cddf?auto=format&fit=crop&w=1400&q=80" alt="Процесс вязания" />
+        <span>Процесс</span>
+      </a>
+      <a class="visual-tile hover-lift" href="products.html" id="tile-baskets">
+        <img src="https://images.unsplash.com/photo-1526481280695-3c687fd643ed?auto=format&fit=crop&w=1400&q=80" alt="Мои корзинки" />
+        <span>Мои корзинки</span>
+      </a>
+      <a class="visual-tile hover-lift" href="masterclasses.html" id="tile-learning">
+        <img src="https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=1400&q=80" alt="Обучение вязанию" />
+        <span>Обучение</span>
+      </a>
+    </section>
+
+    <section class="story-strip reveal" id="story">
+      <div class="story-avatar">
+        <img src="https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=400&q=80" alt="Миниден" />
       </div>
-      <div class="card">
-        <div class="category-cover">👶 Люльки</div>
-        <h3>Люльки</h3>
-        <p>Мягкие коконы и люльки для малышей, созданные с заботой и безопасными материалами.</p>
-        <a class="btn" href="products.html">Смотреть</a>
+      <div>
+        <strong>Немного обо мне</strong>
+        <p>Я вяжу дома. Учу так, как училась сама: без спешки, в тишине и с акцентом на уютные вещи для семьи.</p>
       </div>
-      <div class="card">
-        <div class="category-cover">👜 Сумки</div>
-        <h3>Сумки</h3>
-        <p>Трендовые вязаные сумки и шопперы, которые собирают комплименты и носятся каждый день.</p>
-        <a class="btn" href="products.html">Смотреть</a>
+    </section>
+
+    <section class="info-panel reveal" id="process">
+      <h2>Процесс</h2>
+      <p class="muted">От выбора пряжи до упаковки — всё делаю сама, небольшими партиями и с вниманием к мелочам. Так изделия получаются тёплыми и долгими в носке.</p>
+    </section>
+
+    <section class="cta-card reveal hover-lift" id="shop-entry">
+      <div>
+        <h3>Корзинки и наборы</h3>
+        <p>Небольшие вещи, которые собирают дом воедино: органайзеры, подарочные композиции и акценты для детских комнат.</p>
+        <a class="btn" href="products.html">Перейти в каталог</a>
       </div>
-      <div class="card">
-        <div class="category-cover">🎓 Мастер-классы</div>
+      <div class="cta-card__media">
+        <img src="https://images.unsplash.com/photo-1545239351-1141bd82e8a6?auto=format&fit=crop&w=1200&q=80" alt="Вязаные корзинки" />
+      </div>
+    </section>
+
+    <section class="cta-card cta-card--reverse reveal hover-lift" id="learning-entry">
+      <div class="cta-card__media">
+        <img src="https://images.unsplash.com/photo-1512436991641-6745cdb1723f?auto=format&fit=crop&w=1200&q=80" alt="Процесс обучения вязанию" />
+      </div>
+      <div>
         <h3>Мастер-классы</h3>
-        <p>Онлайн-уроки MiniDeN: платные и бесплатные форматы с поддержкой и подробными материалами.</p>
-        <a class="btn secondary" href="masterclasses.html">К каталогу курсов</a>
+        <p>Для тех, кто хочет начать и дойти до результата. Простые шаги, поддержка и вдохновение, чтобы связать своё первое изделие.</p>
+        <a class="btn secondary" href="masterclasses.html">Смотреть обучение</a>
       </div>
-    </div>
+    </section>
 
-    <h2>Почему MiniDeN</h2>
-    <div class="benefits" id="why-list">
-      <div class="benefit"><strong>✨ Ручная работа</strong><p>Каждая корзинка собирается вручную: плотные стенки, аккуратные швы и приятные материалы.</p></div>
-      <div class="benefit"><strong>🎁 Готовые подарки</strong><p>Наборы укомплектованы и готовы к вручению: остаётся только выбрать стиль и добавить открытку.</p></div>
-      <div class="benefit"><strong>🧶 Учимся вместе</strong><p>Платные и бесплатные мастер-классы помогут освоить вязание и упаковку с нуля.</p></div>
-      <div class="benefit"><strong>🤝 Поддержка в Telegram</strong><p>Поможем подобрать корзинку, расскажем о доставке и ответим на вопросы прямо в чате.</p></div>
-    </div>
+    <section class="section reveal" id="home-posts" style="display:none;">
+      <h2>Новости и идеи</h2>
+      <div class="home-posts-grid" id="home-posts-grid"></div>
+      <div class="muted" id="home-posts-empty" style="display:none;">Скоро здесь появятся новости</div>
+    </section>
 
-    <h2>Как это работает</h2>
-    <div class="step" id="how-intro">
-      <strong>0) Войдите через Telegram-бота</strong>
+    <section class="section reveal" id="telegram-login-section">
+      <h2>Вход через Telegram</h2>
       <p>
-        Нажмите кнопку ниже, откройте бота MiniDeN в Telegram и нажмите «Старт».
-        После этого каталоги, корзина и профиль на сайте будут связаны с вашим аккаунтом.
+        Чтобы синхронизировать корзину и профиль с ботом MiniDeN, войдите через Telegram. После успешного входа вы будете перенаправлены в профиль (profile.html), где увидите ваши заказы, корзину и курсы.
       </p>
-      <p style="margin-top:8px;">
-        <a class="btn" id="bot-link-hero" href="https://t.me/BotMiniden_bot" target="_blank" rel="noopener">
-          Открыть бота MiniDeN
-        </a>
-      </p>
-    </div>
-    <div class="steps" id="how-list">
-      <div class="step"><strong>1) Выберите товар или курс</strong><p>Откройте раздел «Товары» или «Мастер-классы» и найдите то, что подходит именно вам.</p></div>
-      <div class="step"><strong>2) Добавьте в корзину</strong><p>Нажмите «В корзину» на карточке. В демо пока заглушка, позже привяжем API и Telegram-бота.</p></div>
-      <div class="step"><strong>3) Оформите заказ</strong><p>В финальной версии заказ будет уходить в Telegram: бот уточнит детали и поможет оплатить.</p></div>
-    </div>
+      <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+        <button class="btn" id="btn-login-telegram" type="button">Войти через Telegram</button>
+      </div>
+    </section>
+
+    <section class="section reveal" id="auth-status" style="display: none;">
+      <h2>Вы уже вошли</h2>
+      <p id="auth-username" class="muted"></p>
+      <div class="hero-cta">
+        <a class="btn" href="/profile.html">Перейти в профиль</a>
+        <button class="btn secondary" type="button" id="switch-user-btn">Сменить пользователя</button>
+      </div>
+    </section>
   </main>
 
-  <section class="section" id="home-posts" style="display:none;">
-    <h2>Новости и идеи</h2>
-    <div class="home-posts-grid" id="home-posts-grid"></div>
-    <div class="muted" id="home-posts-empty" style="display:none;">Скоро здесь появятся новости</div>
-  </section>
-
-  <footer>
+  <footer class="reveal">
     <div>
       Готовы помочь в Telegram:
       <a id="bot-link-footer" href="https://t.me/BotMiniden_bot" target="_blank" rel="noopener">бот MiniDeN</a>
@@ -137,30 +153,11 @@
     <div>Мы в соцсетях: <a href="https://www.instagram.com/balabanova_knit?igsh=MWhuMWFnOG8zejl6dQ==">Instagram*</a> • <a href="https://vk.com/club233836469">VK</a></div>
   </footer>
 
-  <section class="section" id="telegram-login-section">
-    <h2>Вход через Telegram</h2>
-    <p>
-      Чтобы синхронизировать корзину и профиль с ботом MiniDeN, войдите через Telegram. После успешного входа вы будете перенаправлены в профиль (profile.html), где увидите ваши заказы, корзину и курсы.
-    </p>
-    <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
-      <button class="btn" id="btn-login-telegram" type="button">Войти через Telegram</button>
-    </div>
-  </section>
-
-  <section class="section" id="auth-status" style="display: none;">
-    <h2>Вы уже вошли</h2>
-    <p id="auth-username" class="muted"></p>
-    <div class="hero-cta">
-      <a class="btn" href="/profile.html">Перейти в профиль</a>
-      <button class="btn secondary" type="button" id="switch-user-btn">Сменить пользователя</button>
-    </div>
-  </section>
-
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script src="js/app.js?v=20250521"></script>
-  <script src="js/api.js?v=20250521"></script>
-  <script src="js/home_page.js?v=20250521"></script>
-  <script src="js/support_widget.js?v=20250521" defer></script>
+  <script src="js/app.js?v=20250605"></script>
+  <script src="js/api.js?v=20250605"></script>
+  <script src="js/home_page.js?v=20250605"></script>
+  <script src="js/support_widget.js?v=20250605" defer></script>
   <script>
     const loginSection = document.getElementById('telegram-login-section');
     const authStatus = document.getElementById('auth-status');

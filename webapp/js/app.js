@@ -1,6 +1,6 @@
 const THEME_KEY = 'miniden.theme';
-const DEFAULT_THEME = 'purple';
-const AVAILABLE_THEMES = ['purple', 'dark', 'light', 'cream'];
+const DEFAULT_THEME = 'lifestyle';
+const AVAILABLE_THEMES = ['lifestyle', 'purple', 'dark', 'light', 'cream'];
 
 function applyTheme(theme) {
   const value = AVAILABLE_THEMES.includes(theme) ? theme : DEFAULT_THEME;
