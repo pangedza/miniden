@@ -7,8 +7,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/theme.css?v=20250605" />
-  <link rel="stylesheet" href="css/admin_chats.css?v=20250605" />
+  <link rel="stylesheet" href="css/theme.css?v=20250610" />
+  <link rel="stylesheet" href="css/admin_chats.css?v=20250610" />
 
 </head>
 <body data-theme="lifestyle" class="page-admin">
@@ -532,19 +532,28 @@
             </div>
             <div class="card" style="background: rgba(255,255,255,0.03);">
               <h3 id="home-block-form-title">Создать блок</h3>
+              <p class="muted" id="home-block-form-meta" style="margin-top:-8px;">Выберите блок в таблице слева.</p>
               <form id="home-block-form" class="stacked-form">
-                <label for="home-block-key">Ключ блока</label>
-                <select name="block_key" id="home-block-key" required>
-                  <option value="hero_main">Hero</option>
-                  <option value="tile_home_kids">Плитка — Дом и дети</option>
-                  <option value="tile_process">Плитка — Процесс</option>
-                  <option value="tile_baskets">Плитка — Корзинки</option>
-                  <option value="tile_learning">Плитка — Обучение</option>
-                  <option value="about_short">Текст — Обо мне</option>
-                  <option value="process_text">Текст — Процесс</option>
-                  <option value="shop_entry">Переход — Каталог</option>
-                  <option value="learning_entry">Переход — Обучение</option>
-                </select>
+                <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:12px;">
+                  <div>
+                    <label for="home-block-id">ID</label>
+                    <input type="text" id="home-block-id" value="—" disabled />
+                  </div>
+                  <div>
+                    <label for="home-block-key">Ключ блока</label>
+                    <select name="block_key" id="home-block-key" required>
+                      <option value="hero_main">Hero</option>
+                      <option value="tile_home_kids">Плитка — Дом и дети</option>
+                      <option value="tile_process">Плитка — Процесс</option>
+                      <option value="tile_baskets">Плитка — Корзинки</option>
+                      <option value="tile_learning">Плитка — Обучение</option>
+                      <option value="about_short">Текст — Обо мне</option>
+                      <option value="process_text">Текст — Процесс</option>
+                      <option value="shop_entry">Переход — Каталог</option>
+                      <option value="learning_entry">Переход — Обучение</option>
+                    </select>
+                  </div>
+                </div>
 
                 <label>Заголовок</label>
                 <input type="text" name="title" required />
@@ -802,9 +811,9 @@
     </main>
   </div>
   
-  <script src="js/app.js?v=20250605"></script>
-  <script src="js/api.js?v=20250605"></script>
-  <script src="js/admin_chats.js?v=20250605"></script>
+  <script src="js/app.js?v=20250610"></script>
+  <script src="js/api.js?v=20250610"></script>
+  <script src="js/admin_chats.js?v=20250610"></script>
   <script>
     const statusBox = document.getElementById('status');
     const accessDenied = document.getElementById('access-denied');
@@ -901,6 +910,8 @@
     const homeBlockImageFileInput = document.getElementById('home-block-image-file');
     const homeBlockImageUrlInput = document.getElementById('home-block-image-url');
     const homeBlockImagePreview = document.getElementById('home-block-image-preview');
+    const homeBlockIdInput = document.getElementById('home-block-id');
+    const homeBlockMeta = document.getElementById('home-block-form-meta');
     const homeBlockKeySelect = document.getElementById('home-block-key');
     const homeBlockFilter = document.getElementById('home-block-filter');
     const homePostForm = document.getElementById('home-post-form');
@@ -2441,10 +2452,7 @@
           panel.style.display = tabName === 'posts' ? 'none' : '';
         }
       });
-      if (homeBlockFilter && tabName !== 'posts') {
-        homeBlockFilter.value = tabName;
-      }
-      renderHomeBlocks(homeBlockItems, tabName);
+      renderHomeBlocks(homeBlockItems, homeBlockFilter?.value || 'all');
       if (tabName === 'posts') {
         renderHomePosts(homePostItems);
       }
@@ -2464,7 +2472,8 @@
       homeBlockState.formData.block_key = getDefaultKeyForTab(currentHomeTab || 'hero');
       applyStateToForm(homeBlockForm, homeBlockState.formData);
       setHomeBlockImage(homeBlockState.formData.image_url);
-      renderHomeBlocks(homeBlockItems, currentHomeTab);
+      setHomeBlockMeta(null);
+      renderHomeBlocks(homeBlockItems, homeBlockFilter?.value || 'all');
     }
 
     function resetHomePostForm() {
@@ -2496,6 +2505,21 @@
       }
     }
 
+    function setHomeBlockMeta(block = null) {
+      const idValue = block?.id ? `#${block.id}` : '—';
+      if (homeBlockIdInput) {
+        homeBlockIdInput.value = idValue;
+      }
+      if (homeBlockMeta) {
+        homeBlockMeta.textContent = block?.id
+          ? `ID ${idValue.replace('#', '')} • ключ ${block.block_key || '—'}`
+          : 'Выберите блок в таблице слева.';
+      }
+      if (homeBlockKeySelect) {
+        homeBlockKeySelect.disabled = Boolean(block?.id);
+      }
+    }
+
     function filterBlocksByTab(items, tabName) {
       if (!items?.length) return [];
       if (!tabName || tabName === 'all' || tabName === 'posts') return items;
@@ -2504,7 +2528,7 @@
       return items.filter((block) => keys.includes(block.block_key));
     }
 
-    function renderHomeBlocks(items, tabName = currentHomeTab) {
+    function renderHomeBlocks(items, tabName = homeBlockFilter?.value || 'all') {
       if (!homeBlocksList) return;
       const filtered = filterBlocksByTab(items, tabName || 'all');
       homeBlocksList.innerHTML = '';
@@ -2580,22 +2604,29 @@
       if (!currentUser) return;
       try {
         const data = await apiGet('/admin/home/blocks', { user_id: currentUser.telegram_id });
-        homeBlockItems = (data.items || data || []).map((item) => ({
-          ...item,
-          order: item.order ?? item.sort_order ?? 0,
-          button_url: item.button_url || item.button_link || '',
-          block_key: item.block_key || item.slug || 'custom',
-        }));
-        const filtered = filterBlocksByTab(homeBlockItems, currentHomeTab);
-        const preferredId = selectId ?? currentBlockId ?? filtered[0]?.id;
+        homeBlockItems = (data.items || data || [])
+          .map((item) => ({
+            ...item,
+            order: item.order ?? item.sort_order ?? 0,
+            button_url: item.button_url || item.button_link || '',
+            block_key: item.block_key || item.slug || 'custom',
+          }))
+          .sort(
+            (a, b) => (a.order ?? 0) - (b.order ?? 0) || Number(a.id || 0) - Number(b.id || 0)
+          );
+        const filterValue = homeBlockFilter?.value || 'all';
+        const filtered = filterBlocksByTab(homeBlockItems, filterValue);
+        const preferredId = selectId ?? currentBlockId ?? filtered[0]?.id ?? homeBlockItems[0]?.id;
         const selected = preferredId
-          ? filtered.find((block) => String(block.id) === String(preferredId))
+          ? (filtered.find((block) => String(block.id) === String(preferredId)) ||
+              homeBlockItems.find((block) => String(block.id) === String(preferredId)))
           : null;
         if (selected) {
           openHomeBlockEdit(selected);
         } else {
           currentBlockId = null;
-          renderHomeBlocks(homeBlockItems, currentHomeTab);
+          setHomeBlockMeta(null);
+          renderHomeBlocks(homeBlockItems, filterValue);
           resetHomeBlockForm();
         }
       } catch (e) {
@@ -2633,7 +2664,8 @@
       resetFormState(homeBlockState.formData, { ...homeBlockDefaults, ...block });
       applyStateToForm(homeBlockForm, homeBlockState.formData);
       setHomeBlockImage(block.image_url || homeBlockState.formData.image_url);
-      renderHomeBlocks(homeBlockItems, currentHomeTab);
+      setHomeBlockMeta(block);
+      renderHomeBlocks(homeBlockItems, homeBlockFilter?.value || 'all');
     }
 
     function openHomePostEdit(post) {
@@ -3117,12 +3149,17 @@
     });
 
     homeBlockFilter?.addEventListener('change', () => {
-      const tab = homeBlockFilter.value || 'hero';
-      showHomeTab(tab);
-      if (tab === 'posts') {
-        loadHomePosts();
+      const filterValue = homeBlockFilter.value || 'all';
+      const visible = filterBlocksByTab(homeBlockItems, filterValue);
+      renderHomeBlocks(homeBlockItems, filterValue);
+      const target =
+        visible.find((block) => String(block.id) === String(currentBlockId)) || visible[0];
+      if (target) {
+        const tab = getTabForBlockKey(target.block_key);
+        showHomeTab(tab);
+        openHomeBlockEdit(target);
       } else {
-        loadHomeBlocks();
+        resetHomeBlockForm();
       }
     });
 
