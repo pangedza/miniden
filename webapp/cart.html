@@ -7,17 +7,18 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/theme.css?v=20250521" />
-  <link rel="stylesheet" href="css/support_widget.css?v=20250521" />
+  <link rel="stylesheet" href="css/theme.css?v=20250605" />
+  <link rel="stylesheet" href="css/support_widget.css?v=20250605" />
 
 </head>
-<body data-theme="purple" class="page-cart">
+<body data-theme="lifestyle" class="page-cart">
   <header class="top-nav">
     <div class="brand">MiniDeN<span>уютные корзинки и мастер-классы</span></div>
     <div class="header-actions">
       <div class="theme-switcher">
         <label for="theme-select">Тема</label>
         <select id="theme-select">
+          <option value="lifestyle">Lifestyle</option>
           <option value="purple">Фиолетовая</option>
           <option value="dark">Тёмная</option>
           <option value="light">Светлая</option>
@@ -27,6 +28,10 @@
       <button class="menu-toggle" aria-label="Открыть меню">☰</button>
     </div>
     <nav class="nav-links app-sidebar">
+      <div class="sidebar-brand">
+        <strong>Miniden</strong>
+        <span>уют, семья, вязание</span>
+      </div>
       <a href="index.html">Главная</a>
       <a href="products.html">Товары</a>
       <a href="masterclasses.html">Мастер-классы</a>
@@ -88,8 +93,8 @@
     </div>
   </main>
 
-  <script src="js/app.js?v=20250521"></script>
-  <script src="js/api.js?v=20250521"></script>
+  <script src="js/app.js?v=20250605"></script>
+  <script src="js/api.js?v=20250605"></script>
   <script>
     const adminLink = document.getElementById('admin-link');
     const noteEl = document.getElementById('note');
@@ -594,6 +599,6 @@
 
     initCartPage();
   </script>
-  <script src="js/support_widget.js?v=20250521" defer></script>
+  <script src="js/support_widget.js?v=20250605" defer></script>
 </body>
 </html>
