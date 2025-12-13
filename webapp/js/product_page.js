@@ -10,7 +10,7 @@
 
   const formatPrice = (value) => {
     const num = Number(value) || 0;
-    return num > 0 ? `${num.toLocaleString('ru-RU')} ₽` : 'Бесплатно';
+    return num > 0 ? `${num.toLocaleString('ru-RU')} ₽` : 'Бесплатный';
   };
 
   const renderMessage = (text) => {
@@ -155,6 +155,28 @@
     shortDesc.className = 'product-info__intro muted';
     shortDesc.textContent = product.short_description || '';
 
+    const details = document.createElement('div');
+    details.className = 'product-info__meta muted';
+    const detailParts = [];
+    if (product.type === 'basket') {
+      detailParts.push('Готовая корзинка');
+    } else if (product.type === 'course') {
+      detailParts.push('Мастер-класс');
+    }
+
+    const marketplaces = [
+      product.wb_url ? 'Wildberries' : null,
+      product.ozon_url ? 'Ozon' : null,
+      product.yandex_url ? 'Яндекс.Маркет' : null,
+      product.avito_url ? 'Avito' : null,
+    ].filter(Boolean);
+
+    if (marketplaces.length) {
+      detailParts.push(`Маркетплейсы: ${marketplaces.join(', ')}`);
+    }
+
+    details.textContent = detailParts.join(' · ');
+
     const priceRow = document.createElement('div');
     priceRow.className = 'product-info__price-row';
 
@@ -179,7 +201,7 @@
     cta.append(addBtn, backLink);
     priceRow.append(price, cta);
 
-    info.append(title, meta, shortDesc, priceRow);
+    info.append(title, meta, shortDesc, details, priceRow);
 
     const tabs = document.createElement('div');
     tabs.className = 'product-tabs';
