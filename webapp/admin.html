@@ -8,122 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/theme.css?v=20250521" />
-
-  <style>
-    .support-chat-layout {
-      display: grid;
-      grid-template-columns: minmax(220px, 280px) 1fr;
-      gap: 12px;
-      align-items: start;
-    }
-    .support-sessions {
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      background: rgba(255, 255, 255, 0.03);
-      max-height: 540px;
-      overflow-y: auto;
-    }
-    .support-session-item {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      padding: 10px 12px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-      text-align: left;
-      cursor: pointer;
-      transition: background 0.15s ease;
-    }
-    .support-session-item:hover,
-    .support-session-item:focus-visible {
-      background: rgba(255, 255, 255, 0.05);
-    }
-    .support-session-item.active {
-      background: rgba(255, 255, 255, 0.1);
-    }
-    .support-session-meta {
-      display: flex;
-      justify-content: space-between;
-      gap: 6px;
-      font-size: 12px;
-      color: var(--muted-color, #9ea0ab);
-    }
-    .support-session-text {
-      font-size: 14px;
-      color: var(--text-primary, #fff);
-    }
-    .support-chat-pane {
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      background: rgba(255, 255, 255, 0.03);
-      padding: 12px;
-      min-height: 360px;
-    }
-    .support-messages-box {
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 10px;
-      min-height: 260px;
-      max-height: 420px;
-      overflow-y: auto;
-      background: rgba(255, 255, 255, 0.02);
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .support-chat-message {
-      max-width: 80%;
-      padding: 8px 10px;
-      border-radius: 10px;
-      background: rgba(255, 255, 255, 0.08);
-      white-space: pre-wrap;
-      word-break: break-word;
-    }
-    .support-chat-message.user {
-      margin-left: auto;
-      background: rgba(74, 222, 128, 0.12);
-    }
-    .support-chat-message.manager {
-      margin-right: auto;
-      background: rgba(255, 255, 255, 0.12);
-    }
-    .support-chat-message.system {
-      margin: 0 auto;
-      background: transparent;
-      color: var(--muted-color, #9ea0ab);
-      font-size: 13px;
-    }
-    .support-chat-actions {
-      margin-top: 10px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .support-chat-buttons {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-    .support-chat-actions textarea {
-      width: 100%;
-      min-height: 70px;
-      border-radius: 8px;
-      border: 1px solid var(--border);
-      padding: 8px;
-      background: rgba(255, 255, 255, 0.04);
-      color: inherit;
-    }
-    @media (max-width: 900px) {
-      .support-chat-layout {
-        grid-template-columns: 1fr;
-      }
-      .support-session-item {
-        padding: 8px 10px;
-      }
-      .support-chat-message {
-        max-width: 100%;
-      }
-    }
-  </style>
+  <link rel="stylesheet" href="css/admin_chats.css?v=20250521" />
 
 </head>
 <body data-theme="purple" class="page-admin">
@@ -857,33 +742,70 @@
         <div class="section-header">
           <div>
             <h2>Чаты</h2>
-            <p class="muted">Отвечайте на вопросы клиентов прямо в админке.</p>
+            <p class="muted">Структура как в мессенджере: выберите диалог слева и переписку справа.</p>
           </div>
-          <div class="filters-row" style="gap:8px; align-items:center;">
-            <label for="support-status-filter" class="muted" style="margin:0;">Статус</label>
-            <select id="support-status-filter">
-              <option value="open">Открытые</option>
-              <option value="waiting_manager">Ожидают ответа</option>
-              <option value="closed">Закрытые</option>
-              <option value="all">Все</option>
-            </select>
-            <button class="btn secondary" type="button" id="support-refresh-btn">Обновить</button>
-          </div>
+          <button class="btn secondary" type="button" id="chat-sidebar-toggle" aria-label="Свернуть список чатов">☰</button>
         </div>
 
-        <div class="support-chat-layout">
-          <div class="support-sessions" id="support-sessions-list" aria-label="Список чатов поддержки"></div>
-          <div class="support-chat-pane">
-            <div id="support-chat-header" class="muted" style="margin-bottom:6px;">Выберите чат слева, чтобы начать диалог.</div>
-            <div id="support-messages" class="support-messages-box" aria-live="polite"></div>
-            <div class="support-chat-actions">
-              <textarea id="support-message-input" placeholder="Ответ менеджера..." aria-label="Ответ менеджера"></textarea>
-              <div class="support-chat-buttons">
-                <button class="btn primary" type="button" id="support-send-btn" disabled>Отправить</button>
-                <button class="btn secondary" type="button" id="support-close-btn" disabled>Закрыть чат</button>
+        <div class="chat-app" id="admin-chat-app">
+          <aside class="chat-sidebar" id="chat-sidebar" aria-label="Список чатов">
+            <div class="chat-sidebar__controls">
+              <div class="chat-search">
+                <input
+                  type="search"
+                  id="chat-search-input"
+                  placeholder="Поиск по имени / user_id / session_key"
+                  aria-label="Поиск по имени или session_key"
+                />
+              </div>
+              <div class="chat-filter-group">
+                <select id="chat-status-filter" aria-label="Фильтр статуса">
+                  <option value="all">Все</option>
+                  <option value="open">Открытые</option>
+                  <option value="waiting_manager">Ожидают ответа</option>
+                  <option value="closed">Закрытые</option>
+                </select>
+                <button class="chat-icon-button" type="button" id="chat-refresh-button" title="Обновить список">↻</button>
               </div>
             </div>
-          </div>
+            <div class="chat-list" id="chat-list" role="listbox" aria-label="Диалоги"></div>
+          </aside>
+
+          <main class="chat-main">
+            <div class="chat-header" id="chat-header">
+              <div class="chat-header__info">
+                <div class="chat-title" id="chat-title">Выберите чат</div>
+                <div class="chat-subtitle" id="chat-subtitle">Чтобы увидеть переписку, выберите диалог слева.</div>
+              </div>
+              <div class="chat-header__actions">
+                <span class="chat-status-badge" id="chat-status-badge">—</span>
+                <button class="chat-icon-button" type="button" id="chat-header-refresh" title="Обновить чат">↻</button>
+                <button class="chat-btn secondary" type="button" id="chat-reopen-button" disabled>Открыть снова</button>
+                <button class="chat-btn primary" type="button" id="chat-close-button" disabled>Закрыть чат</button>
+              </div>
+            </div>
+
+            <div class="chat-main__body">
+              <div class="chat-messages" id="chat-messages" aria-live="polite"></div>
+              <button class="chat-new-indicator hidden" id="chat-new-indicator" type="button">⬇ Новые сообщения</button>
+            </div>
+
+            <div class="chat-composer" id="chat-composer">
+              <textarea
+                id="chat-input"
+                rows="3"
+                placeholder="Напишите ответ..."
+                aria-label="Ответ менеджера"
+                disabled
+              ></textarea>
+              <div class="chat-composer__footer">
+                <div class="chat-composer__hint" id="chat-closed-hint" hidden>
+                  Чат закрыт. Нажмите «Открыть снова», чтобы ответить.
+                </div>
+                <button class="chat-send-button" id="chat-send-button" type="button" title="Отправить" disabled>▶</button>
+              </div>
+            </div>
+          </main>
         </div>
       </section>
 
@@ -893,9 +815,10 @@
       </section>
     </main>
   </div>
-
+  
   <script src="js/app.js?v=20250521"></script>
   <script src="js/api.js?v=20250521"></script>
+  <script src="js/admin_chats.js?v=20250521"></script>
   <script>
     const statusBox = document.getElementById('status');
     const accessDenied = document.getElementById('access-denied');
@@ -938,17 +861,6 @@
     const faqAnswerInput = document.getElementById('faq-answer');
     const faqSortInput = document.getElementById('faq-sort');
     const faqResetBtn = document.getElementById('faq-reset');
-
-    const supportStatusFilter = document.getElementById('support-status-filter');
-    const supportSessionsList = document.getElementById('support-sessions-list');
-    const supportMessagesBox = document.getElementById('support-messages');
-    const supportMessageInput = document.getElementById('support-message-input');
-    const supportSendBtn = document.getElementById('support-send-btn');
-    const supportCloseBtn = document.getElementById('support-close-btn');
-    const supportRefreshBtn = document.getElementById('support-refresh-btn');
-    const supportChatHeader = document.getElementById('support-chat-header');
-
-    if (supportMessageInput) supportMessageInput.disabled = true;
 
     const productCategoryFilter = document.getElementById('products-category');
     const courseCategoryFilter = document.getElementById('courses-category');
@@ -1127,11 +1039,6 @@
     let currentSectionId = null;
     let currentPostId = null;
     let currentFaqId = null;
-    let supportSessions = [];
-    let activeSupportSessionId = null;
-    let supportSessionsTimer = null;
-    let supportMessagesTimer = null;
-    let supportLastMessageId = 0;
     let currentView = 'orders';
     const productSubmitBtn = productForm?.querySelector('button[type="submit"]');
     const courseSubmitBtn = courseForm?.querySelector('button[type="submit"]');
@@ -1201,6 +1108,11 @@
       imageModal.classList.add('hidden');
     }
 
+    window.adminChats?.init({
+      onError: (error, message) => handleError(error || new Error(message)),
+      onStatus: (message, isError) => setStatus(message, isError),
+    });
+
     async function sendJson(path, method = 'GET', body = null) {
       const res = await fetch(`${API_BASE}${path}`, {
         method,
@@ -1208,260 +1120,6 @@
         body: body ? JSON.stringify(body) : undefined,
       });
       return handleResponse(res);
-    }
-
-    function stopSupportMessagesPolling() {
-      if (supportMessagesTimer) {
-        window.clearInterval(supportMessagesTimer);
-        supportMessagesTimer = null;
-      }
-    }
-
-    function stopSupportPolling() {
-      stopSupportMessagesPolling();
-      if (supportSessionsTimer) {
-        window.clearInterval(supportSessionsTimer);
-        supportSessionsTimer = null;
-      }
-    }
-
-    function startSupportSessionsPolling() {
-      if (supportSessionsTimer) window.clearInterval(supportSessionsTimer);
-      supportSessionsTimer = window.setInterval(() => {
-        if (currentView === 'support-chats') {
-          loadSupportSessions();
-        }
-      }, 8000);
-    }
-
-    function startSupportMessagesPolling() {
-      stopSupportMessagesPolling();
-      if (!activeSupportSessionId) return;
-      supportMessagesTimer = window.setInterval(() => {
-        if (currentView === 'support-chats') {
-          loadSupportMessages({ append: true });
-        }
-      }, 3000);
-    }
-
-    function findSupportSession(sessionId) {
-      return supportSessions.find((s) => Number(s.session_id) === Number(sessionId));
-    }
-
-    function renderSupportSessions(items = []) {
-      if (!supportSessionsList) return;
-      supportSessionsList.innerHTML = '';
-      if (!items.length) {
-        const empty = document.createElement('div');
-        empty.className = 'muted';
-        empty.style.padding = '12px';
-        empty.textContent = 'Нет чатов поддержки';
-        supportSessionsList.appendChild(empty);
-        return;
-      }
-
-      items.forEach((session) => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'support-session-item';
-        if (Number(session.session_id) === Number(activeSupportSessionId)) {
-          btn.classList.add('active');
-        }
-
-        const header = document.createElement('div');
-        header.className = 'support-session-meta';
-        header.style.alignItems = 'center';
-        header.style.gap = '6px';
-        const status = session.status || 'open';
-        const dateLabel = session.last_message_at
-          ? new Date(session.last_message_at).toLocaleString('ru-RU')
-          : session.updated_at
-            ? new Date(session.updated_at).toLocaleString('ru-RU')
-            : session.created_at
-              ? new Date(session.created_at).toLocaleString('ru-RU')
-              : '';
-        header.innerHTML = `<span>#${session.session_id}</span><span>${status}</span>`;
-        const unread = Number(session.unread_for_manager || 0);
-        if (unread > 0) {
-          const unreadBadge = document.createElement('span');
-          unreadBadge.className = 'admin-pill';
-          unreadBadge.textContent = unread > 99 ? '99+' : unread;
-          unreadBadge.title = 'Новые сообщения клиента';
-          header.appendChild(unreadBadge);
-        }
-
-        const text = document.createElement('div');
-        text.className = 'support-session-text';
-        const preview = truncateText(session.last_message || 'Без сообщений', 90);
-        const senderLabel = session.last_sender === 'user' ? 'Клиент' : session.last_sender === 'manager' ? 'Менеджер' : '—';
-        text.textContent = `${senderLabel !== '—' ? senderLabel + ': ' : ''}${preview}`;
-
-        const footer = document.createElement('div');
-        footer.className = 'support-session-meta';
-        footer.innerHTML = `<span>${session.session_key || ''}</span><span>${dateLabel}</span>`;
-
-        btn.appendChild(header);
-        btn.appendChild(text);
-        btn.appendChild(footer);
-
-        btn.addEventListener('click', () => openSupportSession(session.session_id));
-        supportSessionsList.appendChild(btn);
-      });
-    }
-
-    async function loadSupportSessions() {
-      if (!currentUser) return;
-      try {
-        const status = supportStatusFilter?.value || 'open';
-        const data = await apiGet('/admin/webchat/sessions', {
-          status,
-          limit: 50,
-        });
-        supportSessions = data?.items || [];
-        renderSupportSessions(supportSessions);
-
-        if (activeSupportSessionId) {
-          const stillExists = findSupportSession(activeSupportSessionId);
-          if (!stillExists) {
-            activeSupportSessionId = null;
-            stopSupportMessagesPolling();
-            supportSendBtn.disabled = true;
-            supportCloseBtn.disabled = true;
-            if (supportMessageInput) supportMessageInput.disabled = true;
-            supportChatHeader.textContent = 'Выберите чат слева, чтобы начать диалог.';
-            if (supportMessagesBox) supportMessagesBox.innerHTML = '';
-          }
-        }
-      } catch (e) {
-        handleError(e, 'Не удалось загрузить чаты поддержки');
-      }
-    }
-
-    function renderSupportMessages(messages = [], options = {}) {
-      const { append = false } = options;
-      if (!supportMessagesBox) return;
-
-      if (!append) {
-        supportLastMessageId = 0;
-        supportMessagesBox.innerHTML = '';
-      }
-
-      if (!messages.length && !supportMessagesBox.children.length) {
-        const empty = document.createElement('div');
-        empty.className = 'muted';
-        empty.textContent = 'Сообщений пока нет';
-        supportMessagesBox.appendChild(empty);
-        return;
-      }
-
-      messages.forEach((msg) => {
-        const wrapper = document.createElement('div');
-        const sender = msg.sender || 'system';
-        wrapper.className = `support-chat-message ${sender}`;
-
-        const text = document.createElement('div');
-        text.textContent = msg.text || '';
-        wrapper.appendChild(text);
-
-        if (msg.created_at) {
-          const meta = document.createElement('div');
-          meta.className = 'muted';
-          meta.style.fontSize = '11px';
-          meta.style.marginTop = '4px';
-          meta.textContent = new Date(msg.created_at).toLocaleString('ru-RU');
-          wrapper.appendChild(meta);
-        }
-
-        if (msg.id) {
-          supportLastMessageId = Math.max(supportLastMessageId, Number(msg.id));
-        }
-
-        supportMessagesBox.appendChild(wrapper);
-      });
-
-      supportMessagesBox.scrollTop = supportMessagesBox.scrollHeight;
-    }
-
-    async function loadSupportMessages(options = {}) {
-      if (!currentUser || !activeSupportSessionId) return;
-      const { append = false } = options;
-      try {
-        const data = await apiGet('/admin/webchat/messages', {
-          session_id: activeSupportSessionId,
-          after_id: append ? supportLastMessageId : 0,
-        });
-        const items = data?.items || [];
-        if (!items.length && append) return;
-        renderSupportMessages(items, { append });
-        const activeSession = findSupportSession(activeSupportSessionId);
-        if (activeSession) {
-          activeSession.unread_for_manager = 0;
-          renderSupportSessions(supportSessions);
-        }
-      } catch (e) {
-        console.error(e);
-      }
-    }
-
-    async function openSupportSession(sessionId) {
-      activeSupportSessionId = sessionId;
-      const session = findSupportSession(sessionId);
-      supportLastMessageId = 0;
-      if (session) {
-        session.unread_for_manager = 0;
-      }
-      renderSupportSessions(supportSessions);
-      const isClosed = !session || session.status === 'closed';
-      if (supportMessageInput) supportMessageInput.disabled = isClosed;
-      supportSendBtn.disabled = !session || isClosed;
-      supportCloseBtn.disabled = !session || session.status === 'closed';
-      supportChatHeader.textContent = session
-        ? `Чат #${session.session_id} · ${session.status || 'open'}`
-        : 'Чат не найден';
-      await loadSupportMessages();
-      startSupportMessagesPolling();
-    }
-
-    async function sendSupportMessage() {
-      if (!currentUser || !activeSupportSessionId || !supportMessageInput) return;
-      const text = supportMessageInput.value.trim();
-      if (!text) return;
-      try {
-        supportSendBtn.disabled = true;
-        await apiPost('/admin/webchat/send', {
-          session_id: activeSupportSessionId,
-          text,
-        });
-        supportMessageInput.value = '';
-        await Promise.all([loadSupportMessages({ append: true }), loadSupportSessions()]);
-      } catch (e) {
-        handleError(e, 'Не удалось отправить сообщение');
-      } finally {
-        supportSendBtn.disabled = false;
-      }
-    }
-
-    async function closeSupportSession() {
-      if (!currentUser || !activeSupportSessionId) return;
-      try {
-        supportCloseBtn.disabled = true;
-        await apiPost('/admin/webchat/close', {
-          session_id: activeSupportSessionId,
-        });
-        await loadSupportSessions();
-        await loadSupportMessages();
-        const session = findSupportSession(activeSupportSessionId);
-        if (session?.status === 'closed') {
-          supportSendBtn.disabled = true;
-          if (supportMessageInput) supportMessageInput.disabled = true;
-          supportCloseBtn.disabled = true;
-        }
-      } catch (e) {
-        handleError(e, 'Не удалось закрыть чат');
-      } finally {
-        const sessionAfter = findSupportSession(activeSupportSessionId);
-        supportCloseBtn.disabled = sessionAfter?.status === 'closed';
-      }
     }
 
     function showSection(id) {
@@ -1481,7 +1139,7 @@
 
     function handleViewNavigation(view) {
       if (view !== 'support-chats') {
-        stopSupportPolling();
+        window.adminChats?.deactivate();
       }
       showSection(view);
       if (view === 'product-categories') {
@@ -1509,9 +1167,7 @@
         loadFaqItems();
       }
       if (view === 'support-chats') {
-        loadSupportSessions();
-        startSupportSessionsPolling();
-        startSupportMessagesPolling();
+        window.adminChats?.activate();
       }
       if (view === 'home-cms') {
         showHomeTab('banners');
@@ -1570,23 +1226,6 @@
           handleViewNavigation(defaultView);
         }
       });
-    });
-
-    supportStatusFilter?.addEventListener('change', () => {
-      loadSupportSessions();
-    });
-
-    supportRefreshBtn?.addEventListener('click', () => {
-      loadSupportSessions();
-    });
-
-    supportSendBtn?.addEventListener('click', sendSupportMessage);
-    supportCloseBtn?.addEventListener('click', closeSupportSession);
-    supportMessageInput?.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
-        event.preventDefault();
-        sendSupportMessage();
-      }
     });
 
     faqAddBtn?.addEventListener('click', () => {

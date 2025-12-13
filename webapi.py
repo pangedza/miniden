@@ -2298,6 +2298,8 @@ def admin_webchat_sessions(
                 "status": session.status,
                 "created_at": session.created_at.isoformat() if session.created_at else None,
                 "updated_at": session.updated_at.isoformat() if session.updated_at else None,
+                "user_identifier": session.user_identifier,
+                "client_ip": session.client_ip,
                 "last_message": last_message.text if last_message else None,
                 "last_sender": last_message.sender if last_message else None,
                 "last_message_at": session.last_message_at.isoformat()
@@ -2354,6 +2356,18 @@ def admin_webchat_close(
     return {"ok": True}
 
 
+@app.post("/api/admin/webchat/reopen")
+def admin_webchat_reopen(
+    payload: AdminWebChatClosePayload, admin: User = Depends(get_admin_user)
+):
+    session = webchat_service.get_session_by_id(payload.session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    webchat_service.mark_open(session)
+    return {"ok": True}
+
+
 @app.get("/api/webchat/sessions", response_model=SupportSessionList)
 def api_admin_webchat_sessions(
     status: str = "open",
@@ -2376,6 +2390,8 @@ def api_admin_webchat_sessions(
                 "status": session.status,
                 "created_at": session.created_at,
                 "updated_at": session.updated_at,
+                "user_identifier": session.user_identifier,
+                "client_ip": session.client_ip,
                 "last_message_at": session.last_message_at,
                 "last_message": last_message.text if last_message else None,
                 "last_sender": last_message.sender if last_message else None,

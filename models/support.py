@@ -22,6 +22,8 @@ class SupportSession(BaseModel):
     last_message: str | None = None
     last_sender: str | None = None
     unread_for_manager: int | None = 0
+    user_identifier: str | None = None
+    client_ip: str | None = None
 
 
 class SupportSessionDetail(BaseModel):
