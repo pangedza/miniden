@@ -285,9 +285,9 @@ def api_home():
 def api_homepage_blocks():
     try:
         blocks = home_service.list_blocks(include_inactive=False)
-    except Exception:
+    except Exception as exc:  # noqa: WPS430
         logger.exception("Failed to load homepage blocks")
-        return {"items": []}
+        return {"items": [], "error": str(exc)}
     return {"items": [block.dict() for block in blocks]}
 
 
@@ -1089,7 +1089,13 @@ def _wrap_home_banner_error(action: str, func):
         raise
     except Exception as exc:  # noqa: WPS430
         logger.exception("Home banner %s failed", action)
-        raise HTTPException(status_code=500, detail="Ошибка сервера") from exc
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "message": f"Не удалось {action} блок главной",
+                "error": str(exc),
+            },
+        ) from exc
 
 
 def _wrap_home_block_error(action: str, func):

@@ -26,6 +26,8 @@ const learningEntryTitle = learningEntry?.querySelector('h3');
 const learningEntryText = learningEntry?.querySelector('p');
 const learningEntryButton = learningEntry?.querySelector('.btn');
 const learningEntryImage = learningEntry?.querySelector('img');
+const loginSection = document.getElementById('telegram-login-section');
+const authStatusSection = document.getElementById('auth-status');
 
 const GRADIENT_PLACEHOLDER =
   'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="g" x1="0" x2="1" y1="0" y2="1"><stop offset="0%" stop-color="%23f3e7e9"/><stop offset="100%" stop-color="%23e3eeff"/></linearGradient></defs><rect width="800" height="500" fill="url(%23g)"/></svg>';
@@ -34,46 +36,47 @@ const DEFAULT_BLOCKS = [
   {
     block_key: 'hero_main',
     title: 'Дом, который вяжется руками',
-    subtitle: 'Мини-истории о корзинках, детских комнатах и спокойных вечерах. Всё, что делаю, — про уют, семью и обучение без спешки.',
-    body: null,
+    subtitle: 'Miniden • домашнее вязание',
+    body: 'Мини-истории о корзинках, детских комнатах и спокойных вечерах. Всё, что делаю — про уют, семью и обучение без спешки.',
     button_text: 'Узнать историю',
     button_url: '#story',
-    image_url:
-      'https://images.unsplash.com/photo-1513542789411-b6a5d4f31634?auto=format&fit=crop&w=1200&q=80',
+    image_url: 'https://images.unsplash.com/photo-1519710164239-da123dc03ef4?auto=format&fit=crop&w=1400&q=80',
     is_active: true,
     order: 10,
   },
   {
     block_key: 'tile_home_kids',
     title: 'Дом и дети',
-    image_url:
-      'https://images.unsplash.com/photo-1526481280695-3c687fd643ed?auto=format&fit=crop&w=1200&q=80',
+    body: 'Тёплые вещи для дома',
+    button_url: '/products',
+    image_url: 'https://images.unsplash.com/photo-1521334726092-b509a19597c5?auto=format&fit=crop&w=1400&q=80',
     is_active: true,
     order: 20,
   },
   {
     block_key: 'tile_process',
     title: 'Процесс',
-    image_url:
-      'https://images.unsplash.com/photo-1520975682031-a1a4f852cddf?auto=format&fit=crop&w=1200&q=80',
+    body: 'От пряжи до упаковки',
+    button_url: '/masterclasses',
+    image_url: 'https://images.unsplash.com/photo-1518837695005-2083093ee35b?auto=format&fit=crop&w=1400&q=80',
     is_active: true,
     order: 21,
   },
   {
     block_key: 'tile_baskets',
     title: 'Мои корзинки',
-    image_url:
-      'https://images.unsplash.com/photo-1526481280695-3c687fd643ed?auto=format&fit=crop&w=1200&q=80',
-    button_url: 'products.html',
+    body: 'Корзинки и наборы',
+    button_url: '/products',
+    image_url: 'https://images.unsplash.com/photo-1523413651479-597eb2da0ad6?auto=format&fit=crop&w=1400&q=80',
     is_active: true,
     order: 22,
   },
   {
     block_key: 'tile_learning',
     title: 'Обучение',
-    image_url:
-      'https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=1200&q=80',
-    button_url: 'masterclasses.html',
+    body: 'Начните с нуля',
+    button_url: '/masterclasses',
+    image_url: 'https://images.unsplash.com/photo-1520975958225-d7f5d3c6f5a0?auto=format&fit=crop&w=1400&q=80',
     is_active: true,
     order: 23,
   },
@@ -81,41 +84,58 @@ const DEFAULT_BLOCKS = [
     block_key: 'about_short',
     title: 'Немного обо мне',
     body: 'Я вяжу дома. Учу так, как училась сама: без спешки, в тишине и с акцентом на уютные вещи для семьи.',
-    image_url:
-      'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=800&q=80',
     is_active: true,
     order: 30,
   },
   {
     block_key: 'process_text',
     title: 'Процесс',
-    body: 'От выбора пряжи до упаковки — всё делаю сама, небольшими партиями и с вниманием к мелочам. Так изделия получаются тёплыми и долгими в носке.',
+    body: 'От выбора пряжи до упаковки — всё делаю сама, небольшими партиями и с вниманием к мелочам.',
     is_active: true,
     order: 40,
   },
   {
     block_key: 'shop_entry',
     title: 'Корзинки и наборы',
-    body: 'Небольшие вещи, которые собирают дом воедино: органайзеры, подарочные композиции и акценты для детских комнат.',
+    body: 'Небольшие вещи, которые собирают дом воедино.',
     button_text: 'Перейти в каталог',
-    button_url: 'products.html',
-    image_url:
-      'https://images.unsplash.com/photo-1545239351-1141bd82e8a6?auto=format&fit=crop&w=1200&q=80',
+    button_url: '/products',
+    image_url: 'https://images.unsplash.com/photo-1452860606245-08befc0ff44b?auto=format&fit=crop&w=1400&q=80',
     is_active: true,
     order: 50,
   },
   {
     block_key: 'learning_entry',
     title: 'Мастер-классы',
-    body: 'Для тех, кто хочет начать и дойти до результата. Простые шаги, поддержка и вдохновение, чтобы связать своё первое изделие.',
+    body: 'Простые шаги, поддержка и вдохновение, чтобы связать своё первое изделие.',
     button_text: 'Смотреть обучение',
-    button_url: 'masterclasses.html',
-    image_url:
-      'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?auto=format&fit=crop&w=1200&q=80',
+    button_url: '/masterclasses',
+    image_url: 'https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=1400&q=80',
     is_active: true,
     order: 60,
   },
 ];
+
+function normalizeBlock(raw) {
+  if (!raw) return null;
+  const order = Number.isFinite(raw.order)
+    ? raw.order
+    : Number.isFinite(raw.sort_order)
+      ? raw.sort_order
+      : 0;
+  return {
+    ...raw,
+    block_key: raw.block_key,
+    title: raw.title,
+    subtitle: raw.subtitle ?? raw.body ?? '',
+    body: raw.body ?? raw.subtitle ?? '',
+    button_text: raw.button_text,
+    button_url: raw.button_url || raw.button_link || raw.buttonHref,
+    image_url: raw.image_url,
+    is_active: raw.is_active !== false,
+    order,
+  };
+}
 
 function safeUrl(url, fallback) {
   if (!url || typeof url !== 'string') return fallback;
@@ -222,9 +242,10 @@ function applyCta(section, block) {
 function buildBlockMap(items) {
   const map = new Map(DEFAULT_BLOCKS.map((item) => [item.block_key, { ...item }]));
   (items || []).forEach((block) => {
-    if (!block || !block.block_key) return;
-    const existing = map.get(block.block_key) || {};
-    map.set(block.block_key, { ...existing, ...block });
+    const normalized = normalizeBlock(block);
+    if (!normalized || !normalized.block_key) return;
+    const existing = map.get(normalized.block_key) || {};
+    map.set(normalized.block_key, { ...existing, ...normalized });
   });
   return map;
 }
@@ -320,5 +341,8 @@ async function loadHomeData() {
 
 document.addEventListener('DOMContentLoaded', () => {
   initRevealOnScroll();
+  if (homePostsSection) homePostsSection.style.order = '70';
+  if (loginSection) loginSection.style.order = '80';
+  if (authStatusSection) authStatusSection.style.order = '81';
   loadHomeData();
 });
