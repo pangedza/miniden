@@ -72,73 +72,117 @@
   const renderMasterclass = (masterclass) => {
     root.innerHTML = '';
 
-    const card = document.createElement('article');
-    card.className = 'catalog-card detail-card';
+    const container = document.createElement('article');
+    container.className = 'product-detail';
 
-    const imageWrapper = document.createElement('div');
-    imageWrapper.className = 'catalog-card-image detail-card__image';
+    const top = document.createElement('div');
+    top.className = 'product-detail__top';
+
+    const gallery = document.createElement('div');
+    gallery.className = 'product-gallery';
+
+    const mainFrame = document.createElement('div');
+    mainFrame.className = 'product-gallery__main';
 
     const mainImage = document.createElement('img');
+    mainImage.className = 'product-gallery__image';
     mainImage.alt = masterclass.name || 'Мастер-класс';
 
     const placeholder = document.createElement('div');
-    placeholder.className = 'catalog-card-placeholder';
+    placeholder.className = 'product-gallery__placeholder';
     placeholder.textContent = masterclass.category_name || 'Мастер-класс';
 
     const images = normalizeImages(masterclass);
-    if (images.length) {
-      mainImage.src = images[0];
-      imageWrapper.appendChild(mainImage);
-    } else {
-      placeholder.style.display = 'flex';
-      imageWrapper.appendChild(placeholder);
+    let currentIndex = 0;
+
+    const setMainImage = (index) => {
+      currentIndex = index;
+      const src = images[index];
+      if (src) {
+        mainImage.src = src;
+        mainImage.style.display = 'block';
+        placeholder.style.display = 'none';
+      } else {
+        mainImage.removeAttribute('src');
+        mainImage.style.display = 'none';
+        placeholder.style.display = 'flex';
+      }
+      Array.from(gallery.querySelectorAll('.product-gallery__thumb')).forEach((btn, btnIndex) => {
+        btn.classList.toggle('is-active', btnIndex === currentIndex);
+      });
+    };
+
+    mainFrame.append(mainImage, placeholder);
+    gallery.appendChild(mainFrame);
+
+    if (images.length > 1) {
+      const thumbs = document.createElement('div');
+      thumbs.className = 'product-gallery__thumbs';
+
+      images.forEach((src, index) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'product-gallery__thumb';
+
+        const img = document.createElement('img');
+        img.src = src;
+        img.alt = masterclass.name || 'Мастер-класс';
+        img.loading = 'lazy';
+
+        btn.appendChild(img);
+        btn.addEventListener('click', () => setMainImage(index));
+        thumbs.appendChild(btn);
+      });
+
+      gallery.appendChild(thumbs);
     }
 
-    const body = document.createElement('div');
-    body.className = 'catalog-card-body detail-card__body';
+    setMainImage(0);
+
+    const info = document.createElement('div');
+    info.className = 'product-info';
 
     const title = document.createElement('h1');
-    title.className = 'catalog-card-title';
+    title.className = 'product-info__title';
     title.textContent = masterclass.name;
 
     const meta = document.createElement('div');
-    meta.className = 'meta';
+    meta.className = 'product-info__meta';
     meta.textContent = masterclass.category_name || '';
 
-    const price = document.createElement('div');
-    price.className = 'price';
-    price.textContent = formatPrice(masterclass.price);
-
-    const level = document.createElement('div');
-    level.className = 'muted';
-    level.textContent = [masterclass.level, masterclass.duration, masterclass.format].filter(Boolean).join(' · ');
-
     const shortDesc = document.createElement('p');
-    shortDesc.className = 'muted';
+    shortDesc.className = 'product-info__intro muted';
     shortDesc.textContent = masterclass.short_description || '';
 
-    const description = document.createElement('div');
-    description.className = 'product-detail__description';
-    description.textContent = masterclass.description || '';
+    const details = document.createElement('div');
+    details.className = 'product-info__meta muted';
+    details.textContent = [masterclass.level, masterclass.duration, masterclass.format].filter(Boolean).join(' · ');
 
-    const actions = document.createElement('div');
-    actions.className = 'detail-card__actions';
+    const priceRow = document.createElement('div');
+    priceRow.className = 'product-info__price-row';
+
+    const price = document.createElement('div');
+    price.className = 'product-info__price';
+    price.textContent = formatPrice(masterclass.price);
+
+    const cta = document.createElement('div');
+    cta.className = 'product-info__cta';
 
     if (Number(masterclass.price || 0) === 0 && (masterclass.masterclass_url || masterclass.detail_url)) {
       const link = document.createElement('a');
-      link.className = 'btn';
+      link.className = 'btn product-info__add';
       link.href = masterclass.masterclass_url || masterclass.detail_url;
       link.target = '_blank';
       link.rel = 'noopener';
       link.textContent = 'Записаться';
-      actions.appendChild(link);
+      cta.appendChild(link);
     } else {
       const addBtn = document.createElement('button');
       addBtn.type = 'button';
-      addBtn.className = 'btn';
+      addBtn.className = 'btn product-info__add';
       addBtn.textContent = 'Добавить в корзину';
       addBtn.addEventListener('click', () => handleAddToCart(masterclass));
-      actions.appendChild(addBtn);
+      cta.appendChild(addBtn);
     }
 
     const backLink = document.createElement('a');
@@ -146,11 +190,63 @@
     backLink.className = 'btn secondary';
     backLink.textContent = 'Назад к мастер-классам';
 
-    actions.appendChild(backLink);
+    cta.appendChild(backLink);
+    priceRow.append(price, cta);
 
-    body.append(title, meta, price, level, shortDesc, description, actions);
-    card.append(imageWrapper, body);
-    root.appendChild(card);
+    info.append(title, meta, shortDesc, details, priceRow);
+
+    const tabs = document.createElement('div');
+    tabs.className = 'product-tabs';
+
+    const tabsNav = document.createElement('div');
+    tabsNav.className = 'product-tabs__nav';
+
+    const descriptionTabBtn = document.createElement('button');
+    descriptionTabBtn.type = 'button';
+    descriptionTabBtn.className = 'product-tabs__btn is-active';
+    descriptionTabBtn.textContent = 'Описание';
+
+    const reviewsTabBtn = document.createElement('button');
+    reviewsTabBtn.type = 'button';
+    reviewsTabBtn.className = 'product-tabs__btn';
+    reviewsTabBtn.textContent = 'Отзывы';
+
+    tabsNav.append(descriptionTabBtn, reviewsTabBtn);
+
+    const panels = document.createElement('div');
+    panels.className = 'product-tabs__panels';
+
+    const descriptionPanel = document.createElement('section');
+    descriptionPanel.className = 'product-tab is-active';
+
+    const description = document.createElement('div');
+    description.className = 'product-detail__description';
+    description.textContent = masterclass.description || '';
+
+    descriptionPanel.appendChild(description);
+
+    const reviewsPanel = document.createElement('section');
+    reviewsPanel.className = 'product-tab';
+
+    if (reviewsRoot) {
+      reviewsPanel.appendChild(reviewsRoot);
+    }
+
+    panels.append(descriptionPanel, reviewsPanel);
+
+    const switchTab = (target) => {
+      [descriptionTabBtn, reviewsTabBtn].forEach((btn) => btn.classList.toggle('is-active', btn === target));
+      [descriptionPanel, reviewsPanel].forEach((panel) => panel.classList.toggle('is-active', panel === (target === descriptionTabBtn ? descriptionPanel : reviewsPanel)));
+    };
+
+    descriptionTabBtn.addEventListener('click', () => switchTab(descriptionTabBtn));
+    reviewsTabBtn.addEventListener('click', () => switchTab(reviewsTabBtn));
+
+    tabs.append(tabsNav, panels);
+
+    top.append(gallery, info);
+    container.append(top, tabs);
+    root.appendChild(container);
   };
 
   const initReviewsWidget = () => {

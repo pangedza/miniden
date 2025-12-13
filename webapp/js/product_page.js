@@ -73,57 +73,101 @@
   const renderProduct = (product) => {
     root.innerHTML = '';
 
-    const card = document.createElement('article');
-    card.className = 'catalog-card detail-card';
+    const container = document.createElement('article');
+    container.className = 'product-detail';
 
-    const imageWrapper = document.createElement('div');
-    imageWrapper.className = 'catalog-card-image detail-card__image';
+    const top = document.createElement('div');
+    top.className = 'product-detail__top';
+
+    const gallery = document.createElement('div');
+    gallery.className = 'product-gallery';
+
+    const mainFrame = document.createElement('div');
+    mainFrame.className = 'product-gallery__main';
 
     const mainImage = document.createElement('img');
+    mainImage.className = 'product-gallery__image';
     mainImage.alt = product.name || 'Товар';
 
     const placeholder = document.createElement('div');
-    placeholder.className = 'catalog-card-placeholder';
+    placeholder.className = 'product-gallery__placeholder';
     placeholder.textContent = product.category_name || 'Товар';
 
     const images = normalizeImages(product);
-    if (images.length) {
-      mainImage.src = images[0];
-      imageWrapper.appendChild(mainImage);
-    } else {
-      placeholder.style.display = 'flex';
-      imageWrapper.appendChild(placeholder);
+    let currentIndex = 0;
+
+    const setMainImage = (index) => {
+      currentIndex = index;
+      const src = images[index];
+      if (src) {
+        mainImage.src = src;
+        mainImage.style.display = 'block';
+        placeholder.style.display = 'none';
+      } else {
+        mainImage.removeAttribute('src');
+        mainImage.style.display = 'none';
+        placeholder.style.display = 'flex';
+      }
+      Array.from(gallery.querySelectorAll('.product-gallery__thumb')).forEach((btn, btnIndex) => {
+        btn.classList.toggle('is-active', btnIndex === currentIndex);
+      });
+    };
+
+    mainFrame.append(mainImage, placeholder);
+    gallery.appendChild(mainFrame);
+
+    if (images.length > 1) {
+      const thumbs = document.createElement('div');
+      thumbs.className = 'product-gallery__thumbs';
+
+      images.forEach((src, index) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'product-gallery__thumb';
+
+        const img = document.createElement('img');
+        img.src = src;
+        img.alt = product.name || 'Товар';
+        img.loading = 'lazy';
+
+        btn.appendChild(img);
+        btn.addEventListener('click', () => setMainImage(index));
+        thumbs.appendChild(btn);
+      });
+
+      gallery.appendChild(thumbs);
     }
 
-    const body = document.createElement('div');
-    body.className = 'catalog-card-body detail-card__body';
+    setMainImage(0);
+
+    const info = document.createElement('div');
+    info.className = 'product-info';
 
     const title = document.createElement('h1');
-    title.className = 'catalog-card-title';
+    title.className = 'product-info__title';
     title.textContent = product.name;
 
     const meta = document.createElement('div');
-    meta.className = 'meta';
+    meta.className = 'product-info__meta';
     meta.textContent = product.category_name || '';
 
-    const price = document.createElement('div');
-    price.className = 'price';
-    price.textContent = formatPrice(product.price);
-
     const shortDesc = document.createElement('p');
-    shortDesc.className = 'muted';
+    shortDesc.className = 'product-info__intro muted';
     shortDesc.textContent = product.short_description || '';
 
-    const description = document.createElement('div');
-    description.className = 'product-detail__description';
-    description.textContent = product.description || '';
+    const priceRow = document.createElement('div');
+    priceRow.className = 'product-info__price-row';
 
-    const actions = document.createElement('div');
-    actions.className = 'detail-card__actions';
+    const price = document.createElement('div');
+    price.className = 'product-info__price';
+    price.textContent = formatPrice(product.price);
+
+    const cta = document.createElement('div');
+    cta.className = 'product-info__cta';
 
     const addBtn = document.createElement('button');
     addBtn.type = 'button';
-    addBtn.className = 'btn';
+    addBtn.className = 'btn product-info__add';
     addBtn.textContent = 'В корзину';
     addBtn.addEventListener('click', () => handleAddToCart(product));
 
@@ -132,10 +176,63 @@
     backLink.className = 'btn secondary';
     backLink.textContent = 'Назад к товарам';
 
-    actions.append(addBtn, backLink);
-    body.append(title, meta, price, shortDesc, description, actions);
-    card.append(imageWrapper, body);
-    root.appendChild(card);
+    cta.append(addBtn, backLink);
+    priceRow.append(price, cta);
+
+    info.append(title, meta, shortDesc, priceRow);
+
+    const tabs = document.createElement('div');
+    tabs.className = 'product-tabs';
+
+    const tabsNav = document.createElement('div');
+    tabsNav.className = 'product-tabs__nav';
+
+    const descriptionTabBtn = document.createElement('button');
+    descriptionTabBtn.type = 'button';
+    descriptionTabBtn.className = 'product-tabs__btn is-active';
+    descriptionTabBtn.textContent = 'Описание';
+
+    const reviewsTabBtn = document.createElement('button');
+    reviewsTabBtn.type = 'button';
+    reviewsTabBtn.className = 'product-tabs__btn';
+    reviewsTabBtn.textContent = 'Отзывы';
+
+    tabsNav.append(descriptionTabBtn, reviewsTabBtn);
+
+    const panels = document.createElement('div');
+    panels.className = 'product-tabs__panels';
+
+    const descriptionPanel = document.createElement('section');
+    descriptionPanel.className = 'product-tab is-active';
+
+    const description = document.createElement('div');
+    description.className = 'product-detail__description';
+    description.textContent = product.description || '';
+
+    descriptionPanel.appendChild(description);
+
+    const reviewsPanel = document.createElement('section');
+    reviewsPanel.className = 'product-tab';
+
+    if (reviewsRoot) {
+      reviewsPanel.appendChild(reviewsRoot);
+    }
+
+    panels.append(descriptionPanel, reviewsPanel);
+
+    const switchTab = (target) => {
+      [descriptionTabBtn, reviewsTabBtn].forEach((btn) => btn.classList.toggle('is-active', btn === target));
+      [descriptionPanel, reviewsPanel].forEach((panel) => panel.classList.toggle('is-active', panel === (target === descriptionTabBtn ? descriptionPanel : reviewsPanel)));
+    };
+
+    descriptionTabBtn.addEventListener('click', () => switchTab(descriptionTabBtn));
+    reviewsTabBtn.addEventListener('click', () => switchTab(reviewsTabBtn));
+
+    tabs.append(tabsNav, panels);
+
+    top.append(gallery, info);
+    container.append(top, tabs);
+    root.appendChild(container);
   };
 
   const initReviewsWidget = () => {
