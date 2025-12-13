@@ -1,24 +1,30 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
-class HomeBannerIn(BaseModel):
+class HomeBlockBase(BaseModel):
+    block_key: str | None = None
     title: str
     subtitle: str | None = None
+    body: str | None = None
     button_text: str | None = None
-    button_link: str | None = None
+    button_url: str | None = Field(default=None, alias="button_link")
     image_url: str | None = None
     is_active: bool = True
-    sort_order: int = 0
+    order: int = Field(default=0, alias="sort_order")
 
 
-class HomeBannerOut(HomeBannerIn):
+class HomeBlockIn(HomeBlockBase):
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class HomeBlockOut(HomeBlockBase):
     id: int
     created_at: datetime
     updated_at: datetime
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
 class HomeSectionIn(BaseModel):

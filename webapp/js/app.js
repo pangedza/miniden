@@ -1,6 +1,34 @@
-const THEME_KEY = 'miniden.theme';
+const THEME_KEY = 'miniden_theme';
+const LEGACY_THEME_KEYS = ['miniden.theme'];
 const DEFAULT_THEME = 'lifestyle';
 const AVAILABLE_THEMES = ['lifestyle', 'purple', 'dark', 'light', 'cream'];
+
+function readStoredTheme() {
+  const stored = localStorage.getItem(THEME_KEY);
+  if (stored) return stored;
+  for (const legacyKey of LEGACY_THEME_KEYS) {
+    const legacy = localStorage.getItem(legacyKey);
+    if (legacy) return legacy;
+  }
+  return null;
+}
+
+function persistTheme(theme) {
+  localStorage.setItem(THEME_KEY, theme);
+  LEGACY_THEME_KEYS.forEach((key) => localStorage.setItem(key, theme));
+}
+
+function ensureThemeOptions(select) {
+  if (!select) return;
+  const existing = new Set(Array.from(select.options || []).map((opt) => opt.value));
+  AVAILABLE_THEMES.forEach((theme) => {
+    if (existing.has(theme)) return;
+    const option = document.createElement('option');
+    option.value = theme;
+    option.textContent = theme === 'lifestyle' ? 'Lifestyle' : theme;
+    select.appendChild(option);
+  });
+}
 
 function applyTheme(theme) {
   const value = AVAILABLE_THEMES.includes(theme) ? theme : DEFAULT_THEME;
@@ -12,7 +40,8 @@ function initThemeSwitcher() {
   const select = document.getElementById('theme-select');
   if (!select) return;
 
-  const saved = localStorage.getItem(THEME_KEY) || DEFAULT_THEME;
+  ensureThemeOptions(select);
+  const saved = readStoredTheme() || DEFAULT_THEME;
   const themeToApply = AVAILABLE_THEMES.includes(saved) ? saved : DEFAULT_THEME;
   applyTheme(themeToApply);
   select.value = themeToApply;
@@ -20,7 +49,7 @@ function initThemeSwitcher() {
   select.addEventListener('change', () => {
     const value = AVAILABLE_THEMES.includes(select.value) ? select.value : DEFAULT_THEME;
     applyTheme(value);
-    localStorage.setItem(THEME_KEY, value);
+    persistTheme(value);
   });
 }
 
@@ -59,5 +88,5 @@ function initLayout() {
   initSidebar();
 }
 
-applyTheme(localStorage.getItem(THEME_KEY) || DEFAULT_THEME);
+applyTheme(readStoredTheme() || DEFAULT_THEME);
 document.addEventListener('DOMContentLoaded', initLayout);

@@ -495,101 +495,94 @@
         </div>
 
         <div class="home-admin-tabs admin-tabs" id="home-tabs">
-          <button class="home-admin-tab admin-tab active" data-tab="banners">Баннеры</button>
-          <button class="home-admin-tab admin-tab" data-tab="sections">Блоки</button>
+          <button class="home-admin-tab admin-tab active" data-tab="hero">Hero</button>
+          <button class="home-admin-tab admin-tab" data-tab="tiles">Плитки</button>
+          <button class="home-admin-tab admin-tab" data-tab="texts">Тексты</button>
+          <button class="home-admin-tab admin-tab" data-tab="entries">Переходы</button>
           <button class="home-admin-tab admin-tab" data-tab="posts">Мини-блог</button>
         </div>
 
-        <div class="home-admin-tab-panel admin-tab-view" data-panel="banners">
-          <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px;">
+        <div class="home-admin-tab-panel admin-tab-view" data-panel="blocks">
+          <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap:16px;">
             <div class="table-wrapper">
-              <table aria-label="Баннеры главной">
+              <div class="filters-row" style="justify-content: space-between; gap:12px;">
+                <div class="muted">Выберите вкладку выше, чтобы отфильтровать блоки.</div>
+                <select id="home-block-filter" style="min-width:180px;">
+                  <option value="all">Все блоки</option>
+                  <option value="hero">Hero</option>
+                  <option value="tiles">Плитки</option>
+                  <option value="texts">Тексты</option>
+                  <option value="entries">Переходы</option>
+                </select>
+              </div>
+              <table aria-label="Блоки главной">
                 <thead>
                   <tr>
                     <th>ID</th>
+                    <th>Ключ</th>
                     <th>Заголовок</th>
                     <th>Активен</th>
                     <th>Порядок</th>
-                    <th>Дата</th>
+                    <th>Обновлено</th>
                     <th></th>
                   </tr>
                 </thead>
-                <tbody id="home-banners-list"></tbody>
+                <tbody id="home-blocks-list"></tbody>
               </table>
             </div>
             <div class="card" style="background: rgba(255,255,255,0.03);">
-              <h3 id="home-banner-form-title">Создать баннер</h3>
-              <form id="home-banner-form" class="stacked-form">
+              <h3 id="home-block-form-title">Создать блок</h3>
+              <form id="home-block-form" class="stacked-form">
+                <label for="home-block-key">Ключ блока</label>
+                <select name="block_key" id="home-block-key" required>
+                  <option value="hero_main">Hero</option>
+                  <option value="tile_home_kids">Плитка — Дом и дети</option>
+                  <option value="tile_process">Плитка — Процесс</option>
+                  <option value="tile_baskets">Плитка — Корзинки</option>
+                  <option value="tile_learning">Плитка — Обучение</option>
+                  <option value="about_short">Текст — Обо мне</option>
+                  <option value="process_text">Текст — Процесс</option>
+                  <option value="shop_entry">Переход — Каталог</option>
+                  <option value="learning_entry">Переход — Обучение</option>
+                </select>
+
                 <label>Заголовок</label>
                 <input type="text" name="title" required />
+
                 <label>Подзаголовок</label>
                 <textarea name="subtitle" rows="2"></textarea>
+
+                <label>Текст/описание</label>
+                <textarea name="body" rows="3"></textarea>
+
                 <label>Текст кнопки</label>
                 <input type="text" name="button_text" />
+
                 <label>Ссылка кнопки</label>
-                <input type="text" name="button_link" />
+                <input type="text" name="button_url" />
+
                 <label>URL картинки</label>
-                <input type="text" name="image_url" id="home-banner-image-url" readonly />
+                <input type="text" name="image_url" id="home-block-image-url" readonly />
                 <div class="home-banner-image-upload" style="display:flex; flex-direction:column; gap:8px;">
                   <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-                    <input type="file" id="home-banner-image-file" accept="image/*" style="display:none;" />
-                    <label for="home-banner-image-file" class="btn secondary">Выбрать файл</label>
+                    <input type="file" id="home-block-image-file" accept="image/*" style="display:none;" />
+                    <label for="home-block-image-file" class="btn secondary">Выбрать файл</label>
                     <span class="muted" style="font-size:13px;">Файл загрузится на сервер, ссылка заполнится автоматически.</span>
                   </div>
                   <div class="home-banner-image-preview" style="border: 1px dashed var(--border); padding:10px; border-radius:12px; background: rgba(255,255,255,0.02);">
-                    <img id="home-banner-image-preview-img" alt="Превью баннера" style="display:none; max-width:100%; border-radius:12px;" />
+                    <img id="home-block-image-preview" alt="Превью блока" style="display:none; max-width:100%; border-radius:12px;" />
                   </div>
                 </div>
-                <label>Порядок сортировки</label>
-                <input type="number" name="sort_order" value="0" />
-                <label style="display:flex; gap:8px; align-items:center;">
-                  <input type="checkbox" name="is_active" checked /> Активен
-                </label>
-                <div class="form-actions">
-                  <button class="btn primary" type="submit">Сохранить</button>
-                  <button class="btn secondary" type="button" id="home-banner-reset">Создать баннер</button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
 
-        <div class="home-admin-tab-panel admin-tab-view" data-panel="sections" style="display:none;">
-          <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px;">
-            <div class="table-wrapper">
-              <table aria-label="Текстовые блоки главной">
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>Slug</th>
-                    <th>Заголовок</th>
-                    <th>Активен</th>
-                    <th>Порядок</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody id="home-sections-list"></tbody>
-              </table>
-            </div>
-            <div class="card" style="background: rgba(255,255,255,0.03);">
-              <h3 id="home-section-form-title">Создать блок</h3>
-              <form id="home-section-form" class="stacked-form">
-                <label>Slug</label>
-                <input type="text" name="slug" placeholder="why_1, how_step1" required />
-                <label>Заголовок</label>
-                <input type="text" name="title" required />
-                <label>Текст</label>
-                <textarea name="text" rows="3" required></textarea>
-                <label>Иконка/эмодзи</label>
-                <input type="text" name="icon" placeholder="✨" />
-                <label>Порядок сортировки</label>
-                <input type="number" name="sort_order" value="0" />
+                <label>Порядок</label>
+                <input type="number" name="order" value="0" />
+
                 <label style="display:flex; gap:8px; align-items:center;">
                   <input type="checkbox" name="is_active" checked /> Активен
                 </label>
                 <div class="form-actions">
                   <button class="btn primary" type="submit">Сохранить</button>
-                  <button class="btn secondary" type="button" id="home-section-reset">Создать блок</button>
+                  <button class="btn secondary" type="button" id="home-block-reset">Создать блок</button>
                 </div>
               </form>
             </div>
@@ -909,23 +902,20 @@
     const promoCreateReset = document.getElementById('promo-create-reset');
     const homeTabButtons = document.querySelectorAll('.home-admin-tab');
     const homeTabPanels = document.querySelectorAll('.home-admin-tab-panel');
-    const homeBannersList = document.getElementById('home-banners-list');
-    const homeSectionsList = document.getElementById('home-sections-list');
+    const homeBlocksList = document.getElementById('home-blocks-list');
     const homePostsList = document.getElementById('home-posts-list');
-    const homeBannerForm = document.getElementById('home-banner-form');
-    const homeBannerImageFileInput = document.getElementById('home-banner-image-file');
-    const homeBannerImageUrlInput = document.getElementById('home-banner-image-url');
-    const homeBannerImagePreview = document.getElementById('home-banner-image-preview-img');
-    const homeSectionForm = document.getElementById('home-section-form');
+    const homeBlockForm = document.getElementById('home-block-form');
+    const homeBlockImageFileInput = document.getElementById('home-block-image-file');
+    const homeBlockImageUrlInput = document.getElementById('home-block-image-url');
+    const homeBlockImagePreview = document.getElementById('home-block-image-preview');
+    const homeBlockKeySelect = document.getElementById('home-block-key');
+    const homeBlockFilter = document.getElementById('home-block-filter');
     const homePostForm = document.getElementById('home-post-form');
-    const homeBannerFormTitle = document.getElementById('home-banner-form-title');
-    const homeSectionFormTitle = document.getElementById('home-section-form-title');
+    const homeBlockFormTitle = document.getElementById('home-block-form-title');
     const homePostFormTitle = document.getElementById('home-post-form-title');
-    const homeBannerReset = document.getElementById('home-banner-reset');
-    const homeSectionReset = document.getElementById('home-section-reset');
+    const homeBlockReset = document.getElementById('home-block-reset');
     const homePostReset = document.getElementById('home-post-reset');
-    const homeBannerSubmit = homeBannerForm?.querySelector('button[type="submit"]');
-    const homeSectionSubmit = homeSectionForm?.querySelector('button[type="submit"]');
+    const homeBlockSubmit = homeBlockForm?.querySelector('button[type="submit"]');
     const homePostSubmit = homePostForm?.querySelector('button[type="submit"]');
     const productCategoriesTable = document.getElementById('product-categories-table');
     const courseCategoriesTable = document.getElementById('course-categories-table');
@@ -984,21 +974,15 @@
       active: true,
       one_per_user: false,
     };
-    const homeBannerDefaults = {
+    const homeBlockDefaults = {
+      block_key: 'hero_main',
       title: '',
       subtitle: '',
+      body: '',
       button_text: '',
-      button_link: '',
+      button_url: '',
       image_url: '',
-      sort_order: 0,
-      is_active: true,
-    };
-    const homeSectionDefaults = {
-      slug: '',
-      title: '',
-      text: '',
-      icon: '',
-      sort_order: 0,
+      order: 0,
       is_active: true,
     };
     const homePostDefaults = {
@@ -1018,8 +1002,7 @@
     const productFormState = createSectionFormState(productFormDefaults);
     const courseFormState = createSectionFormState(courseFormDefaults);
     const promoCreateState = createSectionFormState(promoFormDefaults);
-    const homeBannerState = createSectionFormState(homeBannerDefaults);
-    const homeSectionState = createSectionFormState(homeSectionDefaults);
+    const homeBlockState = createSectionFormState(homeBlockDefaults);
     const homePostState = createSectionFormState(homePostDefaults);
     const faqFormState = createSectionFormState(faqDefaults);
     let editingProductCategoryId = null;
@@ -1029,17 +1012,16 @@
     let faqItems = [];
     let productItems = [];
     let courseItems = [];
-    let homeBannerItems = [];
-    let homeSectionItems = [];
+    let homeBlockItems = [];
     let homePostItems = [];
     let productCurrentId = null;
     let masterclassCurrentId = null;
     let promoCurrentId = null;
-    let currentBannerId = null;
-    let currentSectionId = null;
+    let currentBlockId = null;
     let currentPostId = null;
     let currentFaqId = null;
     let currentView = 'orders';
+    let currentHomeTab = 'hero';
     const productSubmitBtn = productForm?.querySelector('button[type="submit"]');
     const courseSubmitBtn = courseForm?.querySelector('button[type="submit"]');
     const promoSubmitBtn = promoCreateForm?.querySelector('button[type="submit"]');
@@ -1170,9 +1152,8 @@
         window.adminChats?.activate();
       }
       if (view === 'home-cms') {
-        showHomeTab('banners');
-        loadHomeBanners();
-        loadHomeSections();
+        showHomeTab('hero');
+        loadHomeBlocks();
         loadHomePosts();
       }
     }
@@ -2433,37 +2414,62 @@
       return items;
     }
 
-    function showHomeTab(tabName = 'banners') {
+    const HOME_BLOCK_GROUPS = {
+      hero: ['hero_main'],
+      tiles: ['tile_home_kids', 'tile_process', 'tile_baskets', 'tile_learning'],
+      texts: ['about_short', 'process_text'],
+      entries: ['shop_entry', 'learning_entry'],
+    };
+
+    function getTabForBlockKey(key) {
+      if (!key) return 'hero';
+      const match = Object.entries(HOME_BLOCK_GROUPS).find(([, list]) => list.includes(key));
+      return match?.[0] || 'hero';
+    }
+
+    function getDefaultKeyForTab(tab) {
+      const list = HOME_BLOCK_GROUPS[tab];
+      if (list && list.length) return list[0];
+      return 'hero_main';
+    }
+
+    function showHomeTab(tabName = 'hero') {
+      currentHomeTab = tabName;
       homeTabButtons.forEach((btn) => {
         const isActive = btn.dataset.tab === tabName;
         btn.classList.toggle('active', isActive);
       });
       homeTabPanels.forEach((panel) => {
-        const isActive = panel.dataset.panel === tabName;
-        panel.style.display = isActive ? '' : 'none';
+        if (panel.dataset.panel === 'posts') {
+          panel.style.display = tabName === 'posts' ? '' : 'none';
+        } else {
+          panel.style.display = tabName === 'posts' ? 'none' : '';
+        }
       });
+      if (homeBlockFilter && tabName !== 'posts') {
+        homeBlockFilter.value = tabName;
+      }
+      renderHomeBlocks(homeBlockItems, tabName);
+      if (tabName === 'posts') {
+        renderHomePosts(homePostItems);
+      }
+      if (homeBlockKeySelect && tabName !== 'posts' && homeBlockState.mode === 'create') {
+        homeBlockKeySelect.value = getDefaultKeyForTab(tabName);
+        homeBlockState.formData.block_key = homeBlockKeySelect.value;
+      }
     }
 
-    function resetHomeBannerForm() {
-      homeBannerState.mode = 'create';
-      homeBannerState.currentId = null;
-      currentBannerId = null;
-      homeBannerFormTitle.textContent = 'Создать баннер';
-      if (homeBannerSubmit) homeBannerSubmit.textContent = 'Сохранить';
-      resetFormState(homeBannerState.formData, homeBannerDefaults);
-      applyStateToForm(homeBannerForm, homeBannerState.formData);
-      setHomeBannerImage(homeBannerState.formData.image_url);
-      if (homeBannerImageFileInput) homeBannerImageFileInput.value = '';
-    }
-
-    function resetHomeSectionForm() {
-      homeSectionState.mode = 'create';
-      homeSectionState.currentId = null;
-      currentSectionId = null;
-      homeSectionFormTitle.textContent = 'Создать блок';
-      if (homeSectionSubmit) homeSectionSubmit.textContent = 'Сохранить';
-      resetFormState(homeSectionState.formData, homeSectionDefaults);
-      applyStateToForm(homeSectionForm, homeSectionState.formData);
+    function resetHomeBlockForm() {
+      homeBlockState.mode = 'create';
+      homeBlockState.currentId = null;
+      currentBlockId = null;
+      homeBlockFormTitle.textContent = 'Создать блок';
+      if (homeBlockSubmit) homeBlockSubmit.textContent = 'Сохранить';
+      resetFormState(homeBlockState.formData, homeBlockDefaults);
+      homeBlockState.formData.block_key = getDefaultKeyForTab(currentHomeTab || 'hero');
+      applyStateToForm(homeBlockForm, homeBlockState.formData);
+      setHomeBlockImage(homeBlockState.formData.image_url);
+      if (homeBlockImageFileInput) homeBlockImageFileInput.value = '';
     }
 
     function resetHomePostForm() {
@@ -2476,23 +2482,23 @@
       applyStateToForm(homePostForm, homePostState.formData);
     }
 
-    function setHomeBannerImage(url) {
+    function setHomeBlockImage(url) {
       const normalized = url || '';
-      if (homeBannerImageUrlInput) {
-        homeBannerImageUrlInput.value = normalized;
+      if (homeBlockImageUrlInput) {
+        homeBlockImageUrlInput.value = normalized;
       }
-      if (homeBannerImagePreview) {
+      if (homeBlockImagePreview) {
         if (normalized) {
-          homeBannerImagePreview.src = normalized;
-          homeBannerImagePreview.style.display = 'block';
+          homeBlockImagePreview.src = normalized;
+          homeBlockImagePreview.style.display = 'block';
         } else {
-          homeBannerImagePreview.src = '';
-          homeBannerImagePreview.style.display = 'none';
+          homeBlockImagePreview.src = '';
+          homeBlockImagePreview.style.display = 'none';
         }
       }
     }
 
-    async function uploadHomeBannerImage(file) {
+    async function uploadHomeBlockImage(file) {
       const formData = new FormData();
       formData.append('kind', 'home');
       formData.append('file', file);
@@ -2504,94 +2510,74 @@
       return data?.url;
     }
 
-    async function handleHomeBannerImageChange(event) {
+    async function handleHomeBlockImageChange(event) {
       const file = event.target?.files?.[0];
       if (!file) return;
       try {
-        const url = await uploadHomeBannerImage(file);
+        const url = await uploadHomeBlockImage(file);
         if (url) {
-          setHomeBannerImage(url);
+          setHomeBlockImage(url);
           setStatus('Изображение загружено');
         }
       } catch (e) {
-        handleError(e, 'Не удалось загрузить изображение баннера');
+        handleError(e, 'Не удалось загрузить изображение');
       } finally {
         event.target.value = '';
       }
     }
 
-    function renderHomeBanners(items) {
-      homeBannersList.innerHTML = '';
-      if (!items.length) {
-        const row = document.createElement('tr');
-        const cell = document.createElement('td');
-        cell.colSpan = 6;
-        cell.textContent = 'Баннеры отсутствуют';
-        cell.className = 'muted';
-        row.appendChild(cell);
-        homeBannersList.appendChild(row);
-        return;
-      }
-
-      items.forEach((banner) => {
-        const row = document.createElement('tr');
-        const date = banner.created_at ? new Date(banner.created_at).toLocaleString('ru-RU') : '—';
-        row.innerHTML = `
-          <td>#${banner.id}</td>
-          <td>${banner.title || '—'}</td>
-          <td>${banner.is_active ? 'Да' : 'Нет'}</td>
-          <td>${banner.sort_order ?? 0}</td>
-          <td>${date}</td>
-          <td>
-            <div style="display:flex; gap:6px; flex-wrap:wrap;">
-              <button class="btn secondary" type="button" data-action="edit-banner" data-id="${banner.id}">Редактировать</button>
-              <button class="btn secondary danger" type="button" data-action="delete-banner" data-id="${banner.id}">Удалить</button>
-            </div>
-          </td>
-        `;
-        homeBannersList.appendChild(row);
-      });
+    function filterBlocksByTab(items, tabName) {
+      if (!items?.length) return [];
+      if (!tabName || tabName === 'all' || tabName === 'posts') return items;
+      const keys = HOME_BLOCK_GROUPS[tabName] || [];
+      if (!keys.length) return items;
+      return items.filter((block) => keys.includes(block.block_key));
     }
 
-    function renderHomeSections(items) {
-      homeSectionsList.innerHTML = '';
-      if (!items.length) {
+    function renderHomeBlocks(items, tabName = currentHomeTab) {
+      if (!homeBlocksList) return;
+      const filtered = filterBlocksByTab(items, tabName || 'all');
+      homeBlocksList.innerHTML = '';
+      if (!filtered.length) {
         const row = document.createElement('tr');
         const cell = document.createElement('td');
-        cell.colSpan = 6;
+        cell.colSpan = 7;
         cell.textContent = 'Блоки отсутствуют';
         cell.className = 'muted';
         row.appendChild(cell);
-        homeSectionsList.appendChild(row);
+        homeBlocksList.appendChild(row);
         return;
       }
 
-      items.forEach((section) => {
+      filtered.forEach((block) => {
         const row = document.createElement('tr');
+        const date = block.updated_at ? new Date(block.updated_at).toLocaleString('ru-RU') : '—';
         row.innerHTML = `
-          <td>#${section.id}</td>
-          <td>${section.slug}</td>
-          <td>${section.title}</td>
-          <td>${section.is_active ? 'Да' : 'Нет'}</td>
-          <td>${section.sort_order ?? 0}</td>
+          <td>#${block.id}</td>
+          <td>${block.block_key || '—'}</td>
+          <td>${block.title || '—'}</td>
+          <td>${block.is_active ? 'Да' : 'Нет'}</td>
+          <td>${block.order ?? 0}</td>
+          <td>${date}</td>
           <td>
             <div style="display:flex; gap:6px; flex-wrap:wrap;">
-              <button class="btn secondary" type="button" data-action="edit-section" data-id="${section.id}">Редактировать</button>
-              <button class="btn secondary danger" type="button" data-action="delete-section" data-id="${section.id}">Удалить</button>
+              <button class="btn secondary" type="button" data-action="edit-block" data-id="${block.id}">Редактировать</button>
+              <button class="btn secondary danger" type="button" data-action="delete-block" data-id="${block.id}">Удалить</button>
             </div>
           </td>
         `;
-        homeSectionsList.appendChild(row);
+        homeBlocksList.appendChild(row);
       });
     }
 
     function renderHomePosts(items) {
+      if (!homePostsList) return;
       homePostsList.innerHTML = '';
       if (!items.length) {
         const row = document.createElement('tr');
         const cell = document.createElement('td');
         cell.colSpan = 6;
-        cell.textContent = 'Постов пока нет';
+        cell.textContent = 'Посты отсутствуют';
         cell.className = 'muted';
         row.appendChild(cell);
         homePostsList.appendChild(row);
@@ -2618,23 +2604,17 @@
       });
     }
 
-    async function loadHomeBanners() {
+    async function loadHomeBlocks() {
       if (!currentUser) return;
       try {
-        const data = await apiGet('/admin/home/banners', { user_id: currentUser.telegram_id });
-        homeBannerItems = data.items || data || [];
-        renderHomeBanners(homeBannerItems);
-      } catch (e) {
-        handleError(e, 'Не удалось загрузить баннеры');
-      }
-    }
-
-    async function loadHomeSections() {
-      if (!currentUser) return;
-      try {
-        const data = await apiGet('/admin/home/sections', { user_id: currentUser.telegram_id });
-        homeSectionItems = data.items || data || [];
-        renderHomeSections(homeSectionItems);
+        const data = await apiGet('/admin/home/blocks', { user_id: currentUser.telegram_id });
+        homeBlockItems = (data.items || data || []).map((item) => ({
+          ...item,
+          order: item.order ?? item.sort_order ?? 0,
+          button_url: item.button_url || item.button_link || '',
+          block_key: item.block_key || item.slug || 'custom',
+        }));
+        renderHomeBlocks(homeBlockItems, currentHomeTab);
       } catch (e) {
         handleError(e, 'Не удалось загрузить блоки');
       }
@@ -2651,14 +2631,9 @@
       }
     }
 
-    async function fetchHomeBanner(id) {
+    async function fetchHomeBlock(id) {
       if (!currentUser || !id) return null;
-      return apiGet(`/admin/home/banners/${id}`, { user_id: currentUser.telegram_id });
-    }
-
-    async function fetchHomeSection(id) {
-      if (!currentUser || !id) return null;
-      return apiGet(`/admin/home/sections/${id}`, { user_id: currentUser.telegram_id });
+      return apiGet(`/admin/home/blocks/${id}`, { user_id: currentUser.telegram_id });
     }
 
     async function fetchHomePost(id) {
@@ -2666,25 +2641,15 @@
       return apiGet(`/admin/home/posts/${id}`, { user_id: currentUser.telegram_id });
     }
 
-    function openHomeBannerEdit(banner) {
-      homeBannerState.mode = 'edit';
-      homeBannerState.currentId = banner.id;
-      currentBannerId = banner.id;
-      homeBannerFormTitle.textContent = `Редактировать баннер #${banner.id}`;
-      if (homeBannerSubmit) homeBannerSubmit.textContent = 'Обновить баннер';
-      resetFormState(homeBannerState.formData, { ...homeBannerDefaults, ...banner });
-      applyStateToForm(homeBannerForm, homeBannerState.formData);
-      setHomeBannerImage(banner.image_url || homeBannerState.formData.image_url);
-    }
-
-    function openHomeSectionEdit(section) {
-      homeSectionState.mode = 'edit';
-      homeSectionState.currentId = section.id;
-      currentSectionId = section.id;
-      homeSectionFormTitle.textContent = `Редактировать блок #${section.id}`;
-      if (homeSectionSubmit) homeSectionSubmit.textContent = 'Обновить блок';
-      resetFormState(homeSectionState.formData, { ...homeSectionDefaults, ...section });
-      applyStateToForm(homeSectionForm, homeSectionState.formData);
+    function openHomeBlockEdit(block) {
+      homeBlockState.mode = 'edit';
+      homeBlockState.currentId = block.id;
+      currentBlockId = block.id;
+      homeBlockFormTitle.textContent = `Редактировать блок #${block.id}`;
+      if (homeBlockSubmit) homeBlockSubmit.textContent = 'Обновить блок';
+      resetFormState(homeBlockState.formData, { ...homeBlockDefaults, ...block });
+      applyStateToForm(homeBlockForm, homeBlockState.formData);
+      setHomeBlockImage(block.image_url || homeBlockState.formData.image_url);
     }
 
     function openHomePostEdit(post) {
@@ -2697,22 +2662,11 @@
       applyStateToForm(homePostForm, homePostState.formData);
     }
 
-    async function deleteHomeBanner(id) {
+    async function deleteHomeBlock(id) {
       if (!currentUser || !id) return;
       try {
-        await sendJson(`/admin/home/banners/${id}?user_id=${currentUser.telegram_id}`, 'DELETE');
-        await loadHomeBanners();
-        showToast('Баннер удалён');
-      } catch (e) {
-        handleError(e, 'Не удалось удалить баннер');
-      }
-    }
-
-    async function deleteHomeSection(id) {
-      if (!currentUser || !id) return;
-      try {
-        await sendJson(`/admin/home/sections/${id}?user_id=${currentUser.telegram_id}`, 'DELETE');
-        await loadHomeSections();
+        await sendJson(`/admin/home/blocks/${id}?user_id=${currentUser.telegram_id}`, 'DELETE');
+        await loadHomeBlocks();
         showToast('Блок удалён');
       } catch (e) {
         handleError(e, 'Не удалось удалить блок');
@@ -2737,27 +2691,14 @@
       const id = btn.dataset.id;
       if (!action || !id) return;
 
-      if (action === 'edit-banner') {
+      if (action === 'edit-block') {
         try {
-          const banner = await fetchHomeBanner(id);
-          if (banner) {
-            showHomeTab('banners');
-            openHomeBannerEdit(banner);
-            homeBannerForm?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          }
-        } catch (e) {
-          handleError(e, 'Не удалось загрузить баннер');
-        }
-        return;
-      }
-
-      if (action === 'edit-section') {
-        try {
-          const section = await fetchHomeSection(id);
-          if (section) {
-            showHomeTab('sections');
-            openHomeSectionEdit(section);
-            homeSectionForm?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          const block = await fetchHomeBlock(id);
+          if (block) {
+            const tab = getTabForBlockKey(block.block_key);
+            showHomeTab(tab);
+            openHomeBlockEdit(block);
+            homeBlockForm?.scrollIntoView({ behavior: 'smooth', block: 'start' });
           }
         } catch (e) {
           handleError(e, 'Не удалось загрузить блок');
@@ -2779,12 +2720,8 @@
         return;
       }
 
-      if (action === 'delete-banner') {
-        deleteHomeBanner(id);
-        return;
-      }
-      if (action === 'delete-section') {
-        deleteHomeSection(id);
+      if (action === 'delete-block') {
+        deleteHomeBlock(id);
         return;
       }
       if (action === 'delete-post') {
@@ -2792,43 +2729,22 @@
       }
     }
 
-    async function handleHomeBannerSubmit(event) {
+    async function handleHomeBlockSubmit(event) {
       event.preventDefault();
       if (!currentUser) return;
-      const payload = serializeForm(homeBannerForm);
-      payload.sort_order = payload.sort_order ? Number(payload.sort_order) : 0;
+      const payload = serializeForm(homeBlockForm);
+      payload.order = payload.order ? Number(payload.order) : 0;
       const query = `?user_id=${currentUser.telegram_id}`;
-      homeBannerState.currentId = currentBannerId;
-      const path = homeBannerState.currentId
-        ? `/admin/home/banners/${homeBannerState.currentId}${query}`
-        : `/admin/home/banners${query}`;
-      const method = homeBannerState.currentId ? 'PUT' : 'POST';
-      try {
-        await sendJson(path, method, payload);
-        setStatus('Баннер сохранён');
-        resetHomeBannerForm();
-        await loadHomeBanners();
-      } catch (e) {
-        handleError(e, 'Не удалось сохранить баннер');
-      }
-    }
-
-    async function handleHomeSectionSubmit(event) {
-      event.preventDefault();
-      if (!currentUser) return;
-      const payload = serializeForm(homeSectionForm);
-      payload.sort_order = payload.sort_order ? Number(payload.sort_order) : 0;
-      const query = `?user_id=${currentUser.telegram_id}`;
-      homeSectionState.currentId = currentSectionId;
-      const path = homeSectionState.currentId
-        ? `/admin/home/sections/${homeSectionState.currentId}${query}`
-        : `/admin/home/sections${query}`;
-      const method = homeSectionState.currentId ? 'PUT' : 'POST';
+      homeBlockState.currentId = currentBlockId;
+      const path = homeBlockState.currentId
+        ? `/admin/home/blocks/${homeBlockState.currentId}${query}`
+        : `/admin/home/blocks${query}`;
+      const method = homeBlockState.currentId ? 'PUT' : 'POST';
       try {
         await sendJson(path, method, payload);
         setStatus('Блок сохранён');
-        resetHomeSectionForm();
-        await loadHomeSections();
+        resetHomeBlockForm();
+        await loadHomeBlocks();
       } catch (e) {
         handleError(e, 'Не удалось сохранить блок');
       }
@@ -2854,7 +2770,6 @@
         handleError(e, 'Не удалось сохранить пост');
       }
     }
-
     function findPromocodeById(id) {
       return promocodeItems.find((p) => String(p.id) === String(id));
     }
@@ -3125,8 +3040,7 @@
     bindStateToForm(productForm, productFormState.formData);
     bindStateToForm(courseForm, courseFormState.formData);
     bindStateToForm(promoCreateForm, promoCreateState.formData);
-    bindStateToForm(homeBannerForm, homeBannerState.formData);
-    bindStateToForm(homeSectionForm, homeSectionState.formData);
+    bindStateToForm(homeBlockForm, homeBlockState.formData);
     bindStateToForm(homePostForm, homePostState.formData);
 
     promoCreateForm?.addEventListener('submit', submitPromocodeCreate);
@@ -3134,12 +3048,11 @@
     promoCreateScope?.addEventListener('change', () => updatePromoTargetState(promoCreateScope, promoCreateTarget));
     productForm.addEventListener('submit', handleProductFormSubmit);
     courseForm.addEventListener('submit', handleCourseFormSubmit);
-    homeBannerForm?.addEventListener('submit', handleHomeBannerSubmit);
-    homeBannerImageFileInput?.addEventListener('change', handleHomeBannerImageChange);
-    homeBannerImageUrlInput?.addEventListener('input', (event) => {
-      setHomeBannerImage(event.target.value);
+    homeBlockForm?.addEventListener('submit', handleHomeBlockSubmit);
+    homeBlockImageFileInput?.addEventListener('change', handleHomeBlockImageChange);
+    homeBlockImageUrlInput?.addEventListener('input', (event) => {
+      setHomeBlockImage(event.target.value);
     });
-    homeSectionForm?.addEventListener('submit', handleHomeSectionSubmit);
     homePostForm?.addEventListener('submit', handleHomePostSubmit);
     productCategoryForm?.addEventListener('submit', handleProductCategoryFormSubmit);
     courseCategoryForm?.addEventListener('submit', handleCourseCategoryFormSubmit);
@@ -3172,8 +3085,7 @@
       editingCourseCategoryId = null;
       resetCategoryForm(courseCategoryForm, courseCategoryFormTitle, 'Создать категорию');
     });
-    homeBannerReset?.addEventListener('click', resetHomeBannerForm);
-    homeSectionReset?.addEventListener('click', resetHomeSectionForm);
+    homeBlockReset?.addEventListener('click', resetHomeBlockForm);
     homePostReset?.addEventListener('click', resetHomePostForm);
 
     productImageFileInput?.addEventListener('change', uploadProductImageFile);
@@ -3190,13 +3102,25 @@
       renderPromocodes(applyPromocodeFilters(promocodeItems));
     });
 
+    homeBlockFilter?.addEventListener('change', () => {
+      const tab = homeBlockFilter.value || 'hero';
+      showHomeTab(tab);
+      if (tab === 'posts') {
+        loadHomePosts();
+      } else {
+        loadHomeBlocks();
+      }
+    });
+
     homeTabButtons.forEach((btn) => {
       btn.addEventListener('click', () => {
-        const tab = btn.dataset.tab || 'banners';
+        const tab = btn.dataset.tab || 'hero';
         showHomeTab(tab);
-        if (tab === 'banners') loadHomeBanners();
-        if (tab === 'sections') loadHomeSections();
-        if (tab === 'posts') loadHomePosts();
+        if (tab === 'posts') {
+          loadHomePosts();
+        } else {
+          loadHomeBlocks();
+        }
       });
     });
     document.addEventListener('click', handleHomeActionClick);
@@ -3229,8 +3153,7 @@
         currentUser = await getCurrentUser({ includeNotes: true });
         if (!requireAdmin(currentUser)) return;
 
-        resetHomeBannerForm();
-        resetHomeSectionForm();
+        resetHomeBlockForm();
         resetHomePostForm();
         resetFaqFormState();
 
@@ -3250,7 +3173,7 @@
         await loadPromocodes();
         await loadReviewProducts();
         await loadReviews();
-        await Promise.all([loadHomeBanners(), loadHomeSections(), loadHomePosts()]);
+        await Promise.all([loadHomeBlocks(), loadHomePosts()]);
         showSection('orders');
         console.log('[admin] initApp done');
       } catch (e) {

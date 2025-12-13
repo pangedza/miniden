@@ -67,7 +67,7 @@ from services import webchat_service
 from utils import site_chat_storage
 from services.telegram_webapp_auth import authenticate_telegram_webapp_user
 from utils.texts import format_order_for_admin
-from schemas.home import HomeBannerIn, HomePostIn, HomeSectionIn
+from schemas.home import HomeBlockIn, HomePostIn, HomeSectionIn
 
 
 app = FastAPI(title="MiniDeN Web API", version="1.0.0")
@@ -279,6 +279,12 @@ def api_env():
 @app.get("/api/home")
 def api_home():
     return home_service.get_active_home_data()
+
+
+@app.get("/api/homepage/blocks")
+def api_homepage_blocks():
+    blocks = home_service.list_blocks(include_inactive=False)
+    return {"items": [block.dict() for block in blocks]}
 
 
 @app.get("/api/health")
@@ -1080,6 +1086,10 @@ def _wrap_home_banner_error(action: str, func):
     except Exception as exc:  # noqa: WPS430
         logger.exception("Home banner %s failed", action)
         raise HTTPException(status_code=500, detail="Ошибка сервера") from exc
+
+
+def _wrap_home_block_error(action: str, func):
+    return _wrap_home_banner_error(action, func)
 
 
 @app.get("/api/auth/session")
@@ -2033,7 +2043,7 @@ def admin_home_banners(user_id: int):
 
 
 @app.post("/api/admin/home/banners")
-def admin_create_home_banner(payload: HomeBannerIn, user_id: int):
+def admin_create_home_banner(payload: HomeBlockIn, user_id: int):
     _ensure_admin(user_id)
     banner = _wrap_home_banner_error("create", lambda: home_service.create_banner(payload))
     return banner.dict()
@@ -2049,7 +2059,7 @@ def admin_get_home_banner(banner_id: int, user_id: int):
 
 
 @app.put("/api/admin/home/banners/{banner_id}")
-def admin_update_home_banner(banner_id: int, payload: HomeBannerIn, user_id: int):
+def admin_update_home_banner(banner_id: int, payload: HomeBlockIn, user_id: int):
     _ensure_admin(user_id)
     banner = _wrap_home_banner_error(
         "update", lambda: home_service.update_banner(banner_id, payload)
@@ -2065,6 +2075,47 @@ def admin_delete_home_banner(banner_id: int, user_id: int):
     deleted = _wrap_home_banner_error("delete", lambda: home_service.delete_banner(banner_id))
     if not deleted:
         raise HTTPException(status_code=404, detail="Banner not found")
+    return {"ok": True}
+
+
+@app.get("/api/admin/home/blocks")
+def admin_home_blocks(user_id: int):
+    _ensure_admin(user_id)
+    items = _wrap_home_block_error("list", home_service.list_blocks)
+    return {"items": [item.dict() for item in items]}
+
+
+@app.post("/api/admin/home/blocks")
+def admin_create_home_block(payload: HomeBlockIn, user_id: int):
+    _ensure_admin(user_id)
+    block = _wrap_home_block_error("create", lambda: home_service.create_block(payload))
+    return block.dict()
+
+
+@app.get("/api/admin/home/blocks/{block_id}")
+def admin_get_home_block(block_id: int, user_id: int):
+    _ensure_admin(user_id)
+    block = _wrap_home_block_error("get", lambda: home_service.get_block(block_id))
+    if not block:
+        raise HTTPException(status_code=404, detail="Block not found")
+    return block.dict()
+
+
+@app.put("/api/admin/home/blocks/{block_id}")
+def admin_update_home_block(block_id: int, payload: HomeBlockIn, user_id: int):
+    _ensure_admin(user_id)
+    block = _wrap_home_block_error("update", lambda: home_service.update_block(block_id, payload))
+    if not block:
+        raise HTTPException(status_code=404, detail="Block not found")
+    return block.dict()
+
+
+@app.delete("/api/admin/home/blocks/{block_id}")
+def admin_delete_home_block(block_id: int, user_id: int):
+    _ensure_admin(user_id)
+    deleted = _wrap_home_block_error("delete", lambda: home_service.delete_block(block_id))
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Block not found")
     return {"ok": True}
 
 
