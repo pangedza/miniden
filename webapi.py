@@ -106,6 +106,7 @@ async def validation_exception_handler(
 
 
 ALLOWED_TYPES = {"basket", "course"}
+ALLOWED_CATEGORY_TYPES = {"basket", "course", "mixed"}
 
 SETTINGS = get_settings()
 BOT_TOKEN = SETTINGS.bot_token
@@ -117,6 +118,7 @@ REQUIRED_DIRS = [
     MEDIA_ROOT / "users",
     MEDIA_ROOT / "products",
     MEDIA_ROOT / "courses",
+    MEDIA_ROOT / "categories",
     MEDIA_ROOT / "home",
     MEDIA_ROOT / "reviews",
     MEDIA_ROOT / "branding",
@@ -289,6 +291,27 @@ def _delete_media_file(url: str | None) -> None:
     except OSError:
         # тихо игнорируем ошибки удаления, чтобы не ломать основной поток
         pass
+
+
+def _bool_from_any(value, default: bool | None = None) -> bool | None:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on", "y"}
+    return default
+
+
+def _int_from_any(value, default: int | None = None) -> int | None:
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
 
 
 class AdminImageKind(str, Enum):
@@ -553,6 +576,12 @@ async def api_webchat_manager_reply(
 def _validate_type(product_type: str) -> str:
     if product_type not in ALLOWED_TYPES:
         raise HTTPException(status_code=400, detail="type must be 'basket' or 'course'")
+    return product_type
+
+
+def _validate_category_type(product_type: str) -> str:
+    if product_type not in ALLOWED_CATEGORY_TYPES:
+        raise HTTPException(status_code=400, detail="type must be 'basket', 'course' or 'mixed'")
     return product_type
 
 
@@ -1485,13 +1514,13 @@ def archive_order(order_id: int, request: Request):
 
 
 @app.get("/api/categories")
-def api_categories(type: str | None = None):
+def api_categories(type: str | None = None, active_only: bool = True):
     """
     Вернуть список категорий для товаров или курсов.
     Если type не указан — вернуть активные категории всех типов.
     """
-    product_type = _validate_type(type) if type else None
-    return products_service.list_categories(product_type)
+    product_type = _validate_category_type(type) if type else None
+    return products_service.list_categories(product_type, include_inactive=not active_only)
 
 
 @app.get("/api/categories/{slug}")
@@ -2316,6 +2345,55 @@ def admin_delete_home_post(post_id: int, user_id: int):
 # ----------------------------
 
 
+async def _parse_category_payload(
+    request: Request, image_file: UploadFile | None = None, *, is_update: bool = False
+) -> tuple[dict[str, Any], UploadFile | None]:
+    raw: dict[str, Any] = {}
+    content_type = request.headers.get("content-type", "").lower()
+    if content_type.startswith("application/json"):
+        try:
+            raw = await request.json()
+        except Exception:
+            raw = {}
+    else:
+        form = await request.form()
+        raw = {key: value for key, value in form.items() if not isinstance(value, UploadFile)}
+        form_file = form.get("image_file")
+        if isinstance(form_file, UploadFile) and image_file is None:
+            image_file = form_file
+
+    payload = {
+        "user_id": _int_from_any(raw.get("user_id")),
+        "name": raw.get("name"),
+        "slug": raw.get("slug") or None,
+        "description": raw.get("description") or None,
+        "image_url": raw.get("image_url") or None,
+        "sort_order": _int_from_any(raw.get("sort_order"), 0 if not is_update else None),
+        "is_active": _bool_from_any(raw.get("is_active"), None if is_update else True),
+        "type": raw.get("type") or ("basket" if not is_update else None),
+    }
+
+    if payload["type"] is not None:
+        payload["type"] = _validate_category_type(str(payload["type"]))
+
+    if payload["user_id"] is None:
+        raise HTTPException(status_code=400, detail="user_id is required")
+
+    if not is_update and not (payload.get("name") and str(payload["name"]).strip()):
+        raise HTTPException(status_code=400, detail="name is required")
+
+    return payload, image_file
+
+
+def _persist_category_image(image_file: UploadFile | None, *, current_url: str | None = None) -> str | None:
+    if not image_file:
+        return current_url
+    new_url = _save_uploaded_image(image_file, "categories")
+    if current_url and current_url != new_url:
+        _delete_media_file(current_url)
+    return new_url
+
+
 @app.get("/api/admin/products")
 def admin_products(user_id: int, type: str | None = None, status: str | None = None):
     _ensure_admin(user_id)
@@ -2389,43 +2467,71 @@ def admin_toggle_product(product_id: int, payload: AdminTogglePayload):
 @app.get("/api/admin/product-categories")
 def admin_product_categories(user_id: int, type: str = "basket"):
     _ensure_admin(user_id)
-    product_type = _validate_type(type)
+    product_type = _validate_category_type(type)
     items = products_service.list_product_categories_admin(product_type)
     return {"items": items}
 
 
 @app.post("/api/admin/product-categories")
-def admin_create_product_category(payload: AdminProductCategoryPayload):
-    _ensure_admin(payload.user_id)
-    product_type = _validate_type(payload.type)
+async def admin_create_product_category(request: Request, image_file: UploadFile | None = File(None)):
+    payload, image_file = await _parse_category_payload(request, image_file=image_file)
+    _ensure_admin(payload["user_id"])
+
+    product_type = payload.get("type") or "basket"
+    image_url = payload.get("image_url")
+    if image_file:
+        image_url = _persist_category_image(image_file)
+
     new_id = products_service.create_product_category(
-        payload.name,
-        slug=payload.slug,
-        description=payload.description,
-        image_url=payload.image_url,
-        sort_order=payload.sort_order,
-        is_active=payload.is_active if payload.is_active is not None else True,
+        payload.get("name") or "Категория",
+        slug=payload.get("slug"),
+        description=payload.get("description"),
+        image_url=image_url,
+        sort_order=payload.get("sort_order") or 0,
+        is_active=payload.get("is_active") if payload.get("is_active") is not None else True,
         product_type=product_type,
     )
-    return {"id": new_id}
+    return {"id": new_id, "image_url": image_url}
 
 
 @app.put("/api/admin/product-categories/{category_id}")
-def admin_update_product_category(category_id: int, payload: AdminProductCategoryUpdatePayload):
-    _ensure_admin(payload.user_id)
-    product_type = _validate_type(payload.type) if payload.type else None
+async def admin_update_product_category(
+    category_id: int, request: Request, image_file: UploadFile | None = File(None)
+):
+    payload, image_file = await _parse_category_payload(request, image_file=image_file, is_update=True)
+    _ensure_admin(payload["user_id"])
+    product_type = payload.get("type")
+
+    current = products_service.get_product_category_by_id(category_id)
+    if not current:
+        raise HTTPException(status_code=404, detail="Category not found")
+
+    image_url = payload.get("image_url", current.get("image_url"))
+    if image_file:
+        image_url = _persist_category_image(image_file, current_url=current.get("image_url"))
+
     updated = products_service.update_product_category(
         category_id,
-        name=payload.name,
-        slug=payload.slug,
-        description=payload.description,
-        image_url=payload.image_url,
-        sort_order=payload.sort_order,
-        is_active=payload.is_active,
+        name=payload.get("name"),
+        slug=payload.get("slug"),
+        description=payload.get("description"),
+        image_url=image_url,
+        sort_order=payload.get("sort_order"),
+        is_active=payload.get("is_active"),
         product_type=product_type,
     )
     if not updated:
         raise HTTPException(status_code=404, detail="Category not found")
+    return {"ok": True, "image_url": image_url}
+
+
+@app.delete("/api/admin/product-categories/{category_id}")
+def admin_delete_product_category(category_id: int, user_id: int):
+    _ensure_admin(user_id)
+    image_url = products_service.delete_product_category(category_id)
+    if image_url is None:
+        raise HTTPException(status_code=404, detail="Category not found")
+    _delete_media_file(image_url)
     return {"ok": True}
 
 
