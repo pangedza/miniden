@@ -243,10 +243,15 @@
 
     allMasterclasses.forEach((item) => {
       const categoryId = item.category_id ?? item.category?.id ?? item.category_slug ?? item.category ?? 'other';
-      const categoryName = categoriesById.get(categoryId)?.name || item.category_name || item.category?.name || 'Мастер-классы';
+      const categoryMeta = categoriesById.get(categoryId);
+      const categoryName = categoryMeta?.name || item.category_name || item.category?.name || 'Мастер-классы';
+      const categorySlug = categoryMeta?.slug || item.category_slug || null;
+      const categoryType = categoryMeta?.type || null;
       const key = categoryId ?? 'other';
-      const group = mcsByCategory.get(key) || { categoryId: key, categoryName, items: [] };
+      const group = mcsByCategory.get(key) || { categoryId: key, categoryName, items: [], slug: categorySlug, type: categoryType };
       group.categoryName = categoryName;
+      group.slug = group.slug || categorySlug;
+      group.type = group.type || categoryType;
       group.items.push(item);
       mcsByCategory.set(key, group);
     });
@@ -279,13 +284,20 @@
     if (!groups.length) return;
 
     groups.forEach((group) => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'products-categories-nav__item mc-categories-nav__item';
-      btn.dataset.categoryId = group.categoryId;
-      btn.textContent = group.categoryName || 'Мастер-классы';
-      btn.addEventListener('click', () => handleCategoryNavClick(group.categoryId));
-      categoriesNavEl.appendChild(btn);
+      const link = document.createElement('a');
+      link.className = 'products-categories-nav__item mc-categories-nav__item';
+      link.dataset.categoryId = group.categoryId;
+      link.textContent = group.categoryName || 'Мастер-классы';
+      if (group.slug) {
+        link.href = `/category/${encodeURIComponent(group.slug)}`;
+      } else {
+        link.href = '#';
+        link.addEventListener('click', (event) => {
+          event.preventDefault();
+          handleCategoryNavClick(group.categoryId);
+        });
+      }
+      categoriesNavEl.appendChild(link);
     });
   }
 
@@ -325,7 +337,15 @@
       const header = document.createElement('div');
       header.className = 'products-by-category__section-header';
       const title = document.createElement('h2');
-      title.textContent = group.categoryName || 'Мастер-классы';
+      if (group.slug) {
+        const titleLink = document.createElement('a');
+        titleLink.href = `/category/${encodeURIComponent(group.slug)}`;
+        titleLink.className = 'category-link';
+        titleLink.textContent = group.categoryName || 'Мастер-классы';
+        title.appendChild(titleLink);
+      } else {
+        title.textContent = group.categoryName || 'Мастер-классы';
+      }
       header.appendChild(title);
       section.appendChild(header);
 

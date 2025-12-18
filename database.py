@@ -108,24 +108,50 @@ def init_db() -> None:
             id SERIAL PRIMARY KEY,
             name TEXT NOT NULL,
             slug VARCHAR NULL UNIQUE,
+            description TEXT NULL,
+            image_url TEXT NULL,
             sort_order INTEGER NOT NULL DEFAULT 0,
             is_active BOOLEAN NOT NULL DEFAULT TRUE,
             type VARCHAR NOT NULL DEFAULT 'basket',
-            created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMP NOT NULL DEFAULT NOW()
         );
         """
 
+        def column_exists(conn, table: str, column: str) -> bool:
+            result = conn.execute(
+                text(
+                    """
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = :table AND column_name = :column
+                    LIMIT 1
+                    """
+                ),
+                {"table": table, "column": column},
+            ).scalar()
+            return bool(result)
+
         alter_statements = [
+            "ALTER TABLE product_categories ADD COLUMN IF NOT EXISTS description TEXT NULL",
+            "ALTER TABLE product_categories ADD COLUMN IF NOT EXISTS image_url TEXT NULL",
             "ALTER TABLE product_categories ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE product_categories ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE",
             "ALTER TABLE product_categories ADD COLUMN IF NOT EXISTS type VARCHAR NOT NULL DEFAULT 'basket'",
             "ALTER TABLE product_categories ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW()",
+            "ALTER TABLE product_categories ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW()",
         ]
 
         with engine.begin() as conn:
             conn.execute(text(create_statement))
             for statement in alter_statements:
                 conn.execute(text(statement))
+
+            if not column_exists(conn, "product_categories", "updated_at"):
+                conn.execute(text("UPDATE product_categories SET updated_at = NOW()"))
+            if not column_exists(conn, "product_categories", "description"):
+                conn.execute(text("UPDATE product_categories SET description = NULL"))
+            if not column_exists(conn, "product_categories", "image_url"):
+                conn.execute(text("UPDATE product_categories SET image_url = NULL"))
 
     _ensure_product_categories_table()
 

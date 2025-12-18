@@ -163,10 +163,21 @@
               <input type="text" name="name" required />
               <label>Slug/код</label>
               <input type="text" name="slug" placeholder="basket" />
+              <label>Тип</label>
+              <select name="type">
+                <option value="basket">Товары</option>
+                <option value="course">Мастер-классы</option>
+                <option value="mixed">Смешанная</option>
+              </select>
               <label>Описание направления</label>
               <textarea name="description" rows="3" placeholder="Краткий текст о категории"></textarea>
               <label>Баннер / Image URL</label>
               <input type="url" name="image_url" placeholder="https://example.com/banner.jpg" />
+              <label>Загрузить изображение</label>
+              <input type="file" name="image_file" id="product-category-image-file" accept="image/*" />
+              <div class="image-preview" id="product-category-image-preview" style="display:none;">
+                <img alt="Превью категории" />
+              </div>
               <label>Порядок сортировки</label>
               <input type="number" name="sort_order" min="0" value="0" />
               <label style="display:flex; gap:8px; align-items:center; margin-top:8px;">
@@ -174,6 +185,7 @@
               </label>
               <div class="form-actions">
                 <button class="btn primary" type="submit">Сохранить</button>
+                <button class="btn secondary danger" type="button" id="product-category-delete" style="display:none;">Удалить</button>
                 <button class="btn secondary" type="button" id="product-category-reset">Сбросить</button>
               </div>
             </form>
@@ -185,8 +197,10 @@
                     <th>ID</th>
                     <th>Название</th>
                     <th>Slug</th>
+                    <th>Тип</th>
                     <th>Порядок</th>
                     <th>Активна</th>
+                    <th>Обновлён</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -211,10 +225,21 @@
               <input type="text" name="name" required />
               <label>Slug/код</label>
               <input type="text" name="slug" placeholder="free" />
+              <label>Тип</label>
+              <select name="type">
+                <option value="course">Мастер-классы</option>
+                <option value="basket">Товары</option>
+                <option value="mixed">Смешанная</option>
+              </select>
               <label>Описание направления</label>
               <textarea name="description" rows="3" placeholder="О чём эти уроки"></textarea>
               <label>Баннер / Image URL</label>
               <input type="url" name="image_url" placeholder="https://example.com/banner.jpg" />
+              <label>Загрузить изображение</label>
+              <input type="file" name="image_file" id="course-category-image-file" accept="image/*" />
+              <div class="image-preview" id="course-category-image-preview" style="display:none;">
+                <img alt="Превью категории" />
+              </div>
               <label>Порядок сортировки</label>
               <input type="number" name="sort_order" min="0" value="0" />
               <label style="display:flex; gap:8px; align-items:center; margin-top:8px;">
@@ -222,6 +247,7 @@
               </label>
               <div class="form-actions">
                 <button class="btn primary" type="submit">Сохранить</button>
+                <button class="btn secondary danger" type="button" id="course-category-delete" style="display:none;">Удалить</button>
                 <button class="btn secondary" type="button" id="course-category-reset">Сбросить</button>
               </div>
             </form>
@@ -233,8 +259,10 @@
                     <th>ID</th>
                     <th>Название</th>
                     <th>Slug</th>
+                    <th>Тип</th>
                     <th>Порядок</th>
                     <th>Активна</th>
+                    <th>Обновлён</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -1011,6 +1039,12 @@
     const courseCategoryFormTitle = document.getElementById('course-category-form-title');
     const productCategoryReset = document.getElementById('product-category-reset');
     const courseCategoryReset = document.getElementById('course-category-reset');
+    const productCategoryDeleteBtn = document.getElementById('product-category-delete');
+    const courseCategoryDeleteBtn = document.getElementById('course-category-delete');
+    const productCategoryImageFile = document.getElementById('product-category-image-file');
+    const courseCategoryImageFile = document.getElementById('course-category-image-file');
+    const productCategoryImagePreview = document.getElementById('product-category-image-preview');
+    const courseCategoryImagePreview = document.getElementById('course-category-image-preview');
 
     const brandingSiteTitleInput = document.getElementById('branding-site-title');
     const brandingAssetsVersion = document.getElementById('branding-assets-version');
@@ -1110,6 +1144,8 @@
     const faqFormState = createSectionFormState(faqDefaults);
     let editingProductCategoryId = null;
     let editingCourseCategoryId = null;
+    let productCategoryItems = [];
+    let courseCategoryItems = [];
     let promocodeItems = [];
     let reviewItems = [];
     let faqItems = [];
@@ -1315,6 +1351,41 @@
         body: body ? JSON.stringify(body) : undefined,
       });
       return handleResponse(res);
+    }
+
+    function formatDate(value) {
+      if (!value) return '—';
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return '—';
+      return date.toLocaleString('ru-RU');
+    }
+
+    function clearFileInput(input) {
+      if (!input) return;
+      try {
+        input.value = '';
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    function setCategoryPreview(previewEl, url, version) {
+      if (!previewEl) return;
+      const img = previewEl.querySelector('img');
+      const preparedUrl = url
+        ? url.startsWith('blob:')
+          ? url
+          : cacheBustUrl(url, version)
+        : '';
+      if (img && preparedUrl) {
+        img.src = preparedUrl;
+        img.style.display = 'block';
+        previewEl.style.display = '';
+      } else if (img) {
+        img.removeAttribute('src');
+        img.style.display = 'none';
+        previewEl.style.display = 'none';
+      }
     }
 
     function showSection(id) {
@@ -1984,7 +2055,7 @@
 
     async function loadCategories(targetSelect, type, { includeAllOption = false } = {}) {
       try {
-        const categoriesRes = await apiGet('/categories', { type, active: true });
+        const categoriesRes = await apiGet('/categories', { type, active_only: true });
         const categoriesRaw = Array.isArray(categoriesRes) ? categoriesRes : categoriesRes?.items || [];
         const categories = categoriesRaw.filter((cat) => cat?.is_active);
         const targetMap = categoryMaps[type] || categoryMaps.basket;
@@ -2446,12 +2517,12 @@
       }
     }
 
-    function renderCategories(items, targetTable, onEdit) {
+    function renderCategories(items, targetTable, onEdit, onDelete, selectedId = null) {
       targetTable.innerHTML = '';
       if (!items || !items.length) {
         const row = document.createElement('tr');
         const cell = document.createElement('td');
-        cell.colSpan = 6;
+        cell.colSpan = 8;
         cell.textContent = 'Категорий нет';
         cell.className = 'muted';
         row.appendChild(cell);
@@ -2461,16 +2532,38 @@
 
       items.forEach((cat) => {
         const row = document.createElement('tr');
+        row.dataset.id = cat.id;
+        row.classList.toggle('selected', String(cat.id) === String(selectedId));
+        const updated = formatDate(cat.updated_at);
         row.innerHTML = `
           <td>#${cat.id}</td>
           <td>${cat.name}</td>
           <td>${cat.slug || '—'}</td>
+          <td>${cat.type || '—'}</td>
           <td>${cat.sort_order ?? 0}</td>
           <td>${cat.is_active ? 'Да' : 'Нет'}</td>
-          <td><button class="btn secondary" type="button" data-edit="${cat.id}">Редактировать</button></td>
+          <td>${updated}</td>
+          <td>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+              <button class="btn secondary" type="button" data-edit="${cat.id}">Редактировать</button>
+              <button class="btn secondary danger" type="button" data-delete="${cat.id}">Удалить</button>
+            </div>
+          </td>
         `;
+        row.addEventListener('click', (event) => {
+          if (event.target.closest('button')) return;
+          onEdit?.(cat);
+        });
         const editBtn = row.querySelector('button[data-edit]');
-        editBtn?.addEventListener('click', () => onEdit?.(cat));
+        const deleteBtn = row.querySelector('button[data-delete]');
+        editBtn?.addEventListener('click', (e) => {
+          e.stopPropagation();
+          onEdit?.(cat);
+        });
+        deleteBtn?.addEventListener('click', (e) => {
+          e.stopPropagation();
+          onDelete?.(cat);
+        });
         targetTable.appendChild(row);
       });
     }
@@ -2513,7 +2606,7 @@
       }
     }
 
-    function fillCategoryForm(form, category) {
+    function fillCategoryForm(form, category, previewEl, defaultType = 'basket') {
       if (!form || !category) return;
       form.elements.name.value = category.name || '';
       form.elements.slug.value = category.slug || '';
@@ -2521,12 +2614,21 @@
       form.elements.image_url.value = category.image_url || '';
       form.elements.sort_order.value = category.sort_order ?? 0;
       form.elements.is_active.checked = !!category.is_active;
+      if (form.elements.type) {
+        form.elements.type.value = category.type || defaultType;
+      }
+      setCategoryPreview(previewEl, category.image_url, category.image_version || category.updated_at);
+      clearFileInput(form.elements.image_file);
     }
 
-    function resetCategoryForm(form, titleEl, defaultTitle) {
+    function resetCategoryForm(form, titleEl, defaultTitle, defaultType = 'basket', previewEl = null, deleteBtn = null) {
       form?.reset();
       if (form?.elements?.is_active) form.elements.is_active.checked = true;
+      if (form?.elements?.type) form.elements.type.value = defaultType;
       if (titleEl) titleEl.textContent = defaultTitle;
+      if (deleteBtn) deleteBtn.style.display = 'none';
+      setCategoryPreview(previewEl, '', null);
+      clearFileInput(form?.elements?.image_file);
     }
 
     async function renderProductTable(items, targetTable, type) {
@@ -2562,60 +2664,155 @@
       });
     }
 
-    async function loadProductCategories() {
+    async function submitCategoryForm(form, categoryId, defaultType = 'basket') {
+      if (!currentUser || !form) return null;
+      const formData = new FormData();
+      formData.append('user_id', currentUser.telegram_id);
+      formData.append('name', (form.elements.name.value || '').trim());
+      const slug = (form.elements.slug.value || '').trim();
+      if (slug) formData.append('slug', slug);
+      formData.append('type', form.elements.type?.value || defaultType);
+      const description = (form.elements.description.value || '').trim();
+      if (description) formData.append('description', description);
+      const imageUrl = (form.elements.image_url.value || '').trim();
+      if (imageUrl) formData.append('image_url', imageUrl);
+      formData.append('sort_order', form.elements.sort_order.value || '0');
+      formData.append('is_active', form.elements.is_active.checked ? '1' : '0');
+      const fileInput = form.querySelector('input[name="image_file"]');
+      if (fileInput?.files?.[0]) {
+        formData.append('image_file', fileInput.files[0]);
+      }
+
+      const path = categoryId ? `/admin/product-categories/${categoryId}` : '/admin/product-categories';
+      const method = categoryId ? 'PUT' : 'POST';
+      const res = await fetch(`${API_BASE}${path}`, { method, body: formData });
+      return handleResponse(res);
+    }
+
+    async function loadProductCategories(selectedId = null) {
       if (!currentUser) return;
       try {
         const data = await apiGet('/admin/product-categories', { user_id: currentUser.telegram_id, type: 'basket' });
-        renderCategories(data.items || [], productCategoriesTable, (cat) => {
-          editingProductCategoryId = cat.id;
-          productCategoryFormTitle.textContent = `Редактировать категорию #${cat.id}`;
-          fillCategoryForm(productCategoryForm, cat);
-        });
+        productCategoryItems = data.items || [];
+        renderCategories(
+          productCategoryItems,
+          productCategoriesTable,
+          (cat) => startCategoryEdit(cat, 'basket'),
+          (cat) => handleCategoryDelete(cat, 'basket'),
+          selectedId ?? editingProductCategoryId
+        );
       } catch (e) {
         handleError(e, 'Не удалось загрузить категории товаров');
       }
     }
 
-    async function loadCourseCategories() {
+    async function loadCourseCategories(selectedId = null) {
       if (!currentUser) return;
       try {
         const data = await apiGet('/admin/product-categories', { user_id: currentUser.telegram_id, type: 'course' });
-        renderCategories(data.items || [], courseCategoriesTable, (cat) => {
-          editingCourseCategoryId = cat.id;
-          courseCategoryFormTitle.textContent = `Редактировать категорию #${cat.id}`;
-          fillCategoryForm(courseCategoryForm, cat);
-        });
+        courseCategoryItems = data.items || [];
+        renderCategories(
+          courseCategoryItems,
+          courseCategoriesTable,
+          (cat) => startCategoryEdit(cat, 'course'),
+          (cat) => handleCategoryDelete(cat, 'course'),
+          selectedId ?? editingCourseCategoryId
+        );
       } catch (e) {
         handleError(e, 'Не удалось загрузить категории мастер-классов');
+      }
+    }
+
+    function startCategoryEdit(category, scope = 'basket') {
+      if (!category) return;
+      const isBasket = scope === 'basket';
+      const form = isBasket ? productCategoryForm : courseCategoryForm;
+      const titleEl = isBasket ? productCategoryFormTitle : courseCategoryFormTitle;
+      const deleteBtn = isBasket ? productCategoryDeleteBtn : courseCategoryDeleteBtn;
+      const previewEl = isBasket ? productCategoryImagePreview : courseCategoryImagePreview;
+      const defaultType = isBasket ? 'basket' : 'course';
+
+      if (isBasket) {
+        editingProductCategoryId = category.id;
+      } else {
+        editingCourseCategoryId = category.id;
+      }
+
+      if (titleEl) titleEl.textContent = `Редактировать категорию #${category.id}`;
+      if (deleteBtn) deleteBtn.style.display = '';
+      fillCategoryForm(form, category, previewEl, defaultType);
+
+      renderCategories(
+        isBasket ? productCategoryItems : courseCategoryItems,
+        isBasket ? productCategoriesTable : courseCategoriesTable,
+        (cat) => startCategoryEdit(cat, scope),
+        (cat) => handleCategoryDelete(cat, scope),
+        category.id
+      );
+    }
+
+    function resetCategoryState(scope = 'basket') {
+      const isBasket = scope === 'basket';
+      const form = isBasket ? productCategoryForm : courseCategoryForm;
+      const titleEl = isBasket ? productCategoryFormTitle : courseCategoryFormTitle;
+      const deleteBtn = isBasket ? productCategoryDeleteBtn : courseCategoryDeleteBtn;
+      const previewEl = isBasket ? productCategoryImagePreview : courseCategoryImagePreview;
+      const defaultType = isBasket ? 'basket' : 'course';
+      const items = isBasket ? productCategoryItems : courseCategoryItems;
+      if (isBasket) {
+        editingProductCategoryId = null;
+      } else {
+        editingCourseCategoryId = null;
+      }
+
+      resetCategoryForm(form, titleEl, 'Создать категорию', defaultType, previewEl, deleteBtn);
+      renderCategories(
+        items,
+        isBasket ? productCategoriesTable : courseCategoriesTable,
+        (cat) => startCategoryEdit(cat, scope),
+        (cat) => handleCategoryDelete(cat, scope),
+        null
+      );
+    }
+
+    async function handleCategoryDelete(category, scope = 'basket') {
+      if (!category?.id || !currentUser) return;
+      const confirmed = window.confirm('Удалить категорию?');
+      if (!confirmed) return;
+      try {
+        await fetch(`${API_BASE}/admin/product-categories/${category.id}?user_id=${currentUser.telegram_id}`, {
+          method: 'DELETE',
+        }).then(handleResponse);
+        setStatus('Категория удалена');
+        resetCategoryState(scope);
+        if (scope === 'basket') {
+          await Promise.all([
+            loadProductCategories(),
+            loadCategories(productCategorySelect, 'basket'),
+            loadCategories(productCategoryFilter, 'basket', { includeAllOption: true }),
+          ]);
+        } else {
+          await Promise.all([
+            loadCourseCategories(),
+            loadCategories(courseCategorySelect, 'course'),
+            loadCategories(courseCategoryFilter, 'course', { includeAllOption: true }),
+          ]);
+        }
+      } catch (e) {
+        handleError(e, 'Не удалось удалить категорию');
       }
     }
 
     async function handleProductCategoryFormSubmit(event) {
       event.preventDefault();
       if (!currentUser) return;
-      const form = productCategoryForm;
-      const payload = {
-        user_id: currentUser.telegram_id,
-        name: form.elements.name.value.trim(),
-        slug: form.elements.slug.value.trim() || null,
-        description: form.elements.description.value.trim() || null,
-        image_url: form.elements.image_url.value.trim() || null,
-        sort_order: form.elements.sort_order.value ? Number(form.elements.sort_order.value) : 0,
-        is_active: form.elements.is_active.checked,
-        type: 'basket',
-      };
-
       try {
-        if (editingProductCategoryId) {
-          await sendJson(`/admin/product-categories/${editingProductCategoryId}`, 'PUT', payload);
-        } else {
-          await sendJson('/admin/product-categories', 'POST', payload);
-        }
+        const response = await submitCategoryForm(productCategoryForm, editingProductCategoryId, 'basket');
+        const selectedId = editingProductCategoryId || response?.id || null;
         setStatus('Категория сохранена');
-        editingProductCategoryId = null;
-        resetCategoryForm(productCategoryForm, productCategoryFormTitle, 'Создать категорию');
+        resetCategoryState('basket');
         await Promise.all([
-          loadProductCategories(),
+          loadProductCategories(selectedId),
           loadCategories(productCategorySelect, 'basket'),
           loadCategories(productCategoryFilter, 'basket', { includeAllOption: true }),
         ]);
@@ -2627,29 +2824,13 @@
     async function handleCourseCategoryFormSubmit(event) {
       event.preventDefault();
       if (!currentUser) return;
-      const form = courseCategoryForm;
-      const payload = {
-        user_id: currentUser.telegram_id,
-        name: form.elements.name.value.trim(),
-        slug: form.elements.slug.value.trim() || null,
-        description: form.elements.description.value.trim() || null,
-        image_url: form.elements.image_url.value.trim() || null,
-        sort_order: form.elements.sort_order.value ? Number(form.elements.sort_order.value) : 0,
-        is_active: form.elements.is_active.checked,
-        type: 'course',
-      };
-
       try {
-        if (editingCourseCategoryId) {
-          await sendJson(`/admin/product-categories/${editingCourseCategoryId}`, 'PUT', payload);
-        } else {
-          await sendJson('/admin/product-categories', 'POST', payload);
-        }
+        const response = await submitCategoryForm(courseCategoryForm, editingCourseCategoryId, 'course');
+        const selectedId = editingCourseCategoryId || response?.id || null;
         setStatus('Категория сохранена');
-        editingCourseCategoryId = null;
-        resetCategoryForm(courseCategoryForm, courseCategoryFormTitle, 'Создать категорию');
+        resetCategoryState('course');
         await Promise.all([
-          loadCourseCategories(),
+          loadCourseCategories(selectedId),
           loadCategories(courseCategorySelect, 'course'),
           loadCategories(courseCategoryFilter, 'course', { includeAllOption: true }),
         ]);
@@ -3479,13 +3660,15 @@
       showSection('course-list');
       courseForm?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
-    productCategoryReset?.addEventListener('click', () => {
-      editingProductCategoryId = null;
-      resetCategoryForm(productCategoryForm, productCategoryFormTitle, 'Создать категорию');
+    productCategoryReset?.addEventListener('click', () => resetCategoryState('basket'));
+    courseCategoryReset?.addEventListener('click', () => resetCategoryState('course'));
+    productCategoryDeleteBtn?.addEventListener('click', () => {
+      const category = productCategoryItems.find((cat) => String(cat.id) === String(editingProductCategoryId));
+      handleCategoryDelete(category || { id: editingProductCategoryId }, 'basket');
     });
-    courseCategoryReset?.addEventListener('click', () => {
-      editingCourseCategoryId = null;
-      resetCategoryForm(courseCategoryForm, courseCategoryFormTitle, 'Создать категорию');
+    courseCategoryDeleteBtn?.addEventListener('click', () => {
+      const category = courseCategoryItems.find((cat) => String(cat.id) === String(editingCourseCategoryId));
+      handleCategoryDelete(category || { id: editingCourseCategoryId }, 'course');
     });
     homeBlockReset?.addEventListener('click', resetHomeBlockForm);
     homePostReset?.addEventListener('click', resetHomePostForm);
@@ -3493,6 +3676,18 @@
     productImageFileInput?.addEventListener('change', uploadProductImageFile);
     courseImageFileInput?.addEventListener('change', uploadCourseImageFile);
     homeBlockImageFileInput?.addEventListener('change', uploadHomeBlockImageFile);
+    productCategoryImageFile?.addEventListener('change', (event) => {
+      const file = event.target.files?.[0];
+      if (file) {
+        setCategoryPreview(productCategoryImagePreview, URL.createObjectURL(file), Date.now());
+      }
+    });
+    courseCategoryImageFile?.addEventListener('change', (event) => {
+      const file = event.target.files?.[0];
+      if (file) {
+        setCategoryPreview(courseCategoryImagePreview, URL.createObjectURL(file), Date.now());
+      }
+    });
     productGalleryInput?.addEventListener('change', uploadProductGalleryFiles);
     courseGalleryInput?.addEventListener('change', uploadCourseGalleryFiles);
     productImageUrlInput?.addEventListener('input', () => setProductImagePreview(productImageUrlInput.value.trim()));

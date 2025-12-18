@@ -550,30 +550,35 @@
       categoriesNavEl.innerHTML = '';
 
       orderedCategories.forEach((cat) => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'products-categories-nav__item';
-        btn.dataset.categoryId = cat.id ?? cat.slug ?? cat.key;
-        btn.textContent = cat.name || 'Категория';
+        const link = document.createElement('a');
+        link.className = 'products-categories-nav__item';
+        link.dataset.categoryId = cat.id ?? cat.slug ?? cat.key;
+        link.textContent = cat.name || 'Категория';
 
-        btn.addEventListener('click', () => {
-          const target = document.getElementById(cat.anchorId);
-          const searchIsActive = Boolean(currentSearchText);
-          if (!target && searchIsActive) {
-            currentSearchText = '';
-            if (productSearchInput) productSearchInput.value = '';
-            renderProductsByCategory(currentSearchText);
-            requestAnimationFrame(() => {
-              const refreshedTarget = document.getElementById(cat.anchorId);
-              refreshedTarget?.scrollIntoView({ behavior: 'smooth' });
-            });
-            return;
-          }
+        if (cat.slug) {
+          link.href = `/category/${encodeURIComponent(cat.slug)}`;
+        } else {
+          link.href = '#';
+          link.addEventListener('click', (event) => {
+            event.preventDefault();
+            const target = document.getElementById(cat.anchorId);
+            const searchIsActive = Boolean(currentSearchText);
+            if (!target && searchIsActive) {
+              currentSearchText = '';
+              if (productSearchInput) productSearchInput.value = '';
+              renderProductsByCategory(currentSearchText);
+              requestAnimationFrame(() => {
+                const refreshedTarget = document.getElementById(cat.anchorId);
+                refreshedTarget?.scrollIntoView({ behavior: 'smooth' });
+              });
+              return;
+            }
 
-          target?.scrollIntoView({ behavior: 'smooth' });
-        });
+            target?.scrollIntoView({ behavior: 'smooth' });
+          });
+        }
 
-        categoriesNavEl.appendChild(btn);
+        categoriesNavEl.appendChild(link);
       });
     }
 
@@ -600,7 +605,15 @@
 
         const title = document.createElement('h2');
         title.className = 'products-category-title';
-        title.textContent = cat.name || 'Категория';
+        if (cat.slug) {
+          const titleLink = document.createElement('a');
+          titleLink.href = `/category/${encodeURIComponent(cat.slug)}`;
+          titleLink.className = 'category-link';
+          titleLink.textContent = cat.name || 'Категория';
+          title.appendChild(titleLink);
+        } else {
+          title.textContent = cat.name || 'Категория';
+        }
 
         const grid = document.createElement('div');
         grid.className = 'products-category-grid catalog-grid products-grid';

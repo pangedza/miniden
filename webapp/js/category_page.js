@@ -21,6 +21,12 @@
     return `${num.toLocaleString('ru-RU')} ₽`;
   }
 
+  function versionedImageUrl(entity) {
+    if (!entity?.image_url) return '';
+    const version = entity.image_version || (entity.updated_at ? new Date(entity.updated_at).getTime() : null);
+    return window.withCacheBusting ? window.withCacheBusting(entity.image_url, version) : entity.image_url;
+  }
+
   function normalizeImages(item) {
     const urls = [];
     const push = (value) => {
@@ -212,8 +218,9 @@
     if (heroTitle) heroTitle.textContent = category.name || 'Категория';
     if (heroDescription) heroDescription.textContent = category.description || 'Описание появится позже.';
     if (heroImage) {
-      if (category.image_url) {
-        heroImage.src = category.image_url;
+      const heroUrl = versionedImageUrl(category);
+      if (heroUrl) {
+        heroImage.src = heroUrl;
         heroImage.alt = category.name || 'Категория';
         heroImage.style.display = 'block';
       } else {
@@ -242,9 +249,14 @@
     try {
       const data = await apiGet(`/categories/${encodeURIComponent(slug)}`);
       const category = data.category || {};
+      const combinedItems = Array.isArray(data.items) ? data.items : [];
+      const products = (data.products && data.products.length ? data.products : combinedItems.filter((item) => item.type === 'basket')) || [];
+      const masterclasses = (data.masterclasses && data.masterclasses.length
+        ? data.masterclasses
+        : combinedItems.filter((item) => item.type === 'course')) || [];
       renderCategory(category);
-      renderList(productsSection, data.products || [], 'Товары этой категории', buildProductCard);
-      renderList(masterclassesSection, data.masterclasses || [], 'Мастер-классы', buildMasterclassCard);
+      renderList(productsSection, products, 'Товары этой категории', buildProductCard);
+      renderList(masterclassesSection, masterclasses, 'Мастер-классы', buildMasterclassCard);
     } catch (error) {
       console.error('Failed to load category', error);
       if (noteEl) noteEl.textContent = 'Категория не найдена или выключена.';

@@ -18,6 +18,12 @@
     return pill;
   }
 
+  function withVersionedImage(item) {
+    if (!item?.image_url) return '';
+    const version = item.image_version || (item.updated_at ? new Date(item.updated_at).getTime() : null);
+    return window.withCacheBusting ? window.withCacheBusting(item.image_url, version) : item.image_url;
+  }
+
   function renderCategories(items) {
     if (!gridEl) return;
     gridEl.innerHTML = '';
@@ -42,9 +48,10 @@
 
       const imageWrap = document.createElement('div');
       imageWrap.className = 'category-card__image';
-      if (item.image_url) {
+      const imageUrl = withVersionedImage(item);
+      if (imageUrl) {
         const img = document.createElement('img');
-        img.src = item.image_url;
+        img.src = imageUrl;
         img.alt = item.name || 'Категория';
         imageWrap.appendChild(img);
       } else {
