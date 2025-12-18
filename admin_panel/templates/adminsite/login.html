@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>AdminSite Login</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #111827; color: #e5e7eb; display:flex; justify-content:center; align-items:center; height:100vh; }
+        .card { background:#1f2937; padding:24px; border-radius:12px; width:320px; box-shadow:0 10px 30px rgba(0,0,0,0.35); }
+        h1 { margin-top:0; font-size:22px; text-align:center; }
+        label { display:block; margin-bottom:6px; }
+        input { width:100%; padding:10px; margin-bottom:12px; border-radius:8px; border:1px solid #374151; background:#0b1220; color:#e5e7eb; }
+        button { width:100%; padding:10px; border:none; border-radius:8px; background:#a855f7; color:#0b1220; font-weight:bold; cursor:pointer; }
+        .error { color:#f87171; margin-bottom:12px; text-align:center; }
+    </style>
+</head>
+<body>
+<div class="card">
+    <h1>AdminSite</h1>
+    {% if error %}<div class="error">{{ error }}</div>{% endif %}
+    <form method="post" action="/adminsite/login">
+        <label for="username">Логин</label>
+        <input type="text" name="username" id="username" required>
+        <label for="password">Пароль</label>
+        <input type="password" name="password" id="password" required>
+        <button type="submit">Войти</button>
+    </form>
+    <p style="text-align:center; margin-top:10px; font-size:13px;">Доступ только для SuperAdmin.</p>
+</div>
+</body>
+</html>
