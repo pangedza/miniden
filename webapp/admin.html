@@ -161,6 +161,10 @@
               <input type="text" name="name" required />
               <label>Slug/код</label>
               <input type="text" name="slug" placeholder="basket" />
+              <label>Описание направления</label>
+              <textarea name="description" rows="3" placeholder="Краткий текст о категории"></textarea>
+              <label>Баннер / Image URL</label>
+              <input type="url" name="image_url" placeholder="https://example.com/banner.jpg" />
               <label>Порядок сортировки</label>
               <input type="number" name="sort_order" min="0" value="0" />
               <label style="display:flex; gap:8px; align-items:center; margin-top:8px;">
@@ -173,16 +177,17 @@
             </form>
           </div>
           <div class="table-wrapper">
-            <table aria-label="Категории товаров">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Название</th>
-                  <th>Порядок</th>
-                  <th>Активна</th>
-                  <th></th>
-                </tr>
-              </thead>
+              <table aria-label="Категории товаров">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Название</th>
+                    <th>Slug</th>
+                    <th>Порядок</th>
+                    <th>Активна</th>
+                    <th></th>
+                  </tr>
+                </thead>
               <tbody id="product-categories-table"></tbody>
             </table>
           </div>
@@ -204,6 +209,10 @@
               <input type="text" name="name" required />
               <label>Slug/код</label>
               <input type="text" name="slug" placeholder="free" />
+              <label>Описание направления</label>
+              <textarea name="description" rows="3" placeholder="О чём эти уроки"></textarea>
+              <label>Баннер / Image URL</label>
+              <input type="url" name="image_url" placeholder="https://example.com/banner.jpg" />
               <label>Порядок сортировки</label>
               <input type="number" name="sort_order" min="0" value="0" />
               <label style="display:flex; gap:8px; align-items:center; margin-top:8px;">
@@ -216,16 +225,17 @@
             </form>
           </div>
           <div class="table-wrapper">
-            <table aria-label="Категории мастер-классов">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Название</th>
-                  <th>Порядок</th>
-                  <th>Активна</th>
-                  <th></th>
-                </tr>
-              </thead>
+              <table aria-label="Категории мастер-классов">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Название</th>
+                    <th>Slug</th>
+                    <th>Порядок</th>
+                    <th>Активна</th>
+                    <th></th>
+                  </tr>
+                </thead>
               <tbody id="course-categories-table"></tbody>
             </table>
           </div>
@@ -2194,7 +2204,7 @@
       if (!items || !items.length) {
         const row = document.createElement('tr');
         const cell = document.createElement('td');
-        cell.colSpan = 5;
+        cell.colSpan = 6;
         cell.textContent = 'Категорий нет';
         cell.className = 'muted';
         row.appendChild(cell);
@@ -2207,6 +2217,7 @@
         row.innerHTML = `
           <td>#${cat.id}</td>
           <td>${cat.name}</td>
+          <td>${cat.slug || '—'}</td>
           <td>${cat.sort_order ?? 0}</td>
           <td>${cat.is_active ? 'Да' : 'Нет'}</td>
           <td><button class="btn secondary" type="button" data-edit="${cat.id}">Редактировать</button></td>
@@ -2259,6 +2270,8 @@
       if (!form || !category) return;
       form.elements.name.value = category.name || '';
       form.elements.slug.value = category.slug || '';
+      form.elements.description.value = category.description || '';
+      form.elements.image_url.value = category.image_url || '';
       form.elements.sort_order.value = category.sort_order ?? 0;
       form.elements.is_active.checked = !!category.is_active;
     }
@@ -2338,6 +2351,8 @@
         user_id: currentUser.telegram_id,
         name: form.elements.name.value.trim(),
         slug: form.elements.slug.value.trim() || null,
+        description: form.elements.description.value.trim() || null,
+        image_url: form.elements.image_url.value.trim() || null,
         sort_order: form.elements.sort_order.value ? Number(form.elements.sort_order.value) : 0,
         is_active: form.elements.is_active.checked,
         type: 'basket',
@@ -2370,6 +2385,8 @@
         user_id: currentUser.telegram_id,
         name: form.elements.name.value.trim(),
         slug: form.elements.slug.value.trim() || null,
+        description: form.elements.description.value.trim() || null,
+        image_url: form.elements.image_url.value.trim() || null,
         sort_order: form.elements.sort_order.value ? Number(form.elements.sort_order.value) : 0,
         is_active: form.elements.is_active.checked,
         type: 'course',

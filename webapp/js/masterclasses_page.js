@@ -155,7 +155,16 @@
 
     const meta = document.createElement('div');
     meta.className = 'meta';
-    meta.textContent = metaBySlug[item.category_slug] || '';
+    const categoryLabel = item.category_name || metaBySlug[item.category_slug] || '';
+    if (item.category_slug) {
+      const link = document.createElement('a');
+      link.href = `/category/${encodeURIComponent(item.category_slug)}`;
+      link.className = 'category-link';
+      link.textContent = categoryLabel || 'Категория';
+      meta.appendChild(link);
+    } else {
+      meta.textContent = categoryLabel;
+    }
 
     const desc = document.createElement('p');
     desc.className = 'catalog-card-description course-card__short-desc';

@@ -1178,6 +1178,8 @@ class AdminProductCategoryPayload(BaseModel):
     user_id: int
     name: str
     slug: str | None = None
+    description: str | None = None
+    image_url: str | None = None
     sort_order: int = 0
     is_active: bool | None = True
     type: str = "basket"
@@ -1187,6 +1189,8 @@ class AdminProductCategoryUpdatePayload(BaseModel):
     user_id: int
     name: str | None = None
     slug: str | None = None
+    description: str | None = None
+    image_url: str | None = None
     sort_order: int | None = None
     is_active: bool | None = None
     type: str | None = None
@@ -1439,18 +1443,21 @@ def archive_order(order_id: int, request: Request):
 
 
 @app.get("/api/categories")
-def api_categories(type: str):
+def api_categories(type: str | None = None):
     """
     Вернуть список категорий для товаров или курсов.
-    Ожидаемый формат элементов:
-    {
-      "id": int,
-      "slug": str,
-      "name": str,
-    }
+    Если type не указан — вернуть активные категории всех типов.
     """
-    product_type = _validate_type(type)
+    product_type = _validate_type(type) if type else None
     return products_service.list_categories(product_type)
+
+
+@app.get("/api/categories/{slug}")
+def api_category_detail(slug: str):
+    category = products_service.get_category_with_items(slug)
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+    return category
 
 
 @app.get("/api/products")
@@ -2315,6 +2322,8 @@ def admin_create_product_category(payload: AdminProductCategoryPayload):
     new_id = products_service.create_product_category(
         payload.name,
         slug=payload.slug,
+        description=payload.description,
+        image_url=payload.image_url,
         sort_order=payload.sort_order,
         is_active=payload.is_active if payload.is_active is not None else True,
         product_type=product_type,
@@ -2330,6 +2339,8 @@ def admin_update_product_category(category_id: int, payload: AdminProductCategor
         category_id,
         name=payload.name,
         slug=payload.slug,
+        description=payload.description,
+        image_url=payload.image_url,
         sort_order=payload.sort_order,
         is_active=payload.is_active,
         product_type=product_type,
@@ -2728,4 +2739,15 @@ def admin_delete_promocode(promocode_id: int, user_id: int):
     if not deleted:
         raise HTTPException(status_code=404, detail="Promocode not found")
     return {"ok": True}
+
+
+@app.get("/categories", include_in_schema=False)
+def categories_page():
+    return RedirectResponse(url="/webapp/categories.html", status_code=302)
+
+
+@app.get("/category/{slug}", include_in_schema=False)
+def category_page(slug: str):
+    target = f"/webapp/category.html?slug={slug}"
+    return RedirectResponse(url=target, status_code=302)
 

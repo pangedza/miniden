@@ -148,7 +148,15 @@
 
     const meta = document.createElement('div');
     meta.className = 'product-info__meta';
-    meta.textContent = masterclass.category_name || '';
+    if (masterclass.category_slug) {
+      const link = document.createElement('a');
+      link.href = `/category/${encodeURIComponent(masterclass.category_slug)}`;
+      link.className = 'category-link';
+      link.textContent = masterclass.category_name || 'Категория';
+      meta.appendChild(link);
+    } else {
+      meta.textContent = masterclass.category_name || '';
+    }
 
     const shortDesc = document.createElement('p');
     shortDesc.className = 'product-info__intro muted';
