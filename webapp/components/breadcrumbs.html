@@ -1,0 +1,13 @@
+{% set breadcrumbs_list = breadcrumbs_items | default([]) %}
+<div class="breadcrumbs" id="{{ breadcrumbs_id | default('breadcrumbs') }}">
+  {% if breadcrumbs_list %}
+    {% for item in breadcrumbs_list %}
+      {% if item.url %}
+        <a href="{{ item.url }}">{{ item.label }}</a>
+      {% else %}
+        <span>{{ item.label }}</span>
+      {% endif %}
+      {% if not loop.last %}<span>→</span>{% endif %}
+    {% endfor %}
+  {% endif %}
+</div>
