@@ -56,6 +56,7 @@ from services import cart as cart_service
 from services import favorites as favorites_service
 from services import home as home_service
 from services import faq_service
+from services import branding as branding_service
 from services import orders as orders_service
 from services import products as products_service
 from services import promocodes as promocodes_service
@@ -118,10 +119,16 @@ REQUIRED_DIRS = [
     MEDIA_ROOT / "courses",
     MEDIA_ROOT / "home",
     MEDIA_ROOT / "reviews",
+    MEDIA_ROOT / "branding",
     MEDIA_ROOT / "tmp",
     MEDIA_ROOT / "tmp/products",
     MEDIA_ROOT / "tmp/courses",
 ]
+
+BRANDING_LOGO_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".svg"}
+BRANDING_FAVICON_EXTENSIONS = {".ico", ".png", ".svg"}
+BRANDING_LOGO_MAX_MB = 5
+BRANDING_FAVICON_MAX_MB = 2
 
 
 def ensure_media_dirs() -> None:
@@ -242,6 +249,34 @@ def _save_uploaded_image(file: UploadFile, base_folder: str) -> str:
     return f"/media/{relative}"
 
 
+def _save_branding_file(
+    file: UploadFile, allowed_extensions: set[str], max_size_mb: int, prefix: str
+) -> str:
+    filename = file.filename or ""
+    ext = Path(filename).suffix.lower()
+    if ext not in allowed_extensions:
+        raise HTTPException(status_code=400, detail="Недопустимый формат файла")
+
+    content = file.file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="Пустой файл")
+
+    max_bytes = max_size_mb * 1024 * 1024
+    if len(content) > max_bytes:
+        raise HTTPException(status_code=400, detail=f"Файл слишком большой (до {max_size_mb} МБ)")
+
+    ensure_media_dirs()
+    target_dir = MEDIA_ROOT / "branding"
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    unique_name = f"{prefix}_{uuid4().hex}{ext}"
+    full_path = target_dir / unique_name
+    with full_path.open("wb") as f:
+        f.write(content)
+
+    return f"/media/branding/{unique_name}"
+
+
 def _delete_media_file(url: str | None) -> None:
     if not url or not url.startswith("/media/"):
         return
@@ -278,6 +313,13 @@ def api_env():
         "bot_link": f"https://t.me/{bot_username}",
         "channel_link": settings.required_channel_link,
     }
+
+
+@app.get("/api/branding")
+def api_get_branding():
+    with get_session() as session:
+        branding = branding_service.get_or_create_branding(session)
+        return branding_service.serialize_branding(branding)
 
 
 @app.get("/api/home")
@@ -1887,6 +1929,43 @@ def api_promocode_validate(payload: PromocodeValidatePayload):
 @app.get("/")
 def healthcheck():
     return {"ok": True}
+
+
+@app.post("/api/admin/branding")
+def admin_update_branding(
+    site_title: str | None = Form(None),
+    logo_file: UploadFile | None = File(None),
+    favicon_file: UploadFile | None = File(None),
+    admin_user=Depends(get_admin_user),
+):
+    logo_url = None
+    favicon_url = None
+    bump_assets = False
+
+    if logo_file:
+        logo_url = _save_branding_file(
+            logo_file, BRANDING_LOGO_EXTENSIONS, BRANDING_LOGO_MAX_MB, "logo"
+        )
+        bump_assets = True
+
+    if favicon_file:
+        favicon_url = _save_branding_file(
+            favicon_file, BRANDING_FAVICON_EXTENSIONS, BRANDING_FAVICON_MAX_MB, "favicon"
+        )
+        bump_assets = True
+
+    with get_session() as session:
+        branding = branding_service.get_or_create_branding(session)
+        branding_service.update_branding_record(
+            branding,
+            site_title=site_title if site_title is not None else None,
+            logo_url=logo_url,
+            favicon_url=favicon_url,
+            bump_assets=bump_assets,
+        )
+        session.add(branding)
+        session.flush()
+        return branding_service.serialize_branding(branding)
 
 
 # ----------------------------

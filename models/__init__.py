@@ -184,6 +184,17 @@ class UserStats(Base):
     last_order_at = Column(DateTime, nullable=True)
 
 
+class SiteBranding(Base):
+    __tablename__ = "site_branding"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    site_title = Column(String, nullable=True)
+    logo_url = Column(Text, nullable=True)
+    favicon_url = Column(Text, nullable=True)
+    assets_version = Column(Integer, nullable=False, default=1, server_default="1")
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=func.now(), nullable=True)
+
+
 class Favorite(Base):
     __tablename__ = "favorites"
 

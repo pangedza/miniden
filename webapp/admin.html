@@ -7,7 +7,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/theme.css?v=20250610" />
+  <link rel="icon" id="site-favicon" href="/favicon.ico" />
+  <link rel="stylesheet" href="css/theme.css?v=20251218" />
   <link rel="stylesheet" href="css/admin_chats.css?v=20250610" />
 
 </head>
@@ -34,6 +35,7 @@
           </div>
         </div>
         <button class="nav-btn" data-view="home-cms">Главная страница</button>
+        <button class="nav-btn" data-view="branding">Брендинг</button>
         <button class="nav-btn" data-view="reviews">Отзывы</button>
         <button class="nav-btn" data-view="faq">FAQ (база знаний)</button>
         <button class="nav-btn" data-view="support-chats">Чаты</button>
@@ -821,6 +823,67 @@
         </div>
       </section>
 
+      <section id="branding" class="card admin-view" data-view="branding" style="display:none;">
+        <div class="section-header">
+          <div>
+            <h2>Брендинг</h2>
+            <p class="muted">Управляйте логотипом, favicon и названием сайта. При отсутствии файлов используются дефолтные значения.</p>
+          </div>
+          <div class="muted" id="branding-assets-version">Версия ассетов: v1</div>
+        </div>
+
+        <form class="stacked-form" id="branding-title-form">
+          <label for="branding-site-title">Название сайта (опционально)</label>
+          <input type="text" id="branding-site-title" name="site_title" placeholder="MiniDeN" />
+          <div class="form-actions">
+            <button class="btn primary" type="submit" id="branding-save-title">Сохранить название</button>
+          </div>
+        </form>
+
+        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); margin-top: 16px; gap: 16px;">
+          <div class="card" style="background: rgba(255,255,255,0.03);">
+            <div class="section-header" style="margin-bottom: 10px;">
+              <div>
+                <h3>Логотип</h3>
+                <p class="muted">PNG, JPG, WEBP, SVG до 5 МБ</p>
+              </div>
+            </div>
+            <div class="branding-preview" id="branding-logo-preview-wrapper">
+              <img id="branding-logo-preview" alt="Логотип сайта" style="max-width: 220px; max-height: 120px; object-fit: contain; display:none;" />
+              <div class="muted" id="branding-logo-placeholder">Логотип не загружен</div>
+            </div>
+            <input type="file" id="branding-logo-file" accept=".png,.jpg,.jpeg,.webp,.svg,image/png,image/jpeg,image/webp,image/svg+xml" />
+            <div class="form-actions">
+              <button class="btn primary" type="button" id="branding-save-logo">Сохранить</button>
+            </div>
+          </div>
+
+          <div class="card" style="background: rgba(255,255,255,0.03);">
+            <div class="section-header" style="margin-bottom: 10px;">
+              <div>
+                <h3>Favicon</h3>
+                <p class="muted">ICO, PNG, SVG до 2 МБ</p>
+              </div>
+            </div>
+            <div class="branding-preview" id="branding-favicon-preview-wrapper">
+              <img
+                id="branding-favicon-preview"
+                alt="Favicon"
+                style="width: 64px; height: 64px; object-fit: contain; display:none;"
+              />
+              <a id="branding-favicon-link" class="muted" href="#" target="_blank" rel="noopener" style="display:none;">Открыть favicon</a>
+              <div class="muted" id="branding-favicon-placeholder">Favicon не загружен</div>
+            </div>
+            <input type="file" id="branding-favicon-file" accept=".ico,.png,.svg,image/x-icon,image/png,image/svg+xml" />
+            <div class="form-actions">
+              <button class="btn primary" type="button" id="branding-save-favicon">Сохранить</button>
+            </div>
+          </div>
+        </div>
+
+        <p class="muted" style="margin-top: 12px;">Изменения могут потребовать обновления вкладки, но assets_version сбрасывает кеш браузера автоматически.</p>
+      </section>
+
       <section id="stats" class="card admin-view" data-view="stats" style="display:none;">
         <h2>Статистика</h2>
         <p class="muted">Статистика заказов и продаж остаётся доступной через существующий API. Эта вкладка — заглушка для будущего UI.</p>
@@ -828,7 +891,7 @@
     </main>
   </div>
   
-  <script src="js/app.js?v=20250610"></script>
+  <script src="js/app.js?v=20251218"></script>
   <script src="js/api.js?v=20250610"></script>
   <script src="js/admin_chats.js?v=20250610"></script>
   <script>
@@ -949,9 +1012,23 @@
     const productCategoryReset = document.getElementById('product-category-reset');
     const courseCategoryReset = document.getElementById('course-category-reset');
 
+    const brandingSiteTitleInput = document.getElementById('branding-site-title');
+    const brandingAssetsVersion = document.getElementById('branding-assets-version');
+    const brandingLogoPreview = document.getElementById('branding-logo-preview');
+    const brandingLogoPlaceholder = document.getElementById('branding-logo-placeholder');
+    const brandingLogoFileInput = document.getElementById('branding-logo-file');
+    const brandingSaveLogoBtn = document.getElementById('branding-save-logo');
+    const brandingFaviconPreview = document.getElementById('branding-favicon-preview');
+    const brandingFaviconLink = document.getElementById('branding-favicon-link');
+    const brandingFaviconPlaceholder = document.getElementById('branding-favicon-placeholder');
+    const brandingFaviconFileInput = document.getElementById('branding-favicon-file');
+    const brandingSaveFaviconBtn = document.getElementById('branding-save-favicon');
+    const brandingTitleForm = document.getElementById('branding-title-form');
+
     const DEFAULT_ORDER_STATUS = 'new';
 
     let currentUser = null;
+    let brandingData = null;
     const categoryMaps = {
       basket: new Map(),
       course: new Map(),
@@ -1116,6 +1193,116 @@
       imageModal.classList.add('hidden');
     }
 
+    function cacheBust(url, version) {
+      if (typeof window.withCacheBusting === 'function') {
+        return window.withCacheBusting(url, version);
+      }
+      if (!url) return '';
+      const separator = url.includes('?') ? '&' : '?';
+      return `${url}${separator}v=${version || 1}`;
+    }
+
+    function updateBrandingPreview(data) {
+      brandingData = data || {};
+      const version = brandingData.assets_version || 1;
+
+      if (brandingAssetsVersion) {
+        brandingAssetsVersion.textContent = `Версия ассетов: v${version}`;
+      }
+
+      if (brandingSiteTitleInput) {
+        brandingSiteTitleInput.value = brandingData.site_title || '';
+      }
+
+      const logoUrl = brandingData.logo_url ? cacheBust(brandingData.logo_url, version) : null;
+      if (brandingLogoPreview) {
+        if (logoUrl) {
+          brandingLogoPreview.src = logoUrl;
+          brandingLogoPreview.style.display = 'block';
+          brandingLogoPlaceholder?.classList.add('hidden');
+        } else {
+          brandingLogoPreview.removeAttribute('src');
+          brandingLogoPreview.style.display = 'none';
+          brandingLogoPlaceholder?.classList.remove('hidden');
+        }
+      }
+
+      const rawFaviconUrl = brandingData.favicon_url || '';
+      const faviconUrl = rawFaviconUrl ? cacheBust(rawFaviconUrl, version) : null;
+      const isIco = rawFaviconUrl.toLowerCase().endsWith('.ico');
+
+      if (brandingFaviconPreview) {
+        if (faviconUrl && !isIco) {
+          brandingFaviconPreview.src = faviconUrl;
+          brandingFaviconPreview.style.display = 'block';
+        } else {
+          brandingFaviconPreview.removeAttribute('src');
+          brandingFaviconPreview.style.display = 'none';
+        }
+      }
+
+      if (brandingFaviconLink) {
+        if (faviconUrl && isIco) {
+          brandingFaviconLink.href = faviconUrl;
+          brandingFaviconLink.style.display = 'inline-block';
+        } else {
+          brandingFaviconLink.removeAttribute('href');
+          brandingFaviconLink.style.display = 'none';
+        }
+      }
+
+      if (brandingFaviconPlaceholder) {
+        brandingFaviconPlaceholder.style.display = faviconUrl ? 'none' : 'block';
+      }
+    }
+
+    async function loadBrandingSettings(forceRefresh = false) {
+      if (brandingData && !forceRefresh) {
+        updateBrandingPreview(brandingData);
+        return brandingData;
+      }
+
+      try {
+        const data = await apiGet('/branding');
+        updateBrandingPreview(data);
+        return data;
+      } catch (error) {
+        handleError(error, 'Не удалось загрузить брендинг');
+        return null;
+      }
+    }
+
+    async function submitBrandingForm({ siteTitle, logoFile, faviconFile }) {
+      const formData = new FormData();
+      if (siteTitle !== undefined) {
+        formData.append('site_title', siteTitle);
+      }
+      if (logoFile) {
+        formData.append('logo_file', logoFile);
+      }
+      if (faviconFile) {
+        formData.append('favicon_file', faviconFile);
+      }
+
+      const res = await fetch(`${API_BASE}/admin/branding`, {
+        method: 'POST',
+        body: formData,
+      });
+      return handleResponse(res);
+    }
+
+    function validateBrandingFile(file, allowedExtensions, maxSizeMb) {
+      if (!file) return { ok: false, reason: 'Файл не выбран' };
+      const ext = (file.name || '').split('.').pop()?.toLowerCase() || '';
+      if (!allowedExtensions.includes(ext)) {
+        return { ok: false, reason: `Поддерживаемые форматы: ${allowedExtensions.join(', ')}` };
+      }
+      if (file.size > maxSizeMb * 1024 * 1024) {
+        return { ok: false, reason: `Размер файла должен быть до ${maxSizeMb} МБ` };
+      }
+      return { ok: true };
+    }
+
     window.adminChats?.init({
       onError: (error, message) => handleError(error || new Error(message)),
       onStatus: (message, isError) => setStatus(message, isError),
@@ -1182,6 +1369,9 @@
         loadHomeBlocks();
         loadHomePosts();
       }
+      if (view === 'branding') {
+        loadBrandingSettings();
+      }
     }
 
     function openProductCreateView() {
@@ -1200,6 +1390,59 @@
       resetPromoCreateForm();
       showSection('promocode-list');
       promoCreateForm?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    async function saveBrandingTitle(event) {
+      event?.preventDefault();
+      try {
+        const data = await submitBrandingForm({ siteTitle: brandingSiteTitleInput?.value ?? '' });
+        updateBrandingPreview(data);
+        window.applyBranding?.(data);
+        window.loadBranding?.(true);
+        showToast('Обновлено');
+      } catch (error) {
+        handleError(error, 'Не удалось сохранить название');
+      }
+    }
+
+    async function saveBrandingLogo() {
+      const file = brandingLogoFileInput?.files?.[0];
+      const validation = validateBrandingFile(file, ['png', 'jpg', 'jpeg', 'webp', 'svg'], 5);
+      if (!validation.ok) {
+        showToast(validation.reason || 'Неверный файл логотипа');
+        return;
+      }
+
+      try {
+        const data = await submitBrandingForm({ siteTitle: brandingSiteTitleInput?.value ?? '', logoFile: file });
+        brandingLogoFileInput.value = '';
+        updateBrandingPreview(data);
+        window.applyBranding?.(data);
+        window.loadBranding?.(true);
+        showToast('Обновлено');
+      } catch (error) {
+        handleError(error, 'Не удалось сохранить логотип');
+      }
+    }
+
+    async function saveBrandingFavicon() {
+      const file = brandingFaviconFileInput?.files?.[0];
+      const validation = validateBrandingFile(file, ['ico', 'png', 'svg'], 2);
+      if (!validation.ok) {
+        showToast(validation.reason || 'Неверный файл favicon');
+        return;
+      }
+
+      try {
+        const data = await submitBrandingForm({ siteTitle: brandingSiteTitleInput?.value ?? '', faviconFile: file });
+        brandingFaviconFileInput.value = '';
+        updateBrandingPreview(data);
+        window.applyBranding?.(data);
+        window.loadBranding?.(true);
+        showToast('Обновлено');
+      } catch (error) {
+        handleError(error, 'Не удалось сохранить favicon');
+      }
     }
 
     navLinks.forEach((btn) => {
@@ -1234,6 +1477,10 @@
         }
       });
     });
+
+    brandingTitleForm?.addEventListener('submit', saveBrandingTitle);
+    brandingSaveLogoBtn?.addEventListener('click', saveBrandingLogo);
+    brandingSaveFaviconBtn?.addEventListener('click', saveBrandingFavicon);
 
     faqAddBtn?.addEventListener('click', () => {
       resetFaqFormState();
@@ -3336,6 +3583,7 @@
         await loadReviewProducts();
         await loadReviews();
         await Promise.all([loadHomeBlocks(), loadHomePosts()]);
+        await loadBrandingSettings();
         showSection('orders');
         console.log('[admin] initApp done');
       } catch (e) {
