@@ -157,7 +157,14 @@ def ensure_admin_static_dirs() -> bool:
 
 app.mount("/media", StaticFiles(directory=MEDIA_ROOT), name="media")
 if ensure_admin_static_dirs():
-    app.mount("/admin/static", StaticFiles(directory=STATIC_DIR), name="admin-static")
+    try:
+        app.mount(
+            "/admin/static", StaticFiles(directory=STATIC_DIR), name="admin-static"
+        )
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning(
+            "Admin static will not be served because mount failed: %s", exc
+        )
 else:  # pragma: no cover - defensive
     logger.warning(
         "Admin static will not be served because the directory is missing or unreadable."
