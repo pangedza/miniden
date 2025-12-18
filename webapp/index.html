@@ -1,66 +1,18 @@
-<!-- Обновляйте номер версии (?v=20241205) в ссылках на js/css после любых правок фронтенда, чтобы сбрасывать кэш в браузерах. -->
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MiniDeN — уютные корзинки и мастер-классы</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="icon" id="site-favicon" href="/favicon.ico" />
-  <link rel="stylesheet" href="css/theme.css?v=20251218" />
-  <link rel="stylesheet" href="css/support_widget.css?v=20250610" />
-</head>
-<body data-theme="lifestyle" class="page-index">
-  <header class="top-nav">
-    <div class="brand" data-branding-block>
-      <div class="brand__logo-wrapper">
-        <img data-branding-logo class="brand__logo" alt="Логотип MiniDeN" />
-      </div>
-      <div class="brand__text">
-        <div class="brand__title" data-branding-title data-branding-default="MiniDeN">MiniDeN</div>
-        <span data-branding-tagline>уютные корзинки и мастер-классы</span>
-      </div>
-    </div>
-    <div class="header-actions">
-      <div class="theme-switcher">
-        <label for="theme-select">Тема</label>
-        <select id="theme-select">
-          <option value="lifestyle">Lifestyle</option>
-          <option value="purple">Фиолетовая</option>
-          <option value="dark">Тёмная</option>
-          <option value="light">Светлая</option>
-          <option value="cream">Сливочная</option>
-        </select>
-      </div>
-      <button class="menu-toggle" aria-label="Открыть меню">☰</button>
-    </div>
-    <nav class="nav-links app-sidebar">
-      <div class="sidebar-brand" data-branding-block>
-        <div class="brand__logo-wrapper brand__logo-wrapper--sidebar">
-          <img data-branding-logo class="brand__logo brand__logo--sidebar" alt="Логотип MiniDeN" />
-        </div>
-        <div class="brand__text">
-          <strong data-branding-title data-branding-default="Miniden">Miniden</strong>
-          <span data-branding-tagline>уют, семья, вязание</span>
-        </div>
-      </div>
-      <a href="index.html" class="active">Главная</a>
-      <a href="/categories">Категории</a>
-      <a href="products.html">Товары</a>
-      <a href="masterclasses.html">Мастер-классы</a>
-      <a href="cart.html">Корзина</a>
-      <a href="profile.html">Профиль</a>
-      <a href="admin.html" id="admin-link" style="display:none;">Админка</a>
-    </nav>
-  </header>
+{% extends "base.html" %}
+{% set active_page = 'home' %}
+{% set body_class = 'page-index' %}
 
-  <div class="app-sidebar-overlay"></div>
-  <div id="toast-container"></div>
+{% block title %}MiniDeN — уютные корзинки и мастер-классы{% endblock %}
 
-  <main>
-    <section class="lifestyle-hero reveal">
+{% block breadcrumbs %}
+  {% set breadcrumbs_id = 'home-breadcrumbs' %}
+  {% set breadcrumbs_items = [{'label': 'Главная'}] %}
+  {% include 'components/breadcrumbs.html' %}
+{% endblock %}
+
+{% block content %}
+  <!-- Обновляйте номер версии (?v=20241205) в ссылках на js/css после любых правок фронтенда, чтобы сбрасывать кэш в браузерах. -->
+  <section class="lifestyle-hero reveal">
       <div class="hero-body">
         <span class="hero-eyebrow">Miniden • домашнее вязание</span>
         <h1 class="hero-title">Дом, который вяжется руками</h1>
@@ -95,7 +47,7 @@
         />
         <span>Процесс</span>
       </a>
-      <a class="visual-tile hover-lift" href="products.html" id="tile-baskets">
+      <a class="visual-tile hover-lift" href="/products.html" id="tile-baskets">
         <img
           src="/static/img/home-placeholder.svg"
           data-fallback="/static/img/home-placeholder.svg"
@@ -103,7 +55,7 @@
         />
         <span>Мои корзинки</span>
       </a>
-      <a class="visual-tile hover-lift" href="masterclasses.html" id="tile-learning">
+      <a class="visual-tile hover-lift" href="/masterclasses.html" id="tile-learning">
         <img
           src="/static/img/home-placeholder.svg"
           data-fallback="/static/img/home-placeholder.svg"
@@ -136,7 +88,7 @@
       <div>
         <h3>Корзинки и наборы</h3>
         <p>Небольшие вещи, которые собирают дом воедино: органайзеры, подарочные композиции и акценты для детских комнат.</p>
-        <a class="btn" href="products.html">Перейти в каталог</a>
+        <a class="btn" href="/products.html">Перейти в каталог</a>
       </div>
       <div class="cta-card__media">
         <img
@@ -158,7 +110,7 @@
       <div>
         <h3>Мастер-классы</h3>
         <p>Для тех, кто хочет начать и дойти до результата. Простые шаги, поддержка и вдохновение, чтобы связать своё первое изделие.</p>
-        <a class="btn secondary" href="masterclasses.html">Смотреть обучение</a>
+        <a class="btn secondary" href="/masterclasses.html">Смотреть обучение</a>
       </div>
     </section>
 
@@ -186,8 +138,9 @@
         <button class="btn secondary" type="button" id="switch-user-btn">Сменить пользователя</button>
       </div>
     </section>
-  </main>
+{% endblock %}
 
+{% block footer %}
   <footer class="reveal">
     <div>
       Готовы помочь в Telegram:
@@ -199,12 +152,9 @@
     </div>
     <div>Мы в соцсетях: <a href="https://www.instagram.com/balabanova_knit?igsh=MWhuMWFnOG8zejl6dQ==">Instagram*</a> • <a href="https://vk.com/club233836469">VK</a></div>
   </footer>
+{% endblock %}
 
+{% block extra_scripts %}
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script src="js/app.js?v=20251218"></script>
-  <script src="js/api.js?v=20250610"></script>
-  <script src="js/app_shell.js?v=20251220"></script>
-  <script src="js/home_page.js?v=20250610"></script>
-  <script src="js/support_widget.js?v=20250610" defer></script>
-</body>
-</html>
+  <script src="/js/home_page.js?v=20250610"></script>
+{% endblock %}
