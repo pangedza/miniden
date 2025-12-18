@@ -40,6 +40,8 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import Field
 from sqlalchemy.orm import Session
 
+from admin_panel import STATIC_DIR
+from admin_panel.routes import adminbot, adminsite
 from config import get_settings
 from database import get_session, init_db
 from models import AuthSession, User
@@ -139,6 +141,9 @@ def ensure_media_dirs() -> None:
 
 
 app.mount("/media", StaticFiles(directory=MEDIA_ROOT), name="media")
+app.mount("/admin/static", StaticFiles(directory=STATIC_DIR), name="admin-static")
+app.include_router(adminbot.router)
+app.include_router(adminsite.router)
 
 
 class WebChatStartPayload(BaseModel):

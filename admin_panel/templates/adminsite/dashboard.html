@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>AdminSite Dashboard</title>
+    <style>
+        body { font-family: Arial, sans-serif; background:#0f172a; color:#e5e7eb; margin:0; padding:0; }
+        header { background:#a855f7; color:#0b1220; padding:16px; display:flex; justify-content:space-between; align-items:center; }
+        main { padding:24px; }
+        a { color:#0b1220; text-decoration:none; font-weight:bold; }
+        .card { background:#111827; border:1px solid #1f2937; border-radius:12px; padding:20px; }
+    </style>
+</head>
+<body>
+<header>
+    <div>AdminSite Dashboard</div>
+    <div><a href="/adminsite/logout">Выйти</a></div>
+</header>
+<main>
+    <div class="card">
+        <h2>Здравствуйте, {{ user.username }}!</h2>
+        <p>Здесь появятся инструменты управления сайтом. Доступ только после авторизации.</p>
+    </div>
+</main>
+</body>
+</html>
