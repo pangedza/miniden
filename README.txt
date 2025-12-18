@@ -20,6 +20,21 @@ MiniDeN — Telegram-бот и веб-магазин
 - uvicorn webapi:app --host 0.0.0.0 --port 8000
 - НЕ запускать `python api/main.py` — это legacy shim.
 
+Автозапуск backend через systemd
+--------------------------------
+1. cd /opt/miniden && source venv/bin/activate
+2. pip install -r requirements.txt
+3. sudo cp deploy/miniden-api.service /etc/systemd/system/miniden-api.service
+4. sudo systemctl daemon-reload
+5. sudo systemctl enable miniden-api
+6. sudo systemctl restart miniden-api
+- Проверка: sudo systemctl status miniden-api --no-pager
+- Проверка URL: http://127.0.0.1:8000/adminbot/login (с сервера) и https://домен/adminbot/login (через nginx)
+
+Почему 405 на curl -I — это нормально
+-------------------------------------
+- Ответ 405 на `curl -I` (HEAD) для страниц авторизации — ожидаемое поведение. Используйте GET/браузер для проверки (`curl -v http://127.0.0.1:8000/adminbot/login`).
+
 Проверка админок
 ----------------
 - /adminbot/login
