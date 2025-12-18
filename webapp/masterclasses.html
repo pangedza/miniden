@@ -7,13 +7,22 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/theme.css?v=20250605" />
+  <link rel="icon" id="site-favicon" href="/favicon.ico" />
+  <link rel="stylesheet" href="css/theme.css?v=20251218" />
   <link rel="stylesheet" href="css/support_widget.css?v=20250605" />
 
 </head>
 <body data-theme="lifestyle" class="page-masterclasses">
   <header class="top-nav">
-    <div class="brand">MiniDeN<span>уютные корзинки и мастер-классы</span></div>
+    <div class="brand" data-branding-block>
+      <div class="brand__logo-wrapper">
+        <img data-branding-logo class="brand__logo" alt="Логотип MiniDeN" />
+      </div>
+      <div class="brand__text">
+        <div class="brand__title" data-branding-title data-branding-default="MiniDeN">MiniDeN</div>
+        <span data-branding-tagline>уютные корзинки и мастер-классы</span>
+      </div>
+    </div>
     <div class="header-actions">
       <div class="theme-switcher">
         <label for="theme-select">Тема</label>
@@ -28,9 +37,14 @@
       <button class="menu-toggle" aria-label="Открыть меню">☰</button>
     </div>
     <nav class="nav-links app-sidebar">
-      <div class="sidebar-brand">
-        <strong>Miniden</strong>
-        <span>уют, семья, вязание</span>
+      <div class="sidebar-brand" data-branding-block>
+        <div class="brand__logo-wrapper brand__logo-wrapper--sidebar">
+          <img data-branding-logo class="brand__logo brand__logo--sidebar" alt="Логотип MiniDeN" />
+        </div>
+        <div class="brand__text">
+          <strong data-branding-title data-branding-default="Miniden">Miniden</strong>
+          <span data-branding-tagline>уют, семья, вязание</span>
+        </div>
       </div>
       <a href="index.html">Главная</a>
       <a href="/categories">Категории</a>
@@ -72,7 +86,7 @@
     <div class="note" id="note"></div>
   </main>
 
-  <script src="js/app.js?v=20250605"></script>
+  <script src="js/app.js?v=20251218"></script>
   <script src="js/api.js?v=20250605"></script>
   <script src="js/masterclasses_page.js?v=20250605"></script>
   <script src="js/support_widget.js?v=20250605" defer></script>

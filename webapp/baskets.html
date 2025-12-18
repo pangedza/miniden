@@ -7,7 +7,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/theme.css?v=20250605" />
+  <link rel="icon" id="site-favicon" href="/favicon.ico" />
+  <link rel="stylesheet" href="css/theme.css?v=20251218" />
   <style>
     :root {
       color-scheme: light;
@@ -87,7 +88,15 @@
 </head>
 <body data-theme="lifestyle">
   <div class="top-nav">
-    <div class="brand">MiniDeN<span>уютные корзинки и мастер-классы</span></div>
+    <div class="brand" data-branding-block>
+      <div class="brand__logo-wrapper">
+        <img data-branding-logo class="brand__logo" alt="Логотип MiniDeN" />
+      </div>
+      <div class="brand__text">
+        <div class="brand__title" data-branding-title data-branding-default="MiniDeN">MiniDeN</div>
+        <span data-branding-tagline>уютные корзинки и мастер-классы</span>
+      </div>
+    </div>
     <div class="theme-switcher">
       <label for="theme-select">Тема</label>
       <select id="theme-select">
@@ -124,7 +133,7 @@
 
   <div class="cards" id="cards"></div>
 
-  <script src="js/app.js?v=20250605"></script>
+  <script src="js/app.js?v=20251218"></script>
   <script>
     const toggle = document.querySelector('.menu-toggle');
     const nav = document.querySelector('.nav-links');
