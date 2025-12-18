@@ -70,7 +70,20 @@
     }
   };
 
-  const renderProduct = (product) => {
+  const createDetailsLayout = ({
+    title,
+    meta,
+    intro,
+    details,
+    price,
+    images,
+    placeholder,
+    description,
+    onPrimary,
+    primaryLabel,
+    secondaryHref,
+    secondaryLabel,
+  }) => {
     root.innerHTML = '';
 
     const container = document.createElement('article');
@@ -87,13 +100,12 @@
 
     const mainImage = document.createElement('img');
     mainImage.className = 'product-gallery__image';
-    mainImage.alt = product.name || 'Товар';
+    mainImage.alt = title || 'Товар';
 
-    const placeholder = document.createElement('div');
-    placeholder.className = 'product-gallery__placeholder';
-    placeholder.textContent = product.category_name || 'Товар';
+    const galleryPlaceholder = document.createElement('div');
+    galleryPlaceholder.className = 'product-gallery__placeholder';
+    galleryPlaceholder.textContent = placeholder || 'Товар';
 
-    const images = normalizeImages(product);
     let currentIndex = 0;
 
     const setMainImage = (index) => {
@@ -102,18 +114,18 @@
       if (src) {
         mainImage.src = src;
         mainImage.style.display = 'block';
-        placeholder.style.display = 'none';
+        galleryPlaceholder.style.display = 'none';
       } else {
         mainImage.removeAttribute('src');
         mainImage.style.display = 'none';
-        placeholder.style.display = 'flex';
+        galleryPlaceholder.style.display = 'flex';
       }
       Array.from(gallery.querySelectorAll('.product-gallery__thumb')).forEach((btn, btnIndex) => {
         btn.classList.toggle('is-active', btnIndex === currentIndex);
       });
     };
 
-    mainFrame.append(mainImage, placeholder);
+    mainFrame.append(mainImage, galleryPlaceholder);
     gallery.appendChild(mainFrame);
 
     if (images.length > 1) {
@@ -127,7 +139,7 @@
 
         const img = document.createElement('img');
         img.src = src;
-        img.alt = product.name || 'Товар';
+        img.alt = title || 'Товар';
         img.loading = 'lazy';
 
         btn.appendChild(img);
@@ -143,65 +155,52 @@
     const info = document.createElement('div');
     info.className = 'product-info';
 
-    const title = document.createElement('h1');
-    title.className = 'product-info__title';
-    title.textContent = product.name;
+    const titleEl = document.createElement('h1');
+    titleEl.className = 'product-info__title';
+    titleEl.textContent = title;
 
-    const meta = document.createElement('div');
-    meta.className = 'product-info__meta';
-    meta.textContent = product.category_name || '';
+    const metaEl = document.createElement('div');
+    metaEl.className = 'product-info__meta';
+    metaEl.textContent = meta;
 
-    const shortDesc = document.createElement('p');
-    shortDesc.className = 'product-info__intro muted';
-    shortDesc.textContent = product.short_description || '';
+    const introEl = document.createElement('p');
+    introEl.className = 'product-info__intro muted';
+    introEl.textContent = intro;
 
-    const details = document.createElement('div');
-    details.className = 'product-info__meta muted';
-    const detailParts = [];
-    if (product.type === 'basket') {
-      detailParts.push('Готовая корзинка');
-    } else if (product.type === 'course') {
-      detailParts.push('Мастер-класс');
-    }
-
-    const marketplaces = [
-      product.wb_url ? 'Wildberries' : null,
-      product.ozon_url ? 'Ozon' : null,
-      product.yandex_url ? 'Яндекс.Маркет' : null,
-      product.avito_url ? 'Avito' : null,
-    ].filter(Boolean);
-
-    if (marketplaces.length) {
-      detailParts.push(`Маркетплейсы: ${marketplaces.join(', ')}`);
-    }
-
-    details.textContent = detailParts.join(' · ');
+    const detailsEl = document.createElement('div');
+    detailsEl.className = 'product-info__meta muted';
+    detailsEl.textContent = details;
 
     const priceRow = document.createElement('div');
     priceRow.className = 'product-info__price-row';
 
-    const price = document.createElement('div');
-    price.className = 'product-info__price';
-    price.textContent = formatPrice(product.price);
+    const priceEl = document.createElement('div');
+    priceEl.className = 'product-info__price';
+    priceEl.textContent = price;
 
     const cta = document.createElement('div');
     cta.className = 'product-info__cta';
 
-    const addBtn = document.createElement('button');
-    addBtn.type = 'button';
-    addBtn.className = 'btn product-info__add';
-    addBtn.textContent = 'В корзину';
-    addBtn.addEventListener('click', () => handleAddToCart(product));
+    if (onPrimary) {
+      const addBtn = document.createElement('button');
+      addBtn.type = 'button';
+      addBtn.className = 'btn product-info__add';
+      addBtn.textContent = primaryLabel;
+      addBtn.addEventListener('click', onPrimary);
+      cta.appendChild(addBtn);
+    }
 
-    const backLink = document.createElement('a');
-    backLink.href = 'products.html';
-    backLink.className = 'btn secondary';
-    backLink.textContent = 'Назад к товарам';
+    if (secondaryHref) {
+      const backLink = document.createElement('a');
+      backLink.href = secondaryHref;
+      backLink.className = 'btn secondary';
+      backLink.textContent = secondaryLabel;
+      cta.appendChild(backLink);
+    }
 
-    cta.append(addBtn, backLink);
-    priceRow.append(price, cta);
+    priceRow.append(priceEl, cta);
 
-    info.append(title, meta, shortDesc, details, priceRow);
+    info.append(titleEl, metaEl, introEl, detailsEl, priceRow);
 
     const tabs = document.createElement('div');
     tabs.className = 'product-tabs';
@@ -227,11 +226,11 @@
     const descriptionPanel = document.createElement('section');
     descriptionPanel.className = 'product-tab is-active';
 
-    const description = document.createElement('div');
-    description.className = 'product-detail__description';
-    description.textContent = product.description || '';
+    const descriptionEl = document.createElement('div');
+    descriptionEl.className = 'product-detail__description';
+    descriptionEl.textContent = description;
 
-    descriptionPanel.appendChild(description);
+    descriptionPanel.appendChild(descriptionEl);
 
     const reviewsPanel = document.createElement('section');
     reviewsPanel.className = 'product-tab';
@@ -244,7 +243,9 @@
 
     const switchTab = (target) => {
       [descriptionTabBtn, reviewsTabBtn].forEach((btn) => btn.classList.toggle('is-active', btn === target));
-      [descriptionPanel, reviewsPanel].forEach((panel) => panel.classList.toggle('is-active', panel === (target === descriptionTabBtn ? descriptionPanel : reviewsPanel)));
+      [descriptionPanel, reviewsPanel].forEach((panel) =>
+        panel.classList.toggle('is-active', panel === (target === descriptionTabBtn ? descriptionPanel : reviewsPanel))
+      );
     };
 
     descriptionTabBtn.addEventListener('click', () => switchTab(descriptionTabBtn));
@@ -255,6 +256,41 @@
     top.append(gallery, info);
     container.append(top, tabs);
     root.appendChild(container);
+  };
+
+  const renderProduct = (product) => {
+    const detailParts = [];
+    if (product.type === 'basket') {
+      detailParts.push('Готовая корзинка');
+    } else if (product.type === 'course') {
+      detailParts.push('Мастер-класс');
+    }
+
+    const marketplaces = [
+      product.wb_url ? 'Wildberries' : null,
+      product.ozon_url ? 'Ozon' : null,
+      product.yandex_url ? 'Яндекс.Маркет' : null,
+      product.avito_url ? 'Avito' : null,
+    ].filter(Boolean);
+
+    if (marketplaces.length) {
+      detailParts.push(`Маркетплейсы: ${marketplaces.join(', ')}`);
+    }
+
+    createDetailsLayout({
+      title: product.name,
+      meta: product.category_name || '',
+      intro: product.short_description || '',
+      details: detailParts.join(' · '),
+      price: formatPrice(product.price),
+      images: normalizeImages(product),
+      placeholder: product.category_name || 'Товар',
+      description: product.description || '',
+      onPrimary: () => handleAddToCart(product),
+      primaryLabel: 'В корзину',
+      secondaryHref: 'products.html',
+      secondaryLabel: 'Назад к товарам',
+    });
   };
 
   const initReviewsWidget = () => {
