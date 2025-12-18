@@ -12,6 +12,24 @@ MiniDeN — Telegram-бот и веб-магазин
 - Веб-админка (`webapp/admin.html`): позволяет из браузера управлять товарами, мастер-классами и промокодами (создание, редактирование, загрузка фото, переключение активности) через WebApp сайта (miniden.ru/webapp).
 - Legacy shim (`main.py`): прокидывает `app` из `webapi.py` для обратной совместимости; в продакшене запускать `uvicorn webapi:app`.
 
+Запуск backend (FastAPI)
+------------------------
+- cd /opt/miniden
+- source venv/bin/activate
+- pip install -r requirements.txt
+- uvicorn webapi:app --host 0.0.0.0 --port 8000
+- НЕ запускать `python api/main.py` — это legacy shim.
+
+Проверка админок
+----------------
+- /adminbot/login
+- /adminsite/login
+
+Частые ошибки
+-------------
+- Если приложение ругается на static — убедитесь, что существует `admin_panel/static`; при запуске папки создаются автоматически.
+- Если приложение сообщает об отсутствии jinja2 — установите зависимости командой `pip install -r requirements.txt`.
+
 Фронтенд-оболочка
 ------------------
 - Заголовок, переключатель темы и отображение ссылки «Админка» и статуса авторизации вынесены в общий файл `webapp/js/app_shell.js`.

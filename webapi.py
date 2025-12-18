@@ -140,8 +140,28 @@ def ensure_media_dirs() -> None:
         d.mkdir(parents=True, exist_ok=True)
 
 
+def ensure_admin_static_dirs() -> bool:
+    try:
+        STATIC_DIR.mkdir(parents=True, exist_ok=True)
+        (STATIC_DIR / "css").mkdir(parents=True, exist_ok=True)
+        (STATIC_DIR / "js").mkdir(parents=True, exist_ok=True)
+        (STATIC_DIR / "img").mkdir(parents=True, exist_ok=True)
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning(
+            "Admin static directory is unavailable, skipping mount: %s", exc
+        )
+        return False
+
+    return True
+
+
 app.mount("/media", StaticFiles(directory=MEDIA_ROOT), name="media")
-app.mount("/admin/static", StaticFiles(directory=STATIC_DIR), name="admin-static")
+if ensure_admin_static_dirs():
+    app.mount("/admin/static", StaticFiles(directory=STATIC_DIR), name="admin-static")
+else:  # pragma: no cover - defensive
+    logger.warning(
+        "Admin static will not be served because the directory is missing or unreadable."
+    )
 app.include_router(adminbot.router)
 app.include_router(adminsite.router)
 
