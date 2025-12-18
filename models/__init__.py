@@ -119,10 +119,13 @@ class ProductCategory(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(Text, nullable=False)
     slug = Column(String, nullable=True, unique=True)
+    description = Column(Text, nullable=True)
+    image_url = Column(Text, nullable=True)
     sort_order = Column(Integer, nullable=False, default=0)
     is_active = Column(Boolean, default=True, nullable=False)
     type = Column(String, nullable=False, default="basket")
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=func.now(), nullable=False)
 
 
 class User(Base):

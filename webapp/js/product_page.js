@@ -73,6 +73,7 @@
   const createDetailsLayout = ({
     title,
     meta,
+    metaHref,
     intro,
     details,
     price,
@@ -161,7 +162,15 @@
 
     const metaEl = document.createElement('div');
     metaEl.className = 'product-info__meta';
-    metaEl.textContent = meta;
+    if (metaHref && meta) {
+      const link = document.createElement('a');
+      link.href = metaHref;
+      link.className = 'category-link';
+      link.textContent = meta;
+      metaEl.appendChild(link);
+    } else {
+      metaEl.textContent = meta;
+    }
 
     const introEl = document.createElement('p');
     introEl.className = 'product-info__intro muted';
@@ -290,6 +299,7 @@
       primaryLabel: 'В корзину',
       secondaryHref: 'products.html',
       secondaryLabel: 'Назад к товарам',
+      metaHref: product.category_slug ? `/category/${encodeURIComponent(product.category_slug)}` : null,
     });
   };
 

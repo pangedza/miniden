@@ -95,15 +95,55 @@ def _serialize_product(
 
 
 BASKET_CATEGORY_PRESETS: list[dict[str, Any]] = [
-    {"id": 1, "slug": "basket", "name": "Корзинки", "type": "basket"},
-    {"id": 2, "slug": "cradle", "name": "Люльки", "type": "basket"},
-    {"id": 3, "slug": "set", "name": "Наборы", "type": "basket"},
-    {"id": 4, "slug": "decor", "name": "Декор", "type": "basket"},
+    {
+        "id": 1,
+        "slug": "basket",
+        "name": "Корзинки",
+        "description": "Корзинки для дома и организации пространства",
+        "image_url": None,
+        "type": "basket",
+    },
+    {
+        "id": 2,
+        "slug": "cradle",
+        "name": "Люльки",
+        "description": "Уютные люльки и колыбели ручной работы",
+        "image_url": None,
+        "type": "basket",
+    },
+    {
+        "id": 3,
+        "slug": "set",
+        "name": "Наборы",
+        "description": "Готовые наборы корзинок и аксессуаров",
+        "image_url": None,
+        "type": "basket",
+    },
+    {
+        "id": 4,
+        "slug": "decor",
+        "name": "Декор",
+        "description": "Элементы декора и уютные мелочи",
+        "image_url": None,
+        "type": "basket",
+    },
 ]
 
 COURSE_CATEGORY_PRESETS: list[dict[str, Any]] = [
-    {"slug": "paid", "name": "Платные курсы", "type": "course"},
-    {"slug": "free", "name": "Бесплатные уроки", "type": "course"},
+    {
+        "slug": "paid",
+        "name": "Платные курсы",
+        "description": "Полные мастер-классы и обучающие программы",
+        "image_url": None,
+        "type": "course",
+    },
+    {
+        "slug": "free",
+        "name": "Бесплатные уроки",
+        "description": "Бесплатные материалы и полезные советы",
+        "image_url": None,
+        "type": "course",
+    },
 ]
 
 
@@ -128,14 +168,32 @@ def _ensure_default_categories(product_type: str) -> None:
                 .values(
                     name=preset.get("name"),
                     slug=slug,
+                    description=preset.get("description"),
+                    image_url=preset.get("image_url"),
                     sort_order=preset.get("sort_order", sort_order),
                     is_active=preset.get("is_active", True),
                     type=preset.get("type", product_type),
                     created_at=datetime.utcnow(),
+                    updated_at=datetime.utcnow(),
                 )
                 .on_conflict_do_nothing(index_elements=["slug"])
             )
             session.execute(statement)
+
+
+def _category_meta(row: ProductCategory) -> dict[str, Any]:
+    return {
+        "id": int(row.id),
+        "slug": row.slug or f"cat-{row.id}",
+        "name": row.name,
+        "description": getattr(row, "description", None),
+        "image_url": getattr(row, "image_url", None),
+        "type": row.type,
+        "sort_order": int(row.sort_order or 0),
+        "is_active": bool(row.is_active),
+        "created_at": row.created_at,
+        "updated_at": getattr(row, "updated_at", None),
+    }
 
 
 def _load_category_maps(product_type: str):
@@ -156,14 +214,7 @@ def _load_category_maps(product_type: str):
         )
 
     for row in rows:
-        meta = {
-            "id": int(row.id),
-            "slug": row.slug or f"cat-{row.id}",
-            "name": row.name,
-            "type": row.type,
-            "sort_order": int(row.sort_order or 0),
-            "is_active": bool(row.is_active),
-        }
+        meta = _category_meta(row)
         map_by_id[meta["id"]] = meta
         map_by_slug[meta["slug"]] = meta
 
@@ -179,11 +230,20 @@ def _basket_category_from_id(category_id: int | None, *, map_by_id: dict[int, di
     if category_id in presets_map:
         return presets_map[category_id]
     if category_id is None:
-        return {"id": None, "slug": "uncategorized", "name": "Без категории", "type": "basket"}
+        return {
+            "id": None,
+            "slug": "uncategorized",
+            "name": "Без категории",
+            "description": None,
+            "image_url": None,
+            "type": "basket",
+        }
     return {
         "id": category_id,
         "slug": f"cat-{category_id}",
         "name": f"Категория {category_id}",
+        "description": None,
+        "image_url": None,
         "type": "basket",
     }
 
@@ -337,31 +397,34 @@ def delete_masterclass_image(image_id: int) -> str | None:
         return image_url
 
 
-def list_categories(product_type: str) -> list[dict[str, Any]]:
+def list_categories(product_type: str | None = None, *, include_inactive: bool = False) -> list[dict[str, Any]]:
     """Вернёт список категорий для корзинок или курсов."""
 
-    categories: dict[str, dict[str, Any]] = {}
+    categories: list[dict[str, Any]] = []
 
-    map_by_id, map_by_slug = _load_category_maps(product_type)
-    if product_type == "course":
-        return [item for item in map_by_id.values() if item.get("is_active", True)]
+    types = [product_type] if product_type else ["basket", "course"]
 
-    if product_type != "basket":
-        return []
+    for current_type in types:
+        map_by_id, map_by_slug = _load_category_maps(current_type)
+        if current_type == "course":
+            categories.extend(meta for meta in map_by_id.values())
+        else:
+            # basket: дополним предустановками и фактическими категориями
+            grouped: dict[str, dict[str, Any]] = {item["slug"]: item for item in BASKET_CATEGORY_PRESETS}
 
-    for item in BASKET_CATEGORY_PRESETS:
-        categories.setdefault(item["slug"], item)
+            with get_session() as session:
+                rows = session.execute(select(func.distinct(ProductBasket.category_id))).scalars().all()
+                for cat_id in rows:
+                    meta = _basket_category_from_id(cat_id, map_by_id=map_by_id)
+                    grouped.setdefault(meta["slug"], meta)
 
-    with get_session() as session:
-        rows = session.execute(select(func.distinct(ProductBasket.category_id))).scalars().all()
-        for cat_id in rows:
-            meta = _basket_category_from_id(cat_id, map_by_id=map_by_id)
-            categories.setdefault(meta["slug"], meta)
+            for _, meta in map_by_id.items():
+                grouped.setdefault(meta["slug"], meta)
 
-    for _, meta in map_by_id.items():
-        categories.setdefault(meta["slug"], meta)
+            categories.extend(grouped.values())
 
-    return [item for item in categories.values() if item.get("is_active", True)]
+    filtered = [item for item in categories if include_inactive or item.get("is_active", True)]
+    return sorted(filtered, key=lambda item: (item.get("sort_order", 0), item.get("id") or 0, item.get("slug", "")))
 
 
 def list_product_categories_admin(product_type: str = "basket") -> list[dict[str, Any]]:
@@ -371,9 +434,13 @@ def list_product_categories_admin(product_type: str = "basket") -> list[dict[str
             "id": meta.get("id"),
             "name": meta.get("name"),
             "slug": meta.get("slug"),
+            "description": meta.get("description"),
+            "image_url": meta.get("image_url"),
             "sort_order": meta.get("sort_order", 0),
             "is_active": meta.get("is_active", True),
             "type": meta.get("type"),
+            "created_at": meta.get("created_at"),
+            "updated_at": meta.get("updated_at"),
         }
         for meta in map_by_id.values()
     ]
@@ -384,6 +451,8 @@ def create_product_category(
     name: str,
     *,
     slug: str | None = None,
+    description: str | None = None,
+    image_url: str | None = None,
     sort_order: int = 0,
     is_active: bool = True,
     product_type: str = "basket",
@@ -392,6 +461,8 @@ def create_product_category(
         category = ProductCategory(
             name=name,
             slug=slug,
+            description=description,
+            image_url=image_url,
             sort_order=sort_order,
             is_active=is_active,
             type=product_type,
@@ -406,6 +477,8 @@ def update_product_category(
     *,
     name: str | None = None,
     slug: str | None = None,
+    description: str | None = None,
+    image_url: str | None = None,
     sort_order: int | None = None,
     is_active: bool | None = None,
     product_type: str | None = None,
@@ -419,6 +492,10 @@ def update_product_category(
             category.name = name
         if slug is not None:
             category.slug = slug
+        if description is not None:
+            category.description = description
+        if image_url is not None:
+            category.image_url = image_url
         if sort_order is not None:
             category.sort_order = sort_order
         if is_active is not None:
@@ -437,10 +514,55 @@ def get_product_category_by_id(category_id: int) -> dict[str, Any] | None:
             "id": int(category.id),
             "name": category.name,
             "slug": category.slug or f"cat-{category.id}",
+            "description": category.description,
+            "image_url": category.image_url,
             "sort_order": int(category.sort_order or 0),
             "is_active": bool(category.is_active),
             "type": category.type,
+            "created_at": category.created_at,
+            "updated_at": getattr(category, "updated_at", None),
         }
+
+
+def get_category_by_slug(slug: str, *, include_inactive: bool = False) -> dict[str, Any] | None:
+    normalized_slug = (slug or "").strip()
+    if not normalized_slug:
+        return None
+
+    for product_type in ("basket", "course"):
+        _ensure_default_categories(product_type)
+        _, map_by_slug = _load_category_maps(product_type)
+        meta = map_by_slug.get(normalized_slug)
+        if meta and (include_inactive or meta.get("is_active", True)):
+            return meta
+
+    return None
+
+
+def get_category_with_items(slug: str) -> dict[str, Any] | None:
+    category = get_category_by_slug(slug)
+    if not category:
+        return None
+
+    products = list_products("basket", category_slug=category.get("slug"), is_active=True)
+    masterclasses = list_products("course", category_slug=category.get("slug"), is_active=True)
+
+    return {
+        "category": {
+            "id": category.get("id"),
+            "slug": category.get("slug"),
+            "name": category.get("name"),
+            "description": category.get("description"),
+            "image_url": category.get("image_url"),
+            "type": category.get("type"),
+            "sort_order": category.get("sort_order"),
+            "is_active": category.get("is_active"),
+            "created_at": category.get("created_at"),
+            "updated_at": category.get("updated_at"),
+        },
+        "products": products,
+        "masterclasses": masterclasses,
+    }
 
 
 def list_products(

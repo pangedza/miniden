@@ -33,6 +33,7 @@
         <span>уют, семья, вязание</span>
       </div>
       <a href="index.html">Главная</a>
+      <a href="/categories">Категории</a>
       <a href="products.html" class="active">Товары</a>
       <a href="masterclasses.html">Мастер-классы</a>
       <a href="cart.html">Корзина</a>
@@ -438,6 +439,19 @@
       const body = document.createElement('div');
       body.className = 'catalog-card-body product-card-body';
 
+      const categoryMeta = document.createElement('div');
+      categoryMeta.className = 'catalog-card-meta';
+      const categoryName = item.category_name || 'Категория';
+      if (item.category_slug) {
+        const categoryLink = document.createElement('a');
+        categoryLink.href = `/category/${encodeURIComponent(item.category_slug)}`;
+        categoryLink.className = 'category-link';
+        categoryLink.textContent = categoryName;
+        categoryMeta.appendChild(categoryLink);
+      } else {
+        categoryMeta.textContent = categoryName;
+      }
+
       const title = document.createElement('h3');
       title.className = 'catalog-card-title';
       title.textContent = item.name || item.title || 'Товар';
@@ -461,7 +475,7 @@
 
       actions.append(detailsBtn, btn);
 
-      body.append(title, price, actions);
+      body.append(categoryMeta, title, price, actions);
 
       card.append(cover, body);
       return card;

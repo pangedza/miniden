@@ -3,13 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MiniDeN — Товар</title>
+  <title>MiniDeN — Категория</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/theme.css?v=20250605" />
+  <link rel="stylesheet" href="css/support_widget.css?v=20250605" />
 </head>
-<body data-theme="lifestyle" class="page-product">
+<body data-theme="lifestyle" class="page-category">
   <header class="top-nav">
     <div class="brand">MiniDeN<span>уютные корзинки и мастер-классы</span></div>
     <div class="header-actions">
@@ -31,8 +32,8 @@
         <span>уют, семья, вязание</span>
       </div>
       <a href="index.html">Главная</a>
-      <a href="/categories">Категории</a>
-      <a href="products.html" class="active">Товары</a>
+      <a href="/categories" class="active">Категории</a>
+      <a href="products.html">Товары</a>
       <a href="masterclasses.html">Мастер-классы</a>
       <a href="cart.html">Корзина</a>
       <a href="profile.html">Профиль</a>
@@ -43,14 +44,28 @@
   <div class="app-sidebar-overlay"></div>
   <div id="toast-container"></div>
 
-  <main class="page product-page">
-    <div id="product-details-root"></div>
-    <div id="product-reviews-root"></div>
+  <main>
+    <div class="breadcrumbs" id="category-breadcrumbs"></div>
+
+    <section class="category-hero">
+      <div class="category-hero__content">
+        <h1 id="category-title">Категория</h1>
+        <p id="category-description" class="muted">Описание появится позже.</p>
+      </div>
+      <div class="category-hero__image">
+        <img id="category-image" alt="" />
+      </div>
+    </section>
+
+    <div id="category-note" class="muted" style="margin-bottom:16px;"></div>
+
+    <section id="category-products"></section>
+    <section id="category-masterclasses"></section>
   </main>
 
   <script src="js/app.js?v=20250605"></script>
   <script src="js/api.js?v=20250605"></script>
-  <script src="js/reviews_widget.js?v=20250605"></script>
-  <script src="js/product_page.js?v=20250605"></script>
+  <script src="js/category_page.js?v=20250605"></script>
+  <script src="js/support_widget.js?v=20250605" defer></script>
 </body>
 </html>
