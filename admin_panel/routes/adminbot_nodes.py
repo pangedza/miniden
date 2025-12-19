@@ -7,17 +7,21 @@ from sqlalchemy.orm import Session
 from admin_panel import TEMPLATES
 from admin_panel.dependencies import get_db_session, require_admin
 from models import BotNode
+from models.admin_user import AdminRole
 
 router = APIRouter(prefix="/adminbot", tags=["AdminBot"])
 
 
+ALLOWED_ROLES = (AdminRole.superadmin, AdminRole.admin_bot)
+
+
 def _login_redirect() -> RedirectResponse:
-    return RedirectResponse(url="/adminbot/login", status_code=303)
+    return RedirectResponse(url="/login?next=/adminbot", status_code=303)
 
 
 @router.get("/nodes")
 async def list_nodes(request: Request, db: Session = Depends(get_db_session)):
-    user = require_admin(request, db, app_name="adminbot")
+    user = require_admin(request, db, roles=ALLOWED_ROLES)
     if not user:
         return _login_redirect()
 
@@ -39,7 +43,7 @@ async def list_nodes(request: Request, db: Session = Depends(get_db_session)):
 
 @router.get("/nodes/new")
 async def new_node_form(request: Request, db: Session = Depends(get_db_session)):
-    user = require_admin(request, db, app_name="adminbot")
+    user = require_admin(request, db, roles=ALLOWED_ROLES)
     if not user:
         return _login_redirect()
 
@@ -65,7 +69,7 @@ async def create_node(
     is_enabled: bool = Form(False),
     db: Session = Depends(get_db_session),
 ):
-    user = require_admin(request, db, app_name="adminbot")
+    user = require_admin(request, db, roles=ALLOWED_ROLES)
     if not user:
         return _login_redirect()
 
@@ -104,7 +108,7 @@ async def edit_node_form(
     node_id: int,
     db: Session = Depends(get_db_session),
 ):
-    user = require_admin(request, db, app_name="adminbot")
+    user = require_admin(request, db, roles=ALLOWED_ROLES)
     if not user:
         return _login_redirect()
 
@@ -134,7 +138,7 @@ async def edit_node(
     is_enabled: bool = Form(False),
     db: Session = Depends(get_db_session),
 ):
-    user = require_admin(request, db, app_name="adminbot")
+    user = require_admin(request, db, roles=ALLOWED_ROLES)
     if not user:
         return _login_redirect()
 

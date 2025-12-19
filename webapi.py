@@ -42,6 +42,8 @@ from sqlalchemy.orm import Session
 
 from admin_panel import STATIC_DIR
 from admin_panel.routes import adminbot, adminsite
+from admin_panel.routes import auth as admin_auth
+from admin_panel.routes import users as admin_users
 from config import get_settings
 from database import get_session, init_db
 from models import AuthSession, User
@@ -176,8 +178,10 @@ else:  # pragma: no cover - defensive
     logger.warning(
         "Admin static will not be served because the directory is missing or unreadable."
     )
+app.include_router(admin_auth.router)
 app.include_router(adminbot.router)
 app.include_router(adminsite.router)
+app.include_router(admin_users.router)
 
 
 class WebChatStartPayload(BaseModel):

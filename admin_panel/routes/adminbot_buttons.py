@@ -9,8 +9,11 @@ from sqlalchemy.orm import Session
 from admin_panel import TEMPLATES
 from admin_panel.dependencies import get_db_session, require_admin
 from models import BotButton, BotNode
+from models.admin_user import AdminRole
 
 router = APIRouter(prefix="/adminbot", tags=["AdminBot"])
+
+ALLOWED_ROLES = (AdminRole.superadmin, AdminRole.admin_bot)
 
 
 BUTTON_TYPES = [
@@ -21,7 +24,7 @@ BUTTON_TYPES = [
 
 
 def _login_redirect() -> RedirectResponse:
-    return RedirectResponse(url="/adminbot/login", status_code=303)
+    return RedirectResponse(url="/login?next=/adminbot", status_code=303)
 
 
 def _validate_button_payload(button_type: str, payload: str) -> str | None:
@@ -47,7 +50,7 @@ async def list_buttons(
     node_id: int,
     db: Session = Depends(get_db_session),
 ):
-    user = require_admin(request, db, app_name="adminbot")
+    user = require_admin(request, db, roles=ALLOWED_ROLES)
     if not user:
         return _login_redirect()
 
@@ -79,7 +82,7 @@ async def new_button_form(
     node_id: int,
     db: Session = Depends(get_db_session),
 ):
-    user = require_admin(request, db, app_name="adminbot")
+    user = require_admin(request, db, roles=ALLOWED_ROLES)
     if not user:
         return _login_redirect()
 
@@ -112,7 +115,7 @@ async def create_button(
     is_enabled: bool = Form(False),
     db: Session = Depends(get_db_session),
 ):
-    user = require_admin(request, db, app_name="adminbot")
+    user = require_admin(request, db, roles=ALLOWED_ROLES)
     if not user:
         return _login_redirect()
 
@@ -164,7 +167,7 @@ async def edit_button_form(
     button_id: int,
     db: Session = Depends(get_db_session),
 ):
-    user = require_admin(request, db, app_name="adminbot")
+    user = require_admin(request, db, roles=ALLOWED_ROLES)
     if not user:
         return _login_redirect()
 
@@ -201,7 +204,7 @@ async def update_button(
     is_enabled: bool = Form(False),
     db: Session = Depends(get_db_session),
 ):
-    user = require_admin(request, db, app_name="adminbot")
+    user = require_admin(request, db, roles=ALLOWED_ROLES)
     if not user:
         return _login_redirect()
 
@@ -254,7 +257,7 @@ async def move_button(
     direction: str,
     db: Session = Depends(get_db_session),
 ):
-    user = require_admin(request, db, app_name="adminbot")
+    user = require_admin(request, db, roles=ALLOWED_ROLES)
     if not user:
         return _login_redirect()
 

@@ -25,6 +25,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
 from database import Base
+from models.admin_user import AdminRole, AdminSession, AdminUser
 
 
 class BotNode(Base):
@@ -458,32 +459,6 @@ class WebChatMessage(Base):
     session = relationship("WebChatSession", back_populates="messages")
 
 
-class AdminUser(Base):
-    __tablename__ = "admin_users"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    username = Column(String(150), unique=True, nullable=False, index=True)
-    password_hash = Column(String, nullable=False)
-    role = Column(String(50), nullable=False, default="SuperAdmin")
-    is_active = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-
-    sessions = relationship("AdminSession", back_populates="user", cascade="all, delete-orphan")
-
-
-class AdminSession(Base):
-    __tablename__ = "admin_sessions"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey("admin_users.id", ondelete="CASCADE"), nullable=False)
-    token = Column(String(128), unique=True, nullable=False, index=True)
-    app = Column(String(32), nullable=False, default="adminbot")
-    expires_at = Column(DateTime, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-
-    user = relationship("AdminUser", back_populates="sessions")
-
-
 __all__ = [
     "BotNode",
     "BotButton",
@@ -492,6 +467,7 @@ __all__ = [
     "Base",
     "AdminSession",
     "AdminUser",
+    "AdminRole",
     "AdminNote",
     "CartItem",
     "Favorite",
