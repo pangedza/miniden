@@ -2,9 +2,9 @@
 
 import argparse
 
-from admin_panel.auth import hash_password
 from database import SessionLocal, init_db
-from models import AdminUser
+from models.admin_user import AdminRole, AdminUser
+from services.passwords import hash_password
 
 
 def main() -> None:
@@ -25,7 +25,7 @@ def main() -> None:
         user = AdminUser(
             username=args.username,
             password_hash=hash_password(args.password),
-            role="SuperAdmin",
+            role=AdminRole.superadmin.value,
             is_active=True,
         )
         db.add(user)

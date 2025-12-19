@@ -7,12 +7,15 @@ from sqlalchemy.orm import Session
 from admin_panel import TEMPLATES
 from admin_panel.dependencies import get_db_session, require_admin
 from models import BotRuntime
+from models.admin_user import AdminRole
 
 router = APIRouter(prefix="/adminbot", tags=["AdminBot"])
 
+ALLOWED_ROLES = (AdminRole.superadmin, AdminRole.admin_bot)
+
 
 def _login_redirect() -> RedirectResponse:
-    return RedirectResponse(url="/adminbot/login", status_code=303)
+    return RedirectResponse(url="/login?next=/adminbot", status_code=303)
 
 
 def _get_runtime(db: Session) -> BotRuntime:
@@ -27,7 +30,7 @@ def _get_runtime(db: Session) -> BotRuntime:
 
 @router.get("/runtime")
 async def runtime_page(request: Request, db: Session = Depends(get_db_session)):
-    user = require_admin(request, db, app_name="adminbot")
+    user = require_admin(request, db, roles=ALLOWED_ROLES)
     if not user:
         return _login_redirect()
 
@@ -47,7 +50,7 @@ async def bump_runtime_version(
     request: Request,
     db: Session = Depends(get_db_session),
 ):
-    user = require_admin(request, db, app_name="adminbot")
+    user = require_admin(request, db, roles=ALLOWED_ROLES)
     if not user:
         return _login_redirect()
 

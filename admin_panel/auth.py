@@ -1,37 +1,9 @@
-"""Вспомогательные функции для авторизации админов."""
+"""Совместимость: тонкие врапперы над новой auth-службой."""
 
-from datetime import datetime, timedelta
-from uuid import uuid4
+from models.admin_user import AdminRole, AdminSession, AdminUser
+from services import auth as auth_service
+from services.passwords import hash_password, verify_password
 
-import bcrypt
-from sqlalchemy.orm import Session
-
-from models import AdminSession, AdminUser
-
-SESSION_TTL_HOURS = 24
-
-
-def hash_password(password: str) -> str:
-    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-
-
-def verify_password(password: str, password_hash: str) -> bool:
-    try:
-        return bcrypt.checkpw(password.encode(), password_hash.encode())
-    except ValueError:
-        return False
-
-
-def create_session(db: Session, user: AdminUser, app_name: str) -> AdminSession:
-    token = uuid4().hex
-    expires_at = datetime.utcnow() + timedelta(hours=SESSION_TTL_HOURS)
-    session = AdminSession(user_id=user.id, token=token, expires_at=expires_at, app=app_name)
-    db.add(session)
-    db.commit()
-    db.refresh(session)
-    return session
-
-
-def delete_session(db: Session, token: str) -> None:
-    db.query(AdminSession).filter(AdminSession.token == token).delete()
-    db.commit()
+create_session = auth_service.create_session
+delete_session = auth_service.remove_session
+SESSION_TTL_HOURS = auth_service.SESSION_TTL_HOURS

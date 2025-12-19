@@ -103,6 +103,83 @@ def init_db() -> None:
 
     _ensure_optional_columns()
 
+    def _ensure_admin_tables() -> None:
+        create_admin_users = """
+        CREATE TABLE IF NOT EXISTS admin_users (
+            id SERIAL PRIMARY KEY,
+            username VARCHAR(150) NOT NULL UNIQUE,
+            password_hash TEXT NOT NULL,
+            role VARCHAR(50) NOT NULL DEFAULT 'superadmin',
+            is_active BOOLEAN NOT NULL DEFAULT TRUE,
+            created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+        );
+        """
+
+        create_admin_sessions = """
+        CREATE TABLE IF NOT EXISTS admin_sessions (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES admin_users(id) ON DELETE CASCADE,
+            token VARCHAR(128) NOT NULL UNIQUE,
+            app VARCHAR(32) NOT NULL DEFAULT 'admin',
+            expires_at TIMESTAMP NOT NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT NOW()
+        );
+        """
+
+        alter_statements = [
+            "ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW()",
+            "ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE",
+            "ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS password_hash TEXT",
+            "ALTER TABLE admin_users ALTER COLUMN role SET DEFAULT 'superadmin'",
+            "ALTER TABLE admin_sessions ALTER COLUMN app SET DEFAULT 'admin'",
+        ]
+
+        with engine.begin() as conn:
+            conn.execute(text(create_admin_users))
+            conn.execute(text(create_admin_sessions))
+            for statement in alter_statements:
+                conn.execute(text(statement))
+
+            conn.execute(
+                text(
+                    "UPDATE admin_users SET role = 'superadmin' WHERE lower(role) = 'superadmin'"
+                )
+            )
+            conn.execute(
+                text(
+                    "UPDATE admin_users SET role = 'admin_bot' WHERE lower(role) IN ('adminbot', 'admin_bot')"
+                )
+            )
+            conn.execute(
+                text(
+                    "UPDATE admin_users SET role = 'admin_site' WHERE lower(role) IN ('adminsite', 'admin_site')"
+                )
+            )
+
+    _ensure_admin_tables()
+
+    def _ensure_default_superadmin() -> None:
+        from models import AdminUser
+        from models.admin_user import AdminRole
+        from services.passwords import hash_password
+
+        with get_session() as session:
+            exists = session.query(AdminUser).limit(1).first()
+            if exists:
+                return
+
+            session.add(
+                AdminUser(
+                    username="admin",
+                    password_hash=hash_password("admin"),
+                    role=AdminRole.superadmin.value,
+                    is_active=True,
+                )
+            )
+
+    _ensure_default_superadmin()
+
     def _ensure_product_categories_table() -> None:
         create_statement = """
         CREATE TABLE IF NOT EXISTS product_categories (

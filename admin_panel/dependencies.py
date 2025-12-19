@@ -1,18 +1,15 @@
 """Общие зависимости для маршрутов админок."""
 
-from datetime import datetime
-from typing import Optional
+from typing import Iterable, Optional
 
 from fastapi import Request
 from sqlalchemy.orm import Session
 
-from models import AdminSession, AdminUser
+from models.admin_user import AdminRole, AdminUser
+from services import auth as auth_service
 
 
-COOKIE_NAMES = {
-    "adminbot": "adminbot_session",
-    "adminsite": "adminsite_session",
-}
+SESSION_COOKIE_NAME = "admin_session"
 
 
 def get_db_session() -> Session:
@@ -25,35 +22,29 @@ def get_db_session() -> Session:
         db.close()
 
 
-def get_current_admin(
-    request: Request, db: Session, app_name: str
-) -> Optional[AdminUser]:
-    cookie_name = COOKIE_NAMES.get(app_name)
-    if not cookie_name:
-        return None
-
-    token = request.cookies.get(cookie_name)
+def get_current_admin(request: Request, db: Session) -> Optional[AdminUser]:
+    token = request.cookies.get(SESSION_COOKIE_NAME)
     if not token:
         return None
 
-    session = (
-        db.query(AdminSession)
-        .filter(AdminSession.token == token, AdminSession.app == app_name)
-        .first()
-    )
-    if not session:
+    session = auth_service.get_session(db, token)
+    return session.user if session else None
+
+
+def require_admin(
+    request: Request,
+    db: Session,
+    roles: Iterable[AdminRole] | None = None,
+) -> Optional[AdminUser]:
+    user = get_current_admin(request=request, db=db)
+    if not user:
         return None
 
-    if session.expires_at <= datetime.utcnow():
-        db.delete(session)
-        db.commit()
-        return None
+    if roles is None:
+        return user
 
-    if not session.user or not session.user.is_active:
-        return None
+    role_values = {role.value if isinstance(role, AdminRole) else role for role in roles}
+    if user.role in role_values:
+        return user
 
-    return session.user
-
-
-def require_admin(request: Request, db: Session, app_name: str) -> Optional[AdminUser]:
-    return get_current_admin(request=request, db=db, app_name=app_name)
+    return None

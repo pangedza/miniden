@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Управление администраторами</title>
+    <style>
+        body { font-family: Arial, sans-serif; background:#0b1220; color:#e2e8f0; margin:0; padding:0; }
+        header { background:#38bdf8; color:#0b1220; padding:16px; display:flex; justify-content:space-between; align-items:center; }
+        main { padding:24px; }
+        .card { background:#0f172a; border:1px solid #1e293b; border-radius:12px; padding:20px; margin-bottom:20px; }
+        label { display:block; margin-top:12px; font-size:14px; }
+        input, select { width:100%; padding:10px; border-radius:8px; border:1px solid #334155; background:#0b1220; color:#e2e8f0; margin-top:6px; }
+        table { width:100%; border-collapse:collapse; margin-top:12px; }
+        th, td { padding:8px; border-bottom:1px solid #1e293b; text-align:left; }
+        .btn { padding:8px 12px; border:none; border-radius:8px; cursor:pointer; font-weight:bold; }
+        .btn-primary { background:#38bdf8; color:#0b1220; }
+        .btn-secondary { background:#1e293b; color:#e2e8f0; }
+        .btn-danger { background:#f87171; color:#0b1220; }
+        .error { color:#f87171; margin-top:12px; }
+        .message { color:#4ade80; margin-top:12px; }
+        form.inline { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+        .checkbox { width:auto; }
+    </style>
+</head>
+<body>
+<header>
+    <div>Админы</div>
+    <div style="display:flex; gap:12px; align-items:center;">
+        <a href="/adminbot" style="color:#0b1220; font-weight:bold;">AdminBot</a>
+        <a href="/admin/profile" style="color:#0b1220; font-weight:bold;">Профиль</a>
+        <form method="post" action="/logout" style="margin:0;">
+            <button class="btn btn-secondary" type="submit">Выйти</button>
+        </form>
+    </div>
+</header>
+<main>
+    <div class="card">
+        <h2>Создать администратора</h2>
+        <form method="post" action="/admin/users">
+            <label>Логин
+                <input type="text" name="username" required>
+            </label>
+            <label>Пароль
+                <input type="password" name="password" required>
+            </label>
+            <label>Роль
+                <select name="role">
+                    {% for role in roles %}
+                        <option value="{{ role }}">{{ role }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label>
+                <input class="checkbox" type="checkbox" name="is_active" checked> Активен
+            </label>
+            <button class="btn btn-primary" type="submit">Создать</button>
+        </form>
+        {% if error %}<div class="error">{{ error }}</div>{% endif %}
+        {% if message %}<div class="message">{{ message }}</div>{% endif %}
+    </div>
+
+    <div class="card">
+        <h2>Список админов</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Логин</th>
+                    <th>Роль</th>
+                    <th>Активен</th>
+                    <th>Обновить</th>
+                    <th>Сброс пароля</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for item in users %}
+                <tr>
+                    <td>{{ item.id }}</td>
+                    <td colspan="5">
+                        <form method="post" action="/admin/users/{{ item.id }}" class="inline">
+                            <input type="text" name="username" value="{{ item.username }}" required>
+                            <select name="role">
+                                {% for role in roles %}
+                                    <option value="{{ role }}" {% if item.role == role %}selected{% endif %}>{{ role }}</option>
+                                {% endfor %}
+                            </select>
+                            <label><input class="checkbox" type="checkbox" name="is_active" {% if item.is_active %}checked{% endif %}> Активен</label>
+                            <input type="password" name="new_password" placeholder="Новый пароль (опционально)">
+                            <button class="btn btn-primary" type="submit">Сохранить</button>
+                        </form>
+                        <form method="post" action="/admin/users/{{ item.id }}/reset_password" class="inline">
+                            <input type="password" name="new_password" placeholder="Сбросить пароль" required>
+                            <button class="btn btn-secondary" type="submit">Обновить пароль</button>
+                        </form>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</main>
+</body>
+</html>
