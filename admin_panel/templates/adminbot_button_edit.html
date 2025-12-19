@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>{% if button %}Редактирование кнопки{% else %}Новая кнопка{% endif %}</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 16px; background: #f5f5f5; }
+        header { display: flex; gap: 12px; margin-bottom: 16px; }
+        form { background: #fff; padding: 16px; border: 1px solid #cbd5e1; border-radius: 6px; max-width: 800px; }
+        label { display: block; margin-top: 10px; font-weight: bold; }
+        input[type="text"], input[type="number"], select { width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px; }
+        .actions { margin-top: 16px; display: flex; gap: 8px; }
+        .button { padding: 8px 12px; border: none; background: #2563eb; color: #fff; border-radius: 4px; text-decoration: none; cursor: pointer; }
+        .error { color: #dc2626; margin-top: 8px; }
+        .hint { color: #475569; font-size: 13px; }
+    </style>
+</head>
+<body>
+<header>
+    <a href="/adminbot/nodes/{{ node.id }}/buttons" class="button">Назад к кнопкам</a>
+    <a href="/adminbot/runtime" class="button">Runtime</a>
+</header>
+<h2>{% if button %}Редактирование кнопки{% else %}Новая кнопка{% endif %} для {{ node.code }}</h2>
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+<form method="post" action="{% if button %}/adminbot/buttons/{{ button.id }}/edit{% else %}/adminbot/nodes/{{ node.id }}/buttons/new{% endif %}">
+    <label>Title</label>
+    <input type="text" name="title" value="{{ button.title if button else '' }}" required>
+
+    <label>Type</label>
+    <select name="type" required>
+        {% for value, label in button_types %}
+        <option value="{{ value }}" {% if button and button.type == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+    </select>
+    <div class="hint">callback: ACTION:VALUE, url/webapp: https://example.com</div>
+
+    <label>Payload</label>
+    <input type="text" name="payload" value="{{ button.payload if button else '' }}" required>
+
+    <label>Row</label>
+    <input type="number" name="row" value="{{ button.row if button else 0 }}">
+
+    <label>Pos</label>
+    <input type="number" name="pos" value="{{ button.pos if button else 0 }}">
+
+    <label><input type="checkbox" name="is_enabled" {% if button is none or button.is_enabled %}checked{% endif %}> Enabled</label>
+
+    <div class="actions">
+        <button type="submit" class="button">Сохранить</button>
+        <a href="/adminbot/nodes/{{ node.id }}/buttons" class="button" style="background:#6b7280;">Назад</a>
+    </div>
+</form>
+</body>
+</html>

@@ -27,6 +27,63 @@ from sqlalchemy.orm import relationship
 from database import Base
 
 
+class BotNode(Base):
+    __tablename__ = "bot_nodes"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    code = Column(String, unique=True, nullable=False, index=True)
+    title = Column(Text, nullable=False)
+    message_text = Column(Text, nullable=False)
+    parse_mode = Column(String, nullable=False, default="HTML", server_default="HTML")
+    image_url = Column(Text, nullable=True)
+    is_enabled = Column(Boolean, default=True, nullable=False, server_default="true")
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=func.now(), nullable=False)
+
+    buttons = relationship(
+        "BotButton",
+        back_populates="node",
+        cascade="all, delete-orphan",
+        order_by="(BotButton.row, BotButton.pos, BotButton.id)",
+    )
+
+
+class BotButton(Base):
+    __tablename__ = "bot_buttons"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    node_id = Column(Integer, ForeignKey("bot_nodes.id", ondelete="CASCADE"), nullable=False)
+    title = Column(Text, nullable=False)
+    type = Column(String, nullable=False)
+    payload = Column(Text, nullable=False)
+    row = Column(Integer, nullable=False, default=0, server_default="0")
+    pos = Column(Integer, nullable=False, default=0, server_default="0")
+    is_enabled = Column(Boolean, default=True, nullable=False, server_default="true")
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=func.now(), nullable=False)
+
+    node = relationship("BotNode", back_populates="buttons")
+
+
+class BotAction(Base):
+    __tablename__ = "bot_actions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    action_code = Column(String, unique=True, nullable=False, index=True)
+    description = Column(Text, nullable=True)
+    handler_type = Column(String, nullable=False)
+    handler_payload_schema = Column(Text, nullable=True)
+    is_enabled = Column(Boolean, default=True, nullable=False, server_default="true")
+
+
+class BotRuntime(Base):
+    __tablename__ = "bot_runtime"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    config_version = Column(Integer, nullable=False, default=1, server_default="1")
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=func.now(), nullable=True)
+
+
 class ProductBasket(Base):
     __tablename__ = "products_baskets"
 
@@ -428,6 +485,10 @@ class AdminSession(Base):
 
 
 __all__ = [
+    "BotNode",
+    "BotButton",
+    "BotAction",
+    "BotRuntime",
     "Base",
     "AdminSession",
     "AdminUser",

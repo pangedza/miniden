@@ -7,6 +7,7 @@ from database import get_session
 from models import AuthSession
 from services import users as users_service
 from keyboards.main_menu import get_main_menu
+from services.bot_config import NodeView, load_node
 from services.subscription import (
     ensure_subscribed,
     get_subscription_keyboard,
@@ -145,6 +146,9 @@ async def cb_check_subscription(callback: CallbackQuery):
 
 
 async def _send_start_screen(message: types.Message, is_admin: bool) -> None:
+    if await _send_dynamic_start_screen(message):
+        return
+
     settings = get_settings()
     main_menu = get_main_menu(is_admin=is_admin)
     banner = settings.banner_start or settings.start_banner_id
@@ -160,3 +164,62 @@ async def _send_start_screen(message: types.Message, is_admin: bool) -> None:
             format_start_text(),
             reply_markup=main_menu,
         )
+
+
+async def _send_dynamic_start_screen(message: types.Message) -> bool:
+    start_node = load_node("MAIN_MENU")
+    if not start_node:
+        return False
+
+    await _send_node_message(message, start_node)
+    return True
+
+
+async def _send_node_message(message: types.Message, node: NodeView) -> None:
+    settings = get_settings()
+    keyboard = node.keyboard
+    photo = node.image_url or settings.banner_start or settings.start_banner_id
+
+    if photo:
+        await message.answer_photo(
+            photo=photo,
+            caption=node.message_text,
+            parse_mode=node.parse_mode,
+            reply_markup=keyboard,
+        )
+    else:
+        await message.answer(
+            node.message_text,
+            parse_mode=node.parse_mode,
+            reply_markup=keyboard,
+        )
+
+
+@router.callback_query(F.data.startswith("OPEN_NODE:"))
+async def handle_open_node(callback: CallbackQuery):
+    _, node_code = callback.data.split(":", maxsplit=1)
+    node = load_node(node_code)
+
+    if not node:
+        await callback.answer("Раздел временно недоступен", show_alert=True)
+        return
+
+    await _send_node_message(callback.message, node)
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("SEND_TEXT:"))
+async def handle_send_text(callback: CallbackQuery):
+    _, node_code = callback.data.split(":", maxsplit=1)
+    node = load_node(node_code)
+
+    if not node:
+        await callback.answer("Элемент недоступен", show_alert=True)
+        return
+
+    await callback.message.answer(
+        node.message_text,
+        parse_mode=node.parse_mode,
+        reply_markup=node.keyboard,
+    )
+    await callback.answer()

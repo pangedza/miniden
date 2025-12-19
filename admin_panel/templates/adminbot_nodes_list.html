@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Bot Nodes</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 16px; background: #f5f5f5; }
+        header { display: flex; gap: 12px; margin-bottom: 16px; }
+        table { border-collapse: collapse; width: 100%; background: #fff; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+        th { background: #e2e8f0; }
+        a.button, button { padding: 6px 10px; background: #2563eb; color: #fff; text-decoration: none; border: none; border-radius: 4px; cursor: pointer; }
+        .muted { color: #475569; font-size: 14px; }
+    </style>
+</head>
+<body>
+<header>
+    <a href="/adminbot" class="button">Главная</a>
+    <a href="/adminbot/nodes" class="button">Узлы</a>
+    <a href="/adminbot/runtime" class="button">Runtime</a>
+    <a href="/adminbot/logout" class="button" style="background:#dc2626;">Выйти</a>
+</header>
+<h2>Узлы (экраны бота)</h2>
+<div style="margin:12px 0;">
+    <a href="/adminbot/nodes/new" class="button">Создать узел</a>
+</div>
+<table>
+    <thead>
+    <tr>
+        <th>Code</th>
+        <th>Title</th>
+        <th>Enabled</th>
+        <th>Updated</th>
+        <th>Actions</th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for node in nodes %}
+    <tr>
+        <td>{{ node.code }}</td>
+        <td>{{ node.title }}</td>
+        <td>{{ '✅' if node.is_enabled else '⛔' }}</td>
+        <td class="muted">{{ node.updated_at }}</td>
+        <td>
+            <a href="/adminbot/nodes/{{ node.id }}/edit">Edit</a> |
+            <a href="/adminbot/nodes/{{ node.id }}/buttons">Buttons</a>
+        </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5">Нет узлов</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+</body>
+</html>
