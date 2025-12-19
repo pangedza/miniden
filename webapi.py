@@ -34,10 +34,9 @@ from fastapi import (
     UploadFile,
 )
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 from pydantic import Field
 from sqlalchemy.orm import Session
 
@@ -80,7 +79,6 @@ WEBAPP_DIR = BASE_DIR / "webapp"
 STATIC_DIR_PUBLIC = BASE_DIR / "static"
 
 app = FastAPI(title="MiniDeN Web API", version="1.0.0")
-SITE_TEMPLATES = Jinja2Templates(directory=str(WEBAPP_DIR))
 
 logger = logging.getLogger(__name__)
 
@@ -1994,11 +1992,6 @@ def api_promocode_validate(payload: PromocodeValidatePayload):
         "eligible_items": result.get("eligible_items", []),
         "total": cart_total,
     }
-
-
-@app.get("/", response_class=HTMLResponse)
-def homepage(request: Request):
-    return SITE_TEMPLATES.TemplateResponse("index.html", {"request": request})
 
 
 @app.post("/api/admin/branding")

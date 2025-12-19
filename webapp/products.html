@@ -1,18 +1,87 @@
-{% extends "base.html" %}
-{% set active_page = 'products' %}
-{% set body_class = 'page-products' %}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MiniDeN — Товары</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="icon" id="site-favicon" href="/favicon.ico" />
+  <link rel="stylesheet" href="/css/theme.css?v=20251218" />
+  <link rel="stylesheet" href="/css/support_widget.css?v=20250610" />
+  
+</head>
+<body data-theme="lifestyle" class="page-products">
+  
+<header class="top-nav">
+  <div class="brand" data-branding-block>
+    <div class="brand__logo-wrapper">
+      <img data-branding-logo class="brand__logo" alt="Логотип MiniDeN" />
+    </div>
+    <div class="brand__text">
+      <div class="brand__title" data-branding-title data-branding-default="MiniDeN">MiniDeN</div>
+      <span data-branding-tagline>уютные корзинки и мастер-классы</span>
+    </div>
+  </div>
+  <div class="header-actions">
+    <div class="theme-switcher">
+      <label for="theme-select">Тема</label>
+      <select id="theme-select">
+        <option value="lifestyle">Lifestyle</option>
+        <option value="purple">Фиолетовая</option>
+        <option value="dark">Тёмная</option>
+        <option value="light">Светлая</option>
+        <option value="cream">Сливочная</option>
+      </select>
+    </div>
+    <button class="menu-toggle" aria-label="Открыть меню">☰</button>
+  </div>
+  <nav class="nav-links app-sidebar">
+    <div class="sidebar-brand" data-branding-block>
+      <div class="brand__logo-wrapper brand__logo-wrapper--sidebar">
+        <img data-branding-logo class="brand__logo brand__logo--sidebar" alt="Логотип MiniDeN" />
+      </div>
+      <div class="brand__text">
+        <strong data-branding-title data-branding-default="Miniden">Miniden</strong>
+        <span data-branding-tagline>уют, семья, вязание</span>
+      </div>
+    </div>
+    <a href="/" class="">Главная</a>
+    <a href="/categories" class="">Категории</a>
+    <a href="/products.html" class="active">Товары</a>
+    <a href="/masterclasses.html">Мастер-классы</a>
+    <a href="/cart.html">Корзина</a>
+    <a href="/profile.html">Профиль</a>
+    <a href="/admin.html" id="admin-link" style="display:none;">Админка</a>
+  </nav>
+</header>
 
-{% block title %}MiniDeN — Товары{% endblock %}
+  <div class="app-sidebar-overlay"></div>
+  <div id="toast-container"></div>
 
-{% block breadcrumbs %}
-  {% set breadcrumbs_items = [
-    { 'label': 'Главная', 'url': '/' },
-    { 'label': 'Товары' }
-  ] %}
-  {% include 'components/breadcrumbs.html' %}
-{% endblock %}
+  
+  
+  
+<div class="breadcrumbs" id="breadcrumbs">
+  
+    
+      
+        <a href="/">Главная</a>
+      
+      <span>→</span>
+    
+      
+        <span>Товары</span>
+      
+      
+    
+  
+</div>
 
-{% block content %}
+
+  <main>
+    
 <h1>Товары</h1>
 
     <section class="products-search">
@@ -36,9 +105,10 @@
     <section id="products-by-category" class="products-by-category"></section>
 
     <div class="note" id="note"></div>
-{% endblock %}
 
-{% block after_main %}
+  </main>
+
+  
 <div id="product-modal" class="product-modal hidden" aria-hidden="true">
     <div class="product-modal__backdrop" id="product-modal-backdrop"></div>
     <div class="product-modal__content" role="dialog" aria-modal="true">
@@ -128,9 +198,15 @@
         <img class="review-photo-modal__image" id="review-photo-modal-image" src="" alt="" />
       </div>
     </div>
-{% endblock %}
 
-{% block extra_scripts %}
+
+  
+
+  <script src="/js/app.js?v=20251218"></script>
+  <script src="/js/api.js?v=20250610"></script>
+  <script src="/js/app_shell.js?v=20251220"></script>
+  <script src="/js/support_widget.js?v=20250610" defer></script>
+  
   <script>
 const adminLink = document.getElementById('admin-link');
     const noteEl = document.getElementById('note');
@@ -1096,4 +1172,6 @@ const adminLink = document.getElementById('admin-link');
 
     initProductsPage().catch(console.error);
   </script>
-{% endblock %}
+
+</body>
+</html>
