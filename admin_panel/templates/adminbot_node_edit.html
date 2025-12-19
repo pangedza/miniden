@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>{% if node %}Редактирование узла{% else %}Новый узел{% endif %}</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 16px; background: #f5f5f5; }
+        header { display: flex; gap: 12px; margin-bottom: 16px; }
+        form { background: #fff; padding: 16px; border: 1px solid #cbd5e1; border-radius: 6px; max-width: 800px; }
+        label { display: block; margin-top: 10px; font-weight: bold; }
+        input[type="text"], textarea { width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px; }
+        textarea { min-height: 140px; }
+        .actions { margin-top: 16px; display: flex; gap: 8px; }
+        .button { padding: 8px 12px; border: none; background: #2563eb; color: #fff; border-radius: 4px; text-decoration: none; cursor: pointer; }
+        .error { color: #dc2626; margin-top: 8px; }
+    </style>
+</head>
+<body>
+<header>
+    <a href="/adminbot/nodes" class="button">Назад к списку</a>
+    <a href="/adminbot/runtime" class="button">Runtime</a>
+</header>
+<h2>{% if node %}Редактирование: {{ node.code }}{% else %}Новый узел{% endif %}</h2>
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+<form method="post" action="{% if node %}/adminbot/nodes/{{ node.id }}/edit{% else %}/adminbot/nodes/new{% endif %}">
+    <label>Code</label>
+    <input type="text" name="code" value="{{ node.code if node else '' }}" {% if node %}readonly{% endif %} required>
+
+    <label>Title</label>
+    <input type="text" name="title" value="{{ node.title if node else '' }}" required>
+
+    <label>Message text</label>
+    <textarea name="message_text" required>{{ node.message_text if node else '' }}</textarea>
+
+    <label>Parse mode</label>
+    <input type="text" name="parse_mode" value="{{ node.parse_mode if node else 'HTML' }}" placeholder="HTML">
+
+    <label>Image URL</label>
+    <input type="text" name="image_url" value="{{ node.image_url if node else '' }}" placeholder="https://...">
+
+    <label><input type="checkbox" name="is_enabled" {% if node is none or node.is_enabled %}checked{% endif %}> Enabled</label>
+
+    <div class="actions">
+        <button type="submit" class="button">Сохранить</button>
+        <a href="/adminbot/nodes" class="button" style="background:#6b7280;">Назад</a>
+    </div>
+</form>
+</body>
+</html>

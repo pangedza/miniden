@@ -14,12 +14,17 @@
 <body>
 <header>
     <div>AdminBot Dashboard</div>
-    <div><a href="/adminbot/logout">Выйти</a></div>
+    <div style="display:flex; gap:12px; align-items:center;">
+        <a href="/adminbot/nodes" style="color:#0b1220;">Узлы</a>
+        <a href="/adminbot/runtime" style="color:#0b1220;">Runtime</a>
+        <a href="/adminbot/logout">Выйти</a>
+    </div>
 </header>
 <main>
     <div class="card">
         <h2>Здравствуйте, {{ user.username }}!</h2>
         <p>Здесь будет управление админкой бота. Раздел защищён сессией SuperAdmin.</p>
+        <p><a href="/adminbot/nodes" style="color:#38bdf8;">Перейти к конструкторам меню</a></p>
     </div>
 </main>
 </body>

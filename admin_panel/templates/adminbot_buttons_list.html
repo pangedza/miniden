@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Кнопки для {{ node.code }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 16px; background: #f5f5f5; }
+        header { display: flex; gap: 12px; margin-bottom: 16px; }
+        table { border-collapse: collapse; width: 100%; background: #fff; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+        th { background: #e2e8f0; }
+        a.button { padding: 6px 10px; background: #2563eb; color: #fff; text-decoration: none; border-radius: 4px; }
+        .muted { color: #475569; font-size: 14px; }
+    </style>
+</head>
+<body>
+<header>
+    <a href="/adminbot/nodes" class="button">Назад к узлам</a>
+    <a href="/adminbot/runtime" class="button">Runtime</a>
+</header>
+<h2>Кнопки: {{ node.title }} ({{ node.code }})</h2>
+<div style="margin:12px 0;">
+    <a href="/adminbot/nodes/{{ node.id }}/buttons/new" class="button">Создать кнопку</a>
+</div>
+<table>
+    <thead>
+    <tr>
+        <th>Title</th>
+        <th>Type</th>
+        <th>Payload</th>
+        <th>Row</th>
+        <th>Pos</th>
+        <th>Enabled</th>
+        <th>Actions</th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for button in buttons %}
+    <tr>
+        <td>{{ button.title }}</td>
+        <td>{{ button.type }}</td>
+        <td class="muted">{{ button.payload }}</td>
+        <td>{{ button.row }}</td>
+        <td>{{ button.pos }}</td>
+        <td>{{ '✅' if button.is_enabled else '⛔' }}</td>
+        <td>
+            <a href="/adminbot/buttons/{{ button.id }}/move?direction=up">⬆️</a>
+            <a href="/adminbot/buttons/{{ button.id }}/move?direction=down">⬇️</a> |
+            <a href="/adminbot/buttons/{{ button.id }}/edit">Edit</a>
+        </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="7">Кнопки отсутствуют</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+</body>
+</html>

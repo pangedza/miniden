@@ -11,6 +11,8 @@ from admin_panel.auth import create_session, delete_session, verify_password
 from admin_panel.dependencies import COOKIE_NAMES, get_db_session, require_admin
 from models import AdminUser
 
+from . import adminbot_buttons, adminbot_nodes, adminbot_runtime
+
 router = APIRouter(prefix="/adminbot", tags=["AdminBot"])
 
 
@@ -79,3 +81,8 @@ async def logout(request: Request, db: Session = Depends(get_db_session)):
     response = _login_redirect()
     response.delete_cookie(COOKIE_NAMES["adminbot"], path="/adminbot")
     return response
+
+
+router.include_router(adminbot_nodes.router)
+router.include_router(adminbot_buttons.router)
+router.include_router(adminbot_runtime.router)

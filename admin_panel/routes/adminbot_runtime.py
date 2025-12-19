@@ -1,0 +1,59 @@
+"""Управление версией конфигурации бота."""
+
+from fastapi import APIRouter, Depends, Request
+from fastapi.responses import RedirectResponse
+from sqlalchemy.orm import Session
+
+from admin_panel import TEMPLATES
+from admin_panel.dependencies import get_db_session, require_admin
+from models import BotRuntime
+
+router = APIRouter(prefix="/adminbot", tags=["AdminBot"])
+
+
+def _login_redirect() -> RedirectResponse:
+    return RedirectResponse(url="/adminbot/login", status_code=303)
+
+
+def _get_runtime(db: Session) -> BotRuntime:
+    runtime = db.query(BotRuntime).first()
+    if not runtime:
+        runtime = BotRuntime(config_version=1)
+        db.add(runtime)
+        db.commit()
+        db.refresh(runtime)
+    return runtime
+
+
+@router.get("/runtime")
+async def runtime_page(request: Request, db: Session = Depends(get_db_session)):
+    user = require_admin(request, db, app_name="adminbot")
+    if not user:
+        return _login_redirect()
+
+    runtime = _get_runtime(db)
+    return TEMPLATES.TemplateResponse(
+        "adminbot_runtime.html",
+        {
+            "request": request,
+            "user": user,
+            "runtime": runtime,
+        },
+    )
+
+
+@router.post("/runtime")
+async def bump_runtime_version(
+    request: Request,
+    db: Session = Depends(get_db_session),
+):
+    user = require_admin(request, db, app_name="adminbot")
+    if not user:
+        return _login_redirect()
+
+    runtime = _get_runtime(db)
+    runtime.config_version = (runtime.config_version or 1) + 1
+    db.add(runtime)
+    db.commit()
+
+    return RedirectResponse(url="/adminbot/runtime", status_code=303)

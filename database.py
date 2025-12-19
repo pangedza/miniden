@@ -53,6 +53,7 @@ def get_session() -> Iterator[Session]:
 def init_db() -> None:
     from config import ADMIN_IDS_SET  # noqa: WPS433
     from models import Base, HomeBanner, User  # noqa: WPS433
+    from models import BotAction, BotButton, BotNode, BotRuntime  # noqa: WPS433
 
     Base.metadata.create_all(bind=engine)
 
@@ -378,6 +379,94 @@ def init_db() -> None:
                     session.add(HomeBanner(**block))
 
     _ensure_home_block_seed()
+
+    def _ensure_bot_constructor_seed() -> None:
+        with get_session() as session:
+            runtime = session.query(BotRuntime).first()
+            if not runtime:
+                session.add(BotRuntime(config_version=1))
+
+            main_menu = (
+                session.query(BotNode)
+                .filter(BotNode.code == "MAIN_MENU")
+                .first()
+            )
+            if not main_menu:
+                main_menu = BotNode(
+                    code="MAIN_MENU",
+                    title="Главное меню",
+                    message_text="Добро пожаловать! Используйте кнопки ниже, чтобы открыть разделы магазина.",
+                    parse_mode="HTML",
+                    is_enabled=True,
+                )
+                session.add(main_menu)
+                session.flush()
+
+            has_buttons = (
+                session.query(BotButton)
+                .filter(BotButton.node_id == main_menu.id)
+                .count()
+            )
+
+            if not has_buttons:
+                default_buttons = [
+                    {
+                        "title": "🛍 Товары",
+                        "type": "callback",
+                        "payload": "OPEN_NODE:PRODUCTS",
+                        "row": 0,
+                        "pos": 0,
+                    },
+                    {
+                        "title": "🎓 Мастер-классы",
+                        "type": "callback",
+                        "payload": "OPEN_NODE:MASTERCLASSES",
+                        "row": 0,
+                        "pos": 1,
+                    },
+                    {
+                        "title": "💬 Написать в чат",
+                        "type": "url",
+                        "payload": "https://t.me/miniden_chat",
+                        "row": 1,
+                        "pos": 0,
+                    },
+                    {
+                        "title": "ℹ️ Помощь / Канал",
+                        "type": "url",
+                        "payload": "https://t.me/miniden_ru",
+                        "row": 1,
+                        "pos": 1,
+                    },
+                ]
+
+                for button in default_buttons:
+                    session.add(BotButton(node_id=main_menu.id, **button))
+
+            existing_actions = {
+                action.action_code
+                for action in session.query(BotAction).all()
+            }
+
+            if "OPEN_NODE" not in existing_actions:
+                session.add(
+                    BotAction(
+                        action_code="OPEN_NODE",
+                        description="Открыть узел по его коду",
+                        handler_type="open_node",
+                    )
+                )
+
+            if "SEND_TEXT" not in existing_actions:
+                session.add(
+                    BotAction(
+                        action_code="SEND_TEXT",
+                        description="Отправить текстовое сообщение",
+                        handler_type="send_text",
+                    )
+                )
+
+    _ensure_bot_constructor_seed()
 
     if ADMIN_IDS_SET:
         with get_session() as session:
