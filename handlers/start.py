@@ -129,7 +129,7 @@ def _validate_input_value(node: NodeView, message: types.Message) -> tuple[bool,
 async def _open_node_by_code(message: types.Message, node_code: str) -> None:
     node = load_node(node_code)
     if not node:
-        await message.answer("Ошибка конфигурации: узел не найден")
+        await message.answer("Ошибка конфигурации: узел перехода не найден.")
         return
 
     await _send_node(message, node)
@@ -137,7 +137,7 @@ async def _open_node_by_code(message: types.Message, node_code: str) -> None:
 
 async def _open_node_with_fallback(message: types.Message, node_code: str | None) -> None:
     if not node_code:
-        await message.answer("Ошибка конфигурации: узел не найден")
+        await message.answer("Ошибка конфигурации: узел перехода не найден.")
         return
 
     node = load_node(node_code)
@@ -145,7 +145,7 @@ async def _open_node_with_fallback(message: types.Message, node_code: str | None
         await _send_node(message, node)
         return
 
-    await message.answer("Ошибка конфигурации: узел не найден")
+    await message.answer("Ошибка конфигурации: узел перехода не найден.")
     main_menu = load_node("MAIN_MENU")
     if main_menu:
         await _send_node(message, main_menu)
@@ -154,18 +154,33 @@ async def _open_node_with_fallback(message: types.Message, node_code: str | None
 def _evaluate_condition(node: NodeView, user_vars: dict[str, str]) -> bool:
     operator = (node.cond_operator or "").upper()
     var_key = node.cond_var_key or ""
-    value = user_vars.get(var_key)
+    raw_value = user_vars.get(var_key)
+
+    def _normalize_text(value: str | None) -> str | None:
+        if value is None:
+            return None
+        return str(value).strip()
+
+    def _to_float(value: str | None) -> float | None:
+        if value is None:
+            return None
+        try:
+            return float(str(value).replace(",", "."))
+        except Exception:
+            return None
+
+    normalized_value = _normalize_text(raw_value)
 
     if operator == "EXISTS":
-        return bool(value)
+        return bool(normalized_value)
     if operator == "NOT_EXISTS":
-        return not value
+        return not normalized_value
 
-    if value is None:
+    if normalized_value is None:
         return False
 
-    left = str(value)
-    right = node.cond_value or ""
+    left = normalized_value
+    right = _normalize_text(node.cond_value) or ""
 
     if operator == "EQ":
         return left == right
@@ -178,10 +193,9 @@ def _evaluate_condition(node: NodeView, user_vars: dict[str, str]) -> bool:
     if operator == "ENDS_WITH":
         return left.endswith(right)
     if operator in {"GT", "GTE", "LT", "LTE"}:
-        try:
-            left_num = float(left)
-            right_num = float(right)
-        except Exception:
+        left_num = _to_float(left)
+        right_num = _to_float(right)
+        if left_num is None or right_num is None:
             return False
 
         if operator == "GT":
