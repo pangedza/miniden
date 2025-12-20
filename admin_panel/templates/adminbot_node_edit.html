@@ -6,13 +6,17 @@
     <style>
         body { font-family: Arial, sans-serif; margin: 16px; background: #f5f5f5; }
         header { display: flex; gap: 12px; margin-bottom: 16px; }
-        form { background: #fff; padding: 16px; border: 1px solid #cbd5e1; border-radius: 6px; max-width: 800px; }
-        label { display: block; margin-top: 10px; font-weight: bold; }
-        input[type="text"], textarea { width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px; }
+        form { background: #fff; padding: 16px; border: 1px solid #cbd5e1; border-radius: 6px; max-width: 900px; }
+        label { display: block; margin-top: 12px; font-weight: bold; }
+        input[type="text"], input[type="number"], textarea, select { width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px; }
         textarea { min-height: 140px; }
         .actions { margin-top: 16px; display: flex; gap: 8px; }
         .button { padding: 8px 12px; border: none; background: #2563eb; color: #fff; border-radius: 4px; text-decoration: none; cursor: pointer; }
         .error { color: #dc2626; margin-top: 8px; }
+        .hint { color: #475569; font-size: 13px; margin-top: 4px; }
+        .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin-top: 12px; }
+        .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+        .checkbox { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
     </style>
 </head>
 <body>
@@ -23,27 +27,110 @@
 <h2>{% if node %}Редактирование: {{ node.code }}{% else %}Новый узел{% endif %}</h2>
 {% if error %}<div class="error">{{ error }}</div>{% endif %}
 <form method="post" action="{% if node %}/adminbot/nodes/{{ node.id }}/edit{% else %}/adminbot/nodes/new{% endif %}">
-    <label>Code</label>
+    <label>Код узла</label>
     <input type="text" name="code" value="{{ node.code if node else '' }}" {% if node %}readonly{% endif %} required>
 
-    <label>Title</label>
-    <input type="text" name="title" value="{{ node.title if node else '' }}" required>
+    <div class="row">
+        <div>
+            <label>Название</label>
+            <input type="text" name="title" value="{{ node.title if node else '' }}" required>
+        </div>
+        <div>
+            <label>Тип узла</label>
+            <select name="node_type" id="node_type_select">
+                <option value="MESSAGE" {% if node is none or node.node_type == 'MESSAGE' %}selected{% endif %}>Сообщение</option>
+                <option value="INPUT" {% if node and node.node_type == 'INPUT' %}selected{% endif %}>Ожидание ввода</option>
+            </select>
+            <div class="hint">Выберите поведение узла.</div>
+        </div>
+    </div>
 
-    <label>Message text</label>
+    <label>Текст сообщения</label>
     <textarea name="message_text" required>{{ node.message_text if node else '' }}</textarea>
+    <div class="hint">Можно использовать переменные: {{'{{'}}name{{'}}'}}, {{'{{'}}phone{{'}}'}}</div>
 
-    <label>Parse mode</label>
-    <input type="text" name="parse_mode" value="{{ node.parse_mode if node else 'HTML' }}" placeholder="HTML">
+    <div class="row">
+        <div>
+            <label>Parse mode</label>
+            <input type="text" name="parse_mode" value="{{ node.parse_mode if node else 'HTML' }}" placeholder="HTML">
+        </div>
+        <div>
+            <label>Image URL</label>
+            <input type="text" name="image_url" value="{{ node.image_url if node else '' }}" placeholder="https://...">
+        </div>
+    </div>
 
-    <label>Image URL</label>
-    <input type="text" name="image_url" value="{{ node.image_url if node else '' }}" placeholder="https://...">
+    <div class="checkbox">
+        <input type="checkbox" id="is_enabled" name="is_enabled" {% if node is none or node.is_enabled %}checked{% endif %}>
+        <label for="is_enabled" style="margin:0; font-weight:normal;">Включен</label>
+    </div>
 
-    <label><input type="checkbox" name="is_enabled" {% if node is none or node.is_enabled %}checked{% endif %}> Enabled</label>
+    <div id="input_settings" class="card" style="display:none;">
+        <h3>Настройки ввода</h3>
+        <div class="row">
+            <div>
+                <label>Тип ввода</label>
+                <select name="input_type" id="input_type_select">
+                    <option value="" disabled {% if node is none or not node.input_type %}selected{% endif %}>Выберите</option>
+                    <option value="TEXT" {% if node and node.input_type == 'TEXT' %}selected{% endif %}>Текст</option>
+                    <option value="NUMBER" {% if node and node.input_type == 'NUMBER' %}selected{% endif %}>Число</option>
+                    <option value="PHONE_TEXT" {% if node and node.input_type == 'PHONE_TEXT' %}selected{% endif %}>Телефон (текст)</option>
+                    <option value="CONTACT" {% if node and node.input_type == 'CONTACT' %}selected{% endif %}>Контакт Telegram</option>
+                </select>
+            </div>
+            <div>
+                <label>Сохранить в переменную</label>
+                <input type="text" name="input_var_key" value="{{ node.input_var_key if node else '' }}" placeholder="например: phone или name">
+                <div class="hint">Ключ переменной (латиница, цифры, underscore).</div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="checkbox">
+                <input type="checkbox" id="input_required" name="input_required" {% if node is none or node.input_required %}checked{% endif %}>
+                <label for="input_required" style="margin:0; font-weight:normal;">Обязательно</label>
+            </div>
+            <div>
+                <label>Минимальная длина</label>
+                <input type="number" name="input_min_len" value="{{ node.input_min_len if node and node.input_min_len is not none else '' }}" placeholder="Например 2 для имени.">
+            </div>
+        </div>
+
+        <label>Текст ошибки</label>
+        <textarea name="input_error_text" placeholder="Пожалуйста, введите корректное значение.">{{ node.input_error_text if node else '' }}</textarea>
+
+        <div class="row">
+            <div>
+                <label>Переход при успехе (код узла)</label>
+                <input type="text" name="next_node_code_success" value="{{ node.next_node_code_success if node else '' }}" placeholder="например: MAIN_MENU">
+            </div>
+            <div>
+                <label>Переход при отмене (код узла)</label>
+                <input type="text" name="next_node_code_cancel" value="{{ node.next_node_code_cancel if node else '' }}" placeholder="например: MAIN_MENU">
+            </div>
+        </div>
+    </div>
 
     <div class="actions">
         <button type="submit" class="button">Сохранить</button>
         <a href="/adminbot/nodes" class="button" style="background:#6b7280;">Назад</a>
     </div>
 </form>
+
+<script>
+    const nodeTypeSelect = document.getElementById('node_type_select');
+    const inputSettings = document.getElementById('input_settings');
+
+    function toggleInputSettings() {
+        if (nodeTypeSelect.value === 'INPUT') {
+            inputSettings.style.display = 'block';
+        } else {
+            inputSettings.style.display = 'none';
+        }
+    }
+
+    nodeTypeSelect.addEventListener('change', toggleInputSettings);
+    toggleInputSettings();
+</script>
 </body>
 </html>
