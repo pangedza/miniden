@@ -9,7 +9,13 @@ from admin_panel.dependencies import get_db_session, require_admin
 from admin_panel.routes import auth as auth_routes
 from models.admin_user import AdminRole
 
-from . import adminbot_buttons, adminbot_nodes, adminbot_runtime, adminbot_triggers
+from . import (
+    adminbot_buttons,
+    adminbot_logs,
+    adminbot_nodes,
+    adminbot_runtime,
+    adminbot_triggers,
+)
 
 router = APIRouter(prefix="/adminbot", tags=["AdminBot"])
 
@@ -61,3 +67,4 @@ router.include_router(adminbot_nodes.router)
 router.include_router(adminbot_buttons.router)
 router.include_router(adminbot_triggers.router)
 router.include_router(adminbot_runtime.router)
+router.include_router(adminbot_logs.router)

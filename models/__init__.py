@@ -124,6 +124,19 @@ class BotTrigger(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=func.now(), nullable=False)
 
 
+class BotLog(Base):
+    __tablename__ = "bot_logs"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    user_id = Column(BigInteger, index=True, nullable=False)
+    username = Column(String(64), nullable=True)
+    event_type = Column(String(32), nullable=False)
+    node_code = Column(String(64), nullable=True)
+    details = Column(Text, nullable=True)
+    config_version = Column(Integer, nullable=False, default=1, server_default="1")
+
+
 class ProductBasket(Base):
     __tablename__ = "products_baskets"
 
