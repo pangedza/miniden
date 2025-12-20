@@ -103,6 +103,67 @@ def init_db() -> None:
 
     _ensure_optional_columns()
 
+    def _ensure_bot_constructor_extensions() -> None:
+        """Колонки и таблицы для узлов с ожиданием ввода."""
+
+        alter_statements = [
+            "ALTER TABLE bot_nodes ADD COLUMN IF NOT EXISTS node_type VARCHAR NOT NULL DEFAULT 'MESSAGE'",
+            "ALTER TABLE bot_nodes ADD COLUMN IF NOT EXISTS input_type VARCHAR",
+            "ALTER TABLE bot_nodes ADD COLUMN IF NOT EXISTS input_var_key VARCHAR",
+            "ALTER TABLE bot_nodes ADD COLUMN IF NOT EXISTS input_required BOOLEAN NOT NULL DEFAULT TRUE",
+            "ALTER TABLE bot_nodes ADD COLUMN IF NOT EXISTS input_min_len INTEGER",
+            "ALTER TABLE bot_nodes ADD COLUMN IF NOT EXISTS input_error_text TEXT",
+            "ALTER TABLE bot_nodes ADD COLUMN IF NOT EXISTS next_node_code_success VARCHAR",
+            "ALTER TABLE bot_nodes ADD COLUMN IF NOT EXISTS next_node_code_cancel VARCHAR",
+        ]
+
+        create_user_vars = """
+        CREATE TABLE IF NOT EXISTS user_vars (
+            id BIGSERIAL PRIMARY KEY,
+            user_id BIGINT NOT NULL,
+            key VARCHAR NOT NULL,
+            value TEXT NOT NULL,
+            updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+        );
+        """
+
+        create_user_vars_index = """
+        CREATE UNIQUE INDEX IF NOT EXISTS ix_user_vars_user_key
+            ON user_vars (user_id, key);
+        """
+
+        create_user_state = """
+        CREATE TABLE IF NOT EXISTS user_state (
+            user_id BIGINT PRIMARY KEY,
+            waiting_node_code VARCHAR NULL,
+            waiting_input_type VARCHAR NULL,
+            waiting_var_key VARCHAR NULL,
+            next_node_code_success VARCHAR NULL,
+            next_node_code_cancel VARCHAR NULL,
+            updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+        );
+        """
+
+        with engine.begin() as conn:
+            for statement in alter_statements:
+                conn.execute(text(statement))
+
+            conn.execute(text(create_user_vars))
+            conn.execute(text(create_user_vars_index))
+            conn.execute(text(create_user_state))
+
+            conn.execute(
+                text(
+                    """
+                    UPDATE bot_nodes
+                    SET node_type = COALESCE(NULLIF(node_type, ''), 'MESSAGE')
+                    WHERE node_type IS NULL OR node_type = ''
+                    """
+                )
+            )
+
+    _ensure_bot_constructor_extensions()
+
     def _ensure_admin_tables() -> None:
         create_admin_users = """
         CREATE TABLE IF NOT EXISTS admin_users (

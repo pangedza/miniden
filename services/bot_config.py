@@ -23,6 +23,14 @@ class NodeView:
     parse_mode: str
     image_url: str | None
     keyboard: InlineKeyboardMarkup | None
+    node_type: str
+    input_type: str | None
+    input_var_key: str | None
+    input_required: bool
+    input_min_len: int | None
+    input_error_text: str | None
+    next_node_code_success: str | None
+    next_node_code_cancel: str | None
 
 
 _cache: dict[str, object] = {"version": None, "nodes": {}}
@@ -87,6 +95,14 @@ def _reload_cache(session, version: int) -> None:
             parse_mode=node.parse_mode or "HTML",
             image_url=node.image_url,
             keyboard=keyboard,
+            node_type=node.node_type or "MESSAGE",
+            input_type=node.input_type,
+            input_var_key=node.input_var_key,
+            input_required=bool(node.input_required),
+            input_min_len=node.input_min_len,
+            input_error_text=node.input_error_text,
+            next_node_code_success=node.next_node_code_success,
+            next_node_code_cancel=node.next_node_code_cancel,
         )
 
     _cache["version"] = version

@@ -37,6 +37,14 @@ class BotNode(Base):
     message_text = Column(Text, nullable=False)
     parse_mode = Column(String, nullable=False, default="HTML", server_default="HTML")
     image_url = Column(Text, nullable=True)
+    node_type = Column(String, nullable=False, default="MESSAGE", server_default="MESSAGE")
+    input_type = Column(String, nullable=True)
+    input_var_key = Column(String, nullable=True)
+    input_required = Column(Boolean, nullable=False, default=True, server_default="true")
+    input_min_len = Column(Integer, nullable=True)
+    input_error_text = Column(Text, nullable=True)
+    next_node_code_success = Column(String, nullable=True)
+    next_node_code_cancel = Column(String, nullable=True)
     is_enabled = Column(Boolean, default=True, nullable=False, server_default="true")
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=func.now(), nullable=False)
@@ -264,6 +272,32 @@ class Favorite(Base):
 
 
 Index("ix_favorites_user_product_type", Favorite.user_id, Favorite.product_id, Favorite.type, unique=True)
+
+
+class UserVar(Base):
+    __tablename__ = "user_vars"
+
+    __table_args__ = (
+        Index("ix_user_vars_user_key", "user_id", "key", unique=True),
+    )
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    user_id = Column(BigInteger, index=True, nullable=False)
+    key = Column(String, index=True, nullable=False)
+    value = Column(Text, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=func.now(), nullable=False)
+
+
+class UserState(Base):
+    __tablename__ = "user_state"
+
+    user_id = Column(BigInteger, primary_key=True)
+    waiting_node_code = Column(String, nullable=True)
+    waiting_input_type = Column(String, nullable=True)
+    waiting_var_key = Column(String, nullable=True)
+    next_node_code_success = Column(String, nullable=True)
+    next_node_code_cancel = Column(String, nullable=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=func.now(), nullable=False)
 
 
 class CartItem(Base):
