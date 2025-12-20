@@ -45,6 +45,7 @@ class BotNode(Base):
     input_error_text = Column(Text, nullable=True)
     next_node_code_success = Column(String, nullable=True)
     next_node_code_cancel = Column(String, nullable=True)
+    next_node_code = Column(String, nullable=True)
     cond_var_key = Column(String, nullable=True)
     cond_operator = Column(String, nullable=True)
     cond_value = Column(Text, nullable=True)
@@ -77,6 +78,17 @@ class BotButton(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=func.now(), nullable=False)
 
     node = relationship("BotNode", back_populates="buttons")
+
+
+class BotNodeAction(Base):
+    __tablename__ = "bot_node_actions"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    node_code = Column(String(64), index=True, nullable=False)
+    action_type = Column(String(32), nullable=False)
+    action_payload = Column(JSONB, nullable=True)
+    sort_order = Column(Integer, nullable=False, default=0)
+    is_enabled = Column(Boolean, default=True, nullable=False, server_default="true")
 
 
 class BotAction(Base):
@@ -214,6 +226,19 @@ class User(Base):
 
     cart_items = relationship("CartItem", back_populates="user", cascade="all, delete-orphan")
     orders = relationship("Order", back_populates="user")
+
+
+class UserTag(Base):
+    __tablename__ = "user_tags"
+
+    __table_args__ = (
+        Index("ix_user_tags_user_tag", "user_id", "tag", unique=True),
+    )
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    user_id = Column(BigInteger, index=True, nullable=False)
+    tag = Column(String(64), index=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 
 class AdminNote(Base):

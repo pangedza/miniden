@@ -1,3 +1,4 @@
+import logging
 import re
 
 from aiogram import Router, types, F
@@ -11,9 +12,9 @@ from aiogram.types import (
     ReplyKeyboardRemove,
 )
 
-from config import ADMIN_IDS, get_settings
+from config import ADMIN_IDS, ADMIN_IDS_SET, get_settings
 from database import get_session
-from models import AuthSession, UserState, UserVar
+from models import AuthSession, User, UserState, UserTag, UserVar
 from services import users as users_service
 from keyboards.main_menu import get_main_menu
 from services.bot_config import NodeView, load_node
@@ -28,6 +29,7 @@ router = Router()
 
 
 VAR_PATTERN = re.compile(r"{{\s*([a-zA-Z0-9_]+)\s*}}")
+logger = logging.getLogger(__name__)
 
 
 async def _send_subscription_invite(target_message) -> None:
@@ -43,7 +45,8 @@ async def _send_message_node(
     settings = get_settings()
     keyboard = reply_markup if reply_markup is not None else node.keyboard
     photo = node.image_url or settings.banner_start or settings.start_banner_id
-    rendered_text = _apply_variables(node.message_text, user_vars)
+    context_vars = _build_template_context(message.from_user, user_vars)
+    rendered_text = _apply_variables(node.message_text, context_vars)
 
     if photo:
         await message.answer_photo(
@@ -80,6 +83,10 @@ async def _send_node(message: types.Message, node: NodeView, *, remove_reply_key
         is_true = _evaluate_condition(node, user_vars)
         target_code = node.next_node_code_true if is_true else node.next_node_code_false
         await _open_node_with_fallback(message, target_code)
+        return
+
+    if node.node_type == "ACTION":
+        await _execute_action_node(message, node, user_vars)
         return
 
     if node.node_type == "INPUT":
@@ -235,10 +242,20 @@ def _load_user_vars(user_id: int) -> dict[str, str]:
         return {row.key: row.value for row in vars_rows}
 
 
-def _apply_variables(text: str, user_vars: dict[str, str]) -> str:
+def _build_template_context(telegram_user: types.User | None, user_vars: dict[str, str]) -> dict[str, str]:
+    return {
+        **user_vars,
+        "telegram_id": str(telegram_user.id) if telegram_user else "",
+        "username": telegram_user.username or "" if telegram_user else "",
+        "first_name": telegram_user.first_name or "" if telegram_user else "",
+        "last_name": telegram_user.last_name or "" if telegram_user else "",
+    }
+
+
+def _apply_variables(text: str, context_vars: dict[str, str]) -> str:
     def _replace(match: re.Match[str]) -> str:
         key = match.group(1)
-        return user_vars.get(key, "")
+        return context_vars.get(key, "")
 
     return VAR_PATTERN.sub(_replace, text or "")
 
@@ -254,6 +271,34 @@ def _save_user_var(user_id: int, key: str, value: str) -> None:
             record.value = value
         else:
             session.add(UserVar(user_id=user_id, key=key, value=value))
+
+
+def _delete_user_var(user_id: int, key: str) -> None:
+    with get_session() as session:
+        session.query(UserVar).filter(UserVar.user_id == user_id, UserVar.key == key).delete()
+
+
+def _add_user_tag(user_id: int, tag: str) -> None:
+    normalized_tag = tag.strip()
+    if not normalized_tag:
+        return
+    with get_session() as session:
+        exists = (
+            session.query(UserTag)
+            .filter(UserTag.user_id == user_id, UserTag.tag == normalized_tag)
+            .first()
+        )
+        if exists:
+            return
+        session.add(UserTag(user_id=user_id, tag=normalized_tag))
+
+
+def _remove_user_tag(user_id: int, tag: str) -> None:
+    normalized_tag = tag.strip()
+    if not normalized_tag:
+        return
+    with get_session() as session:
+        session.query(UserTag).filter(UserTag.user_id == user_id, UserTag.tag == normalized_tag).delete()
 
 
 def _set_waiting_state(user_id: int, node: NodeView) -> None:
@@ -312,6 +357,153 @@ def _build_contact_keyboard(node: NodeView) -> ReplyKeyboardMarkup:
         buttons.append([KeyboardButton(text="Отмена")])
 
     return ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True, one_time_keyboard=True)
+
+
+def _build_request_keyboard(button_text: str, request_type: str) -> ReplyKeyboardMarkup:
+    if request_type == "contact":
+        btn = KeyboardButton(text=button_text or "Поделиться контактом", request_contact=True)
+    else:
+        btn = KeyboardButton(text=button_text or "Отправить геолокацию", request_location=True)
+    return ReplyKeyboardMarkup(keyboard=[[btn]], resize_keyboard=True, one_time_keyboard=True)
+
+
+def _get_admin_telegram_ids() -> list[int]:
+    admin_ids = set(ADMIN_IDS_SET)
+    with get_session() as session:
+        rows = session.query(User.telegram_id).filter(User.is_admin.is_(True)).all()
+        admin_ids.update([row[0] for row in rows if row and row[0]])
+    return [admin_id for admin_id in admin_ids if admin_id]
+
+
+def _parse_int(value: str | int | None, default: int = 0) -> int:
+    try:
+        return int(value) if value is not None else default
+    except Exception:
+        return default
+
+
+async def _execute_single_action(
+    message: types.Message, node: NodeView, action, user_vars: dict[str, str]
+) -> tuple[bool, str | None]:
+    action_type = (getattr(action, "action_type", "") or "").upper()
+    payload = getattr(action, "payload", {}) or {}
+    context = _build_template_context(message.from_user, user_vars)
+
+    try:
+        if action_type == "SET_VAR":
+            key = (payload.get("key") or "").strip()
+            if not key:
+                logger.error("[ACTION] SET_VAR: отсутствует ключ переменной (узел=%s)", node.code)
+                return False, None
+            value = _apply_variables(str(payload.get("value", "")), context)
+            user_vars[key] = value
+            _save_user_var(message.from_user.id, key, value)
+            return False, None
+
+        if action_type == "CLEAR_VAR":
+            key = (payload.get("key") or "").strip()
+            if not key:
+                logger.error("[ACTION] CLEAR_VAR: отсутствует ключ переменной (узел=%s)", node.code)
+                return False, None
+            user_vars.pop(key, None)
+            _delete_user_var(message.from_user.id, key)
+            return False, None
+
+        if action_type in {"INCREMENT_VAR", "DECREMENT_VAR"}:
+            key = (payload.get("key") or "").strip()
+            if not key:
+                logger.error("[ACTION] %s: отсутствует ключ переменной (узел=%s)", action_type, node.code)
+                return False, None
+            step = _parse_int(payload.get("step"), 1)
+            current = _parse_int(user_vars.get(key), 0)
+            delta = step if action_type == "INCREMENT_VAR" else -step
+            new_value = current + delta
+            user_vars[key] = str(new_value)
+            _save_user_var(message.from_user.id, key, str(new_value))
+            return False, None
+
+        if action_type == "ADD_TAG":
+            tag = (payload.get("tag") or "").strip()
+            if not tag:
+                logger.error("[ACTION] ADD_TAG: отсутствует тег (узел=%s)", node.code)
+                return False, None
+            _add_user_tag(message.from_user.id, tag)
+            return False, None
+
+        if action_type == "REMOVE_TAG":
+            tag = (payload.get("tag") or "").strip()
+            if not tag:
+                logger.error("[ACTION] REMOVE_TAG: отсутствует тег (узел=%s)", node.code)
+                return False, None
+            _remove_user_tag(message.from_user.id, tag)
+            return False, None
+
+        if action_type == "SEND_MESSAGE":
+            text = _apply_variables(str(payload.get("text", "")), context)
+            if not text:
+                logger.error("[ACTION] SEND_MESSAGE: пустой текст (узел=%s)", node.code)
+                return False, None
+            await message.answer(text, parse_mode=node.parse_mode)
+            return False, None
+
+        if action_type == "SEND_ADMIN_MESSAGE":
+            text = _apply_variables(str(payload.get("text", "")), context)
+            if not text:
+                logger.error("[ACTION] SEND_ADMIN_MESSAGE: пустой текст (узел=%s)", node.code)
+                return False, None
+            admin_ids = _get_admin_telegram_ids()
+            for admin_id in admin_ids:
+                try:
+                    await message.bot.send_message(admin_id, text, parse_mode=node.parse_mode)
+                except Exception as exc:  # noqa: WPS440
+                    logger.error("[ACTION] SEND_ADMIN_MESSAGE failed: %s", exc)
+            return False, None
+
+        if action_type == "GOTO_NODE":
+            target_code = (payload.get("node_code") or "").strip()
+            if not target_code:
+                logger.error("[ACTION] GOTO_NODE: отсутствует код узла (узел=%s)", node.code)
+                return False, None
+            return True, target_code
+
+        if action_type == "GOTO_MAIN":
+            return True, "MAIN_MENU"
+
+        if action_type == "STOP_FLOW":
+            return True, None
+
+        if action_type == "REQUEST_CONTACT":
+            text = _apply_variables(str(payload.get("text", "")), context)
+            keyboard = _build_request_keyboard(text or "Поделиться контактом", "contact")
+            await message.answer(text or "Поделитесь контактом", reply_markup=keyboard)
+            return False, None
+
+        if action_type == "REQUEST_LOCATION":
+            text = _apply_variables(str(payload.get("text", "")), context)
+            keyboard = _build_request_keyboard(text or "Отправить геолокацию", "location")
+            await message.answer(text or "Отправьте вашу геолокацию", reply_markup=keyboard)
+            return False, None
+
+        logger.error("[ACTION] Неизвестный тип действия: %s (узел=%s)", action_type, node.code)
+        return False, None
+    except Exception as exc:  # noqa: WPS440
+        logger.exception("[ACTION] Ошибка выполнения действия %s в узле %s: %s", action_type, node.code, exc)
+        return False, None
+
+
+async def _execute_action_node(message: types.Message, node: NodeView, user_vars: dict[str, str]) -> None:
+    _clear_user_state(message.from_user.id)
+    for action in sorted(node.actions, key=lambda a: (a.sort_order, a.action_type)):
+        if not action.is_enabled:
+            continue
+        stop_flow, next_code = await _execute_single_action(message, node, action, user_vars)
+        if stop_flow:
+            if next_code:
+                await _open_node_with_fallback(message, next_code)
+            return
+
+    if node.next_node_code:
+        await _open_node_with_fallback(message, node.next_node_code)
 
 
 # -------------------------------------------------------------------
