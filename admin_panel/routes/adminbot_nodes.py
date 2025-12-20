@@ -83,19 +83,33 @@ def _prepare_node_payload(
         if normalized_input_type not in INPUT_TYPES:
             return "Укажите тип ввода", {}
         if not normalized_var_key or not INPUT_KEY_REGEX.match(normalized_var_key):
-            return "Ключ переменной должен содержать латиницу, цифры и подчёркивание", {}
+            return (
+                "Некорректный ключ переменной. Разрешены латинские буквы, цифры и _ (пример: phone).",
+                {},
+            )
         if not normalized_next_success:
             return "Укажите код узла для перехода при успешном вводе", {}
 
     if normalized_node_type == "CONDITION":
-        if not normalized_cond_var_key or not INPUT_KEY_REGEX.match(normalized_cond_var_key):
-            return "Ключ переменной должен содержать латиницу, цифры и подчёркивание", {}
+        if not all(
+            [
+                normalized_cond_var_key,
+                normalized_cond_operator,
+                normalized_next_true,
+                normalized_next_false,
+            ]
+        ):
+            return "Заполните обязательные поля для узла «Условие».", {}
+
+        if not INPUT_KEY_REGEX.match(normalized_cond_var_key):
+            return (
+                "Некорректный ключ переменной. Разрешены латинские буквы, цифры и _ (пример: phone).",
+                {},
+            )
         if normalized_cond_operator not in CONDITION_OPERATORS:
-            return "Укажите корректный оператор условия", {}
+            return "Заполните обязательные поля для узла «Условие».", {}
         if normalized_cond_operator not in {"EXISTS", "NOT_EXISTS"} and not normalized_cond_value:
-            return "Укажите значение для сравнения", {}
-        if not normalized_next_true or not normalized_next_false:
-            return "Укажите коды узлов для переходов TRUE и FALSE", {}
+            return "Для выбранного оператора нужно значение для сравнения.", {}
 
     payload = {
         "title": title,
