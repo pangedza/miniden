@@ -18,6 +18,12 @@ from models import AuthSession, User, UserState, UserTag, UserVar
 from services import users as users_service
 from keyboards.main_menu import get_main_menu
 from services.bot_config import BotTriggerView, NodeView, load_node, load_triggers
+from services.bot_logging import (
+    log_action_event,
+    log_error_event,
+    log_node_event,
+    log_trigger_event,
+)
 from services.subscription import (
     ensure_subscribed,
     get_subscription_keyboard,
@@ -78,6 +84,11 @@ async def _send_input_node(message: types.Message, node: NodeView, user_vars: di
 
 async def _send_node(message: types.Message, node: NodeView, *, remove_reply_keyboard: bool = False) -> None:
     user_vars = _load_user_vars(message.from_user.id)
+    log_node_event(
+        user_id=message.from_user.id,
+        username=message.from_user.username,
+        node_code=node.code,
+    )
     if node.node_type == "CONDITION":
         _clear_user_state(message.from_user.id)
         is_true = _evaluate_condition(node, user_vars)
@@ -137,6 +148,12 @@ async def _open_node_by_code(message: types.Message, node_code: str) -> None:
     node = load_node(node_code)
     if not node:
         await message.answer("Ошибка конфигурации: узел перехода не найден.")
+        log_error_event(
+            user_id=message.from_user.id,
+            username=message.from_user.username,
+            node_code=node_code,
+            details="Узел перехода не найден",
+        )
         return
 
     await _send_node(message, node)
@@ -145,6 +162,12 @@ async def _open_node_by_code(message: types.Message, node_code: str) -> None:
 async def _open_node_with_fallback(message: types.Message, node_code: str | None) -> None:
     if not node_code:
         await message.answer("Ошибка конфигурации: узел перехода не найден.")
+        log_error_event(
+            user_id=message.from_user.id,
+            username=message.from_user.username,
+            node_code=node_code,
+            details="Не указан код узла для перехода",
+        )
         main_menu = load_node("MAIN_MENU")
         if main_menu:
             await _send_node(message, main_menu)
@@ -156,6 +179,12 @@ async def _open_node_with_fallback(message: types.Message, node_code: str | None
         return
 
     await message.answer("Ошибка конфигурации: узел перехода не найден.")
+    log_error_event(
+        user_id=message.from_user.id,
+        username=message.from_user.username,
+        node_code=node_code,
+        details="Запрошенный узел не найден, выполнен fallback",
+    )
     main_menu = load_node("MAIN_MENU")
     if main_menu:
         await _send_node(message, main_menu)
@@ -204,13 +233,34 @@ async def _process_triggers(message: types.Message) -> bool:
         trigger_type = (trigger.trigger_type or "").upper()
         if trigger_type == "COMMAND":
             if command and _matches_command_trigger(trigger, command):
+                log_trigger_event(
+                    user_id=message.from_user.id,
+                    username=message.from_user.username,
+                    trigger_type="COMMAND",
+                    trigger_value=trigger.trigger_value,
+                    target_node=trigger.target_node_code,
+                )
                 await _open_node_with_fallback(message, trigger.target_node_code)
                 return True
         elif trigger_type == "TEXT":
             if text_value and _matches_text_trigger(trigger, normalized_text):
+                log_trigger_event(
+                    user_id=message.from_user.id,
+                    username=message.from_user.username,
+                    trigger_type="TEXT",
+                    trigger_value=trigger.trigger_value,
+                    target_node=trigger.target_node_code,
+                )
                 await _open_node_with_fallback(message, trigger.target_node_code)
                 return True
         elif trigger_type == "FALLBACK":
+            log_trigger_event(
+                user_id=message.from_user.id,
+                username=message.from_user.username,
+                trigger_type="FALLBACK",
+                trigger_value=trigger.trigger_value,
+                target_node=trigger.target_node_code,
+            )
             await _open_node_with_fallback(message, trigger.target_node_code)
             return True
 
@@ -448,11 +498,25 @@ async def _execute_single_action(
     payload = getattr(action, "payload", {}) or {}
     context = _build_template_context(message.from_user, user_vars)
 
+    log_action_event(
+        user_id=message.from_user.id,
+        username=message.from_user.username,
+        node_code=node.code,
+        action_type=action_type,
+        payload=payload,
+    )
+
     try:
         if action_type == "SET_VAR":
             key = (payload.get("key") or "").strip()
             if not key:
                 logger.error("[ACTION] SET_VAR: отсутствует ключ переменной (узел=%s)", node.code)
+                log_error_event(
+                    user_id=message.from_user.id,
+                    username=message.from_user.username,
+                    node_code=node.code,
+                    details="SET_VAR: отсутствует ключ переменной",
+                )
                 return False, None
             value = _apply_variables(str(payload.get("value", "")), context)
             user_vars[key] = value
@@ -472,6 +536,12 @@ async def _execute_single_action(
             key = (payload.get("key") or "").strip()
             if not key:
                 logger.error("[ACTION] %s: отсутствует ключ переменной (узел=%s)", action_type, node.code)
+                log_error_event(
+                    user_id=message.from_user.id,
+                    username=message.from_user.username,
+                    node_code=node.code,
+                    details=f"{action_type}: отсутствует ключ переменной",
+                )
                 return False, None
             step = _parse_int(payload.get("step"), 1)
             current = _parse_int(user_vars.get(key), 0)
@@ -485,6 +555,12 @@ async def _execute_single_action(
             tag = (payload.get("tag") or "").strip()
             if not tag:
                 logger.error("[ACTION] ADD_TAG: отсутствует тег (узел=%s)", node.code)
+                log_error_event(
+                    user_id=message.from_user.id,
+                    username=message.from_user.username,
+                    node_code=node.code,
+                    details="ADD_TAG: отсутствует тег",
+                )
                 return False, None
             _add_user_tag(message.from_user.id, tag)
             return False, None
@@ -493,6 +569,12 @@ async def _execute_single_action(
             tag = (payload.get("tag") or "").strip()
             if not tag:
                 logger.error("[ACTION] REMOVE_TAG: отсутствует тег (узел=%s)", node.code)
+                log_error_event(
+                    user_id=message.from_user.id,
+                    username=message.from_user.username,
+                    node_code=node.code,
+                    details="REMOVE_TAG: отсутствует тег",
+                )
                 return False, None
             _remove_user_tag(message.from_user.id, tag)
             return False, None
@@ -501,6 +583,12 @@ async def _execute_single_action(
             text = _apply_variables(str(payload.get("text", "")), context)
             if not text:
                 logger.error("[ACTION] SEND_MESSAGE: пустой текст (узел=%s)", node.code)
+                log_error_event(
+                    user_id=message.from_user.id,
+                    username=message.from_user.username,
+                    node_code=node.code,
+                    details="SEND_MESSAGE: пустой текст",
+                )
                 return False, None
             await message.answer(text, parse_mode=node.parse_mode)
             return False, None
@@ -509,6 +597,12 @@ async def _execute_single_action(
             text = _apply_variables(str(payload.get("text", "")), context)
             if not text:
                 logger.error("[ACTION] SEND_ADMIN_MESSAGE: пустой текст (узел=%s)", node.code)
+                log_error_event(
+                    user_id=message.from_user.id,
+                    username=message.from_user.username,
+                    node_code=node.code,
+                    details="SEND_ADMIN_MESSAGE: пустой текст",
+                )
                 return False, None
             admin_ids = _get_admin_telegram_ids()
             for admin_id in admin_ids:
@@ -522,6 +616,12 @@ async def _execute_single_action(
             target_code = (payload.get("node_code") or "").strip()
             if not target_code:
                 logger.error("[ACTION] GOTO_NODE: отсутствует код узла (узел=%s)", node.code)
+                log_error_event(
+                    user_id=message.from_user.id,
+                    username=message.from_user.username,
+                    node_code=node.code,
+                    details="GOTO_NODE: отсутствует код узла",
+                )
                 return False, None
             return True, target_code
 
@@ -544,9 +644,21 @@ async def _execute_single_action(
             return False, None
 
         logger.error("[ACTION] Неизвестный тип действия: %s (узел=%s)", action_type, node.code)
+        log_error_event(
+            user_id=message.from_user.id,
+            username=message.from_user.username,
+            node_code=node.code,
+            details=f"Неизвестный тип действия: {action_type}",
+        )
         return False, None
     except Exception as exc:  # noqa: WPS440
         logger.exception("[ACTION] Ошибка выполнения действия %s в узле %s: %s", action_type, node.code, exc)
+        log_error_event(
+            user_id=message.from_user.id,
+            username=message.from_user.username,
+            node_code=node.code,
+            details=f"Ошибка выполнения действия {action_type}: {exc}",
+        )
         return False, None
 
 
@@ -759,6 +871,12 @@ async def handle_waiting_input(message: types.Message):
     if not node:
         await message.answer("Ошибка конфигурации: узел не найден")
         _clear_user_state(message.from_user.id)
+        log_error_event(
+            user_id=message.from_user.id,
+            username=message.from_user.username,
+            node_code=state.waiting_node_code,
+            details="Ожидаемый узел ввода не найден",
+        )
         return
 
     if state.next_node_code_cancel and (message.text or "").strip().lower() == "отмена":
@@ -778,6 +896,12 @@ async def handle_waiting_input(message: types.Message):
 
     if not node.next_node_code_success:
         await message.answer("Ошибка конфигурации: узел не найден")
+        log_error_event(
+            user_id=message.from_user.id,
+            username=message.from_user.username,
+            node_code=node.code,
+            details="Не указан next_node_code_success для узла INPUT",
+        )
         return
 
     await _open_node_by_code(message, node.next_node_code_success)
