@@ -15,8 +15,21 @@ router = APIRouter(tags=["AdminBot"])
 
 ALLOWED_ROLES = (AdminRole.superadmin, AdminRole.admin_bot)
 
-NODE_TYPES = {"MESSAGE", "INPUT"}
+NODE_TYPES = {"MESSAGE", "INPUT", "CONDITION"}
 INPUT_TYPES = {"TEXT", "NUMBER", "PHONE_TEXT", "CONTACT"}
+CONDITION_OPERATORS = {
+    "EXISTS",
+    "NOT_EXISTS",
+    "EQ",
+    "NEQ",
+    "CONTAINS",
+    "STARTS_WITH",
+    "ENDS_WITH",
+    "GT",
+    "GTE",
+    "LT",
+    "LTE",
+}
 INPUT_KEY_REGEX = re.compile(r"^[a-zA-Z][a-zA-Z0-9_]{1,32}$")
 
 
@@ -45,12 +58,23 @@ def _prepare_node_payload(
     input_error_text: str | None,
     next_node_code_success: str | None,
     next_node_code_cancel: str | None,
+    cond_var_key: str | None,
+    cond_operator: str | None,
+    cond_value: str | None,
+    next_node_code_true: str | None,
+    next_node_code_false: str | None,
 ) -> tuple[str | None, dict]:
     normalized_node_type = (node_type or "MESSAGE").strip().upper()
     normalized_input_type = (input_type or "").strip().upper() or None
     normalized_var_key = (input_var_key or "").strip() or None
     normalized_next_success = (next_node_code_success or "").strip() or None
     normalized_next_cancel = (next_node_code_cancel or "").strip() or None
+    normalized_cond_var_key = (cond_var_key or "").strip() or None
+    normalized_cond_operator = (cond_operator or "").strip().upper() or None
+    normalized_cond_value = (cond_value or "").strip()
+    normalized_cond_value = normalized_cond_value if normalized_cond_value else None
+    normalized_next_true = (next_node_code_true or "").strip() or None
+    normalized_next_false = (next_node_code_false or "").strip() or None
 
     if normalized_node_type not in NODE_TYPES:
         return "Некорректный тип узла", {}
@@ -62,6 +86,16 @@ def _prepare_node_payload(
             return "Ключ переменной должен содержать латиницу, цифры и подчёркивание", {}
         if not normalized_next_success:
             return "Укажите код узла для перехода при успешном вводе", {}
+
+    if normalized_node_type == "CONDITION":
+        if not normalized_cond_var_key or not INPUT_KEY_REGEX.match(normalized_cond_var_key):
+            return "Ключ переменной должен содержать латиницу, цифры и подчёркивание", {}
+        if normalized_cond_operator not in CONDITION_OPERATORS:
+            return "Укажите корректный оператор условия", {}
+        if normalized_cond_operator not in {"EXISTS", "NOT_EXISTS"} and not normalized_cond_value:
+            return "Укажите значение для сравнения", {}
+        if not normalized_next_true or not normalized_next_false:
+            return "Укажите коды узлов для переходов TRUE и FALSE", {}
 
     payload = {
         "title": title,
@@ -77,6 +111,11 @@ def _prepare_node_payload(
         "input_error_text": input_error_text or None,
         "next_node_code_success": normalized_next_success,
         "next_node_code_cancel": normalized_next_cancel,
+        "cond_var_key": normalized_cond_var_key,
+        "cond_operator": normalized_cond_operator,
+        "cond_value": normalized_cond_value,
+        "next_node_code_true": normalized_next_true,
+        "next_node_code_false": normalized_next_false,
     }
 
     if normalized_node_type != "INPUT":
@@ -89,6 +128,17 @@ def _prepare_node_payload(
                 "input_error_text": None,
                 "next_node_code_success": None,
                 "next_node_code_cancel": None,
+            }
+        )
+
+    if normalized_node_type != "CONDITION":
+        payload.update(
+            {
+                "cond_var_key": None,
+                "cond_operator": None,
+                "cond_value": None,
+                "next_node_code_true": None,
+                "next_node_code_false": None,
             }
         )
 
@@ -151,6 +201,11 @@ async def create_node(
     input_error_text: str | None = Form(None),
     next_node_code_success: str | None = Form(None),
     next_node_code_cancel: str | None = Form(None),
+    cond_var_key: str | None = Form(None),
+    cond_operator: str | None = Form(None),
+    cond_value: str | None = Form(None),
+    next_node_code_true: str | None = Form(None),
+    next_node_code_false: str | None = Form(None),
     db: Session = Depends(get_db_session),
 ):
     user = require_admin(request, db, roles=ALLOWED_ROLES)
@@ -185,6 +240,11 @@ async def create_node(
         input_error_text=input_error_text,
         next_node_code_success=next_node_code_success,
         next_node_code_cancel=next_node_code_cancel,
+        cond_var_key=cond_var_key,
+        cond_operator=cond_operator,
+        cond_value=cond_value,
+        next_node_code_true=next_node_code_true,
+        next_node_code_false=next_node_code_false,
     )
 
     if error:
@@ -248,6 +308,11 @@ async def edit_node(
     input_error_text: str | None = Form(None),
     next_node_code_success: str | None = Form(None),
     next_node_code_cancel: str | None = Form(None),
+    cond_var_key: str | None = Form(None),
+    cond_operator: str | None = Form(None),
+    cond_value: str | None = Form(None),
+    next_node_code_true: str | None = Form(None),
+    next_node_code_false: str | None = Form(None),
     db: Session = Depends(get_db_session),
 ):
     user = require_admin(request, db, roles=ALLOWED_ROLES)
@@ -272,6 +337,11 @@ async def edit_node(
         input_error_text=input_error_text,
         next_node_code_success=next_node_code_success,
         next_node_code_cancel=next_node_code_cancel,
+        cond_var_key=cond_var_key,
+        cond_operator=cond_operator,
+        cond_value=cond_value,
+        next_node_code_true=next_node_code_true,
+        next_node_code_false=next_node_code_false,
     )
 
     if error:

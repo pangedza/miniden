@@ -75,6 +75,13 @@ async def _send_input_node(message: types.Message, node: NodeView, user_vars: di
 
 async def _send_node(message: types.Message, node: NodeView, *, remove_reply_keyboard: bool = False) -> None:
     user_vars = _load_user_vars(message.from_user.id)
+    if node.node_type == "CONDITION":
+        _clear_user_state(message.from_user.id)
+        is_true = _evaluate_condition(node, user_vars)
+        target_code = node.next_node_code_true if is_true else node.next_node_code_false
+        await _open_node_with_fallback(message, target_code)
+        return
+
     if node.node_type == "INPUT":
         await _send_input_node(message, node, user_vars)
     else:
@@ -126,6 +133,67 @@ async def _open_node_by_code(message: types.Message, node_code: str) -> None:
         return
 
     await _send_node(message, node)
+
+
+async def _open_node_with_fallback(message: types.Message, node_code: str | None) -> None:
+    if not node_code:
+        await message.answer("Ошибка конфигурации: узел не найден")
+        return
+
+    node = load_node(node_code)
+    if node:
+        await _send_node(message, node)
+        return
+
+    await message.answer("Ошибка конфигурации: узел не найден")
+    main_menu = load_node("MAIN_MENU")
+    if main_menu:
+        await _send_node(message, main_menu)
+
+
+def _evaluate_condition(node: NodeView, user_vars: dict[str, str]) -> bool:
+    operator = (node.cond_operator or "").upper()
+    var_key = node.cond_var_key or ""
+    value = user_vars.get(var_key)
+
+    if operator == "EXISTS":
+        return bool(value)
+    if operator == "NOT_EXISTS":
+        return not value
+
+    if value is None:
+        return False
+
+    left = str(value)
+    right = node.cond_value or ""
+
+    if operator == "EQ":
+        return left == right
+    if operator == "NEQ":
+        return left != right
+    if operator == "CONTAINS":
+        return right in left
+    if operator == "STARTS_WITH":
+        return left.startswith(right)
+    if operator == "ENDS_WITH":
+        return left.endswith(right)
+    if operator in {"GT", "GTE", "LT", "LTE"}:
+        try:
+            left_num = float(left)
+            right_num = float(right)
+        except Exception:
+            return False
+
+        if operator == "GT":
+            return left_num > right_num
+        if operator == "GTE":
+            return left_num >= right_num
+        if operator == "LT":
+            return left_num < right_num
+        if operator == "LTE":
+            return left_num <= right_num
+
+    return False
 
 
 async def _handle_cancel_action(message: types.Message, state: UserState) -> None:

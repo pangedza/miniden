@@ -40,6 +40,7 @@
             <select name="node_type" id="node_type_select">
                 <option value="MESSAGE" {% if node is none or node.node_type == 'MESSAGE' %}selected{% endif %}>Сообщение</option>
                 <option value="INPUT" {% if node and node.node_type == 'INPUT' %}selected{% endif %}>Ожидание ввода</option>
+                <option value="CONDITION" {% if node and node.node_type == 'CONDITION' %}selected{% endif %}>Условие (если/иначе)</option>
             </select>
             <div class="hint">Выберите поведение узла.</div>
         </div>
@@ -111,6 +112,51 @@
         </div>
     </div>
 
+    <div id="condition_settings" class="card" style="display:none;">
+        <h3>Настройка условия</h3>
+        <div class="row">
+            <div>
+                <label>Переменная</label>
+                <input type="text" name="cond_var_key" id="cond_var_key_input" value="{{ node.cond_var_key if node else '' }}" placeholder="например: phone">
+                <div class="hint">Берётся из user_vars (переменные пользователя).</div>
+            </div>
+            <div>
+                <label>Оператор</label>
+                <select name="cond_operator" id="cond_operator_select">
+                    <option value="" disabled {% if node is none or not node.cond_operator %}selected{% endif %}>Выберите</option>
+                    <option value="EXISTS" {% if node and node.cond_operator == 'EXISTS' %}selected{% endif %}>Существует</option>
+                    <option value="NOT_EXISTS" {% if node and node.cond_operator == 'NOT_EXISTS' %}selected{% endif %}>Не существует</option>
+                    <option value="EQ" {% if node and node.cond_operator == 'EQ' %}selected{% endif %}>Равно</option>
+                    <option value="NEQ" {% if node and node.cond_operator == 'NEQ' %}selected{% endif %}>Не равно</option>
+                    <option value="CONTAINS" {% if node and node.cond_operator == 'CONTAINS' %}selected{% endif %}>Содержит</option>
+                    <option value="STARTS_WITH" {% if node and node.cond_operator == 'STARTS_WITH' %}selected{% endif %}>Начинается с</option>
+                    <option value="ENDS_WITH" {% if node and node.cond_operator == 'ENDS_WITH' %}selected{% endif %}>Заканчивается на</option>
+                    <option value="GT" {% if node and node.cond_operator == 'GT' %}selected{% endif %}>Больше (число)</option>
+                    <option value="GTE" {% if node and node.cond_operator == 'GTE' %}selected{% endif %}>Больше или равно (число)</option>
+                    <option value="LT" {% if node and node.cond_operator == 'LT' %}selected{% endif %}>Меньше (число)</option>
+                    <option value="LTE" {% if node and node.cond_operator == 'LTE' %}selected{% endif %}>Меньше или равно (число)</option>
+                </select>
+            </div>
+        </div>
+
+        <label>Значение</label>
+        <input type="text" name="cond_value" id="cond_value_input" value="{{ node.cond_value if node else '' }}" placeholder="например: +7">
+        <div class="hint">Не нужно для «Существует/Не существует».</div>
+
+        <div class="row">
+            <div>
+                <label>Переход если TRUE (код узла)</label>
+                <input type="text" name="next_node_code_true" id="next_node_code_true_input" value="{{ node.next_node_code_true if node else '' }}" placeholder="например: MAIN_MENU">
+            </div>
+            <div>
+                <label>Переход если FALSE (код узла)</label>
+                <input type="text" name="next_node_code_false" id="next_node_code_false_input" value="{{ node.next_node_code_false if node else '' }}" placeholder="например: ASK_PHONE">
+            </div>
+        </div>
+
+        <div class="hint">Узел не отправляет сообщение. Он сразу переводит по TRUE/FALSE.</div>
+    </div>
+
     <div class="actions">
         <button type="submit" class="button">Сохранить</button>
         <a href="/adminbot/nodes" class="button" style="background:#6b7280;">Назад</a>
@@ -120,6 +166,12 @@
 <script>
     const nodeTypeSelect = document.getElementById('node_type_select');
     const inputSettings = document.getElementById('input_settings');
+    const conditionSettings = document.getElementById('condition_settings');
+    const condVarKeyInput = document.getElementById('cond_var_key_input');
+    const condOperatorSelect = document.getElementById('cond_operator_select');
+    const condValueInput = document.getElementById('cond_value_input');
+    const nextNodeTrueInput = document.getElementById('next_node_code_true_input');
+    const nextNodeFalseInput = document.getElementById('next_node_code_false_input');
 
     function toggleInputSettings() {
         if (nodeTypeSelect.value === 'INPUT') {
@@ -127,9 +179,22 @@
         } else {
             inputSettings.style.display = 'none';
         }
+        if (nodeTypeSelect.value === 'CONDITION') {
+            conditionSettings.style.display = 'block';
+        } else {
+            conditionSettings.style.display = 'none';
+        }
+
+        const conditionRequired = nodeTypeSelect.value === 'CONDITION';
+        condVarKeyInput.required = conditionRequired;
+        condOperatorSelect.required = conditionRequired;
+        nextNodeTrueInput.required = conditionRequired;
+        nextNodeFalseInput.required = conditionRequired;
+        condValueInput.required = conditionRequired && !['EXISTS', 'NOT_EXISTS'].includes(condOperatorSelect.value || '');
     }
 
     nodeTypeSelect.addEventListener('change', toggleInputSettings);
+    condOperatorSelect.addEventListener('change', toggleInputSettings);
     toggleInputSettings();
 </script>
 </body>
