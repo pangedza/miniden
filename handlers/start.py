@@ -17,7 +17,7 @@ from database import get_session
 from models import AuthSession, User, UserState, UserTag, UserVar
 from services import users as users_service
 from keyboards.main_menu import get_main_menu
-from services.bot_config import NodeView, load_node
+from services.bot_config import BotTriggerView, NodeView, load_node, load_triggers
 from services.subscription import (
     ensure_subscribed,
     get_subscription_keyboard,
@@ -145,6 +145,9 @@ async def _open_node_by_code(message: types.Message, node_code: str) -> None:
 async def _open_node_with_fallback(message: types.Message, node_code: str | None) -> None:
     if not node_code:
         await message.answer("Ошибка конфигурации: узел перехода не найден.")
+        main_menu = load_node("MAIN_MENU")
+        if main_menu:
+            await _send_node(message, main_menu)
         return
 
     node = load_node(node_code)
@@ -156,6 +159,62 @@ async def _open_node_with_fallback(message: types.Message, node_code: str | None
     main_menu = load_node("MAIN_MENU")
     if main_menu:
         await _send_node(message, main_menu)
+
+
+def _extract_command(text: str) -> str:
+    normalized = text.strip()
+    if not normalized.startswith("/"):
+        return ""
+    return normalized[1:].split(maxsplit=1)[0].lower()
+
+
+def _matches_text_trigger(trigger: BotTriggerView, normalized_text: str) -> bool:
+    value = (trigger.trigger_value or "").strip().lower()
+    if not value:
+        return False
+
+    mode = (trigger.match_mode or "EXACT").upper()
+    if mode == "CONTAINS":
+        return value in normalized_text
+    if mode == "STARTS_WITH":
+        return normalized_text.startswith(value)
+    return normalized_text == value
+
+
+def _matches_command_trigger(trigger: BotTriggerView, command: str) -> bool:
+    value = (trigger.trigger_value or "").strip().lower()
+    if not value:
+        return False
+
+    mode = (trigger.match_mode or "EXACT").upper()
+    if mode == "STARTS_WITH":
+        return command.startswith(value)
+    if mode == "CONTAINS":
+        return value in command
+    return command == value
+
+
+async def _process_triggers(message: types.Message) -> bool:
+    text_value = (message.text or "").strip()
+    normalized_text = text_value.lower()
+    command = _extract_command(text_value)
+    triggers = load_triggers()
+
+    for trigger in triggers:
+        trigger_type = (trigger.trigger_type or "").upper()
+        if trigger_type == "COMMAND":
+            if command and _matches_command_trigger(trigger, command):
+                await _open_node_with_fallback(message, trigger.target_node_code)
+                return True
+        elif trigger_type == "TEXT":
+            if text_value and _matches_text_trigger(trigger, normalized_text):
+                await _open_node_with_fallback(message, trigger.target_node_code)
+                return True
+        elif trigger_type == "FALLBACK":
+            await _open_node_with_fallback(message, trigger.target_node_code)
+            return True
+
+    return False
 
 
 def _evaluate_condition(node: NodeView, user_vars: dict[str, str]) -> bool:
@@ -556,6 +615,9 @@ async def cmd_start(message: types.Message):
         return
 
     if await ensure_subscribed(message, message.bot, is_admin=is_admin):
+        if await _process_triggers(message):
+            return
+
         await _send_start_screen(message, is_admin=is_admin)
 
 
@@ -719,3 +781,8 @@ async def handle_waiting_input(message: types.Message):
         return
 
     await _open_node_by_code(message, node.next_node_code_success)
+
+
+@router.message(F.text)
+async def handle_triggers(message: types.Message):
+    await _process_triggers(message)

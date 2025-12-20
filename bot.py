@@ -50,12 +50,12 @@ async def main() -> None:
     dp.callback_query.middleware(EnsureUserMiddleware())
 
     # Подключаем актуальные роутеры
-    dp.include_router(start.router)
     dp.include_router(admin.router)
     dp.include_router(webapp.router)
     dp.include_router(faq.faq_router)
     dp.include_router(site_chat.site_chat_router)
     dp.include_router(support.support_router)
+    dp.include_router(start.router)
 
     # Старт поллинга
     await bot.delete_webhook(drop_pending_updates=True)
