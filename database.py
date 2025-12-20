@@ -53,7 +53,7 @@ def get_session() -> Iterator[Session]:
 def init_db() -> None:
     from config import ADMIN_IDS_SET  # noqa: WPS433
     from models import Base, HomeBanner, User  # noqa: WPS433
-    from models import BotAction, BotButton, BotNode, BotRuntime  # noqa: WPS433
+    from models import BotAction, BotButton, BotNode, BotRuntime, BotTrigger  # noqa: WPS433
 
     Base.metadata.create_all(bind=engine)
 
@@ -197,6 +197,49 @@ def init_db() -> None:
             )
 
     _ensure_bot_constructor_extensions()
+
+    def _seed_bot_triggers() -> None:
+        with SessionLocal() as session:
+            existing = {
+                (trigger.trigger_type or "", (trigger.trigger_value or "").strip()): trigger
+                for trigger in session.query(BotTrigger).all()
+            }
+
+            seeds = [
+                {
+                    "trigger_type": "COMMAND",
+                    "trigger_value": "start",
+                    "match_mode": "EXACT",
+                    "target_node_code": "MAIN_MENU",
+                    "priority": 1,
+                },
+                {
+                    "trigger_type": "FALLBACK",
+                    "trigger_value": None,
+                    "match_mode": "EXACT",
+                    "target_node_code": "MAIN_MENU",
+                    "priority": 9999,
+                },
+            ]
+
+            for seed in seeds:
+                lookup_key = (seed["trigger_type"], (seed.get("trigger_value") or "").strip())
+                if lookup_key in existing:
+                    continue
+
+                session.add(
+                    BotTrigger(
+                        trigger_type=seed["trigger_type"],
+                        trigger_value=seed.get("trigger_value"),
+                        match_mode=seed.get("match_mode", "EXACT"),
+                        target_node_code=seed["target_node_code"],
+                        priority=seed.get("priority", 100),
+                        is_enabled=True,
+                    )
+                )
+            session.commit()
+
+    _seed_bot_triggers()
 
     def _ensure_admin_tables() -> None:
         create_admin_users = """

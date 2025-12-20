@@ -110,6 +110,20 @@ class BotRuntime(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=func.now(), nullable=True)
 
 
+class BotTrigger(Base):
+    __tablename__ = "bot_triggers"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    trigger_type = Column(String(16), nullable=False)
+    trigger_value = Column(Text, nullable=True)
+    match_mode = Column(String(16), nullable=False, default="EXACT", server_default="EXACT")
+    target_node_code = Column(String(64), nullable=False)
+    priority = Column(Integer, nullable=False, default=100, server_default="100")
+    is_enabled = Column(Boolean, default=True, nullable=False, server_default="true")
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=func.now(), nullable=False)
+
+
 class ProductBasket(Base):
     __tablename__ = "products_baskets"
 

@@ -10,7 +10,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from sqlalchemy.orm import selectinload
 
 from database import get_session
-from models import BotButton, BotNode, BotNodeAction, BotRuntime
+from models import BotButton, BotNode, BotNodeAction, BotRuntime, BotTrigger
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +48,18 @@ class NodeActionView:
     is_enabled: bool
 
 
-_cache: dict[str, object] = {"version": None, "nodes": {}}
+@dataclass
+class BotTriggerView:
+    id: int
+    trigger_type: str
+    trigger_value: str | None
+    match_mode: str
+    target_node_code: str
+    priority: int
+    is_enabled: bool
+
+
+_cache: dict[str, object] = {"version": None, "nodes": {}, "triggers": []}
 
 
 def get_config_version(session=None) -> int:
@@ -143,9 +154,38 @@ def _reload_cache(session, version: int) -> None:
             actions=actions_map.get(node.code, []),
         )
 
+    triggers = (
+        session.query(BotTrigger)
+        .filter(BotTrigger.is_enabled.is_(True))
+        .order_by(BotTrigger.trigger_type, BotTrigger.priority, BotTrigger.id)
+        .all()
+    )
+    type_order = {"COMMAND": 0, "TEXT": 1, "FALLBACK": 2}
+    prepared_triggers = [
+        BotTriggerView(
+            id=trigger.id,
+            trigger_type=trigger.trigger_type or "",
+            trigger_value=trigger.trigger_value,
+            match_mode=trigger.match_mode or "EXACT",
+            target_node_code=trigger.target_node_code or "",
+            priority=trigger.priority or 100,
+            is_enabled=bool(trigger.is_enabled),
+        )
+        for trigger in sorted(
+            triggers,
+            key=lambda t: (type_order.get((t.trigger_type or "").upper(), 99), t.priority or 0, t.id),
+        )
+    ]
+
     _cache["version"] = version
     _cache["nodes"] = prepared
-    logger.info("Bot config cache reloaded (version=%s, nodes=%s)", version, len(prepared))
+    _cache["triggers"] = prepared_triggers
+    logger.info(
+        "Bot config cache reloaded (version=%s, nodes=%s, triggers=%s)",
+        version,
+        len(prepared),
+        len(prepared_triggers),
+    )
 
 
 def load_node(code: str) -> Optional[NodeView]:
@@ -156,3 +196,12 @@ def load_node(code: str) -> Optional[NodeView]:
 
         nodes: Dict[str, NodeView] = _cache.get("nodes", {})  # type: ignore[assignment]
         return nodes.get(code)
+
+
+def load_triggers() -> list[BotTriggerView]:
+    with get_session() as session:
+        db_version = get_config_version(session)
+        if _cache.get("version") != db_version:
+            _reload_cache(session, db_version)
+
+        return list(_cache.get("triggers", []))  # type: ignore[list-item]

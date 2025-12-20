@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ 'Редактировать триггер' if trigger else 'Создать триггер' }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 16px; background: #f8fafc; }
+        header { display: flex; gap: 12px; margin-bottom: 16px; }
+        form { background: #fff; padding: 16px; border: 1px solid #cbd5e1; border-radius: 8px; max-width: 720px; }
+        label { display: block; margin-bottom: 12px; }
+        input[type="text"], input[type="number"], select { width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px; }
+        .actions { display: flex; gap: 8px; margin-top: 16px; }
+        a.button, button { padding: 8px 12px; background: #2563eb; color: #fff; text-decoration: none; border: none; border-radius: 4px; cursor: pointer; }
+        .error { color: #dc2626; margin-bottom: 12px; }
+        small { color: #475569; }
+        .checkbox { display: flex; align-items: center; gap: 8px; }
+    </style>
+</head>
+<body>
+<header>
+    <a href="/adminbot" class="button">Главная</a>
+    <a href="/adminbot/nodes" class="button">Узлы</a>
+    <a href="/adminbot/triggers" class="button">Триггеры</a>
+    <a href="/adminbot/runtime" class="button">Runtime</a>
+    <a href="/adminbot/logout" class="button" style="background:#dc2626;">Выйти</a>
+</header>
+<h2>{{ 'Редактировать триггер' if trigger else 'Создать триггер' }}</h2>
+{% if error %}
+<p class="error">{{ error }}</p>
+{% endif %}
+<form method="post" action="{{ '/adminbot/triggers/' ~ trigger.id ~ '/edit' if trigger else '/adminbot/triggers/new' }}">
+    <label>
+        Тип триггера
+        <select name="trigger_type" id="trigger_type" required>
+            {% for key, label in trigger_types.items() %}
+            {% set selected = (form.trigger_type if form else (trigger.trigger_type if trigger else '')) %}
+            <option value="{{ key }}" {% if selected == key %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+    </label>
+
+    <div id="value_block">
+        <label>
+            Значение
+            {% set current_value = form.trigger_value if form else (trigger.trigger_value if trigger else '') %}
+            <input type="text" name="trigger_value" id="trigger_value" value="{{ current_value or '' }}" placeholder="Например: start (без /)" />
+            <small>Для команды вводите без символа '/'.</small>
+        </label>
+    </div>
+
+    <div id="match_mode_block">
+        <label>
+            Режим совпадения
+            {% set current_mode = form.match_mode if form else (trigger.match_mode if trigger else 'EXACT') %}
+            <select name="match_mode" id="match_mode">
+                {% for key, label in match_modes.items() %}
+                <option value="{{ key }}" {% if current_mode == key %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </label>
+    </div>
+
+    <label>
+        Код узла назначения
+        {% set current_target = form.target_node_code if form else (trigger.target_node_code if trigger else '') %}
+        <input type="text" name="target_node_code" required value="{{ current_target }}" placeholder="например: MAIN_MENU" />
+    </label>
+
+    <label>
+        Приоритет
+        {% set current_priority = form.priority if form else (trigger.priority if trigger else 100) %}
+        <input type="number" name="priority" value="{{ current_priority }}" />
+        <small>Чем меньше число — тем раньше сработает.</small>
+    </label>
+
+    <label class="checkbox">
+        {% set enabled = form.is_enabled if form is defined else (trigger.is_enabled if trigger else True) %}
+        <input type="checkbox" name="is_enabled" value="true" {% if enabled %}checked{% endif %} />
+        Включен
+    </label>
+
+    <div class="actions">
+        <button type="submit">Сохранить</button>
+        <a href="/adminbot/triggers" class="button">Назад</a>
+    </div>
+</form>
+
+<script>
+function updateVisibility() {
+    const typeSelect = document.getElementById('trigger_type');
+    const valueBlock = document.getElementById('value_block');
+    const matchModeBlock = document.getElementById('match_mode_block');
+    const valueInput = document.getElementById('trigger_value');
+
+    if (!typeSelect) return;
+    const currentType = typeSelect.value;
+
+    if (currentType === 'FALLBACK') {
+        valueBlock.style.display = 'none';
+        valueInput.value = '';
+    } else {
+        valueBlock.style.display = 'block';
+    }
+
+    matchModeBlock.style.display = currentType === 'TEXT' ? 'block' : 'none';
+}
+
+document.getElementById('trigger_type').addEventListener('change', updateVisibility);
+updateVisibility();
+</script>
+</body>
+</html>
