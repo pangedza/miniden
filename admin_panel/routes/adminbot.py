@@ -17,8 +17,9 @@ router = APIRouter(prefix="/adminbot", tags=["AdminBot"])
 ALLOWED_ROLES = (AdminRole.superadmin, AdminRole.admin_bot)
 
 
-def _login_redirect() -> RedirectResponse:
-    return RedirectResponse(url="/login?next=/adminbot", status_code=303)
+def _login_redirect(next_url: str | None = None) -> RedirectResponse:
+    target = next_url or "/adminbot"
+    return RedirectResponse(url=f"/login?next={target}", status_code=303)
 
 
 @router.get("/login")
@@ -44,7 +45,7 @@ async def dashboard(
 ):
     user = require_admin(request, db, roles=ALLOWED_ROLES)
     if not user:
-        return _login_redirect()
+        return _login_redirect(request.url.path)
 
     return TEMPLATES.TemplateResponse(
         "adminbot/dashboard.html", {"request": request, "user": user}

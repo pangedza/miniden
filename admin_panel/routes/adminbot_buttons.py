@@ -11,7 +11,7 @@ from admin_panel.dependencies import get_db_session, require_admin
 from models import BotButton, BotNode
 from models.admin_user import AdminRole
 
-router = APIRouter(prefix="/adminbot", tags=["AdminBot"])
+router = APIRouter(tags=["AdminBot"])
 
 ALLOWED_ROLES = (AdminRole.superadmin, AdminRole.admin_bot)
 
@@ -23,8 +23,14 @@ BUTTON_TYPES = [
 ]
 
 
-def _login_redirect() -> RedirectResponse:
-    return RedirectResponse(url="/login?next=/adminbot", status_code=303)
+def _login_redirect(next_url: str | None = None) -> RedirectResponse:
+    target = next_url or "/adminbot"
+    return RedirectResponse(url=f"/login?next={target}", status_code=303)
+
+
+def _next_from_request(request: Request) -> str:
+    query = f"?{request.url.query}" if request.url.query else ""
+    return f"{request.url.path}{query}"
 
 
 def _validate_button_payload(button_type: str, payload: str) -> str | None:
@@ -52,7 +58,7 @@ async def list_buttons(
 ):
     user = require_admin(request, db, roles=ALLOWED_ROLES)
     if not user:
-        return _login_redirect()
+        return _login_redirect(_next_from_request(request))
 
     node = _get_node(db, node_id)
     if not node:
@@ -84,7 +90,7 @@ async def new_button_form(
 ):
     user = require_admin(request, db, roles=ALLOWED_ROLES)
     if not user:
-        return _login_redirect()
+        return _login_redirect(_next_from_request(request))
 
     node = _get_node(db, node_id)
     if not node:
@@ -117,7 +123,7 @@ async def create_button(
 ):
     user = require_admin(request, db, roles=ALLOWED_ROLES)
     if not user:
-        return _login_redirect()
+        return _login_redirect(_next_from_request(request))
 
     node = _get_node(db, node_id)
     if not node:
@@ -169,7 +175,7 @@ async def edit_button_form(
 ):
     user = require_admin(request, db, roles=ALLOWED_ROLES)
     if not user:
-        return _login_redirect()
+        return _login_redirect(_next_from_request(request))
 
     button = db.get(BotButton, button_id)
     if not button:
@@ -206,7 +212,7 @@ async def update_button(
 ):
     user = require_admin(request, db, roles=ALLOWED_ROLES)
     if not user:
-        return _login_redirect()
+        return _login_redirect(_next_from_request(request))
 
     button = db.get(BotButton, button_id)
     if not button:
@@ -259,7 +265,7 @@ async def move_button(
 ):
     user = require_admin(request, db, roles=ALLOWED_ROLES)
     if not user:
-        return _login_redirect()
+        return _login_redirect(_next_from_request(request))
 
     button = db.get(BotButton, button_id)
     if not button:
