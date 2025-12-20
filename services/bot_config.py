@@ -10,7 +10,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from sqlalchemy.orm import selectinload
 
 from database import get_session
-from models import BotButton, BotNode, BotRuntime
+from models import BotButton, BotNode, BotNodeAction, BotRuntime
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +36,16 @@ class NodeView:
     cond_value: str | None
     next_node_code_true: str | None
     next_node_code_false: str | None
+    next_node_code: str | None
+    actions: list["NodeActionView"]
+
+
+@dataclass
+class NodeActionView:
+    action_type: str
+    payload: dict
+    sort_order: int
+    is_enabled: bool
 
 
 _cache: dict[str, object] = {"version": None, "nodes": {}}
@@ -89,6 +99,22 @@ def _reload_cache(session, version: int) -> None:
         .filter(BotNode.is_enabled.is_(True))
         .all()
     )
+    actions = (
+        session.query(BotNodeAction)
+        .filter(BotNodeAction.is_enabled.is_(True))
+        .order_by(BotNodeAction.node_code, BotNodeAction.sort_order, BotNodeAction.id)
+        .all()
+    )
+    actions_map: dict[str, list[NodeActionView]] = {}
+    for action in actions:
+        actions_map.setdefault(action.node_code, []).append(
+            NodeActionView(
+                action_type=action.action_type,
+                payload=action.action_payload or {},
+                sort_order=action.sort_order or 0,
+                is_enabled=bool(action.is_enabled),
+            )
+        )
     prepared: Dict[str, NodeView] = {}
     for node in nodes:
         enabled_buttons = [btn for btn in node.buttons if btn.is_enabled]
@@ -113,6 +139,8 @@ def _reload_cache(session, version: int) -> None:
             cond_value=node.cond_value,
             next_node_code_true=node.next_node_code_true,
             next_node_code_false=node.next_node_code_false,
+            next_node_code=node.next_node_code,
+            actions=actions_map.get(node.code, []),
         )
 
     _cache["version"] = version

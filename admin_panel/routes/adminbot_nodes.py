@@ -7,7 +7,7 @@ import re
 
 from admin_panel import TEMPLATES
 from admin_panel.dependencies import get_db_session, require_admin
-from models import BotNode
+from models import BotNode, BotNodeAction
 from models.admin_user import AdminRole
 
 router = APIRouter(tags=["AdminBot"])
@@ -15,7 +15,7 @@ router = APIRouter(tags=["AdminBot"])
 
 ALLOWED_ROLES = (AdminRole.superadmin, AdminRole.admin_bot)
 
-NODE_TYPES = {"MESSAGE", "INPUT", "CONDITION"}
+NODE_TYPES = {"MESSAGE", "INPUT", "CONDITION", "ACTION"}
 INPUT_TYPES = {"TEXT", "NUMBER", "PHONE_TEXT", "CONTACT"}
 CONDITION_OPERATORS = {
     "EXISTS",
@@ -29,6 +29,21 @@ CONDITION_OPERATORS = {
     "GTE",
     "LT",
     "LTE",
+}
+ACTION_TYPES = {
+    "SET_VAR",
+    "CLEAR_VAR",
+    "INCREMENT_VAR",
+    "DECREMENT_VAR",
+    "ADD_TAG",
+    "REMOVE_TAG",
+    "SEND_MESSAGE",
+    "SEND_ADMIN_MESSAGE",
+    "GOTO_NODE",
+    "GOTO_MAIN",
+    "STOP_FLOW",
+    "REQUEST_CONTACT",
+    "REQUEST_LOCATION",
 }
 INPUT_KEY_REGEX = re.compile(r"^[a-zA-Z][a-zA-Z0-9_]{1,32}$")
 
@@ -58,6 +73,7 @@ def _prepare_node_payload(
     input_error_text: str | None,
     next_node_code_success: str | None,
     next_node_code_cancel: str | None,
+    next_node_code: str | None,
     cond_var_key: str | None,
     cond_operator: str | None,
     cond_value: str | None,
@@ -69,6 +85,7 @@ def _prepare_node_payload(
     normalized_var_key = (input_var_key or "").strip() or None
     normalized_next_success = (next_node_code_success or "").strip() or None
     normalized_next_cancel = (next_node_code_cancel or "").strip() or None
+    normalized_next_node_code = (next_node_code or "").strip() or None
     normalized_cond_var_key = (cond_var_key or "").strip() or None
     normalized_cond_operator = (cond_operator or "").strip().upper() or None
     normalized_cond_value = (cond_value or "").strip()
@@ -111,6 +128,10 @@ def _prepare_node_payload(
         if normalized_cond_operator not in {"EXISTS", "NOT_EXISTS"} and not normalized_cond_value:
             return "Для выбранного оператора нужно значение для сравнения.", {}
 
+    if normalized_node_type == "ACTION":
+        normalized_next_success = None
+        normalized_next_cancel = None
+
     payload = {
         "title": title,
         "message_text": message_text,
@@ -125,6 +146,7 @@ def _prepare_node_payload(
         "input_error_text": input_error_text or None,
         "next_node_code_success": normalized_next_success,
         "next_node_code_cancel": normalized_next_cancel,
+        "next_node_code": normalized_next_node_code,
         "cond_var_key": normalized_cond_var_key,
         "cond_operator": normalized_cond_operator,
         "cond_value": normalized_cond_value,
@@ -157,6 +179,128 @@ def _prepare_node_payload(
         )
 
     return None, payload
+
+
+def _parse_actions_from_form(form) -> tuple[str | None, list[dict]]:
+    action_types = form.getlist("action_type") if hasattr(form, "getlist") else []
+    if not action_types:
+        return None, []
+
+    sort_orders = form.getlist("action_sort") if hasattr(form, "getlist") else []
+    enabled_flags = form.getlist("action_enabled") if hasattr(form, "getlist") else []
+    var_keys = form.getlist("action_var_key") if hasattr(form, "getlist") else []
+    values = form.getlist("action_value") if hasattr(form, "getlist") else []
+    steps = form.getlist("action_step") if hasattr(form, "getlist") else []
+    tags = form.getlist("action_tag") if hasattr(form, "getlist") else []
+    texts = form.getlist("action_text") if hasattr(form, "getlist") else []
+    node_codes = form.getlist("action_node_code") if hasattr(form, "getlist") else []
+
+    actions: list[dict] = []
+    for idx, raw_type in enumerate(action_types):
+        normalized_type = (raw_type or "").strip().upper()
+        if not normalized_type:
+            continue
+        if normalized_type not in ACTION_TYPES:
+            return f"Некорректный тип действия №{idx + 1}", []
+
+        payload: dict[str, object] = {}
+        var_key = (var_keys[idx] if idx < len(var_keys) else "") or ""
+        value = values[idx] if idx < len(values) else ""
+        step = steps[idx] if idx < len(steps) else ""
+        tag = tags[idx] if idx < len(tags) else ""
+        text_value = texts[idx] if idx < len(texts) else ""
+        node_code = (node_codes[idx] if idx < len(node_codes) else "") or ""
+
+        if normalized_type in {"SET_VAR", "INCREMENT_VAR", "DECREMENT_VAR", "CLEAR_VAR"}:
+            if not var_key:
+                return f"Заполните ключ переменной для действия №{idx + 1}", []
+            payload["key"] = var_key
+            if normalized_type == "SET_VAR":
+                payload["value"] = value
+            if normalized_type in {"INCREMENT_VAR", "DECREMENT_VAR"}:
+                try:
+                    payload["step"] = int(step or 1)
+                except Exception:
+                    payload["step"] = 1
+
+        if normalized_type in {"ADD_TAG", "REMOVE_TAG"}:
+            if not tag:
+                return f"Заполните тег для действия №{idx + 1}", []
+            payload["tag"] = tag
+
+        if normalized_type in {"SEND_MESSAGE", "SEND_ADMIN_MESSAGE", "REQUEST_CONTACT", "REQUEST_LOCATION"}:
+            if not text_value and normalized_type in {"SEND_MESSAGE", "SEND_ADMIN_MESSAGE"}:
+                return f"Заполните текст для действия №{idx + 1}", []
+            if text_value:
+                payload["text"] = text_value
+
+        if normalized_type == "GOTO_NODE":
+            if not node_code:
+                return f"Укажите код узла для перехода в действии №{idx + 1}", []
+            payload["node_code"] = node_code
+
+        sort_value = sort_orders[idx] if idx < len(sort_orders) else idx
+        try:
+            sort_order = int(sort_value)
+        except Exception:
+            sort_order = idx
+
+        is_enabled = (enabled_flags[idx] if idx < len(enabled_flags) else "1") == "1"
+
+        actions.append(
+            {
+                "action_type": normalized_type,
+                "payload": payload,
+                "sort_order": sort_order,
+                "is_enabled": is_enabled,
+            }
+        )
+
+    return None, actions
+
+
+def _save_node_actions(db: Session, node_code: str, actions: list[dict]) -> None:
+    db.query(BotNodeAction).filter(BotNodeAction.node_code == node_code).delete()
+    for idx, action in enumerate(actions):
+        db.add(
+            BotNodeAction(
+                node_code=node_code,
+                action_type=action.get("action_type"),
+                action_payload=action.get("payload"),
+                sort_order=action.get("sort_order", idx) or idx,
+                is_enabled=bool(action.get("is_enabled", True)),
+            )
+        )
+    db.commit()
+
+
+def _convert_to_action_models(actions: list[dict], node_code: str | None = None) -> list[BotNodeAction]:
+    converted: list[BotNodeAction] = []
+    for idx, action in enumerate(actions):
+        converted.append(
+            BotNodeAction(
+                node_code=node_code or "",
+                action_type=action.get("action_type"),
+                action_payload=action.get("payload"),
+                sort_order=action.get("sort_order", idx) or idx,
+                is_enabled=bool(action.get("is_enabled", True)),
+            )
+        )
+    return converted
+
+
+def _serialize_actions(actions: list[BotNodeAction]) -> list[dict]:
+    serialized: list[dict] = []
+    for action in actions:
+        serialized.append(
+            {
+                "action_type": action.action_type,
+                "action_payload": action.action_payload or {},
+                "sort_order": action.sort_order or 0,
+                "is_enabled": bool(action.is_enabled),
+            }
+        )
+    return serialized
 
 
 @router.get("/nodes")
@@ -194,6 +338,8 @@ async def new_node_form(request: Request, db: Session = Depends(get_db_session))
             "user": user,
             "node": None,
             "error": None,
+            "actions": [],
+            "actions_json": [],
         },
     )
 
@@ -215,6 +361,7 @@ async def create_node(
     input_error_text: str | None = Form(None),
     next_node_code_success: str | None = Form(None),
     next_node_code_cancel: str | None = Form(None),
+    next_node_code: str | None = Form(None),
     cond_var_key: str | None = Form(None),
     cond_operator: str | None = Form(None),
     cond_value: str | None = Form(None),
@@ -225,6 +372,9 @@ async def create_node(
     user = require_admin(request, db, roles=ALLOWED_ROLES)
     if not user:
         return _login_redirect(_next_from_request(request))
+
+    form = await request.form()
+    actions_error, actions = _parse_actions_from_form(form)
 
     code = (code or "").strip()
     existing = db.query(BotNode).filter(BotNode.code == code).first()
@@ -254,6 +404,7 @@ async def create_node(
         input_error_text=input_error_text,
         next_node_code_success=next_node_code_success,
         next_node_code_cancel=next_node_code_cancel,
+        next_node_code=next_node_code,
         cond_var_key=cond_var_key,
         cond_operator=cond_operator,
         cond_value=cond_value,
@@ -261,21 +412,27 @@ async def create_node(
         next_node_code_false=next_node_code_false,
     )
 
-    if error:
+    if error or actions_error:
         draft_node = BotNode(code=code, **payload)
+        render_actions = _convert_to_action_models(actions, code)
         return TEMPLATES.TemplateResponse(
             "adminbot_node_edit.html",
             {
                 "request": request,
                 "user": user,
                 "node": draft_node,
-                "error": error,
+                "error": error or actions_error,
+                "actions": render_actions,
+                "actions_json": _serialize_actions(render_actions),
             },
             status_code=400,
         )
 
     db.add(BotNode(code=code, **payload))
     db.commit()
+
+    if actions:
+        _save_node_actions(db, code, actions)
 
     return RedirectResponse(url="/adminbot/nodes", status_code=303)
 
@@ -294,6 +451,14 @@ async def edit_node_form(
     if not node:
         return RedirectResponse(url="/adminbot/nodes", status_code=303)
 
+    actions = (
+        db.query(BotNodeAction)
+        .filter(BotNodeAction.node_code == node.code)
+        .order_by(BotNodeAction.sort_order, BotNodeAction.id)
+        .all()
+    )
+    actions_json = _serialize_actions(actions)
+
     return TEMPLATES.TemplateResponse(
         "adminbot_node_edit.html",
         {
@@ -301,6 +466,8 @@ async def edit_node_form(
             "user": user,
             "node": node,
             "error": None,
+            "actions": actions,
+            "actions_json": actions_json,
         },
     )
 
@@ -322,6 +489,7 @@ async def edit_node(
     input_error_text: str | None = Form(None),
     next_node_code_success: str | None = Form(None),
     next_node_code_cancel: str | None = Form(None),
+    next_node_code: str | None = Form(None),
     cond_var_key: str | None = Form(None),
     cond_operator: str | None = Form(None),
     cond_value: str | None = Form(None),
@@ -337,6 +505,9 @@ async def edit_node(
     if not node:
         return RedirectResponse(url="/adminbot/nodes", status_code=303)
 
+    form = await request.form()
+    actions_error, actions = _parse_actions_from_form(form)
+
     error, payload = _prepare_node_payload(
         title=title,
         message_text=message_text,
@@ -351,6 +522,7 @@ async def edit_node(
         input_error_text=input_error_text,
         next_node_code_success=next_node_code_success,
         next_node_code_cancel=next_node_code_cancel,
+        next_node_code=next_node_code,
         cond_var_key=cond_var_key,
         cond_operator=cond_operator,
         cond_value=cond_value,
@@ -358,16 +530,19 @@ async def edit_node(
         next_node_code_false=next_node_code_false,
     )
 
-    if error:
+    if error or actions_error:
         draft_node = BotNode(code=node.code, **payload)
         draft_node.id = node.id
+        render_actions = _convert_to_action_models(actions, node.code)
         return TEMPLATES.TemplateResponse(
             "adminbot_node_edit.html",
             {
                 "request": request,
                 "user": user,
                 "node": draft_node,
-                "error": error,
+                "error": error or actions_error,
+                "actions": render_actions,
+                "actions_json": _serialize_actions(render_actions),
             },
             status_code=400,
         )
@@ -377,5 +552,7 @@ async def edit_node(
 
     db.add(node)
     db.commit()
+
+    _save_node_actions(db, node.code, actions)
 
     return RedirectResponse(url="/adminbot/nodes", status_code=303)

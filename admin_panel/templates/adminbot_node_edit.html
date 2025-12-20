@@ -17,6 +17,13 @@
         .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin-top: 12px; }
         .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
         .checkbox { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+        .action-card { border: 1px solid #cbd5e1; padding: 12px; border-radius: 6px; background: #fff; margin-top: 10px; }
+        .action-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+        .action-controls { display: flex; gap: 6px; }
+        .action-controls button { padding: 6px 8px; }
+        .muted { color: #475569; font-size: 13px; }
+        .action-fields { margin-top: 10px; }
+        .action-fields .row { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
     </style>
 </head>
 <body>
@@ -41,6 +48,7 @@
                 <option value="MESSAGE" {% if node is none or node.node_type == 'MESSAGE' %}selected{% endif %}>Сообщение</option>
                 <option value="INPUT" {% if node and node.node_type == 'INPUT' %}selected{% endif %}>Ожидание ввода</option>
                 <option value="CONDITION" {% if node and node.node_type == 'CONDITION' %}selected{% endif %}>Условие (если/иначе)</option>
+                <option value="ACTION" {% if node and node.node_type == 'ACTION' %}selected{% endif %}>Действие</option>
             </select>
             <div class="hint">Выберите поведение узла.</div>
         </div>
@@ -112,6 +120,20 @@
         </div>
     </div>
 
+    <div id="action_settings" class="card" style="display:none;">
+        <h3>Действия узла</h3>
+        <div class="hint">Действия выполняются по порядку сверху вниз.</div>
+        <div id="actions_container"></div>
+        <div style="margin-top:10px;">
+            <button type="button" class="button" id="add_action_btn" style="background:#0ea5e9;">Добавить действие</button>
+        </div>
+        <div style="margin-top:14px;">
+            <label>Переход после выполнения (код узла)</label>
+            <input type="text" name="next_node_code" value="{{ node.next_node_code if node else '' }}" placeholder="Код узла (если не указан — сценарий завершается)">
+            <div class="hint">Опционально. Используется, если в действиях нет переходов.</div>
+        </div>
+    </div>
+
     <div id="condition_settings" class="card" style="display:none;">
         <h3>Настройка условия</h3>
         <div class="row">
@@ -163,38 +185,239 @@
     </div>
 </form>
 
+<script type="application/json" id="initial_actions_data">{{ actions_json|default([])|tojson }}</script>
+
 <script>
     const nodeTypeSelect = document.getElementById('node_type_select');
     const inputSettings = document.getElementById('input_settings');
     const conditionSettings = document.getElementById('condition_settings');
+    const actionSettings = document.getElementById('action_settings');
     const condVarKeyInput = document.getElementById('cond_var_key_input');
     const condOperatorSelect = document.getElementById('cond_operator_select');
     const condValueInput = document.getElementById('cond_value_input');
     const nextNodeTrueInput = document.getElementById('next_node_code_true_input');
     const nextNodeFalseInput = document.getElementById('next_node_code_false_input');
+    const actionsContainer = document.getElementById('actions_container');
+    const addActionBtn = document.getElementById('add_action_btn');
+    const actionsDataElement = document.getElementById('initial_actions_data');
+
+    const FIELDS_BY_TYPE = {
+        SET_VAR: ['var', 'value'],
+        CLEAR_VAR: ['var'],
+        INCREMENT_VAR: ['var', 'step'],
+        DECREMENT_VAR: ['var', 'step'],
+        ADD_TAG: ['tag'],
+        REMOVE_TAG: ['tag'],
+        SEND_MESSAGE: ['text'],
+        SEND_ADMIN_MESSAGE: ['text'],
+        GOTO_NODE: ['node'],
+        GOTO_MAIN: [],
+        STOP_FLOW: [],
+        REQUEST_CONTACT: ['text'],
+        REQUEST_LOCATION: ['text'],
+    };
+
+    const ACTION_OPTIONS = [
+        { value: 'SET_VAR', label: 'Установить переменную' },
+        { value: 'CLEAR_VAR', label: 'Очистить переменную' },
+        { value: 'INCREMENT_VAR', label: 'Увеличить значение' },
+        { value: 'DECREMENT_VAR', label: 'Уменьшить значение' },
+        { value: 'ADD_TAG', label: 'Добавить тег пользователю' },
+        { value: 'REMOVE_TAG', label: 'Удалить тег у пользователя' },
+        { value: 'SEND_MESSAGE', label: 'Отправить сообщение пользователю' },
+        { value: 'SEND_ADMIN_MESSAGE', label: 'Уведомить администратора' },
+        { value: 'GOTO_NODE', label: 'Перейти в узел' },
+        { value: 'GOTO_MAIN', label: 'Перейти в главное меню' },
+        { value: 'STOP_FLOW', label: 'Остановить сценарий' },
+        { value: 'REQUEST_CONTACT', label: 'Запросить контакт' },
+        { value: 'REQUEST_LOCATION', label: 'Запросить геолокацию' },
+    ];
 
     function toggleInputSettings() {
-        if (nodeTypeSelect.value === 'INPUT') {
-            inputSettings.style.display = 'block';
-        } else {
-            inputSettings.style.display = 'none';
-        }
-        if (nodeTypeSelect.value === 'CONDITION') {
-            conditionSettings.style.display = 'block';
-        } else {
-            conditionSettings.style.display = 'none';
-        }
+        inputSettings.style.display = nodeTypeSelect.value === 'INPUT' ? 'block' : 'none';
+        conditionSettings.style.display = nodeTypeSelect.value === 'CONDITION' ? 'block' : 'none';
+        actionSettings.style.display = nodeTypeSelect.value === 'ACTION' ? 'block' : 'none';
 
         const conditionRequired = nodeTypeSelect.value === 'CONDITION';
-        condVarKeyInput.required = conditionRequired;
-        condOperatorSelect.required = conditionRequired;
-        nextNodeTrueInput.required = conditionRequired;
-        nextNodeFalseInput.required = conditionRequired;
-        condValueInput.required = conditionRequired && !['EXISTS', 'NOT_EXISTS'].includes(condOperatorSelect.value || '');
+        if (condVarKeyInput && condOperatorSelect && nextNodeTrueInput && nextNodeFalseInput && condValueInput) {
+            condVarKeyInput.required = conditionRequired;
+            condOperatorSelect.required = conditionRequired;
+            nextNodeTrueInput.required = conditionRequired;
+            nextNodeFalseInput.required = conditionRequired;
+            condValueInput.required = conditionRequired && !['EXISTS', 'NOT_EXISTS'].includes(condOperatorSelect.value || '');
+        }
+    }
+
+    function escapeHtml(value) {
+        return (value || '').toString()
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function updateActionFields(card) {
+        const type = (card.querySelector('.action-type')?.value || '').toUpperCase();
+        const allowed = FIELDS_BY_TYPE[type] || [];
+        card.querySelectorAll('[data-field]').forEach((field) => {
+            field.style.display = allowed.includes(field.dataset.field) ? 'block' : 'none';
+        });
+    }
+
+    function syncSortOrders() {
+        const cards = actionsContainer.querySelectorAll('.action-card');
+        cards.forEach((card, index) => {
+            const sortInput = card.querySelector('.action-sort');
+            if (sortInput) {
+                sortInput.value = index;
+            }
+        });
+    }
+
+    function attachActionHandlers(card) {
+        const typeSelect = card.querySelector('.action-type');
+        const enabledToggle = card.querySelector('.action-enabled-toggle');
+        const enabledValue = card.querySelector('.action-enabled-value');
+        const removeBtn = card.querySelector('.remove-action');
+        const moveUpBtn = card.querySelector('.move-up');
+        const moveDownBtn = card.querySelector('.move-down');
+
+        if (typeSelect) {
+            typeSelect.addEventListener('change', () => updateActionFields(card));
+        }
+        if (enabledToggle && enabledValue) {
+            enabledToggle.addEventListener('change', () => {
+                enabledValue.value = enabledToggle.checked ? '1' : '0';
+            });
+        }
+        if (removeBtn) {
+            removeBtn.addEventListener('click', () => {
+                card.remove();
+                syncSortOrders();
+            });
+        }
+        if (moveUpBtn) {
+            moveUpBtn.addEventListener('click', () => {
+                const prev = card.previousElementSibling;
+                if (prev) {
+                    actionsContainer.insertBefore(card, prev);
+                    syncSortOrders();
+                }
+            });
+        }
+        if (moveDownBtn) {
+            moveDownBtn.addEventListener('click', () => {
+                const next = card.nextElementSibling;
+                if (next) {
+                    actionsContainer.insertBefore(next, card);
+                    syncSortOrders();
+                }
+            });
+        }
+
+        updateActionFields(card);
+    }
+
+    function buildActionCard(data = {}) {
+        const payload = data.action_payload || data.payload || {};
+        const index = actionsContainer.querySelectorAll('.action-card').length;
+        const selectedType = (data.action_type || data.actionType || 'SET_VAR').toUpperCase();
+        const html = `
+            <div class="action-card">
+                <div class="action-header">
+                    <div style="flex:1;">
+                        <label>Тип действия</label>
+                        <select name="action_type" class="action-type">
+                            ${ACTION_OPTIONS.map((opt) => `<option value="${opt.value}" ${opt.value === selectedType ? 'selected' : ''}>${opt.label}</option>`).join('')}
+                        </select>
+                        <input type="hidden" name="action_sort" class="action-sort" value="${index}">
+                        <input type="hidden" name="action_enabled" class="action-enabled-value" value="${data.is_enabled === false ? '0' : '1'}">
+                        <div class="checkbox">
+                            <input type="checkbox" class="action-enabled-toggle" ${data.is_enabled === false ? '' : 'checked'}>
+                            <label style="margin:0; font-weight:normal;">Включено</label>
+                        </div>
+                    </div>
+                    <div class="action-controls">
+                        <button type="button" class="button move-up" title="Вверх">↑</button>
+                        <button type="button" class="button move-down" title="Вниз">↓</button>
+                        <button type="button" class="button remove-action" style="background:#dc2626;">Удалить</button>
+                    </div>
+                </div>
+                <div class="action-fields">
+                    <div class="row">
+                        <div data-field="var">
+                            <label>Ключ переменной</label>
+                            <input type="text" name="action_var_key" value="${escapeHtml(payload.key || '')}" placeholder="например: name">
+                        </div>
+                        <div data-field="value">
+                            <label>Значение</label>
+                            <input type="text" name="action_value" value="${escapeHtml(payload.value || '')}" placeholder="строка или шаблон {{var}}">
+                        </div>
+                        <div data-field="step">
+                            <label>Шаг изменения (число)</label>
+                            <input type="number" name="action_step" value="${escapeHtml(payload.step || '')}" placeholder="по умолчанию 1">
+                        </div>
+                        <div data-field="tag">
+                            <label>Тег</label>
+                            <input type="text" name="action_tag" value="${escapeHtml(payload.tag || '')}" placeholder="например: lead">
+                        </div>
+                        <div data-field="node">
+                            <label>Код узла для перехода</label>
+                            <input type="text" name="action_node_code" value="${escapeHtml(payload.node_code || '')}" placeholder="MAIN_MENU">
+                        </div>
+                    </div>
+                    <div data-field="text" style="margin-top:10px;">
+                        <label>Текст</label>
+                        <textarea name="action_text" placeholder="Текст сообщения или запроса">${escapeHtml(payload.text || '')}</textarea>
+                        <div class="hint">Поддерживаются переменные {{var}}, {{telegram_id}}, {{username}}.</div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = html.trim();
+        const card = wrapper.firstElementChild;
+        actionsContainer.appendChild(card);
+        attachActionHandlers(card);
+    }
+
+    function initActions() {
+        let initialActions = [];
+        if (!actionsDataElement) {
+            return;
+        }
+        try {
+            initialActions = JSON.parse(actionsDataElement.textContent || '[]');
+        } catch (e) {
+            initialActions = [];
+        }
+
+        if (initialActions.length) {
+            initialActions.sort((a, b) => (a.sort_order || a.sortOrder || 0) - (b.sort_order || b.sortOrder || 0));
+            initialActions.forEach((action) => buildActionCard(action));
+        }
+
+        if (!initialActions.length) {
+            // пустой список — можно добавить вручную
+        }
+    }
+
+    if (addActionBtn) {
+        addActionBtn.addEventListener('click', () => {
+            buildActionCard({});
+            syncSortOrders();
+        });
     }
 
     nodeTypeSelect.addEventListener('change', toggleInputSettings);
-    condOperatorSelect.addEventListener('change', toggleInputSettings);
+    if (condOperatorSelect) {
+        condOperatorSelect.addEventListener('change', toggleInputSettings);
+    }
+
+    initActions();
+    syncSortOrders();
     toggleInputSettings();
 </script>
 </body>

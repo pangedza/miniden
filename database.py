@@ -120,6 +120,7 @@ def init_db() -> None:
             "ALTER TABLE bot_nodes ADD COLUMN IF NOT EXISTS cond_value TEXT",
             "ALTER TABLE bot_nodes ADD COLUMN IF NOT EXISTS next_node_code_true VARCHAR",
             "ALTER TABLE bot_nodes ADD COLUMN IF NOT EXISTS next_node_code_false VARCHAR",
+            "ALTER TABLE bot_nodes ADD COLUMN IF NOT EXISTS next_node_code VARCHAR",
         ]
 
         create_user_vars = """
@@ -149,6 +150,31 @@ def init_db() -> None:
         );
         """
 
+        create_bot_node_actions = """
+        CREATE TABLE IF NOT EXISTS bot_node_actions (
+            id BIGSERIAL PRIMARY KEY,
+            node_code VARCHAR(64) NOT NULL,
+            action_type VARCHAR(32) NOT NULL,
+            action_payload JSONB NULL,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            is_enabled BOOLEAN NOT NULL DEFAULT TRUE
+        );
+        """
+
+        create_user_tags = """
+        CREATE TABLE IF NOT EXISTS user_tags (
+            id BIGSERIAL PRIMARY KEY,
+            user_id BIGINT NOT NULL,
+            tag VARCHAR(64) NOT NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT NOW()
+        );
+        """
+
+        create_user_tags_index = """
+        CREATE UNIQUE INDEX IF NOT EXISTS ix_user_tags_user_tag
+            ON user_tags (user_id, tag);
+        """
+
         with engine.begin() as conn:
             for statement in alter_statements:
                 conn.execute(text(statement))
@@ -156,6 +182,9 @@ def init_db() -> None:
             conn.execute(text(create_user_vars))
             conn.execute(text(create_user_vars_index))
             conn.execute(text(create_user_state))
+            conn.execute(text(create_bot_node_actions))
+            conn.execute(text(create_user_tags))
+            conn.execute(text(create_user_tags_index))
 
             conn.execute(
                 text(

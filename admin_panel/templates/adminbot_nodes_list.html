@@ -41,7 +41,11 @@
     <tr>
         <td>{{ node.code }}</td>
         <td>{{ node.title }}</td>
-        <td><span class="badge">{{ 'Ожидание ввода' if node.node_type == 'INPUT' else ('Условие' if node.node_type == 'CONDITION' else 'Сообщение') }}</span></td>
+        <td>
+            <span class="badge">
+                {{ 'Ожидание ввода' if node.node_type == 'INPUT' else ('Условие' if node.node_type == 'CONDITION' else ('Действие' if node.node_type == 'ACTION' else 'Сообщение')) }}
+            </span>
+        </td>
         <td>{{ '✅' if node.is_enabled else '⛔' }}</td>
         <td class="muted">{{ node.updated_at }}</td>
         <td>
