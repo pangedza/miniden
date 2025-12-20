@@ -31,6 +31,11 @@ class NodeView:
     input_error_text: str | None
     next_node_code_success: str | None
     next_node_code_cancel: str | None
+    cond_var_key: str | None
+    cond_operator: str | None
+    cond_value: str | None
+    next_node_code_true: str | None
+    next_node_code_false: str | None
 
 
 _cache: dict[str, object] = {"version": None, "nodes": {}}
@@ -103,6 +108,11 @@ def _reload_cache(session, version: int) -> None:
             input_error_text=node.input_error_text,
             next_node_code_success=node.next_node_code_success,
             next_node_code_cancel=node.next_node_code_cancel,
+            cond_var_key=node.cond_var_key,
+            cond_operator=node.cond_operator,
+            cond_value=node.cond_value,
+            next_node_code_true=node.next_node_code_true,
+            next_node_code_false=node.next_node_code_false,
         )
 
     _cache["version"] = version

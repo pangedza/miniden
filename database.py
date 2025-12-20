@@ -115,6 +115,11 @@ def init_db() -> None:
             "ALTER TABLE bot_nodes ADD COLUMN IF NOT EXISTS input_error_text TEXT",
             "ALTER TABLE bot_nodes ADD COLUMN IF NOT EXISTS next_node_code_success VARCHAR",
             "ALTER TABLE bot_nodes ADD COLUMN IF NOT EXISTS next_node_code_cancel VARCHAR",
+            "ALTER TABLE bot_nodes ADD COLUMN IF NOT EXISTS cond_var_key VARCHAR",
+            "ALTER TABLE bot_nodes ADD COLUMN IF NOT EXISTS cond_operator VARCHAR",
+            "ALTER TABLE bot_nodes ADD COLUMN IF NOT EXISTS cond_value TEXT",
+            "ALTER TABLE bot_nodes ADD COLUMN IF NOT EXISTS next_node_code_true VARCHAR",
+            "ALTER TABLE bot_nodes ADD COLUMN IF NOT EXISTS next_node_code_false VARCHAR",
         ]
 
         create_user_vars = """
