@@ -9,21 +9,27 @@ from admin_panel.dependencies import get_db_session, require_admin
 from models import BotNode
 from models.admin_user import AdminRole
 
-router = APIRouter(prefix="/adminbot", tags=["AdminBot"])
+router = APIRouter(tags=["AdminBot"])
 
 
 ALLOWED_ROLES = (AdminRole.superadmin, AdminRole.admin_bot)
 
 
-def _login_redirect() -> RedirectResponse:
-    return RedirectResponse(url="/login?next=/adminbot", status_code=303)
+def _login_redirect(next_url: str | None = None) -> RedirectResponse:
+    target = next_url or "/adminbot"
+    return RedirectResponse(url=f"/login?next={target}", status_code=303)
+
+
+def _next_from_request(request: Request) -> str:
+    query = f"?{request.url.query}" if request.url.query else ""
+    return f"{request.url.path}{query}"
 
 
 @router.get("/nodes")
 async def list_nodes(request: Request, db: Session = Depends(get_db_session)):
     user = require_admin(request, db, roles=ALLOWED_ROLES)
     if not user:
-        return _login_redirect()
+        return _login_redirect(_next_from_request(request))
 
     nodes = (
         db.query(BotNode)
@@ -45,7 +51,7 @@ async def list_nodes(request: Request, db: Session = Depends(get_db_session)):
 async def new_node_form(request: Request, db: Session = Depends(get_db_session)):
     user = require_admin(request, db, roles=ALLOWED_ROLES)
     if not user:
-        return _login_redirect()
+        return _login_redirect(_next_from_request(request))
 
     return TEMPLATES.TemplateResponse(
         "adminbot_node_edit.html",
@@ -71,7 +77,7 @@ async def create_node(
 ):
     user = require_admin(request, db, roles=ALLOWED_ROLES)
     if not user:
-        return _login_redirect()
+        return _login_redirect(_next_from_request(request))
 
     code = (code or "").strip()
     existing = db.query(BotNode).filter(BotNode.code == code).first()
@@ -110,7 +116,7 @@ async def edit_node_form(
 ):
     user = require_admin(request, db, roles=ALLOWED_ROLES)
     if not user:
-        return _login_redirect()
+        return _login_redirect(_next_from_request(request))
 
     node = db.get(BotNode, node_id)
     if not node:
@@ -140,7 +146,7 @@ async def edit_node(
 ):
     user = require_admin(request, db, roles=ALLOWED_ROLES)
     if not user:
-        return _login_redirect()
+        return _login_redirect(_next_from_request(request))
 
     node = db.get(BotNode, node_id)
     if not node:
