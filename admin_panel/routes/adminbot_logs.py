@@ -1,4 +1,5 @@
 from math import ceil
+from pathlib import Path
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, Request
@@ -9,10 +10,19 @@ from admin_panel import TEMPLATES
 from admin_panel.dependencies import get_db_session, require_admin
 from models.admin_user import AdminRole
 from services.bot_logs import fetch_logs, fetch_user_history
+from utils.log_reader import read_tail
+from utils.logging_config import API_LOG_FILE, BOT_LOG_FILE
 
 router = APIRouter(tags=["AdminBot"])
 
 ALLOWED_ROLES = (AdminRole.superadmin, AdminRole.admin_bot)
+DEFAULT_LIMIT = 200
+MAX_LIMIT = 2000
+
+SOURCES: dict[str, Path] = {
+    "api": API_LOG_FILE,
+    "bot": BOT_LOG_FILE,
+}
 
 
 def _login_redirect(next_url: str | None = None) -> RedirectResponse:
@@ -25,8 +35,39 @@ def _next_from_request(request: Request) -> str:
     return f"{request.url.path}{query}"
 
 
-@router.get("/adminbot/logs")
-async def bot_logs(
+@router.get("/logs")
+async def adminbot_file_logs(
+    request: Request,
+    source: str = "api",
+    limit: int = DEFAULT_LIMIT,
+    db: Session = Depends(get_db_session),
+):
+    user = require_admin(request, db, roles=ALLOWED_ROLES)
+    if not user:
+        return _login_redirect(_next_from_request(request))
+
+    normalized_source = source.lower()
+    if normalized_source not in SOURCES:
+        normalized_source = "api"
+
+    normalized_limit = max(1, min(limit, MAX_LIMIT))
+    lines, not_found = read_tail(SOURCES[normalized_source], limit=normalized_limit)
+
+    return TEMPLATES.TemplateResponse(
+        "adminbot/logs.html",
+        {
+            "request": request,
+            "lines": lines,
+            "selected_source": normalized_source,
+            "limit": normalized_limit,
+            "not_found": not_found,
+            "sources": SOURCES,
+        },
+    )
+
+
+@router.get("/logs/history")
+async def bot_logs_history(
     request: Request,
     page: int = 1,
     event_type: str | None = None,
@@ -68,7 +109,7 @@ async def bot_logs(
     def _page_url(target_page: int) -> str:
         params = {**base_params, "page": target_page}
         normalized = {k: v for k, v in params.items() if v}
-        return f"/adminbot/logs?{urlencode(normalized)}"
+        return f"/adminbot/logs/history?{urlencode(normalized)}"
 
     prev_page = page - 1 if page > 1 else None
     next_page = page + 1 if page < total_pages else None
@@ -88,7 +129,7 @@ async def bot_logs(
     )
 
 
-@router.get("/adminbot/users/{user_id}/logs")
+@router.get("/users/{user_id}/logs")
 async def user_logs(
     request: Request,
     user_id: int,

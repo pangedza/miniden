@@ -71,6 +71,7 @@ from services import user_stats as user_stats_service
 from services import users as users_service
 from services import webchat_service
 from utils import site_chat_storage
+from utils.logging_config import API_LOG_FILE, setup_logging
 from services.telegram_webapp_auth import authenticate_telegram_webapp_user
 from utils.texts import format_order_for_admin
 from schemas.home import HomeBlockIn, HomePostIn, HomeSectionIn
@@ -79,6 +80,8 @@ from schemas.home import HomeBlockIn, HomePostIn, HomeSectionIn
 BASE_DIR = Path(__file__).resolve().parent
 WEBAPP_DIR = BASE_DIR / "webapp"
 STATIC_DIR_PUBLIC = BASE_DIR / "static"
+
+setup_logging(log_file=API_LOG_FILE)
 
 app = FastAPI(title="MiniDeN Web API", version="1.0.0")
 
