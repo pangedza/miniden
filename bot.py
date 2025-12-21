@@ -16,6 +16,7 @@ from aiogram.client.default import DefaultBotProperties  # 👈 ДОБАВИЛИ
 
 from config import get_settings
 from database import init_db
+from utils.logging_config import BOT_LOG_FILE, setup_logging
 
 from handlers import admin, start, webapp
 from handlers import faq, site_chat, support
@@ -24,10 +25,7 @@ from middlewares.user_registration import EnsureUserMiddleware
 
 async def main() -> None:
     # Логирование
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    )
+    setup_logging(level=logging.INFO, log_file=BOT_LOG_FILE)
 
     # Загружаем настройки из .env (токен, админы, канал и т.д.)
     settings = get_settings()
