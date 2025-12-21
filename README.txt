@@ -41,6 +41,14 @@ MiniDeN — Telegram-бот и веб-магазин
 - Проверка: sudo systemctl status miniden-api --no-pager
 - Проверка URL: http://127.0.0.1:8000/adminbot/login (с сервера) и https://домен/adminbot/login (через nginx)
 
+Production деплой одной командой
+--------------------------------
+- Контракт: `deploy/DEPLOY_CONTRACT.md` описывает, что именно обновляет `deploy.sh` и какие каталоги запрещено трогать.
+- Эталонные конфиги для прод-сервера лежат в `deploy/nginx/miniden.conf` и `deploy/systemd/*.service`; скрипт деплоя копирует их в `/etc/nginx/` и `/etc/systemd/system/`.
+- Ожидаемая команда на сервере: `sudo /opt/miniden/deploy.sh` (обновляет код, зависимости, webapp и перезапускает сервисы по контракту).
+- Защищённые пути (деплой не трогает): `/opt/miniden/.env`, `/opt/miniden/media/`, `/opt/miniden/data/`.
+- Быстрый чек после деплоя: `curl http://127.0.0.1:8000/api/health`.
+
 Почему 405 на curl -I — это нормально
 -------------------------------------
 - Ответ 405 на `curl -I` (HEAD) для страниц авторизации — ожидаемое поведение. Используйте GET/браузер для проверки (`curl -v http://127.0.0.1:8000/adminbot/login`).
