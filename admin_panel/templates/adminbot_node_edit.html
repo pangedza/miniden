@@ -191,6 +191,7 @@
 <script type="application/json" id="initial_actions_data">{{ actions_json|default([])|tojson }}</script>
 
 <script>
+    const form = document.querySelector('form');
     const nodeTypeSelect = document.getElementById('node_type_select');
     const inputSettings = document.getElementById('input_settings');
     const conditionSettings = document.getElementById('condition_settings');
@@ -236,18 +237,35 @@
         { value: 'REQUEST_LOCATION', label: 'Запросить геолокацию' },
     ];
 
-    function toggleInputSettings() {
-        inputSettings.style.display = nodeTypeSelect.value === 'INPUT' ? 'block' : 'none';
-        conditionSettings.style.display = nodeTypeSelect.value === 'CONDITION' ? 'block' : 'none';
-        actionSettings.style.display = nodeTypeSelect.value === 'ACTION' ? 'block' : 'none';
+    function setSectionEnabled(section, enabled) {
+        if (!section) return;
+        section.querySelectorAll('input, select, textarea').forEach((el) => {
+            el.disabled = !enabled;
+        });
+    }
 
-        const conditionRequired = nodeTypeSelect.value === 'CONDITION';
+    function toggleInputSettings() {
+        const nodeType = nodeTypeSelect.value;
+        const isInputNode = nodeType === 'INPUT';
+        const isConditionNode = nodeType === 'CONDITION';
+        const isActionNode = nodeType === 'ACTION';
+
+        inputSettings.style.display = isInputNode ? 'block' : 'none';
+        conditionSettings.style.display = isConditionNode ? 'block' : 'none';
+        actionSettings.style.display = isActionNode ? 'block' : 'none';
+
+        setSectionEnabled(inputSettings, isInputNode);
+        setSectionEnabled(conditionSettings, isConditionNode);
+        setSectionEnabled(actionSettings, isActionNode);
+
+        const conditionRequired = isConditionNode;
         if (condVarKeyInput && condOperatorSelect && nextNodeTrueInput && nextNodeFalseInput && condValueInput) {
             condVarKeyInput.required = conditionRequired;
             condOperatorSelect.required = conditionRequired;
             nextNodeTrueInput.required = conditionRequired;
             nextNodeFalseInput.required = conditionRequired;
             condValueInput.required = conditionRequired && !['EXISTS', 'NOT_EXISTS'].includes(condOperatorSelect.value || '');
+            condValueInput.disabled = !condValueInput.required;
         }
     }
 
@@ -334,7 +352,7 @@
                         <select name="action_type" class="action-type">
                             ${ACTION_OPTIONS.map((opt) => `<option value="${opt.value}" ${opt.value === selectedType ? 'selected' : ''}>${opt.label}</option>`).join('')}
                         </select>
-                        <input type="hidden" name="action_sort" class="action-sort" value="${index}">
+                        <input type="number" name="action_sort" class="action-sort" value="${index}" style="display:none;">
                         <input type="hidden" name="action_enabled" class="action-enabled-value" value="${data.is_enabled === false ? '0' : '1'}">
                         <div class="checkbox">
                             <input type="checkbox" class="action-enabled-toggle" ${data.is_enabled === false ? '' : 'checked'}>
@@ -417,6 +435,26 @@
     nodeTypeSelect.addEventListener('change', toggleInputSettings);
     if (condOperatorSelect) {
         condOperatorSelect.addEventListener('change', toggleInputSettings);
+    }
+
+    function cleanEmptyNumbers(targetForm) {
+        const numericInputs = targetForm.querySelectorAll('input[type="number"]');
+        numericInputs.forEach((input) => {
+            if (input.disabled) {
+                return;
+            }
+            const value = (input.value || '').toString().trim();
+            if (value === '') {
+                input.disabled = true;
+            }
+        });
+    }
+
+    if (form) {
+        form.addEventListener('submit', () => {
+            toggleInputSettings();
+            cleanEmptyNumbers(form);
+        });
     }
 
     initActions();

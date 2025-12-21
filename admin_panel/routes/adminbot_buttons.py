@@ -50,6 +50,18 @@ def _get_node(db: Session, node_id: int) -> BotNode | None:
     return db.get(BotNode, node_id)
 
 
+def _normalize_int(value: str | None, default: int = 0) -> int:
+    if value is None:
+        return default
+    value = value.strip()
+    if not value:
+        return default
+    try:
+        return int(value)
+    except Exception:
+        return default
+
+
 @router.get("/nodes/{node_id}/buttons")
 async def list_buttons(
     request: Request,
@@ -116,8 +128,8 @@ async def create_button(
     title: str = Form(...),
     button_type: str = Form(..., alias="type"),
     payload: str = Form(...),
-    row: int = Form(0),
-    pos: int = Form(0),
+    row: str | None = Form(None),
+    pos: str | None = Form(None),
     is_enabled: bool = Form(False),
     db: Session = Depends(get_db_session),
 ):
@@ -129,12 +141,8 @@ async def create_button(
     if not node:
         return RedirectResponse(url="/adminbot/nodes", status_code=303)
 
-    try:
-        row_value = int(row)
-        pos_value = int(pos)
-    except ValueError:
-        row_value = 0
-        pos_value = 0
+    row_value = _normalize_int(row)
+    pos_value = _normalize_int(pos)
 
     error = _validate_button_payload(button_type, payload)
     if error:
@@ -205,8 +213,8 @@ async def update_button(
     title: str = Form(...),
     button_type: str = Form(..., alias="type"),
     payload: str = Form(...),
-    row: int = Form(0),
-    pos: int = Form(0),
+    row: str | None = Form(None),
+    pos: str | None = Form(None),
     is_enabled: bool = Form(False),
     db: Session = Depends(get_db_session),
 ):
@@ -218,12 +226,8 @@ async def update_button(
     if not button:
         return RedirectResponse(url="/adminbot/nodes", status_code=303)
 
-    try:
-        row_value = int(row)
-        pos_value = int(pos)
-    except ValueError:
-        row_value = 0
-        pos_value = 0
+    row_value = _normalize_int(row)
+    pos_value = _normalize_int(pos)
 
     error = _validate_button_payload(button_type, payload)
     if error:
