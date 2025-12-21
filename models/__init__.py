@@ -124,6 +124,17 @@ class BotTrigger(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=func.now(), nullable=False)
 
 
+class BotTemplate(Base):
+    __tablename__ = "bot_templates"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    code = Column(String(64), unique=True, nullable=False)
+    title = Column(String(128), nullable=False)
+    description = Column(Text, nullable=True)
+    template_json = Column(JSONB, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 class BotLog(Base):
     __tablename__ = "bot_logs"
 

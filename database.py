@@ -53,7 +53,14 @@ def get_session() -> Iterator[Session]:
 def init_db() -> None:
     from config import ADMIN_IDS_SET  # noqa: WPS433
     from models import Base, HomeBanner, User  # noqa: WPS433
-    from models import BotAction, BotButton, BotNode, BotRuntime, BotTrigger  # noqa: WPS433
+    from models import (  # noqa: WPS433
+        BotAction,
+        BotButton,
+        BotNode,
+        BotRuntime,
+        BotTemplate,
+        BotTrigger,
+    )
 
     Base.metadata.create_all(bind=engine)
 
@@ -240,6 +247,55 @@ def init_db() -> None:
             session.commit()
 
     _seed_bot_triggers()
+
+    def _ensure_bot_templates_table() -> None:
+        create_table = """
+        CREATE TABLE IF NOT EXISTS bot_templates (
+            id BIGSERIAL PRIMARY KEY,
+            code VARCHAR(64) UNIQUE NOT NULL,
+            title VARCHAR(128) NOT NULL,
+            description TEXT NULL,
+            template_json JSONB NOT NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT NOW()
+        );
+        """
+
+        alter_statements = [
+            "ALTER TABLE bot_templates ADD COLUMN IF NOT EXISTS description TEXT",
+            "ALTER TABLE bot_templates ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW()",
+        ]
+
+        with engine.begin() as conn:
+            conn.execute(text(create_table))
+            for statement in alter_statements:
+                conn.execute(text(statement))
+
+    _ensure_bot_templates_table()
+
+    def _seed_bot_templates() -> None:
+        from services.bot_templates import STARTER_TEMPLATES
+
+        with SessionLocal() as session:
+            existing_codes = {
+                code for (code,) in session.query(BotTemplate.code).all() if code
+            }
+
+            for template in STARTER_TEMPLATES:
+                if template.get("code") in existing_codes:
+                    continue
+
+                session.add(
+                    BotTemplate(
+                        code=template.get("code"),
+                        title=template.get("title") or template.get("code"),
+                        description=template.get("description"),
+                        template_json=template.get("template_json") or {},
+                    )
+                )
+
+            session.commit()
+
+    _seed_bot_templates()
 
     def _ensure_admin_tables() -> None:
         create_admin_users = """
