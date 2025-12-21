@@ -22,14 +22,15 @@
     <a href="/adminbot" class="button">Главная</a>
     <a href="/adminbot/nodes" class="button">Узлы</a>
     <a href="/adminbot/triggers" class="button" style="background:#0ea5e9;">Триггеры</a>
-    <a href="/adminbot/runtime" class="button">Runtime</a>
-    <a href="/adminbot/logs" class="button">Логи</a>
+    <a href="/adminbot/runtime" class="button" title="Работа бота — обновление версии сценария">Работа бота</a>
+    <a href="/adminbot/logs" class="button" title="Логи — история действий бота">Логи</a>
     <a href="/adminbot/logout" class="button" style="background:#dc2626;">Выйти</a>
 </header>
 <h2>Триггеры</h2>
+<div class="muted">Триггер говорит боту, когда запускать сценарий: по команде, по тексту или когда ничего не совпало.</div>
 <div class="filter">
     <form method="get" action="/adminbot/triggers" style="display:flex; gap:8px; align-items:center;">
-        <label>Тип:
+        <label>Тип триггера:
             <select name="trigger_type">
                 <option value="">Все</option>
                 {% for key, label in trigger_types.items() %}
@@ -78,5 +79,6 @@
     {% endfor %}
     </tbody>
 </table>
+<p class="muted" style="margin-top:10px;">Совет: если нужна запасная реакция, создайте триггер с типом «Если ничего не подошло» и приоритетом выше остальных.</p>
 </body>
 </html>

@@ -16,25 +16,27 @@
 <body>
 <header>
     <a href="/adminbot/nodes" class="button">Назад к узлам</a>
-    <a href="/adminbot/triggers" class="button">Триггеры</a>
-    <a href="/adminbot/runtime" class="button">Runtime</a>
-    <a href="/adminbot/logs" class="button">Логи</a>
+    <a href="/adminbot/triggers" class="button" title="Триггеры — точки входа в сценарий">Триггеры</a>
+    <a href="/adminbot/runtime" class="button" title="Работа бота — обновление версии">Работа бота</a>
+    <a href="/adminbot/logs" class="button" title="Логи — история действий">Логи</a>
     <a href="/adminbot/logout" class="button" style="background:#dc2626;">Выйти</a>
 </header>
 <h2>Кнопки: {{ node.title }} ({{ node.code }})</h2>
-<div style="margin:12px 0;">
+<div class="muted">Кнопки — готовые ответы для пользователя. Они помогают вести по сценарию без ввода текста.</div>
+<div style="margin:12px 0; display:flex; gap:12px; align-items:center;">
     <a href="/adminbot/nodes/{{ node.id }}/buttons/new" class="button">Создать кнопку</a>
+    <span class="muted">Совет: называйте кнопки простыми словами, например «Оформить заказ».</span>
 </div>
 <table>
     <thead>
     <tr>
-        <th>Title</th>
-        <th>Type</th>
-        <th>Payload</th>
-        <th>Row</th>
-        <th>Pos</th>
-        <th>Enabled</th>
-        <th>Actions</th>
+        <th>Текст кнопки</th>
+        <th>Тип</th>
+        <th>Значение (payload)</th>
+        <th>Строка</th>
+        <th>Позиция</th>
+        <th>Включена</th>
+        <th>Действия</th>
     </tr>
     </thead>
     <tbody>
@@ -49,7 +51,7 @@
         <td>
             <a href="/adminbot/buttons/{{ button.id }}/move?direction=up">⬆️</a>
             <a href="/adminbot/buttons/{{ button.id }}/move?direction=down">⬇️</a> |
-            <a href="/adminbot/buttons/{{ button.id }}/edit">Edit</a>
+            <a href="/adminbot/buttons/{{ button.id }}/edit">Изменить</a>
         </td>
     </tr>
     {% else %}

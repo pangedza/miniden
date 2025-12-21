@@ -14,6 +14,7 @@
         .error { color: #dc2626; margin-bottom: 12px; }
         small { color: #475569; }
         .checkbox { display: flex; align-items: center; gap: 8px; }
+        .help-icon { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:50%; background:#e0f2fe; color:#0f172a; font-size:12px; cursor:help; margin-left:6px; }
     </style>
 </head>
 <body>
@@ -21,17 +22,18 @@
     <a href="/adminbot" class="button">Главная</a>
     <a href="/adminbot/nodes" class="button">Узлы</a>
     <a href="/adminbot/triggers" class="button">Триггеры</a>
-    <a href="/adminbot/runtime" class="button">Runtime</a>
-    <a href="/adminbot/logs" class="button">Логи</a>
+    <a href="/adminbot/runtime" class="button" title="Работа бота — обновление версии сценария">Работа бота</a>
+    <a href="/adminbot/logs" class="button" title="Логи — проверка истории действий">Логи</a>
     <a href="/adminbot/logout" class="button" style="background:#dc2626;">Выйти</a>
 </header>
 <h2>{{ 'Редактировать триггер' if trigger else 'Создать триггер' }}</h2>
+<p class="muted">Триггер отвечает на команду, текст или служит запасным вариантом, чтобы бот знал, куда вести пользователя.</p>
 {% if error %}
 <p class="error">{{ error }}</p>
 {% endif %}
 <form method="post" action="{{ '/adminbot/triggers/' ~ trigger.id ~ '/edit' if trigger else '/adminbot/triggers/new' }}">
     <label>
-        Тип триггера
+        Тип триггера <span class="help-icon" title="Как бот понимает, что запускать: команда, текст или запасной вариант">?</span>
         <select name="trigger_type" id="trigger_type" required>
             {% for key, label in trigger_types.items() %}
             {% set selected = (form.trigger_type if form else (trigger.trigger_type if trigger else '')) %}
@@ -42,7 +44,7 @@
 
     <div id="value_block">
         <label>
-            Значение
+            Значение <span class="help-icon" title="Что должен написать пользователь: команда без / или ключевой текст">?</span>
             {% set current_value = form.trigger_value if form else (trigger.trigger_value if trigger else '') %}
             <input type="text" name="trigger_value" id="trigger_value" value="{{ current_value or '' }}" placeholder="Например: start (без /)" />
             <small>Для команды вводите без символа '/'.</small>
@@ -51,7 +53,7 @@
 
     <div id="match_mode_block">
         <label>
-            Режим совпадения
+            Режим совпадения <span class="help-icon" title="Точно или частично сравнивать текст пользователя">?</span>
             {% set current_mode = form.match_mode if form else (trigger.match_mode if trigger else 'EXACT') %}
             <select name="match_mode" id="match_mode">
                 {% for key, label in match_modes.items() %}
@@ -62,13 +64,13 @@
     </div>
 
     <label>
-        Код узла назначения
+        Код узла назначения <span class="help-icon" title="С какого узла начинается сценарий после срабатывания">?</span>
         {% set current_target = form.target_node_code if form else (trigger.target_node_code if trigger else '') %}
         <input type="text" name="target_node_code" required value="{{ current_target }}" placeholder="например: MAIN_MENU" />
     </label>
 
     <label>
-        Приоритет
+        Приоритет <span class="help-icon" title="Чем меньше число — тем раньше сработает триггер">?</span>
         {% set current_priority = form.priority if form else (trigger.priority if trigger else 100) %}
         <input type="number" name="priority" value="{{ current_priority }}" />
         <small>Чем меньше число — тем раньше сработает.</small>

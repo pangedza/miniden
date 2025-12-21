@@ -24,51 +24,52 @@
         .muted { color: #475569; font-size: 13px; }
         .action-fields { margin-top: 10px; }
         .action-fields .row { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+        .help-icon { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:50%; background:#e0f2fe; color:#0f172a; font-size:12px; cursor:help; margin-left:6px; }
     </style>
 </head>
 <body>
 <header>
     <a href="/adminbot/nodes" class="button">Назад к списку</a>
-    <a href="/adminbot/triggers" class="button">Триггеры</a>
-    <a href="/adminbot/runtime" class="button">Runtime</a>
-    <a href="/adminbot/logs" class="button">Логи</a>
+    <a href="/adminbot/triggers" class="button" title="Триггеры — с чего бот начинает">Триггеры</a>
+    <a href="/adminbot/runtime" class="button" title="Работа бота — обновление версии сценария">Работа бота</a>
+    <a href="/adminbot/logs" class="button" title="Логи помогут проверить ход сценария">Логи</a>
     <a href="/adminbot/logout" class="button" style="background:#dc2626;">Выйти</a>
 </header>
 <h2>{% if node %}Редактирование: {{ node.code }}{% else %}Новый узел{% endif %}</h2>
 {% if error %}<div class="error">{{ error }}</div>{% endif %}
 <form method="post" action="{% if node %}/adminbot/nodes/{{ node.id }}/edit{% else %}/adminbot/nodes/new{% endif %}">
-    <label>Код узла</label>
+    <label>Код узла <span class="help-icon" title="Уникальное имя шага. Используется для переходов. Например: MAIN_MENU">?</span></label>
     <input type="text" name="code" value="{{ node.code if node else '' }}" {% if node %}readonly{% endif %} required>
 
     <div class="row">
         <div>
-            <label>Название</label>
-            <input type="text" name="title" value="{{ node.title if node else '' }}" required>
+            <label>Название для себя <span class="help-icon" title="Свободное название, видно только вам. Помогает понять, что делает узел.">?</span></label>
+            <input type="text" name="title" value="{{ node.title if node else '' }}" placeholder="Например: Приветствие" required>
         </div>
         <div>
-            <label>Тип узла</label>
+            <label>Тип узла <span class="help-icon" title="Определяет, что бот делает на этом шаге: сообщение, ожидание ответа, проверка условия или действие">?</span></label>
             <select name="node_type" id="node_type_select">
-                <option value="MESSAGE" {% if node is none or node.node_type == 'MESSAGE' %}selected{% endif %}>Сообщение</option>
-                <option value="INPUT" {% if node and node.node_type == 'INPUT' %}selected{% endif %}>Ожидание ввода</option>
-                <option value="CONDITION" {% if node and node.node_type == 'CONDITION' %}selected{% endif %}>Условие (если/иначе)</option>
-                <option value="ACTION" {% if node and node.node_type == 'ACTION' %}selected{% endif %}>Действие</option>
+                <option value="MESSAGE" {% if node is none or node.node_type == 'MESSAGE' %}selected{% endif %}>Сообщение — бот просто отправит текст</option>
+                <option value="INPUT" {% if node and node.node_type == 'INPUT' %}selected{% endif %}>Ожидание ввода — бот ждёт ответ</option>
+                <option value="CONDITION" {% if node and node.node_type == 'CONDITION' %}selected{% endif %}>Условие (если/иначе) — проверка и переход</option>
+                <option value="ACTION" {% if node and node.node_type == 'ACTION' %}selected{% endif %}>Действие — выполнить задачу и идти дальше</option>
             </select>
-            <div class="hint">Выберите поведение узла.</div>
+            <div class="hint">Подсказка: выберите поведение узла.</div>
         </div>
     </div>
 
-    <label>Текст сообщения</label>
-    <textarea name="message_text" required>{{ node.message_text if node else '' }}</textarea>
-    <div class="hint">Можно использовать переменные: {{'{{'}}name{{'}}'}}, {{'{{'}}phone{{'}}'}}</div>
+    <label>Текст сообщения <span class="help-icon" title="Что бот отправит пользователю. Можно подставлять {{переменные}}.">?</span></label>
+    <textarea name="message_text" required placeholder="Например: Привет, {{name}}! Чем помочь?">{{ node.message_text if node else '' }}</textarea>
+    <div class="hint">Можно использовать переменные: {{'{{'}}name{{'}}'}}, {{'{{'}}phone{{'}}'}}.</div>
 
     <div class="row">
         <div>
-            <label>Parse mode</label>
-            <input type="text" name="parse_mode" value="{{ node.parse_mode if node else 'HTML' }}" placeholder="HTML">
+            <label>Режим форматирования <span class="help-icon" title="Как обрабатывать текст: HTML или Markdown. Оставьте по умолчанию, если не уверены.">?</span></label>
+            <input type="text" name="parse_mode" value="{{ node.parse_mode if node else 'HTML' }}" placeholder="Например: HTML">
         </div>
         <div>
-            <label>Image URL</label>
-            <input type="text" name="image_url" value="{{ node.image_url if node else '' }}" placeholder="https://...">
+            <label>Изображение (URL) <span class="help-icon" title="Ссылка на картинку, которую бот пришлёт вместе с текстом.">?</span></label>
+            <input type="text" name="image_url" value="{{ node.image_url if node else '' }}" placeholder="https://example.com/image.jpg">
         </div>
     </div>
 
@@ -81,7 +82,7 @@
         <h3>Настройки ввода</h3>
         <div class="row">
             <div>
-                <label>Тип ввода</label>
+                <label>Тип ввода <span class="help-icon" title="Что ожидаем от пользователя: текст, число, телефон или контакт">?</span></label>
                 <select name="input_type" id="input_type_select">
                     <option value="" disabled {% if node is none or not node.input_type %}selected{% endif %}>Выберите</option>
                     <option value="TEXT" {% if node and node.input_type == 'TEXT' %}selected{% endif %}>Текст</option>
@@ -91,8 +92,8 @@
                 </select>
             </div>
             <div>
-                <label>Сохранить в переменную</label>
-                <input type="text" name="input_var_key" value="{{ node.input_var_key if node else '' }}" placeholder="например: phone или name">
+                <label>Сохранить в переменную <span class="help-icon" title="Имя, под которым ответ сохранится и будет доступен в следующих узлах.">?</span></label>
+                <input type="text" name="input_var_key" value="{{ node.input_var_key if node else '' }}" placeholder="Например: phone или name">
                 <div class="hint">Ключ переменной (латиница, цифры, underscore).</div>
             </div>
         </div>
@@ -103,36 +104,36 @@
                 <label for="input_required" style="margin:0; font-weight:normal;">Обязательно</label>
             </div>
             <div>
-                <label>Минимальная длина</label>
-                <input type="number" name="input_min_len" value="{{ node.input_min_len if node and node.input_min_len is not none else '' }}" placeholder="Например 2 для имени.">
+                <label>Минимальная длина ответа <span class="help-icon" title="Сколько символов минимум должен написать пользователь. Оставьте пустым, если не важно.">?</span></label>
+                <input type="number" name="input_min_len" value="{{ node.input_min_len if node and node.input_min_len is not none else '' }}" placeholder="Например: 2 символа для имени">
             </div>
         </div>
 
-        <label>Текст ошибки</label>
+        <label>Текст ошибки <span class="help-icon" title="Сообщение, которое увидит пользователь, если ответ не подходит.">?</span></label>
         <textarea name="input_error_text" placeholder="Пожалуйста, введите корректное значение.">{{ node.input_error_text if node else '' }}</textarea>
 
         <div class="row">
             <div>
-                <label>Переход при успехе (код узла)</label>
-                <input type="text" name="next_node_code_success" value="{{ node.next_node_code_success if node else '' }}" placeholder="например: MAIN_MENU">
+                <label>Переход при успехе (код узла) <span class="help-icon" title="Куда отправить пользователя, если ответ подходит">?</span></label>
+                <input type="text" name="next_node_code_success" value="{{ node.next_node_code_success if node else '' }}" placeholder="Например: MAIN_MENU">
             </div>
             <div>
-                <label>Переход при отмене (код узла)</label>
-                <input type="text" name="next_node_code_cancel" value="{{ node.next_node_code_cancel if node else '' }}" placeholder="например: MAIN_MENU">
+                <label>Переход при отмене (код узла) <span class="help-icon" title="Если пользователь нажмёт отмену или не даст контакт">?</span></label>
+                <input type="text" name="next_node_code_cancel" value="{{ node.next_node_code_cancel if node else '' }}" placeholder="Например: MAIN_MENU">
             </div>
         </div>
     </div>
 
     <div id="action_settings" class="card" style="display:none;">
         <h3>Действия узла</h3>
-        <div class="hint">Действия выполняются по порядку сверху вниз.</div>
+        <div class="hint">Действия выполняются по порядку сверху вниз. Подходит для уведомлений, записи данных или переходов.</div>
         <div id="actions_container"></div>
         <div style="margin-top:10px;">
             <button type="button" class="button" id="add_action_btn" style="background:#0ea5e9;">Добавить действие</button>
         </div>
         <div style="margin-top:14px;">
-            <label>Переход после выполнения (код узла)</label>
-            <input type="text" name="next_node_code" value="{{ node.next_node_code if node else '' }}" placeholder="Код узла (если не указан — сценарий завершается)">
+            <label>Переход после выполнения (код узла) <span class="help-icon" title="Если в действиях нет своего перехода — сюда попадёт пользователь">?</span></label>
+            <input type="text" name="next_node_code" value="{{ node.next_node_code if node else '' }}" placeholder="Код узла (если не указан — сценарий завершится)">
             <div class="hint">Опционально. Используется, если в действиях нет переходов.</div>
         </div>
     </div>
@@ -141,12 +142,12 @@
         <h3>Настройка условия</h3>
         <div class="row">
             <div>
-                <label>Переменная</label>
-                <input type="text" name="cond_var_key" id="cond_var_key_input" value="{{ node.cond_var_key if node else '' }}" placeholder="например: phone">
+                <label>Переменная <span class="help-icon" title="Что проверяем: берётся из ранее сохранённых переменных пользователя">?</span></label>
+                <input type="text" name="cond_var_key" id="cond_var_key_input" value="{{ node.cond_var_key if node else '' }}" placeholder="Например: phone">
                 <div class="hint">Берётся из user_vars (переменные пользователя).</div>
             </div>
             <div>
-                <label>Оператор</label>
+                <label>Оператор <span class="help-icon" title="Как сравниваем: равно, содержит, больше и т.д.">?</span></label>
                 <select name="cond_operator" id="cond_operator_select">
                     <option value="" disabled {% if node is none or not node.cond_operator %}selected{% endif %}>Выберите</option>
                     <option value="EXISTS" {% if node and node.cond_operator == 'EXISTS' %}selected{% endif %}>Существует</option>
@@ -164,23 +165,25 @@
             </div>
         </div>
 
-        <label>Значение</label>
-        <input type="text" name="cond_value" id="cond_value_input" value="{{ node.cond_value if node else '' }}" placeholder="например: +7">
+        <label>Значение <span class="help-icon" title="С чем сравниваем. Для операторов 'Существует/Не существует' можно оставить пустым.">?</span></label>
+        <input type="text" name="cond_value" id="cond_value_input" value="{{ node.cond_value if node else '' }}" placeholder="Например: +7">
         <div class="hint">Не нужно для «Существует/Не существует».</div>
 
         <div class="row">
             <div>
-                <label>Переход если TRUE (код узла)</label>
-                <input type="text" name="next_node_code_true" id="next_node_code_true_input" value="{{ node.next_node_code_true if node else '' }}" placeholder="например: MAIN_MENU">
+                <label>Переход если TRUE (код узла) <span class="help-icon" title="Куда вести пользователя, если условие выполнено">?</span></label>
+                <input type="text" name="next_node_code_true" id="next_node_code_true_input" value="{{ node.next_node_code_true if node else '' }}" placeholder="Например: MAIN_MENU">
             </div>
             <div>
-                <label>Переход если FALSE (код узла)</label>
-                <input type="text" name="next_node_code_false" id="next_node_code_false_input" value="{{ node.next_node_code_false if node else '' }}" placeholder="например: ASK_PHONE">
+                <label>Переход если FALSE (код узла) <span class="help-icon" title="Куда вести, если условие не сработало">?</span></label>
+                <input type="text" name="next_node_code_false" id="next_node_code_false_input" value="{{ node.next_node_code_false if node else '' }}" placeholder="Например: ASK_PHONE">
             </div>
         </div>
 
         <div class="hint">Узел не отправляет сообщение. Он сразу переводит по TRUE/FALSE.</div>
     </div>
+
+    <div class="hint" style="margin-top:14px;">Совет: сначала создайте узлы типа «Сообщение» и «Ожидание ввода», затем добавьте триггеры, чтобы бот знал, с чего начать.</div>
 
     <div class="actions">
         <button type="submit" class="button">Сохранить</button>
