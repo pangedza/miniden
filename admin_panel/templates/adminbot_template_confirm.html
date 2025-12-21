@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Применение шаблона</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 16px; background: #f8fafc; }
+        header { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+        a.button, button { padding: 6px 10px; background: #2563eb; color: #fff; text-decoration: none; border: none; border-radius: 4px; cursor: pointer; }
+        .muted { color: #475569; font-size: 14px; }
+        .section { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; margin-bottom: 14px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 8px; border: 1px solid #e5e7eb; text-align: left; }
+        th { background: #f1f5f9; }
+        .badge { padding: 2px 6px; border-radius: 4px; font-size: 12px; background: #e0f2fe; color: #0369a1; }
+        .success { background: #ecfdf3; border: 1px solid #bbf7d0; padding: 10px; border-radius: 6px; color: #166534; }
+        .error { background: #fef2f2; border: 1px solid #fecaca; padding: 10px; border-radius: 6px; color: #b91c1c; }
+        .actions { display: flex; gap: 10px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+    </style>
+</head>
+<body>
+<header>
+    <a href="/adminbot" class="button">Главная</a>
+    <a href="/adminbot/templates" class="button" style="background:#0ea5e9;">Шаблоны</a>
+    <a href="/adminbot/nodes" class="button">Узлы</a>
+    <a href="/adminbot/triggers" class="button">Триггеры</a>
+    <a href="/adminbot/runtime" class="button">Работа бота</a>
+    <a href="/adminbot/logs" class="button">Логи</a>
+    <a href="/adminbot/logout" class="button" style="background:#dc2626;">Выйти</a>
+</header>
+<h2>{{ template.title }}</h2>
+<div class="muted">Код шаблона: {{ template.code }}</div>
+{% if template.description %}<p>{{ template.description }}</p>{% endif %}
+<div class="section">
+    <h3>Что создастся</h3>
+    <div class="muted">Шаблон будет скопирован: новые коды узлов и триггеров не затронут существующие данные.</div>
+    <div class="actions">
+        <form method="post" action="/adminbot/templates/{{ template.code }}/apply">
+            <button type="submit">Применить шаблон</button>
+        </form>
+        <a href="/adminbot/nodes" class="button" style="background:#0ea5e9;">Открыть узлы</a>
+    </div>
+    {% if applied and result %}
+    <div class="success" style="margin-top:10px;">
+        Шаблон применён. Создано узлов: {{ result.nodes|length }}, триггеров: {{ result.triggers|length }}.
+    </div>
+    {% endif %}
+    {% if error %}
+    <div class="error" style="margin-top:10px;">{{ error }}</div>
+    {% endif %}
+</div>
+<div class="section">
+    <h3>Узлы</h3>
+    <table>
+        <thead>
+        <tr>
+            <th>Исходный код</th>
+            <th>Новый код</th>
+            <th>Название</th>
+            <th>Тип</th>
+            <th>Переходы</th>
+            <th>Кнопок</th>
+            <th>Действий</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for node in preview_nodes %}
+        <tr>
+            <td>{{ node.code }}</td>
+            <td><span class="badge">{{ node.new_code }}</span></td>
+            <td>{{ node.title }}</td>
+            <td>{{ node.node_type }}</td>
+            <td class="muted">
+                {% if node.next_success %}Успех → {{ node.next_success }}<br>{% endif %}
+                {% if node.next_cancel %}Отмена → {{ node.next_cancel }}<br>{% endif %}
+                {% if node.next_node %}Следующий → {{ node.next_node }}{% endif %}
+            </td>
+            <td>{{ node.buttons|length }}</td>
+            <td>{{ node.actions|length }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7">В шаблоне нет узлов</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+<div class="section">
+    <h3>Триггеры</h3>
+    <table>
+        <thead>
+        <tr>
+            <th>Тип</th>
+            <th>Значение</th>
+            <th>Режим</th>
+            <th>Целевой узел</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for trigger in preview_triggers %}
+        <tr>
+            <td>{{ trigger.trigger_type }}</td>
+            <td>{{ trigger.trigger_value or '—' }}</td>
+            <td>{{ trigger.match_mode }}</td>
+            <td>{{ trigger.target_node_code }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4">Триггеры не заданы</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+</body>
+</html>

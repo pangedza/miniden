@@ -14,6 +14,7 @@ from . import (
     adminbot_logs,
     adminbot_nodes,
     adminbot_runtime,
+    adminbot_templates,
     adminbot_triggers,
 )
 
@@ -68,3 +69,4 @@ router.include_router(adminbot_buttons.router)
 router.include_router(adminbot_triggers.router)
 router.include_router(adminbot_runtime.router)
 router.include_router(adminbot_logs.router)
+router.include_router(adminbot_templates.router)
