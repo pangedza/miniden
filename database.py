@@ -128,6 +128,7 @@ def init_db() -> None:
             "ALTER TABLE bot_nodes ADD COLUMN IF NOT EXISTS next_node_code_true VARCHAR",
             "ALTER TABLE bot_nodes ADD COLUMN IF NOT EXISTS next_node_code_false VARCHAR",
             "ALTER TABLE bot_nodes ADD COLUMN IF NOT EXISTS next_node_code VARCHAR",
+            "ALTER TABLE bot_nodes ADD COLUMN IF NOT EXISTS config_json JSONB",
         ]
 
         create_user_vars = """
@@ -204,6 +205,26 @@ def init_db() -> None:
             )
 
     _ensure_bot_constructor_extensions()
+
+    def _ensure_bot_runtime_settings() -> None:
+        alter_statements = [
+            "ALTER TABLE bot_runtime ADD COLUMN IF NOT EXISTS start_node_code VARCHAR(64)",
+        ]
+
+        create_bot_settings = """
+        CREATE TABLE IF NOT EXISTS bot_settings (
+            key VARCHAR(64) PRIMARY KEY,
+            value TEXT
+        );
+        """
+
+        with engine.begin() as conn:
+            for statement in alter_statements:
+                conn.execute(text(statement))
+
+            conn.execute(text(create_bot_settings))
+
+    _ensure_bot_runtime_settings()
 
     def _seed_bot_triggers() -> None:
         with SessionLocal() as session:

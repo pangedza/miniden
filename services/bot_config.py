@@ -38,6 +38,9 @@ class NodeView:
     next_node_code_false: str | None
     next_node_code: str | None
     actions: list["NodeActionView"]
+    condition_type: str | None
+    condition_payload: dict | None
+    config_json: dict | None
 
 
 @dataclass
@@ -59,7 +62,22 @@ class BotTriggerView:
     is_enabled: bool
 
 
-_cache: dict[str, object] = {"version": None, "nodes": {}, "triggers": []}
+_cache: dict[str, object] = {
+    "version": None,
+    "nodes": {},
+    "triggers": [],
+    "start_node_code": None,
+}
+
+
+def _get_runtime(session) -> BotRuntime:
+    runtime: BotRuntime | None = session.query(BotRuntime).first()
+    if not runtime:
+        runtime = BotRuntime(config_version=1, start_node_code="MAIN_MENU")
+        session.add(runtime)
+        session.commit()
+        session.refresh(runtime)
+    return runtime
 
 
 def get_config_version(session=None) -> int:
@@ -67,12 +85,7 @@ def get_config_version(session=None) -> int:
         with get_session() as db:
             return get_config_version(session=db)
 
-    runtime: BotRuntime | None = session.query(BotRuntime).first()
-    if not runtime:
-        runtime = BotRuntime(config_version=1)
-        session.add(runtime)
-        session.commit()
-        session.refresh(runtime)
+    runtime = _get_runtime(session)
     return runtime.config_version or 1
 
 
@@ -103,7 +116,7 @@ def _build_inline_keyboard(buttons: list[BotButton]) -> InlineKeyboardMarkup | N
     return InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
 
 
-def _reload_cache(session, version: int) -> None:
+def _reload_cache(session, version: int, start_node_code: str | None) -> None:
     nodes = (
         session.query(BotNode)
         .options(selectinload(BotNode.buttons))
@@ -130,6 +143,7 @@ def _reload_cache(session, version: int) -> None:
     for node in nodes:
         enabled_buttons = [btn for btn in node.buttons if btn.is_enabled]
         keyboard = _build_inline_keyboard(enabled_buttons)
+        config_json: dict | None = node.config_json if isinstance(node.config_json, dict) else None
         prepared[node.code] = NodeView(
             code=node.code,
             title=node.title,
@@ -152,6 +166,9 @@ def _reload_cache(session, version: int) -> None:
             next_node_code_false=node.next_node_code_false,
             next_node_code=node.next_node_code,
             actions=actions_map.get(node.code, []),
+            condition_type=(config_json or {}).get("condition_type"),
+            condition_payload=(config_json or {}).get("condition_payload"),
+            config_json=config_json,
         )
 
     triggers = (
@@ -180,6 +197,7 @@ def _reload_cache(session, version: int) -> None:
     _cache["version"] = version
     _cache["nodes"] = prepared
     _cache["triggers"] = prepared_triggers
+    _cache["start_node_code"] = start_node_code
     logger.info(
         "Bot config cache reloaded (version=%s, nodes=%s, triggers=%s)",
         version,
@@ -190,9 +208,9 @@ def _reload_cache(session, version: int) -> None:
 
 def load_node(code: str) -> Optional[NodeView]:
     with get_session() as session:
-        db_version = get_config_version(session)
-        if _cache.get("version") != db_version:
-            _reload_cache(session, db_version)
+        runtime = _get_runtime(session)
+        if _cache.get("version") != runtime.config_version:
+            _reload_cache(session, runtime.config_version, runtime.start_node_code)
 
         nodes: Dict[str, NodeView] = _cache.get("nodes", {})  # type: ignore[assignment]
         return nodes.get(code)
@@ -200,8 +218,18 @@ def load_node(code: str) -> Optional[NodeView]:
 
 def load_triggers() -> list[BotTriggerView]:
     with get_session() as session:
-        db_version = get_config_version(session)
-        if _cache.get("version") != db_version:
-            _reload_cache(session, db_version)
+        runtime = _get_runtime(session)
+        if _cache.get("version") != runtime.config_version:
+            _reload_cache(session, runtime.config_version, runtime.start_node_code)
 
         return list(_cache.get("triggers", []))  # type: ignore[list-item]
+
+
+def get_start_node_code() -> str:
+    with get_session() as session:
+        runtime = _get_runtime(session)
+        if _cache.get("version") != runtime.config_version:
+            _reload_cache(session, runtime.config_version, runtime.start_node_code)
+
+        cached_start_node = _cache.get("start_node_code") or runtime.start_node_code
+        return (cached_start_node or "MAIN_MENU").strip() or "MAIN_MENU"

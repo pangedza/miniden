@@ -51,6 +51,7 @@ class BotNode(Base):
     cond_value = Column(Text, nullable=True)
     next_node_code_true = Column(String, nullable=True)
     next_node_code_false = Column(String, nullable=True)
+    config_json = Column(JSONB, nullable=True)
     is_enabled = Column(Boolean, default=True, nullable=False, server_default="true")
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=func.now(), nullable=False)
@@ -107,6 +108,7 @@ class BotRuntime(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     config_version = Column(Integer, nullable=False, default=1, server_default="1")
+    start_node_code = Column(String(64), nullable=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=func.now(), nullable=True)
 
 

@@ -26,9 +26,24 @@
     <p>Текущая версия сценария: <strong>{{ runtime.config_version }}</strong></p>
     <p class="muted">При изменении версии бот обновит кэш меню. Перезапуск не требуется.</p>
     <form method="post" action="/adminbot/runtime">
+        <input type="hidden" name="action" value="bump">
         <button type="submit" class="button" title="Нажмите, если изменили узлы или триггеры, чтобы бот подхватил обновления">Обновить бота</button>
     </form>
     <p class="muted" style="margin-top:10px;">Если бот ведёт себя как раньше, увеличьте номер версии и нажмите «Обновить бота».</p>
+</div>
+
+<div class="card" style="margin-top:16px;">
+    <h2>Стартовый узел (/start)</h2>
+    <p class="muted">Укажите код узла, который должен открываться по команде /start. Например: <code>MAIN_MENU</code> или <code>SUBSCRIPTION_CHECK</code>.</p>
+    <form method="post" action="/adminbot/runtime" style="margin-top:12px; display:flex; gap:8px; align-items:flex-end;">
+        <input type="hidden" name="action" value="update_start">
+        <div style="flex:1;">
+            <label for="start_node_code" style="display:block; font-weight:bold;">Код стартового узла</label>
+            <input type="text" id="start_node_code" name="start_node_code" value="{{ runtime.start_node_code or 'MAIN_MENU' }}" placeholder="Например: SUBSCRIPTION_CHECK" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px;">
+            <div class="muted" style="margin-top:6px;">Чтобы включить проверку подписки, создайте узел-условие <strong>SUBSCRIPTION_CHECK</strong> и укажите его здесь.</div>
+        </div>
+        <button type="submit" class="button" style="height:42px;">Сохранить</button>
+    </form>
 </div>
 </body>
 </html>

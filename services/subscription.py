@@ -32,42 +32,84 @@ def _get_channel_link() -> str | None:
     return None
 
 
+def guess_channel_link(channels: list[str], explicit_link: str | None = None) -> str | None:
+    if explicit_link:
+        return explicit_link
+
+    for channel in channels:
+        normalized = (channel or "").strip()
+        if not normalized:
+            continue
+        if normalized.startswith("http"):
+            return normalized
+        if normalized.startswith("@"):
+            return f"https://t.me/{normalized.lstrip('@')}"
+        return f"https://t.me/{normalized}"
+    return None
+
+
 def get_subscription_keyboard(
     callback_data: str = "sub_check:start",
+    *,
+    subscribe_url: str | None = None,
+    channels: list[str] | None = None,
+    subscribe_button_text: str = "📢 Подписаться на канал",
+    check_button_text: str = "✅ Я подписался",
 ) -> InlineKeyboardMarkup:
     """Единая клавиатура для приглашения подписаться."""
 
     buttons: list[list[InlineKeyboardButton]] = []
-    channel_link = _get_channel_link()
+    channel_link = guess_channel_link(channels or [], subscribe_url) or _get_channel_link()
 
     if channel_link:
         buttons.append(
-            [InlineKeyboardButton(text="📢 Подписаться на канал", url=channel_link)]
+            [InlineKeyboardButton(text=subscribe_button_text, url=channel_link)]
         )
 
-    buttons.append(
-        [InlineKeyboardButton(text="✅ Я подписался", callback_data=callback_data)]
-    )
+    buttons.append([InlineKeyboardButton(text=check_button_text, callback_data=callback_data)])
 
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
+async def check_channels_subscription(
+    bot: Bot, user_id: int, channels: list[str]
+) -> tuple[bool, str | None]:
+    """
+    Проверяет подписку пользователя на список каналов.
+
+    Возвращает (is_ok, error_message). Если error_message не None — проблема на стороне Telegram.
+    """
+
+    normalized_channels = [ch.strip() for ch in channels if (ch or "").strip()]
+    if not normalized_channels:
+        return True, None
+
+    for channel in normalized_channels:
+        try:
+            member = await bot.get_chat_member(chat_id=channel, user_id=user_id)
+        except Exception as exc:  # noqa: BLE001
+            logging.warning(
+                "Не удалось проверить подписку для chat_id=%s: %s", channel, exc
+            )
+            return False, "error"
+
+        status = getattr(member, "status", None)
+        if status in {"left", "kicked"}:
+            return False, None
+
+    return True, None
+
+
 async def is_user_subscribed(bot: Bot, user_id: int) -> bool:
-    """Проверка статуса участника канала."""
+    """Проверка статуса участника канала из глобальных настроек."""
 
     chat_id = _get_channel_identifier()
 
     if chat_id is None:
         return True
 
-    try:
-        member = await bot.get_chat_member(chat_id=chat_id, user_id=user_id)
-    except Exception:  # noqa: BLE001
-        logging.exception("Не удалось проверить подписку для chat_id=%s", chat_id)
-        return False
-
-    status = getattr(member, "status", None)
-    return status in {"member", "creator", "administrator", "owner"}
+    ok, _ = await check_channels_subscription(bot, user_id, [chat_id])
+    return ok
 
 
 async def ensure_subscribed(
