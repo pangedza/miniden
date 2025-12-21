@@ -17,7 +17,13 @@ from database import get_session
 from models import AuthSession, User, UserState, UserTag, UserVar
 from services import users as users_service
 from keyboards.main_menu import get_main_menu
-from services.bot_config import BotTriggerView, NodeView, load_node, load_triggers
+from services.bot_config import (
+    BotTriggerView,
+    NodeView,
+    get_start_node_code,
+    load_node,
+    load_triggers,
+)
 from services.bot_logging import (
     log_action_event,
     log_error_event,
@@ -27,6 +33,7 @@ from services.bot_logging import (
 from services.subscription import (
     ensure_subscribed,
     get_subscription_keyboard,
+    check_channels_subscription,
     is_user_subscribed,
 )
 from utils.texts import format_start_text, format_subscription_required_text
@@ -43,6 +50,35 @@ async def _send_subscription_invite(target_message) -> None:
         format_subscription_required_text(),
         reply_markup=get_subscription_keyboard(),
     )
+
+
+def _is_subscription_condition(node: NodeView | None) -> bool:
+    return bool(node and (node.condition_type or "").upper() == "CHECK_SUBSCRIPTION")
+
+
+def _get_subscription_payload(node: NodeView) -> dict:
+    payload = node.condition_payload or {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _build_subscription_keyboard(node: NodeView) -> InlineKeyboardMarkup:
+    payload = _get_subscription_payload(node)
+    return get_subscription_keyboard(
+        callback_data=f"SUB_CHECK:{node.code}",
+        subscribe_url=payload.get("subscribe_url"),
+        channels=payload.get("channels") or [],
+        subscribe_button_text=payload.get("subscribe_button_text") or "Подписаться",
+        check_button_text=payload.get("check_button_text") or "Проверить подписку",
+    )
+
+
+async def _send_subscription_prompt(
+    message: types.Message, node: NodeView, *, text_override: str | None = None
+) -> None:
+    user_vars = _load_user_vars(message.from_user.id)
+    keyboard = _build_subscription_keyboard(node)
+    text = text_override or node.message_text
+    await _send_message_node(message, node, user_vars, reply_markup=keyboard)
 
 
 async def _send_message_node(
@@ -91,6 +127,10 @@ async def _send_node(message: types.Message, node: NodeView, *, remove_reply_key
     )
     if node.node_type == "CONDITION":
         _clear_user_state(message.from_user.id)
+        if _is_subscription_condition(node):
+            await _send_subscription_prompt(message, node)
+            return
+
         is_true = _evaluate_condition(node, user_vars)
         target_code = node.next_node_code_true if is_true else node.next_node_code_false
         await _open_node_with_fallback(message, target_code)
@@ -726,6 +766,9 @@ async def cmd_start(message: types.Message):
     if deep_link.startswith("auth_"):
         return
 
+    if await _open_start_node(message, is_admin=is_admin):
+        return
+
     if await ensure_subscribed(message, message.bot, is_admin=is_admin):
         if await _process_triggers(message):
             return
@@ -751,6 +794,9 @@ async def start_button(message: types.Message):
     is_admin = user_id in ADMIN_IDS
 
     _ensure_user_exists(message.from_user)
+
+    if await _open_start_node(message, is_admin=is_admin):
+        return
 
     if await ensure_subscribed(message, message.bot, is_admin=is_admin):
         await _send_start_screen(message, is_admin=is_admin)
@@ -819,6 +865,74 @@ async def _send_dynamic_start_screen(message: types.Message) -> bool:
     return True
 
 
+async def _process_subscription_check(callback: CallbackQuery, node: NodeView) -> None:
+    payload = _get_subscription_payload(node)
+    channels = payload.get("channels") or []
+    ok, error = await check_channels_subscription(callback.bot, callback.from_user.id, channels)
+
+    if error:
+        log_error_event(
+            user_id=callback.from_user.id,
+            username=callback.from_user.username,
+            node_code=node.code,
+            details="Ошибка Telegram API при проверке подписки",
+        )
+        await callback.answer("Не могу проверить подписку, попробуйте позже", show_alert=True)
+        await _send_subscription_prompt(
+            callback.message,
+            node,
+            text_override=payload.get("fail_message") or node.message_text,
+        )
+        return
+
+    if ok:
+        target_code = (
+            payload.get("on_success_node")
+            or node.next_node_code_true
+            or "MAIN_MENU"
+        )
+        await callback.answer("Подписка подтверждена!", show_alert=False)
+        await _open_node_with_fallback(callback.message, target_code)
+        return
+
+    fail_text = (
+        payload.get("fail_message")
+        or node.message_text
+        or "Подпишитесь на канал и нажмите «Проверить подписку»."
+    )
+    await callback.answer("Подписка не найдена", show_alert=True)
+    on_fail = payload.get("on_fail_node") or node.next_node_code_false or node.code
+    if on_fail and on_fail != node.code:
+        await _open_node_with_fallback(callback.message, on_fail)
+        return
+
+    await _send_subscription_prompt(callback.message, node, text_override=fail_text)
+
+
+async def _open_start_node(message: types.Message, is_admin: bool) -> bool:
+    start_code = get_start_node_code()
+    if not start_code:
+        return False
+
+    node = load_node(start_code)
+    if not node:
+        log_error_event(
+            user_id=message.from_user.id,
+            username=message.from_user.username,
+            node_code=start_code,
+            details="Стартовый узел не найден",
+        )
+        return False
+
+    if _is_subscription_condition(node):
+        await _send_node(message, node)
+        return True
+
+    if await ensure_subscribed(message, message.bot, is_admin=is_admin):
+        await _send_node(message, node)
+    return True
+
+
 @router.callback_query(F.data.startswith("OPEN_NODE:"))
 async def handle_open_node(callback: CallbackQuery):
     _, node_code = callback.data.split(":", maxsplit=1)
@@ -830,6 +944,18 @@ async def handle_open_node(callback: CallbackQuery):
 
     await _send_node(callback.message, node)
     await callback.answer()
+
+
+@router.callback_query(F.data.startswith("SUB_CHECK:"))
+async def handle_subscription_check_callback(callback: CallbackQuery):
+    _, node_code = callback.data.split(":", maxsplit=1)
+    node = load_node(node_code)
+
+    if not node or not _is_subscription_condition(node):
+        await callback.answer("Элемент недоступен", show_alert=True)
+        return
+
+    await _process_subscription_check(callback, node)
 
 
 @router.callback_query(F.data.startswith("INPUT_CANCEL:"))

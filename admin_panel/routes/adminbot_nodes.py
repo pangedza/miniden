@@ -73,6 +73,7 @@ def _to_optional_int(value: int | str | None) -> int | None:
 
 def _prepare_node_payload(
     *,
+    node_code: str | None,
     title: str,
     message_text: str,
     parse_mode: str,
@@ -92,6 +93,14 @@ def _prepare_node_payload(
     cond_value: str | None,
     next_node_code_true: str | None,
     next_node_code_false: str | None,
+    condition_type: str | None,
+    cond_sub_channels: str | None,
+    cond_sub_on_success: str | None,
+    cond_sub_on_fail: str | None,
+    cond_sub_fail_message: str | None,
+    cond_sub_subscribe_url: str | None,
+    cond_sub_check_button_text: str | None,
+    cond_sub_subscribe_button_text: str | None,
 ) -> tuple[str | None, dict]:
     normalized_node_type = (node_type or "MESSAGE").strip().upper()
     normalized_input_type = (input_type or "").strip().upper() or None
@@ -120,26 +129,69 @@ def _prepare_node_payload(
         if not normalized_next_success:
             return "Укажите код узла для перехода при успешном вводе", {}
 
-    if normalized_node_type == "CONDITION":
-        if not all(
-            [
-                normalized_cond_var_key,
-                normalized_cond_operator,
-                normalized_next_true,
-                normalized_next_false,
-            ]
-        ):
-            return "Заполните обязательные поля для узла «Условие».", {}
+    config_json: dict | None = None
 
-        if not INPUT_KEY_REGEX.match(normalized_cond_var_key):
-            return (
-                "Некорректный ключ переменной. Разрешены латинские буквы, цифры и _ (пример: phone).",
-                {},
-            )
-        if normalized_cond_operator not in CONDITION_OPERATORS:
-            return "Заполните обязательные поля для узла «Условие».", {}
-        if normalized_cond_operator not in {"EXISTS", "NOT_EXISTS"} and not normalized_cond_value:
-            return "Для выбранного оператора нужно значение для сравнения.", {}
+    if normalized_node_type == "CONDITION":
+        normalized_condition_type = (condition_type or "LEGACY").strip().upper()
+
+        if normalized_condition_type == "CHECK_SUBSCRIPTION":
+            channels_raw = cond_sub_channels or ""
+            channels: list[str] = []
+            for row in channels_raw.replace(",", "\n").split("\n"):
+                normalized = row.strip()
+                if normalized:
+                    channels.append(normalized)
+
+            if not channels:
+                return "Укажите хотя бы один канал для проверки подписки", {}
+
+            config_json = {
+                "condition_type": "CHECK_SUBSCRIPTION",
+                "condition_payload": {
+                    "channels": channels,
+                    "on_success_node": (cond_sub_on_success or "").strip()
+                    or normalized_next_true,
+                    "on_fail_node": (cond_sub_on_fail or "").strip()
+                    or normalized_next_false
+                    or node_code,
+                    "fail_message": (cond_sub_fail_message or "").strip()
+                    or "Подпишитесь на канал и нажмите «Проверить подписку».",
+                    "subscribe_url": (cond_sub_subscribe_url or "").strip() or None,
+                    "check_button_text": (cond_sub_check_button_text or "").strip()
+                    or "Проверить подписку",
+                    "subscribe_button_text": (
+                        (cond_sub_subscribe_button_text or "").strip()
+                        or "Подписаться"
+                    ),
+                },
+            }
+
+            normalized_cond_var_key = None
+            normalized_cond_operator = None
+            normalized_cond_value = None
+            normalized_next_true = config_json["condition_payload"].get("on_success_node")
+            normalized_next_false = config_json["condition_payload"].get("on_fail_node")
+        else:
+            if not all(
+                [
+                    normalized_cond_var_key,
+                    normalized_cond_operator,
+                    normalized_next_true,
+                    normalized_next_false,
+                ]
+            ):
+                return "Заполните обязательные поля для узла «Условие».", {}
+
+            if not INPUT_KEY_REGEX.match(normalized_cond_var_key):
+                return (
+                    "Некорректный ключ переменной. Разрешены латинские буквы, цифры и _ (пример: phone).",
+                    {},
+                )
+            if normalized_cond_operator not in CONDITION_OPERATORS:
+                return "Заполните обязательные поля для узла «Условие».", {}
+            if normalized_cond_operator not in {"EXISTS", "NOT_EXISTS"} and not normalized_cond_value:
+                return "Для выбранного оператора нужно значение для сравнения.", {}
+            config_json = {"condition_type": "LEGACY"}
 
     if normalized_node_type == "ACTION":
         normalized_next_success = None
@@ -165,6 +217,7 @@ def _prepare_node_payload(
         "cond_value": normalized_cond_value,
         "next_node_code_true": normalized_next_true,
         "next_node_code_false": normalized_next_false,
+        "config_json": config_json,
     }
 
     if normalized_node_type != "INPUT":
@@ -188,6 +241,7 @@ def _prepare_node_payload(
                 "cond_value": None,
                 "next_node_code_true": None,
                 "next_node_code_false": None,
+                "config_json": None,
             }
         )
 
@@ -380,6 +434,14 @@ async def create_node(
     cond_value: str | None = Form(None),
     next_node_code_true: str | None = Form(None),
     next_node_code_false: str | None = Form(None),
+    condition_type: str | None = Form(None),
+    cond_sub_channels: str | None = Form(None),
+    cond_sub_on_success: str | None = Form(None),
+    cond_sub_on_fail: str | None = Form(None),
+    cond_sub_fail_message: str | None = Form(None),
+    cond_sub_subscribe_url: str | None = Form(None),
+    cond_sub_check_button_text: str | None = Form(None),
+    cond_sub_subscribe_button_text: str | None = Form(None),
     db: Session = Depends(get_db_session),
 ):
     user = require_admin(request, db, roles=ALLOWED_ROLES)
@@ -404,6 +466,7 @@ async def create_node(
         )
 
     error, payload = _prepare_node_payload(
+        node_code=code,
         title=title,
         message_text=message_text,
         parse_mode=parse_mode,
@@ -423,6 +486,14 @@ async def create_node(
         cond_value=cond_value,
         next_node_code_true=next_node_code_true,
         next_node_code_false=next_node_code_false,
+        condition_type=condition_type,
+        cond_sub_channels=cond_sub_channels,
+        cond_sub_on_success=cond_sub_on_success,
+        cond_sub_on_fail=cond_sub_on_fail,
+        cond_sub_fail_message=cond_sub_fail_message,
+        cond_sub_subscribe_url=cond_sub_subscribe_url,
+        cond_sub_check_button_text=cond_sub_check_button_text,
+        cond_sub_subscribe_button_text=cond_sub_subscribe_button_text,
     )
 
     if error or actions_error:
@@ -508,6 +579,14 @@ async def edit_node(
     cond_value: str | None = Form(None),
     next_node_code_true: str | None = Form(None),
     next_node_code_false: str | None = Form(None),
+    condition_type: str | None = Form(None),
+    cond_sub_channels: str | None = Form(None),
+    cond_sub_on_success: str | None = Form(None),
+    cond_sub_on_fail: str | None = Form(None),
+    cond_sub_fail_message: str | None = Form(None),
+    cond_sub_subscribe_url: str | None = Form(None),
+    cond_sub_check_button_text: str | None = Form(None),
+    cond_sub_subscribe_button_text: str | None = Form(None),
     db: Session = Depends(get_db_session),
 ):
     user = require_admin(request, db, roles=ALLOWED_ROLES)
@@ -522,6 +601,7 @@ async def edit_node(
     actions_error, actions = _parse_actions_from_form(form)
 
     error, payload = _prepare_node_payload(
+        node_code=node.code,
         title=title,
         message_text=message_text,
         parse_mode=parse_mode,
@@ -541,6 +621,14 @@ async def edit_node(
         cond_value=cond_value,
         next_node_code_true=next_node_code_true,
         next_node_code_false=next_node_code_false,
+        condition_type=condition_type,
+        cond_sub_channels=cond_sub_channels,
+        cond_sub_on_success=cond_sub_on_success,
+        cond_sub_on_fail=cond_sub_on_fail,
+        cond_sub_fail_message=cond_sub_fail_message,
+        cond_sub_subscribe_url=cond_sub_subscribe_url,
+        cond_sub_check_button_text=cond_sub_check_button_text,
+        cond_sub_subscribe_button_text=cond_sub_subscribe_button_text,
     )
 
     if error or actions_error:

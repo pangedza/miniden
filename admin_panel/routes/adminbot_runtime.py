@@ -1,6 +1,6 @@
 """Управление версией конфигурации бота."""
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
@@ -27,7 +27,7 @@ def _next_from_request(request: Request) -> str:
 def _get_runtime(db: Session) -> BotRuntime:
     runtime = db.query(BotRuntime).first()
     if not runtime:
-        runtime = BotRuntime(config_version=1)
+        runtime = BotRuntime(config_version=1, start_node_code="MAIN_MENU")
         db.add(runtime)
         db.commit()
         db.refresh(runtime)
@@ -52,8 +52,10 @@ async def runtime_page(request: Request, db: Session = Depends(get_db_session)):
 
 
 @router.post("/runtime")
-async def bump_runtime_version(
+async def update_runtime_settings(
     request: Request,
+    action: str = Form("bump"),
+    start_node_code: str | None = Form(None),
     db: Session = Depends(get_db_session),
 ):
     user = require_admin(request, db, roles=ALLOWED_ROLES)
@@ -61,7 +63,13 @@ async def bump_runtime_version(
         return _login_redirect(_next_from_request(request))
 
     runtime = _get_runtime(db)
-    runtime.config_version = (runtime.config_version or 1) + 1
+
+    if action == "update_start":
+        runtime.start_node_code = (start_node_code or "MAIN_MENU").strip() or "MAIN_MENU"
+        runtime.config_version = (runtime.config_version or 1) + 1
+    else:
+        runtime.config_version = (runtime.config_version or 1) + 1
+
     db.add(runtime)
     db.commit()
 

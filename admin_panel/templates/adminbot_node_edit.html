@@ -38,6 +38,8 @@
 </header>
 <h2>{% if node %}Редактирование: {{ node.code }}{% else %}Новый узел{% endif %}</h2>
 {% if error %}<div class="error">{{ error }}</div>{% endif %}
+{% set cond_config = node.config_json if node and node.config_json else {} %}
+{% set sub_payload = cond_config.get('condition_payload', {}) if cond_config else {} %}
 <form method="post" action="{% if node %}/adminbot/nodes/{{ node.id }}/edit{% else %}/adminbot/nodes/new{% endif %}">
     <label>Код узла <span class="help-icon" title="Уникальное имя шага. Используется для переходов. Например: MAIN_MENU">?</span></label>
     <input type="text" name="code" value="{{ node.code if node else '' }}" {% if node %}readonly{% endif %} required>
@@ -143,45 +145,101 @@
         <h3>Настройка условия</h3>
         <div class="row">
             <div>
-                <label>Переменная <span class="help-icon" title="Что проверяем: берётся из ранее сохранённых переменных пользователя">?</span></label>
-                <input type="text" name="cond_var_key" id="cond_var_key_input" value="{{ node.cond_var_key if node else '' }}" placeholder="Например: phone">
-                <div class="hint">Берётся из user_vars (переменные пользователя).</div>
-            </div>
-            <div>
-                <label>Оператор <span class="help-icon" title="Как сравниваем: равно, содержит, больше и т.д.">?</span></label>
-                <select name="cond_operator" id="cond_operator_select">
-                    <option value="" disabled {% if node is none or not node.cond_operator %}selected{% endif %}>Выберите</option>
-                    <option value="EXISTS" {% if node and node.cond_operator == 'EXISTS' %}selected{% endif %}>Существует</option>
-                    <option value="NOT_EXISTS" {% if node and node.cond_operator == 'NOT_EXISTS' %}selected{% endif %}>Не существует</option>
-                    <option value="EQ" {% if node and node.cond_operator == 'EQ' %}selected{% endif %}>Равно</option>
-                    <option value="NEQ" {% if node and node.cond_operator == 'NEQ' %}selected{% endif %}>Не равно</option>
-                    <option value="CONTAINS" {% if node and node.cond_operator == 'CONTAINS' %}selected{% endif %}>Содержит</option>
-                    <option value="STARTS_WITH" {% if node and node.cond_operator == 'STARTS_WITH' %}selected{% endif %}>Начинается с</option>
-                    <option value="ENDS_WITH" {% if node and node.cond_operator == 'ENDS_WITH' %}selected{% endif %}>Заканчивается на</option>
-                    <option value="GT" {% if node and node.cond_operator == 'GT' %}selected{% endif %}>Больше (число)</option>
-                    <option value="GTE" {% if node and node.cond_operator == 'GTE' %}selected{% endif %}>Больше или равно (число)</option>
-                    <option value="LT" {% if node and node.cond_operator == 'LT' %}selected{% endif %}>Меньше (число)</option>
-                    <option value="LTE" {% if node and node.cond_operator == 'LTE' %}selected{% endif %}>Меньше или равно (число)</option>
+                <label>Тип условия</label>
+                <select name="condition_type" id="condition_type_select">
+                    {% set cond_type = cond_config.get('condition_type', 'LEGACY') if cond_config else 'LEGACY' %}
+                    <option value="LEGACY" {% if cond_type == 'LEGACY' %}selected{% endif %}>Проверка переменной</option>
+                    <option value="CHECK_SUBSCRIPTION" {% if cond_type == 'CHECK_SUBSCRIPTION' %}selected{% endif %}>Проверка подписки</option>
                 </select>
+                <div class="hint">Выберите, что проверяет этот узел.</div>
             </div>
         </div>
 
-        <label>Значение <span class="help-icon" title="С чем сравниваем. Для операторов 'Существует/Не существует' можно оставить пустым.">?</span></label>
-        <input type="text" name="cond_value" id="cond_value_input" value="{{ node.cond_value if node else '' }}" placeholder="Например: +7">
-        <div class="hint">Не нужно для «Существует/Не существует».</div>
+        <div id="condition_legacy_fields">
+            <div class="row">
+                <div>
+                    <label>Переменная <span class="help-icon" title="Что проверяем: берётся из ранее сохранённых переменных пользователя">?</span></label>
+                    <input type="text" name="cond_var_key" id="cond_var_key_input" value="{{ node.cond_var_key if node else '' }}" placeholder="Например: phone">
+                    <div class="hint">Берётся из user_vars (переменные пользователя).</div>
+                </div>
+                <div>
+                    <label>Оператор <span class="help-icon" title="Как сравниваем: равно, содержит, больше и т.д.">?</span></label>
+                    <select name="cond_operator" id="cond_operator_select">
+                        <option value="" disabled {% if node is none or not node.cond_operator %}selected{% endif %}>Выберите</option>
+                        <option value="EXISTS" {% if node and node.cond_operator == 'EXISTS' %}selected{% endif %}>Существует</option>
+                        <option value="NOT_EXISTS" {% if node and node.cond_operator == 'NOT_EXISTS' %}selected{% endif %}>Не существует</option>
+                        <option value="EQ" {% if node and node.cond_operator == 'EQ' %}selected{% endif %}>Равно</option>
+                        <option value="NEQ" {% if node and node.cond_operator == 'NEQ' %}selected{% endif %}>Не равно</option>
+                        <option value="CONTAINS" {% if node and node.cond_operator == 'CONTAINS' %}selected{% endif %}>Содержит</option>
+                        <option value="STARTS_WITH" {% if node and node.cond_operator == 'STARTS_WITH' %}selected{% endif %}>Начинается с</option>
+                        <option value="ENDS_WITH" {% if node and node.cond_operator == 'ENDS_WITH' %}selected{% endif %}>Заканчивается на</option>
+                        <option value="GT" {% if node and node.cond_operator == 'GT' %}selected{% endif %}>Больше (число)</option>
+                        <option value="GTE" {% if node and node.cond_operator == 'GTE' %}selected{% endif %}>Больше или равно (число)</option>
+                        <option value="LT" {% if node and node.cond_operator == 'LT' %}selected{% endif %}>Меньше (число)</option>
+                        <option value="LTE" {% if node and node.cond_operator == 'LTE' %}selected{% endif %}>Меньше или равно (число)</option>
+                    </select>
+                </div>
+            </div>
 
-        <div class="row">
-            <div>
-                <label>Переход если TRUE (код узла) <span class="help-icon" title="Куда вести пользователя, если условие выполнено">?</span></label>
-                <input type="text" name="next_node_code_true" id="next_node_code_true_input" value="{{ node.next_node_code_true if node else '' }}" placeholder="Например: MAIN_MENU">
+            <label>Значение <span class="help-icon" title="С чем сравниваем. Для операторов 'Существует/Не существует' можно оставить пустым.">?</span></label>
+            <input type="text" name="cond_value" id="cond_value_input" value="{{ node.cond_value if node else '' }}" placeholder="Например: +7">
+            <div class="hint">Не нужно для «Существует/Не существует».</div>
+
+            <div class="row">
+                <div>
+                    <label>Переход если TRUE (код узла) <span class="help-icon" title="Куда вести пользователя, если условие выполнено">?</span></label>
+                    <input type="text" name="next_node_code_true" id="next_node_code_true_input" value="{{ node.next_node_code_true if node else '' }}" placeholder="Например: MAIN_MENU">
+                </div>
+                <div>
+                    <label>Переход если FALSE (код узла) <span class="help-icon" title="Куда вести, если условие не сработало">?</span></label>
+                    <input type="text" name="next_node_code_false" id="next_node_code_false_input" value="{{ node.next_node_code_false if node else '' }}" placeholder="Например: ASK_PHONE">
+                </div>
             </div>
-            <div>
-                <label>Переход если FALSE (код узла) <span class="help-icon" title="Куда вести, если условие не сработало">?</span></label>
-                <input type="text" name="next_node_code_false" id="next_node_code_false_input" value="{{ node.next_node_code_false if node else '' }}" placeholder="Например: ASK_PHONE">
-            </div>
+
+            <div class="hint">Узел не отправляет сообщение. Он сразу переводит по TRUE/FALSE.</div>
         </div>
 
-        <div class="hint">Узел не отправляет сообщение. Он сразу переводит по TRUE/FALSE.</div>
+        <div id="condition_subscription_fields" style="display:none;">
+            <div class="row">
+                <div>
+                    <label>Каналы для проверки <span class="help-icon" title="По одному на строку. Например: @my_channel">?</span></label>
+                    <textarea name="cond_sub_channels" placeholder="@my_channel&#10;@second_channel">{{ '\n'.join(sub_payload.get('channels', [])) if sub_payload else '' }}</textarea>
+                    <div class="hint">Бот проверит подписку на каждый канал через getChatMember.</div>
+                </div>
+                <div>
+                    <label>Ссылка на канал <span class="help-icon" title="Куда ведёт кнопка «Подписаться». Если оставить пустой — возьмём ссылку по первому каналу.">?</span></label>
+                    <input type="text" name="cond_sub_subscribe_url" value="{{ sub_payload.get('subscribe_url', '') if sub_payload else '' }}" placeholder="https://t.me/my_channel">
+                    <div class="hint">Можно оставить пустым для автосборки ссылки.</div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div>
+                    <label>Узел при успехе</label>
+                    <input type="text" name="cond_sub_on_success" value="{{ sub_payload.get('on_success_node', '') if sub_payload else '' }}" placeholder="Например: MAIN_MENU">
+                </div>
+                <div>
+                    <label>Узел при провале</label>
+                    <input type="text" name="cond_sub_on_fail" value="{{ sub_payload.get('on_fail_node', '') if sub_payload else '' }}" placeholder="Обычно сам узел проверки">
+                </div>
+            </div>
+
+            <label>Текст при провале</label>
+            <textarea name="cond_sub_fail_message" placeholder="Подпишитесь на канал и нажмите «Проверить подписку».">{{ sub_payload.get('fail_message', '') if sub_payload else '' }}</textarea>
+
+            <div class="row">
+                <div>
+                    <label>Текст кнопки проверки</label>
+                    <input type="text" name="cond_sub_check_button_text" value="{{ sub_payload.get('check_button_text', 'Проверить подписку') if sub_payload else 'Проверить подписку' }}" placeholder="Проверить подписку">
+                </div>
+                <div>
+                    <label>Текст кнопки подписки</label>
+                    <input type="text" name="cond_sub_subscribe_button_text" value="{{ sub_payload.get('subscribe_button_text', 'Подписаться') if sub_payload else 'Подписаться' }}" placeholder="Подписаться">
+                </div>
+            </div>
+
+            <div class="hint">Узел отправит сообщение с кнопками «Подписаться» и «Проверить подписку». Переходы берутся из полей выше.</div>
+        </div>
     </div>
 
     <div class="hint" style="margin-top:14px;">Совет: сначала создайте узлы типа «Сообщение» и «Ожидание ввода», затем добавьте триггеры, чтобы бот знал, с чего начать.</div>
@@ -199,6 +257,9 @@
     const nodeTypeSelect = document.getElementById('node_type_select');
     const inputSettings = document.getElementById('input_settings');
     const conditionSettings = document.getElementById('condition_settings');
+    const conditionTypeSelect = document.getElementById('condition_type_select');
+    const conditionLegacyFields = document.getElementById('condition_legacy_fields');
+    const conditionSubscriptionFields = document.getElementById('condition_subscription_fields');
     const actionSettings = document.getElementById('action_settings');
     const condVarKeyInput = document.getElementById('cond_var_key_input');
     const condOperatorSelect = document.getElementById('cond_operator_select');
@@ -253,16 +314,21 @@
         const isInputNode = nodeType === 'INPUT';
         const isConditionNode = nodeType === 'CONDITION';
         const isActionNode = nodeType === 'ACTION';
+        const isLegacyCondition = isConditionNode && (!conditionTypeSelect || conditionTypeSelect.value === 'LEGACY');
 
         inputSettings.style.display = isInputNode ? 'block' : 'none';
         conditionSettings.style.display = isConditionNode ? 'block' : 'none';
         actionSettings.style.display = isActionNode ? 'block' : 'none';
 
+        if (isConditionNode) {
+            toggleConditionTypeFields();
+        }
+
         setSectionEnabled(inputSettings, isInputNode);
         setSectionEnabled(conditionSettings, isConditionNode);
         setSectionEnabled(actionSettings, isActionNode);
 
-        const conditionRequired = isConditionNode;
+        const conditionRequired = isLegacyCondition;
         if (condVarKeyInput && condOperatorSelect && nextNodeTrueInput && nextNodeFalseInput && condValueInput) {
             condVarKeyInput.required = conditionRequired;
             condOperatorSelect.required = conditionRequired;
@@ -270,6 +336,19 @@
             nextNodeFalseInput.required = conditionRequired;
             condValueInput.required = conditionRequired && !['EXISTS', 'NOT_EXISTS'].includes(condOperatorSelect.value || '');
             condValueInput.disabled = !condValueInput.required;
+        }
+    }
+
+    function toggleConditionTypeFields() {
+        if (!conditionTypeSelect) {
+            return;
+        }
+        const type = conditionTypeSelect.value;
+        if (conditionLegacyFields) {
+            conditionLegacyFields.style.display = type === 'LEGACY' ? 'block' : 'none';
+        }
+        if (conditionSubscriptionFields) {
+            conditionSubscriptionFields.style.display = type === 'CHECK_SUBSCRIPTION' ? 'block' : 'none';
         }
     }
 
@@ -439,6 +518,9 @@
     nodeTypeSelect.addEventListener('change', toggleInputSettings);
     if (condOperatorSelect) {
         condOperatorSelect.addEventListener('change', toggleInputSettings);
+    }
+    if (conditionTypeSelect) {
+        conditionTypeSelect.addEventListener('change', toggleConditionTypeFields);
     }
 
     function cleanEmptyNumbers(targetForm) {
