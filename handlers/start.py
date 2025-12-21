@@ -940,6 +940,12 @@ async def handle_open_node(callback: CallbackQuery):
 
     if not node:
         await callback.answer("Раздел временно недоступен", show_alert=True)
+        log_error_event(
+            user_id=callback.from_user.id,
+            username=callback.from_user.username,
+            node_code=node_code,
+            details="Узел не найден при переходе по кнопке",
+        )
         return
 
     await _send_node(callback.message, node)

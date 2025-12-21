@@ -202,12 +202,48 @@ def _apply_template(db: Session, template: BotTemplate) -> dict:
             btn_payload = _map_callback_payload(
                 button_data.get("payload", ""), code_map
             )
+            action_type = (button_data.get("action_type") or "").upper()
+            target_code = button_data.get("target_node_code")
+            if target_code:
+                target_code = code_map.get(target_code, target_code)
+
+            url_value = button_data.get("url")
+            webapp_value = button_data.get("webapp_url")
+            legacy_type = button_data.get("type") or "callback"
+            legacy_payload = btn_payload
+
+            if action_type == "NODE":
+                if not target_code and btn_payload.startswith("OPEN_NODE:"):
+                    target_code = btn_payload.split(":", maxsplit=1)[1]
+                legacy_type = "callback"
+                legacy_payload = (
+                    f"OPEN_NODE:{target_code}" if target_code else btn_payload
+                )
+            elif action_type == "URL":
+                legacy_type = "url"
+                legacy_payload = url_value or btn_payload
+            elif action_type == "WEBAPP":
+                legacy_type = "webapp"
+                legacy_payload = webapp_value or btn_payload
+            elif legacy_type == "url":
+                action_type = "URL"
+                url_value = url_value or btn_payload
+            elif legacy_type == "webapp":
+                action_type = "WEBAPP"
+                webapp_value = webapp_value or btn_payload
+            else:
+                action_type = "LEGACY"
+
             db.add(
                 BotButton(
                     node_id=node_model.id,
                     title=button_data.get("title") or "Кнопка",
-                    type=button_data.get("type") or "callback",
-                    payload=btn_payload,
+                    type=legacy_type,
+                    payload=legacy_payload,
+                    action_type=action_type or "NODE",
+                    target_node_code=target_code,
+                    url=url_value,
+                    webapp_url=webapp_value,
                     row=_to_int(button_data.get("row"), 0),
                     pos=_to_int(button_data.get("pos"), 0),
                     is_enabled=bool(button_data.get("is_enabled", True)),

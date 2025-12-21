@@ -206,6 +206,46 @@ def init_db() -> None:
 
     _ensure_bot_constructor_extensions()
 
+    def _ensure_bot_buttons_extensions() -> None:
+        """Расширение кнопок для действий NODE/URL/WebApp."""
+
+        alter_statements = [
+            "ALTER TABLE bot_buttons ADD COLUMN IF NOT EXISTS action_type VARCHAR(16) NOT NULL DEFAULT 'NODE'",
+            "ALTER TABLE bot_buttons ADD COLUMN IF NOT EXISTS target_node_code VARCHAR(64)",
+            "ALTER TABLE bot_buttons ADD COLUMN IF NOT EXISTS url TEXT",
+            "ALTER TABLE bot_buttons ADD COLUMN IF NOT EXISTS webapp_url TEXT",
+        ]
+
+        with engine.begin() as conn:
+            for statement in alter_statements:
+                conn.execute(text(statement))
+
+            conn.execute(
+                text(
+                    """
+                    UPDATE bot_buttons
+                    SET action_type = CASE
+                        WHEN COALESCE(action_type, '') = '' THEN
+                            CASE
+                                WHEN type = 'url' THEN 'URL'
+                                WHEN type = 'webapp' THEN 'WEBAPP'
+                                WHEN type = 'callback' AND payload NOT LIKE 'OPEN_NODE:%' THEN 'LEGACY'
+                                ELSE 'NODE'
+                            END
+                        ELSE action_type
+                    END,
+                    target_node_code = CASE
+                        WHEN COALESCE(target_node_code, '') = '' AND type = 'callback' AND payload LIKE 'OPEN_NODE:%' THEN split_part(payload, ':', 2)
+                        ELSE target_node_code
+                    END,
+                    url = CASE WHEN url IS NULL AND type = 'url' THEN payload ELSE url END,
+                    webapp_url = CASE WHEN webapp_url IS NULL AND type = 'webapp' THEN payload ELSE webapp_url END
+                    """
+                )
+            )
+
+    _ensure_bot_buttons_extensions()
+
     def _ensure_bot_runtime_settings() -> None:
         alter_statements = [
             "ALTER TABLE bot_runtime ADD COLUMN IF NOT EXISTS start_node_code VARCHAR(64)",
