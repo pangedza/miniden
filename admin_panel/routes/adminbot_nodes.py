@@ -58,6 +58,19 @@ def _next_from_request(request: Request) -> str:
     return f"{request.url.path}{query}"
 
 
+def _to_optional_int(value: int | str | None) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        value = value.strip()
+        if not value:
+            return None
+    try:
+        return int(value)
+    except Exception:
+        return None
+
+
 def _prepare_node_payload(
     *,
     title: str,
@@ -69,7 +82,7 @@ def _prepare_node_payload(
     input_type: str | None,
     input_var_key: str | None,
     input_required: bool,
-    input_min_len: int | None,
+    input_min_len: int | str | None,
     input_error_text: str | None,
     next_node_code_success: str | None,
     next_node_code_cancel: str | None,
@@ -142,7 +155,7 @@ def _prepare_node_payload(
         "input_type": normalized_input_type,
         "input_var_key": normalized_var_key,
         "input_required": bool(input_required),
-        "input_min_len": input_min_len,
+        "input_min_len": _to_optional_int(input_min_len),
         "input_error_text": input_error_text or None,
         "next_node_code_success": normalized_next_success,
         "next_node_code_cancel": normalized_next_cancel,
@@ -357,7 +370,7 @@ async def create_node(
     input_type: str | None = Form(None),
     input_var_key: str | None = Form(None),
     input_required: bool = Form(True),
-    input_min_len: int | None = Form(None),
+    input_min_len: str | None = Form(None),
     input_error_text: str | None = Form(None),
     next_node_code_success: str | None = Form(None),
     next_node_code_cancel: str | None = Form(None),
@@ -485,7 +498,7 @@ async def edit_node(
     input_type: str | None = Form(None),
     input_var_key: str | None = Form(None),
     input_required: bool = Form(True),
-    input_min_len: int | None = Form(None),
+    input_min_len: str | None = Form(None),
     input_error_text: str | None = Form(None),
     next_node_code_success: str | None = Form(None),
     next_node_code_cancel: str | None = Form(None),
