@@ -13,40 +13,42 @@
         .button { padding: 8px 12px; border: none; background: #2563eb; color: #fff; border-radius: 4px; text-decoration: none; cursor: pointer; }
         .error { color: #dc2626; margin-top: 8px; }
         .hint { color: #475569; font-size: 13px; }
+        .help-icon { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:50%; background:#e0f2fe; color:#0f172a; font-size:12px; cursor:help; margin-left:6px; }
     </style>
 </head>
 <body>
 <header>
     <a href="/adminbot/nodes/{{ node.id }}/buttons" class="button">Назад к кнопкам</a>
-    <a href="/adminbot/triggers" class="button">Триггеры</a>
-    <a href="/adminbot/runtime" class="button">Runtime</a>
-    <a href="/adminbot/logs" class="button">Логи</a>
+    <a href="/adminbot/triggers" class="button" title="Триггеры — точки входа">Триггеры</a>
+    <a href="/adminbot/runtime" class="button" title="Работа бота — обновление версии">Работа бота</a>
+    <a href="/adminbot/logs" class="button" title="Логи — история действий">Логи</a>
     <a href="/adminbot/logout" class="button" style="background:#dc2626;">Выйти</a>
 </header>
 <h2>{% if button %}Редактирование кнопки{% else %}Новая кнопка{% endif %} для {{ node.code }}</h2>
+<div class="hint">Кнопка упрощает ответ пользователю: бот отправит её вместе с сообщением и поймёт, что пользователь выбрал.</div>
 {% if error %}<div class="error">{{ error }}</div>{% endif %}
 <form method="post" action="{% if button %}/adminbot/buttons/{{ button.id }}/edit{% else %}/adminbot/nodes/{{ node.id }}/buttons/new{% endif %}">
-    <label>Title</label>
-    <input type="text" name="title" value="{{ button.title if button else '' }}" required>
+    <label>Текст кнопки <span class="help-icon" title="Что увидит пользователь на кнопке">?</span></label>
+    <input type="text" name="title" value="{{ button.title if button else '' }}" placeholder="Например: Оставить заявку" required>
 
-    <label>Type</label>
+    <label>Тип кнопки <span class="help-icon" title="Обычная кнопка, ссылка или webapp">?</span></label>
     <select name="type" required>
         {% for value, label in button_types %}
         <option value="{{ value }}" {% if button and button.type == value %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
     </select>
-    <div class="hint">callback: ACTION:VALUE, url/webapp: https://example.com</div>
+    <div class="hint">callback: ACTION:VALUE; url/webapp: https://example.com.</div>
 
-    <label>Payload</label>
-    <input type="text" name="payload" value="{{ button.payload if button else '' }}" required>
+    <label>Значение (payload) <span class="help-icon" title="Что отправится боту при нажатии. Для callback — ACTION:VALUE, для ссылки — полный URL.">?</span></label>
+    <input type="text" name="payload" value="{{ button.payload if button else '' }}" placeholder="Например: GOTO:MAIN_MENU или https://site.ru" required>
 
-    <label>Row</label>
+    <label>Строка <span class="help-icon" title="В какой строке показать кнопку. 0 — первая строка">?</span></label>
     <input type="number" name="row" value="{{ button.row if button else 0 }}">
 
-    <label>Pos</label>
+    <label>Позиция <span class="help-icon" title="Порядок в строке. 0 — первая позиция">?</span></label>
     <input type="number" name="pos" value="{{ button.pos if button else 0 }}">
 
-    <label><input type="checkbox" name="is_enabled" {% if button is none or button.is_enabled %}checked{% endif %}> Enabled</label>
+    <label><input type="checkbox" name="is_enabled" {% if button is none or button.is_enabled %}checked{% endif %}> Включена</label>
 
     <div class="actions">
         <button type="submit" class="button">Сохранить</button>

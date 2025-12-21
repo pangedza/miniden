@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Bot Runtime</title>
+    <title>Работа бота</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 16px; background: #f5f5f5; }
         header { display: flex; gap: 12px; margin-bottom: 16px; }
@@ -16,17 +16,18 @@
     <a href="/adminbot" class="button">Главная</a>
     <a href="/adminbot/nodes" class="button">Узлы</a>
     <a href="/adminbot/triggers" class="button">Триггеры</a>
-    <a href="/adminbot/runtime" class="button" style="background:#0ea5e9;">Runtime</a>
+    <a href="/adminbot/runtime" class="button" style="background:#0ea5e9;">Работа бота</a>
     <a href="/adminbot/logs" class="button">Логи</a>
     <a href="/adminbot/logout" class="button" style="background:#dc2626;">Выйти</a>
 </header>
 <div class="card">
-    <h2>Версия конфигурации</h2>
-    <p>Текущая версия: <strong>{{ runtime.config_version }}</strong></p>
-    <p class="muted">Бот обновит кэш меню при изменении версии. Перезапуск не требуется.</p>
+    <h2>Работа бота</h2>
+    <p>Текущая версия сценария: <strong>{{ runtime.config_version }}</strong></p>
+    <p class="muted">При изменении версии бот обновит кэш меню. Перезапуск не требуется.</p>
     <form method="post" action="/adminbot/runtime">
-        <button type="submit" class="button">Обновить бота</button>
+        <button type="submit" class="button" title="Нажмите, если изменили узлы или триггеры, чтобы бот подхватил обновления">Обновить бота</button>
     </form>
+    <p class="muted" style="margin-top:10px;">Если бот ведёт себя как раньше, увеличьте номер версии и нажмите «Обновить бота».</p>
 </div>
 </body>
 </html>

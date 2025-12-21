@@ -25,27 +25,28 @@
     <a href="/adminbot" class="button">Главная</a>
     <a href="/adminbot/nodes" class="button">Узлы</a>
     <a href="/adminbot/triggers" class="button">Триггеры</a>
-    <a href="/adminbot/runtime" class="button">Runtime</a>
+    <a href="/adminbot/runtime" class="button">Работа бота</a>
     <a href="/adminbot/logs" class="button">Файловые логи</a>
     <a href="/adminbot/logs/history" class="button" style="background:#0ea5e9;">История событий</a>
     <a href="/adminbot/logout" class="button" style="background:#dc2626;">Выйти</a>
 </header>
 <h2>Журнал событий бота</h2>
+<div class="muted" style="margin-bottom:10px;">Здесь отображается история работы бота: какие узлы открывались, какие действия выполнялись и где возникли ошибки. Используйте это для отладки сценариев.</div>
 <div class="filters">
     <form method="get" action="/adminbot/logs/history">
-        <label>Тип:
+        <label>Тип события:
             <select name="event_type">
                 <option value="">Все</option>
-                {% for value, label in [("NODE_ENTER", "NODE_ENTER"), ("TRIGGER", "TRIGGER"), ("ACTION", "ACTION"), ("ERROR", "ERROR")] %}
+                {% for value, label in [("NODE_ENTER", "NODE_ENTER — вход в узел"), ("TRIGGER", "TRIGGER — сработал триггер"), ("ACTION", "ACTION — выполнено действие"), ("ERROR", "ERROR — ошибка")] %}
                     <option value="{{ value }}" {% if filters.event_type == value %}selected{% endif %}>{{ label }}</option>
                 {% endfor %}
             </select>
         </label>
-        <label>user_id:
-            <input type="text" name="user_id" value="{{ filters.user_id }}" placeholder="123456" />
+        <label>ID пользователя:
+            <input type="text" name="user_id" value="{{ filters.user_id }}" placeholder="Например: 123456" />
         </label>
-        <label>username:
-            <input type="text" name="username" value="{{ filters.username }}" placeholder="nickname" />
+        <label>Имя пользователя:
+            <input type="text" name="username" value="{{ filters.username }}" placeholder="Например: nickname" />
         </label>
         <label>Узел:
             <input type="text" name="node_code" value="{{ filters.node_code }}" placeholder="MAIN_MENU" />
