@@ -1,0 +1,16 @@
+[Unit]
+Description=MiniDeN FastAPI backend
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/miniden
+EnvironmentFile=/opt/miniden/.env
+ExecStart=/opt/miniden/venv/bin/uvicorn webapi:app --host 127.0.0.1 --port 8000
+Restart=on-failure
+RestartSec=5s
+User=miniden
+Group=miniden
+
+[Install]
+WantedBy=multi-user.target
