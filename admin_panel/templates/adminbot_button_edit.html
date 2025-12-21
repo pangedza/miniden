@@ -5,15 +5,22 @@
     <title>{% if button %}Редактирование кнопки{% else %}Новая кнопка{% endif %}</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 16px; background: #f5f5f5; }
-        header { display: flex; gap: 12px; margin-bottom: 16px; }
-        form { background: #fff; padding: 16px; border: 1px solid #cbd5e1; border-radius: 6px; max-width: 800px; }
-        label { display: block; margin-top: 10px; font-weight: bold; }
-        input[type="text"], input[type="number"], select { width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px; }
-        .actions { margin-top: 16px; display: flex; gap: 8px; }
+        header { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+        form { background: #fff; padding: 16px; border: 1px solid #cbd5e1; border-radius: 8px; max-width: 980px; }
+        label { display: block; margin-top: 12px; font-weight: bold; }
+        input[type="text"], input[type="number"], select, textarea { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; }
+        textarea { min-height: 80px; }
+        .actions { margin-top: 16px; display: flex; gap: 8px; flex-wrap: wrap; }
         .button { padding: 8px 12px; border: none; background: #2563eb; color: #fff; border-radius: 4px; text-decoration: none; cursor: pointer; }
         .error { color: #dc2626; margin-top: 8px; }
-        .hint { color: #475569; font-size: 13px; }
-        .help-icon { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:50%; background:#e0f2fe; color:#0f172a; font-size:12px; cursor:help; margin-left:6px; }
+        .hint { color: #475569; font-size: 13px; margin-top: 4px; }
+        .field-row { display: flex; gap: 12px; flex-wrap: wrap; }
+        .field-row > div { flex: 1 1 200px; }
+        .muted { color: #64748b; font-size: 13px; }
+        .block { margin-top: 12px; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc; }
+        .inline-actions { display:flex; gap:8px; align-items:center; margin-top:6px; flex-wrap: wrap; }
+        .badge { display:inline-block; padding:2px 8px; border-radius:12px; background:#e0f2fe; color:#0f172a; font-size:12px; }
+        .modal { border:1px solid #cbd5e1; border-radius:8px; background:#fff; padding:12px; margin-top:12px; display:none; }
     </style>
 </head>
 <body>
@@ -26,35 +33,203 @@
     <a href="/adminbot/logout" class="button" style="background:#dc2626;">Выйти</a>
 </header>
 <h2>{% if button %}Редактирование кнопки{% else %}Новая кнопка{% endif %} для {{ node.code }}</h2>
-<div class="hint">Кнопка упрощает ответ пользователю: бот отправит её вместе с сообщением и поймёт, что пользователь выбрал.</div>
+<div class="hint">Кнопка управляет сценарием: переход в раздел, открытие ссылки или WebApp. Не нужно помнить коды узлов — выберите из списка.</div>
 {% if error %}<div class="error">{{ error }}</div>{% endif %}
 <form method="post" action="{% if button %}/adminbot/buttons/{{ button.id }}/edit{% else %}/adminbot/nodes/{{ node.id }}/buttons/new{% endif %}">
-    <label>Текст кнопки <span class="help-icon" title="Что увидит пользователь на кнопке">?</span></label>
-    <input type="text" name="title" value="{{ button.title if button else '' }}" placeholder="Например: Оставить заявку" required>
+    <label>Текст кнопки</label>
+    <input type="text" name="title" value="{{ button.title if button else '' }}" placeholder="Например: Товары" required>
+    <div class="hint">Что увидит пользователь в Телеграме.</div>
 
-    <label>Тип кнопки <span class="help-icon" title="Обычная кнопка, ссылка или webapp">?</span></label>
-    <select name="type" required>
-        {% for value, label in button_types %}
-        <option value="{{ value }}" {% if button and button.type == value %}selected{% endif %}>{{ label }}</option>
+    <label>Действие кнопки</label>
+    <select name="action_type" id="action_type">
+        {% for value, label in action_types %}
+            <option value="{{ value }}" {% if form_state.action_type == value %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
+        {% if form_state.action_type == 'LEGACY' %}
+            <option value="LEGACY" selected>Старый формат (payload как есть)</option>
+        {% endif %}
     </select>
-    <div class="hint">callback: ACTION:VALUE; url/webapp: https://example.com.</div>
+    <div class="hint">Выберите, что произойдёт при нажатии.</div>
 
-    <label>Значение (payload) <span class="help-icon" title="Что отправится боту при нажатии. Для callback — ACTION:VALUE, для ссылки — полный URL.">?</span></label>
-    <input type="text" name="payload" value="{{ button.payload if button else '' }}" placeholder="Например: GOTO:MAIN_MENU или https://site.ru" required>
+    <div id="node_block" class="block" style="display:none;">
+        <div class="field-row">
+            <div>
+                <label>Куда перейти</label>
+                <input type="text" id="node_search" placeholder="Поиск по названию" value="" autocomplete="off">
+                <select name="target_node_code" id="target_node_code">
+                    <option value="">— выберите узел —</option>
+                    {% for group in nodes_groups %}
+                        <optgroup label="{{ group.name }}">
+                            {% for item in group.options %}
+                                <option value="{{ item.code }}" data-label="{{ item.label|lower }}" {% if form_state.target_node_code == item.code %}selected{% endif %}>{{ item.label }} {% if item.usage %}• {{ item.usage }} раз{% endif %}</option>
+                            {% endfor %}
+                        </optgroup>
+                    {% endfor %}
+                </select>
+                <div class="hint">Выберите раздел/категорию из списка. Не нужно писать код.</div>
+            </div>
+        </div>
+        <div class="inline-actions">
+            <button type="button" class="button" id="toggle_create_node">+ Создать новый раздел</button>
+            <span class="muted">Пример структуры: MAIN_MENU → Товары → Категории.</span>
+        </div>
+        <div id="create_node_modal" class="modal">
+            <h4>Создать новый раздел</h4>
+            <label>Название раздела</label>
+            <input type="text" id="new_node_title" placeholder="Например: Корзинки" value="">
+            <div class="hint">Название появится в списке узлов.</div>
 
-    <label>Строка <span class="help-icon" title="В какой строке показать кнопку. 0 — первая строка">?</span></label>
-    <input type="number" name="row" value="{{ button.row if button else 0 }}">
+            <label>Тип узла</label>
+            <select id="new_node_type">
+                <option value="MESSAGE">MESSAGE</option>
+                <option value="CONDITION">CONDITION</option>
+                <option value="INPUT">INPUT</option>
+                <option value="ACTION">ACTION</option>
+            </select>
+            <div class="hint">Оставьте MESSAGE, если нужна простая страница.</div>
 
-    <label>Позиция <span class="help-icon" title="Порядок в строке. 0 — первая позиция">?</span></label>
-    <input type="number" name="pos" value="{{ button.pos if button else 0 }}">
+            <label>Текст раздела</label>
+            <textarea id="new_node_message">Выберите пункт:</textarea>
+            <div class="hint">Что покажет бот в этом разделе.</div>
+
+            <label>Код узла (генерируется автоматически)</label>
+            <input type="text" id="new_node_code" disabled value="" placeholder="Будет сгенерирован">
+            <div class="hint">Можно не трогать — код проставится сам.</div>
+
+            <div class="inline-actions" style="margin-top:10px;">
+                <button type="button" class="button" id="create_node_btn">Создать и выбрать</button>
+                <button type="button" class="button" style="background:#6b7280;" id="cancel_create_node">Отмена</button>
+                <span class="muted" id="create_node_status"></span>
+            </div>
+        </div>
+    </div>
+
+    <div id="url_block" class="block" style="display:none;">
+        <label>Ссылка (URL)</label>
+        <input type="text" name="url" value="{{ form_state.url }}" placeholder="https://example.com">
+        <div class="hint">Откроется в браузере.</div>
+    </div>
+
+    <div id="webapp_block" class="block" style="display:none;">
+        <label>Ссылка WebApp</label>
+        <input type="text" name="webapp_url" value="{{ form_state.webapp_url }}" placeholder="https://example.com/webapp">
+        <div class="hint">Откроется внутри Telegram как WebApp.</div>
+    </div>
+
+    {% if form_state.legacy_payload %}
+        <input type="hidden" name="legacy_payload" value="{{ form_state.legacy_payload }}">
+        <div class="hint">Старый payload будет сохранён: {{ form_state.legacy_payload }}</div>
+    {% endif %}
+
+    <div class="field-row">
+        <div>
+            <label>Строка</label>
+            <input type="number" name="row" value="{{ button.row if button else 0 }}">
+            <div class="hint">0 — первая строка.</div>
+        </div>
+        <div>
+            <label>Позиция</label>
+            <input type="number" name="pos" value="{{ button.pos if button else 0 }}">
+            <div class="hint">0 — первая позиция в строке.</div>
+        </div>
+    </div>
 
     <label><input type="checkbox" name="is_enabled" {% if button is none or button.is_enabled %}checked{% endif %}> Включена</label>
+    <div class="hint">Если выключить, кнопка не будет показана пользователям.</div>
 
     <div class="actions">
         <button type="submit" class="button">Сохранить</button>
         <a href="/adminbot/nodes/{{ node.id }}/buttons" class="button" style="background:#6b7280;">Назад</a>
     </div>
 </form>
+
+<script>
+    const actionSelect = document.getElementById('action_type');
+    const nodeBlock = document.getElementById('node_block');
+    const urlBlock = document.getElementById('url_block');
+    const webappBlock = document.getElementById('webapp_block');
+    const nodeSearch = document.getElementById('node_search');
+    const nodeSelect = document.getElementById('target_node_code');
+    const toggleCreateNode = document.getElementById('toggle_create_node');
+    const createNodeModal = document.getElementById('create_node_modal');
+    const newNodeTitle = document.getElementById('new_node_title');
+    const newNodeType = document.getElementById('new_node_type');
+    const newNodeMessage = document.getElementById('new_node_message');
+    const newNodeCode = document.getElementById('new_node_code');
+    const createNodeBtn = document.getElementById('create_node_btn');
+    const cancelCreateNode = document.getElementById('cancel_create_node');
+    const createNodeStatus = document.getElementById('create_node_status');
+
+    function syncVisibility() {
+        const value = actionSelect.value;
+        nodeBlock.style.display = value === 'NODE' ? 'block' : 'none';
+        urlBlock.style.display = value === 'URL' ? 'block' : 'none';
+        webappBlock.style.display = value === 'WEBAPP' ? 'block' : 'none';
+    }
+
+    function filterNodes() {
+        const query = (nodeSearch.value || '').toLowerCase().trim();
+        Array.from(nodeSelect.options).forEach((opt) => {
+            if (!opt.dataset.label) return;
+            opt.hidden = query && !opt.dataset.label.includes(query);
+        });
+    }
+
+    function generateCodeFromTitle(title) {
+        return (title || '')
+            .toUpperCase()
+            .replace(/[^A-ZА-Я0-9]+/g, '_')
+            .replace(/^_+|_+$/g, '')
+            .slice(0, 40);
+    }
+
+    async function createNode() {
+        createNodeStatus.textContent = 'Создаём...';
+        const payload = new FormData();
+        payload.append('title', newNodeTitle.value || 'Новый раздел');
+        payload.append('node_type', newNodeType.value || 'MESSAGE');
+        payload.append('message_text', newNodeMessage.value || 'Выберите пункт:');
+
+        try {
+            const response = await fetch('/adminbot/nodes/quick-create', {
+                method: 'POST',
+                body: payload,
+            });
+            const data = await response.json();
+            if (!data.ok) {
+                createNodeStatus.textContent = data.error || 'Ошибка создания раздела';
+                return;
+            }
+            const option = document.createElement('option');
+            option.value = data.node.code;
+            option.textContent = `${data.node.title} (${data.node.code})`;
+            option.dataset.label = option.textContent.toLowerCase();
+            nodeSelect.appendChild(option);
+            nodeSelect.value = data.node.code;
+            createNodeStatus.textContent = 'Раздел создан и выбран';
+            createNodeModal.style.display = 'none';
+        } catch (e) {
+            createNodeStatus.textContent = 'Не удалось создать узел';
+        }
+    }
+
+    actionSelect.addEventListener('change', syncVisibility);
+    nodeSearch.addEventListener('input', filterNodes);
+    toggleCreateNode.addEventListener('click', () => {
+        createNodeModal.style.display = createNodeModal.style.display === 'none' ? 'block' : 'none';
+    });
+    cancelCreateNode.addEventListener('click', () => {
+        createNodeModal.style.display = 'none';
+        createNodeStatus.textContent = '';
+    });
+    newNodeTitle.addEventListener('input', () => {
+        newNodeCode.value = generateCodeFromTitle(newNodeTitle.value) || 'NODE_' + Math.random().toString().slice(2, 6);
+    });
+    createNodeBtn.addEventListener('click', createNode);
+
+    syncVisibility();
+    filterNodes();
+    newNodeCode.value = generateCodeFromTitle(newNodeTitle.value) || '';
+</script>
 </body>
 </html>

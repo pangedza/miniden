@@ -89,22 +89,57 @@ def get_config_version(session=None) -> int:
     return runtime.config_version or 1
 
 
+def _resolve_button_action(button: BotButton) -> InlineKeyboardButton | None:
+    action_type = (button.action_type or "NODE").upper()
+    if action_type == "NODE":
+        target_code = button.target_node_code
+        if not target_code and button.type == "callback" and (
+            button.payload or ""
+        ).startswith("OPEN_NODE:"):
+            target_code = (button.payload or "OPEN_NODE:").split(":", maxsplit=1)[1]
+        if target_code:
+            payload = f"OPEN_NODE:{target_code}"
+            return InlineKeyboardButton(text=button.title, callback_data=payload)
+        if button.type == "callback" and button.payload:
+            # Старый формат callback с произвольным payload
+            return InlineKeyboardButton(text=button.title, callback_data=button.payload)
+        logger.warning("Не указан узел для кнопки %s", button.id)
+        return None
+
+    if action_type == "URL":
+        target_url = button.url or button.payload
+        if not target_url:
+            logger.warning("Не указана ссылка для кнопки %s", button.id)
+            return None
+        return InlineKeyboardButton(text=button.title, url=target_url)
+
+    if action_type == "WEBAPP":
+        webapp_url = button.webapp_url or button.payload
+        if not webapp_url:
+            logger.warning("Не указана WebApp ссылка для кнопки %s", button.id)
+            return None
+        return InlineKeyboardButton(text=button.title, web_app=WebAppInfo(url=webapp_url))
+
+    # Совместимость со старыми кнопками
+    if button.type == "callback":
+        return InlineKeyboardButton(text=button.title, callback_data=button.payload)
+    if button.type == "url":
+        return InlineKeyboardButton(text=button.title, url=button.payload)
+    if button.type == "webapp":
+        return InlineKeyboardButton(text=button.title, web_app=WebAppInfo(url=button.payload))
+
+    logger.warning("Неизвестный тип кнопки: %s", button.type)
+    return None
+
+
 def _build_inline_keyboard(buttons: list[BotButton]) -> InlineKeyboardMarkup | None:
     rows: Dict[int, list[InlineKeyboardButton]] = {}
     for button in sorted(buttons, key=lambda btn: (btn.row, btn.pos, btn.id)):
         if not button.is_enabled:
             continue
 
-        if button.type == "callback":
-            inline_button = InlineKeyboardButton(text=button.title, callback_data=button.payload)
-        elif button.type == "url":
-            inline_button = InlineKeyboardButton(text=button.title, url=button.payload)
-        elif button.type == "webapp":
-            inline_button = InlineKeyboardButton(
-                text=button.title, web_app=WebAppInfo(url=button.payload)
-            )
-        else:
-            logger.warning("Неизвестный тип кнопки: %s", button.type)
+        inline_button = _resolve_button_action(button)
+        if not inline_button:
             continue
 
         rows.setdefault(button.row or 0, []).append(inline_button)

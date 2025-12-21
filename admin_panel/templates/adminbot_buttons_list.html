@@ -5,7 +5,7 @@
     <title>Кнопки для {{ node.code }}</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 16px; background: #f5f5f5; }
-        header { display: flex; gap: 12px; margin-bottom: 16px; }
+        header { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
         table { border-collapse: collapse; width: 100%; background: #fff; }
         th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
         th { background: #e2e8f0; }
@@ -23,17 +23,17 @@
     <a href="/adminbot/logout" class="button" style="background:#dc2626;">Выйти</a>
 </header>
 <h2>Кнопки: {{ node.title }} ({{ node.code }})</h2>
-<div class="muted">Кнопки — готовые ответы для пользователя. Они помогают вести по сценарию без ввода текста.</div>
-<div style="margin:12px 0; display:flex; gap:12px; align-items:center;">
+<div class="muted">Выберите действие для каждой кнопки: переход в узел, ссылка или WebApp. Старые кнопки продолжают работать.</div>
+<div style="margin:12px 0; display:flex; gap:12px; align-items:center; flex-wrap: wrap;">
     <a href="/adminbot/nodes/{{ node.id }}/buttons/new" class="button">Создать кнопку</a>
-    <span class="muted">Совет: называйте кнопки простыми словами, например «Оформить заказ».</span>
+    <span class="muted">Совет: начинайте с MAIN_MENU → Товары → Категории.</span>
 </div>
 <table>
     <thead>
     <tr>
         <th>Текст кнопки</th>
-        <th>Тип</th>
-        <th>Значение (payload)</th>
+        <th>Действие</th>
+        <th>Значение</th>
         <th>Строка</th>
         <th>Позиция</th>
         <th>Включена</th>
@@ -44,8 +44,8 @@
     {% for button in buttons %}
     <tr>
         <td>{{ button.title }}</td>
-        <td>{{ button.type }}</td>
-        <td class="muted">{{ button.payload }}</td>
+        <td>{{ button.action_type }}</td>
+        <td class="muted">{{ button.action_value }}</td>
         <td>{{ button.row }}</td>
         <td>{{ button.pos }}</td>
         <td>{{ '✅' if button.is_enabled else '⛔' }}</td>
