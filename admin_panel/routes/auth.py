@@ -30,26 +30,39 @@ async def login_form(request: Request, next: str | None = None):
 @router.post("/login")
 async def login(
     request: Request,
-    username: str = Form(...),
-    password: str = Form(...),
     next: str = Form("/adminbot"),
     db: Session = Depends(get_db_session),
 ):
-    user = auth_service.authenticate_admin(db, username, password)
+    form = await request.form()
+
+    username = (
+        form.get("username")
+        or form.get("login")
+        or form.get("логин")
+    )
+    password = (
+        form.get("password")
+        or form.get("pass")
+        or form.get("пароль")
+    )
+
+    normalized_next = _normalize_next_url(form.get("next") or next)
+
+    user = auth_service.authenticate_admin(db, username or "", password or "")
     if not user:
         return TEMPLATES.TemplateResponse(
             "login.html",
             {
                 "request": request,
                 "error": "Неверный логин или пароль",
-                "next": _normalize_next_url(next),
+                "next": normalized_next,
             },
             status_code=400,
         )
 
     session = auth_service.create_session(db, user)
     max_age = int((session.expires_at - datetime.utcnow()).total_seconds())
-    response = RedirectResponse(url=_normalize_next_url(next), status_code=303)
+    response = RedirectResponse(url=normalized_next, status_code=303)
     response.set_cookie(
         SESSION_COOKIE_NAME,
         session.token,

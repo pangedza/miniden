@@ -28,6 +28,14 @@ MiniDeN — Telegram-бот и веб-магазин
 - Сессия хранится в БД (`admin_sessions`), cookie `admin_session` выдаётся с `HttpOnly`, `Secure`, `SameSite=Lax`.
 - При пустой таблице `admin_users` автоматически создаётся superadmin: логин `admin`, пароль `admin`.
 
+Восстановление доступа в AdminBot
+---------------------------------
+- Если вход перестал работать, а править `.env` и БД нельзя, выполните сброс пароля:
+  - `cd /opt/miniden`
+  - `source venv/bin/activate`
+  - `/opt/miniden/venv/bin/python scripts/reset_admin.py --username admin --password admin`
+- Скрипт создаёт пользователя при пустой таблице или обновляет существующего, активирует его и очищает активные сессии.
+
 Запуск backend (FastAPI)
 ------------------------
 - cd /opt/miniden
