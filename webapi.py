@@ -81,6 +81,7 @@ from schemas.home import HomeBlockIn, HomePostIn, HomeSectionIn
 BASE_DIR = Path(__file__).resolve().parent
 WEBAPP_DIR = BASE_DIR / "webapp"
 STATIC_DIR_PUBLIC = BASE_DIR / "static"
+ADMIN_SITE_STATIC_DIR = BASE_DIR / "admin_panel" / "adminsite" / "static" / "adminsite"
 
 setup_logging(log_file=API_LOG_FILE)
 
@@ -198,7 +199,34 @@ def ensure_admin_static_dirs() -> bool:
     return True
 
 
+def ensure_adminsite_static_dir() -> bool:
+    try:
+        ADMIN_SITE_STATIC_DIR.mkdir(parents=True, exist_ok=True)
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning(
+            "AdminSite static directory is unavailable, skipping mount: %s", exc
+        )
+        return False
+
+    return True
+
+
 app.mount("/media", StaticFiles(directory=MEDIA_ROOT), name="media")
+if ensure_adminsite_static_dir():
+    try:
+        app.mount(
+            "/static/adminsite",
+            StaticFiles(directory=ADMIN_SITE_STATIC_DIR),
+            name="adminsite-static",
+        )
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning(
+            "AdminSite static will not be served because mount failed: %s", exc
+        )
+else:  # pragma: no cover - defensive
+    logger.warning(
+        "AdminSite static will not be served because the directory is missing or unreadable."
+    )
 app.mount("/static", StaticFiles(directory=STATIC_DIR_PUBLIC), name="public-static")
 app.mount("/css", StaticFiles(directory=WEBAPP_DIR / "css"), name="css")
 app.mount("/js", StaticFiles(directory=WEBAPP_DIR / "js"), name="js")
