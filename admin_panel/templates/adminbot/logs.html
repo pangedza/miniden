@@ -42,12 +42,20 @@
         <form method="get" action="/adminbot/logs">
             <input type="hidden" name="source" value="{{ selected_source }}" />
             <label>Строк:<br><input type="number" min="1" max="2000" name="limit" value="{{ limit }}" /></label>
+            <label>Уровень:<br>
+                <select name="level">
+                    <option value="" {% if not selected_level %}selected{% endif %}>Все</option>
+                    <option value="INFO" {% if selected_level == 'INFO' %}selected{% endif %}>INFO</option>
+                    <option value="WARN" {% if selected_level == 'WARN' %}selected{% endif %}>WARN</option>
+                    <option value="ERROR" {% if selected_level == 'ERROR' %}selected{% endif %}>ERROR</option>
+                </select>
+            </label>
             <button type="submit">Обновить</button>
-            <span class="muted">Файлы: {{ sources['api'] }} и {{ sources['bot'] }}</span>
+            <span class="muted">Файлы: {{ sources['api'] }} и {{ sources['bot'] }}. Фильтр по уровню пока визуальный.</span>
         </form>
 
         {% if not_found %}
-            <div class="empty">Файл лога не найден. Логи ещё не настроены или сервис не писал лог.</div>
+            <div class="empty">Файл лога не найден. Логи ещё не настроены или сервис не писал лог. Подключите запись логов в utils.logging_config.</div>
         {% elif not lines %}
             <div class="empty">Файл найден, но пока пустой.</div>
         {% else %}

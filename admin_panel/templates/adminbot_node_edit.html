@@ -41,13 +41,13 @@
 {% set cond_config = node.config_json if node and node.config_json else {} %}
 {% set sub_payload = cond_config.get('condition_payload', {}) if cond_config else {} %}
 <form method="post" action="{% if node %}/adminbot/nodes/{{ node.id }}/edit{% else %}/adminbot/nodes/new{% endif %}">
-    <label>Код узла <span class="help-icon" title="Уникальное имя шага. Используется для переходов. Например: MAIN_MENU">?</span></label>
-    <input type="text" name="code" value="{{ node.code if node else '' }}" {% if node %}readonly{% endif %} required>
+    <label>Код узла <span class="help-icon" title="Уникальный код шага (латиница/цифры/_). Например: MAIN_MENU">?</span></label>
+    <input type="text" name="code" value="{{ node.code if node else '' }}" {% if node %}readonly{% endif %} required data-lock-required="true">
 
     <div class="row">
         <div>
             <label>Название для себя <span class="help-icon" title="Свободное название, видно только вам. Помогает понять, что делает узел.">?</span></label>
-            <input type="text" name="title" value="{{ node.title if node else '' }}" placeholder="Например: Приветствие" required>
+            <input type="text" name="title" value="{{ node.title if node else '' }}" placeholder="Например: Приветствие" required data-lock-required="true">
         </div>
         <div>
             <label>Тип узла <span class="help-icon" title="Определяет, что бот делает на этом шаге: сообщение, ожидание ответа, проверка условия или действие">?</span></label>
@@ -61,24 +61,27 @@
         </div>
     </div>
 
-    <label>Текст сообщения <span class="help-icon" title="Что бот отправит пользователю. Можно подставлять {{переменные}}.">?</span></label>
-    <textarea name="message_text" required placeholder="Например: Привет, {{name}}! Чем помочь?">{{ node.message_text if node else '' }}</textarea>
-    <div class="hint">Можно использовать переменные: {{'{{'}}name{{'}}'}}, {{'{{'}}phone{{'}}'}}.</div>
+    <div id="message_section" class="card">
+        <h3>Сообщение</h3>
+        <label>Текст сообщения <span class="help-icon" title="Что бот отправит пользователю. Можно подставлять {{переменные}}.">?</span></label>
+        <textarea name="message_text" data-section="message" placeholder="Например: Привет, {{name}}! Чем помочь?">{{ node.message_text if node else '' }}</textarea>
+        <div class="hint">Можно использовать переменные: {{'{{'}}name{{'}}'}}, {{'{{'}}phone{{'}}'}}.</div>
 
-    <div class="row">
-        <div>
-            <label>Режим форматирования <span class="help-icon" title="Как обрабатывать текст: HTML или Markdown. Оставьте по умолчанию, если не уверены.">?</span></label>
-            <input type="text" name="parse_mode" value="{{ node.parse_mode if node else 'HTML' }}" placeholder="Например: HTML">
+        <div class="row">
+            <div>
+                <label>Режим форматирования <span class="help-icon" title="Как обрабатывать текст: HTML или Markdown. Оставьте по умолчанию, если не уверены.">?</span></label>
+                <input type="text" name="parse_mode" data-section="message" value="{{ node.parse_mode if node else 'HTML' }}" placeholder="Например: HTML">
+            </div>
+            <div>
+                <label>Изображение (URL) <span class="help-icon" title="Ссылка на картинку, которую бот пришлёт вместе с текстом.">?</span></label>
+                <input type="text" name="image_url" data-section="message" value="{{ node.image_url if node else '' }}" placeholder="https://example.com/image.jpg">
+            </div>
         </div>
-        <div>
-            <label>Изображение (URL) <span class="help-icon" title="Ссылка на картинку, которую бот пришлёт вместе с текстом.">?</span></label>
-            <input type="text" name="image_url" value="{{ node.image_url if node else '' }}" placeholder="https://example.com/image.jpg">
-        </div>
-    </div>
 
-    <div class="checkbox">
-        <input type="checkbox" id="is_enabled" name="is_enabled" {% if node is none or node.is_enabled %}checked{% endif %}>
-        <label for="is_enabled" style="margin:0; font-weight:normal;">Включен</label>
+        <div class="checkbox">
+            <input type="checkbox" id="is_enabled" name="is_enabled" data-section="message" {% if node is none or node.is_enabled %}checked{% endif %}>
+            <label for="is_enabled" style="margin:0; font-weight:normal;">Включен</label>
+        </div>
     </div>
 
     <div id="input_settings" class="card" style="display:none;">
@@ -130,6 +133,7 @@
     <div id="action_settings" class="card" style="display:none;">
         <h3>Действия узла</h3>
         <div class="hint">Действия выполняются по порядку сверху вниз. Подходит для уведомлений, записи данных или переходов.</div>
+        <div class="hint" style="color:#b45309;">Можно сохранить узел без действий — тогда он просто перейдёт к следующему шагу (если указан).</div>
         <div id="actions_container"></div>
         <div style="margin-top:10px;">
             <button type="button" class="button" id="add_action_btn" style="background:#0ea5e9;">Добавить действие</button>
@@ -255,6 +259,7 @@
 <script>
     const form = document.querySelector('form');
     const nodeTypeSelect = document.getElementById('node_type_select');
+    const messageSection = document.getElementById('message_section');
     const inputSettings = document.getElementById('input_settings');
     const conditionSettings = document.getElementById('condition_settings');
     const conditionTypeSelect = document.getElementById('condition_type_select');
@@ -269,6 +274,7 @@
     const actionsContainer = document.getElementById('actions_container');
     const addActionBtn = document.getElementById('add_action_btn');
     const actionsDataElement = document.getElementById('initial_actions_data');
+    const inputMinLenInput = document.querySelector('input[name="input_min_len"]');
 
     const FIELDS_BY_TYPE = {
         SET_VAR: ['var', 'value'],
@@ -302,54 +308,106 @@
         { value: 'REQUEST_LOCATION', label: 'Запросить геолокацию' },
     ];
 
-    function setSectionEnabled(section, enabled) {
+    function setSectionEnabled(section, enabled, clearValues = false) {
         if (!section) return;
+        section.style.display = enabled ? 'block' : 'none';
         section.querySelectorAll('input, select, textarea').forEach((el) => {
-            el.disabled = !enabled;
+            if (!el.dataset.keepEnabled) {
+                el.disabled = !enabled;
+            }
+            if (clearValues && !enabled && !el.dataset.keepValue) {
+                if (el.type === 'checkbox') {
+                    el.checked = false;
+                } else {
+                    el.value = '';
+                }
+            }
         });
-    }
-
-    function toggleInputSettings() {
-        const nodeType = nodeTypeSelect.value;
-        const isInputNode = nodeType === 'INPUT';
-        const isConditionNode = nodeType === 'CONDITION';
-        const isActionNode = nodeType === 'ACTION';
-        const isLegacyCondition = isConditionNode && (!conditionTypeSelect || conditionTypeSelect.value === 'LEGACY');
-
-        inputSettings.style.display = isInputNode ? 'block' : 'none';
-        conditionSettings.style.display = isConditionNode ? 'block' : 'none';
-        actionSettings.style.display = isActionNode ? 'block' : 'none';
-
-        if (isConditionNode) {
-            toggleConditionTypeFields();
-        }
-
-        setSectionEnabled(inputSettings, isInputNode);
-        setSectionEnabled(conditionSettings, isConditionNode);
-        setSectionEnabled(actionSettings, isActionNode);
-
-        const conditionRequired = isLegacyCondition;
-        if (condVarKeyInput && condOperatorSelect && nextNodeTrueInput && nextNodeFalseInput && condValueInput) {
-            condVarKeyInput.required = conditionRequired;
-            condOperatorSelect.required = conditionRequired;
-            nextNodeTrueInput.required = conditionRequired;
-            nextNodeFalseInput.required = conditionRequired;
-            condValueInput.required = conditionRequired && !['EXISTS', 'NOT_EXISTS'].includes(condOperatorSelect.value || '');
-            condValueInput.disabled = !condValueInput.required;
-        }
     }
 
     function toggleConditionTypeFields() {
         if (!conditionTypeSelect) {
             return;
         }
-        const type = conditionTypeSelect.value;
+        const type = (conditionTypeSelect.value || 'LEGACY').toUpperCase();
         if (conditionLegacyFields) {
-            conditionLegacyFields.style.display = type === 'LEGACY' ? 'block' : 'none';
+            setSectionEnabled(conditionLegacyFields, type === 'LEGACY', true);
         }
         if (conditionSubscriptionFields) {
-            conditionSubscriptionFields.style.display = type === 'CHECK_SUBSCRIPTION' ? 'block' : 'none';
+            setSectionEnabled(conditionSubscriptionFields, type === 'CHECK_SUBSCRIPTION', true);
         }
+    }
+
+    const REQUIRED_BY_TYPE = {
+        MESSAGE: ['message_text'],
+        INPUT: ['input_type', 'input_var_key', 'next_node_code_success'],
+        CONDITION: ['cond_var_key', 'cond_operator', 'next_node_code_true', 'next_node_code_false'],
+        ACTION: [],
+    };
+
+    const REQUIRED_FOR_SUBSCRIPTION = ['cond_sub_channels', 'cond_sub_on_success', 'cond_sub_on_fail'];
+
+    function resetRequired() {
+        form.querySelectorAll('input, select, textarea').forEach((el) => {
+            if (!el.dataset.lockRequired) {
+                el.required = false;
+            }
+        });
+    }
+
+    function markRequired(names = []) {
+        names.forEach((name) => {
+            const field = form.elements[name];
+            if (field && !field.disabled) {
+                field.required = true;
+            }
+        });
+    }
+
+    function syncConditionValueRequirement(activeType) {
+        if (!condOperatorSelect || !condValueInput) {
+            return;
+        }
+        const operator = (condOperatorSelect.value || '').toUpperCase();
+        const needsValue = activeType === 'CONDITION' && !['EXISTS', 'NOT_EXISTS'].includes(operator);
+        condValueInput.required = needsValue;
+        condValueInput.disabled = activeType !== 'CONDITION' || !needsValue;
+        if (!needsValue) {
+            condValueInput.value = '';
+        }
+    }
+
+    function ensureDefaultNumbers(activeType) {
+        if (activeType === 'INPUT' && inputMinLenInput && !inputMinLenInput.value.trim()) {
+            inputMinLenInput.value = '0';
+        }
+        if (activeType !== 'INPUT' && inputMinLenInput) {
+            inputMinLenInput.value = '';
+        }
+    }
+
+    function syncFormByType() {
+        const type = (nodeTypeSelect.value || 'MESSAGE').toUpperCase();
+
+        resetRequired();
+        toggleConditionTypeFields();
+
+        setSectionEnabled(inputSettings, type === 'INPUT', true);
+        setSectionEnabled(conditionSettings, type === 'CONDITION', true);
+        setSectionEnabled(actionSettings, type === 'ACTION', true);
+
+        if (messageSection) {
+            setSectionEnabled(messageSection, true, false);
+        }
+
+        markRequired(REQUIRED_BY_TYPE[type] || []);
+
+        if (type === 'CONDITION' && conditionTypeSelect && conditionTypeSelect.value === 'CHECK_SUBSCRIPTION') {
+            markRequired(REQUIRED_FOR_SUBSCRIPTION);
+        }
+
+        syncConditionValueRequirement(type);
+        ensureDefaultNumbers(type);
     }
 
     function escapeHtml(value) {
@@ -515,12 +573,12 @@
         });
     }
 
-    nodeTypeSelect.addEventListener('change', toggleInputSettings);
+    nodeTypeSelect.addEventListener('change', syncFormByType);
     if (condOperatorSelect) {
-        condOperatorSelect.addEventListener('change', toggleInputSettings);
+        condOperatorSelect.addEventListener('change', () => syncFormByType());
     }
     if (conditionTypeSelect) {
-        conditionTypeSelect.addEventListener('change', toggleConditionTypeFields);
+        conditionTypeSelect.addEventListener('change', () => syncFormByType());
     }
 
     function cleanEmptyNumbers(targetForm) {
@@ -538,14 +596,14 @@
 
     if (form) {
         form.addEventListener('submit', () => {
-            toggleInputSettings();
+            syncFormByType();
             cleanEmptyNumbers(form);
         });
     }
 
     initActions();
     syncSortOrders();
-    toggleInputSettings();
+    syncFormByType();
 </script>
 </body>
 </html>

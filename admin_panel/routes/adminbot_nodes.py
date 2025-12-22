@@ -75,7 +75,7 @@ def _prepare_node_payload(
     *,
     node_code: str | None,
     title: str,
-    message_text: str,
+    message_text: str | None,
     parse_mode: str,
     image_url: str | None,
     is_enabled: bool,
@@ -102,6 +102,10 @@ def _prepare_node_payload(
     cond_sub_check_button_text: str | None,
     cond_sub_subscribe_button_text: str | None,
 ) -> tuple[str | None, dict]:
+    clean_title = (title or "").strip()
+    clean_message = (message_text or "").strip()
+    clean_parse_mode = (parse_mode or "HTML").strip() or "HTML"
+
     normalized_node_type = (node_type or "MESSAGE").strip().upper()
     normalized_input_type = (input_type or "").strip().upper() or None
     normalized_var_key = (input_var_key or "").strip() or None
@@ -115,8 +119,14 @@ def _prepare_node_payload(
     normalized_next_true = (next_node_code_true or "").strip() or None
     normalized_next_false = (next_node_code_false or "").strip() or None
 
+    if not clean_title:
+        return "Заполните название узла.", {}
+
     if normalized_node_type not in NODE_TYPES:
         return "Некорректный тип узла", {}
+
+    if normalized_node_type == "MESSAGE" and not clean_message:
+        return "Заполните текст сообщения", {}
 
     if normalized_node_type == "INPUT":
         if normalized_input_type not in INPUT_TYPES:
@@ -128,6 +138,12 @@ def _prepare_node_payload(
             )
         if not normalized_next_success:
             return "Укажите код узла для перехода при успешном вводе", {}
+
+        min_len_value = _to_optional_int(input_min_len)
+        if min_len_value is None or min_len_value < 0:
+            min_len_value = 0
+    else:
+        min_len_value = None
 
     config_json: dict | None = None
 
@@ -171,6 +187,9 @@ def _prepare_node_payload(
             normalized_cond_value = None
             normalized_next_true = config_json["condition_payload"].get("on_success_node")
             normalized_next_false = config_json["condition_payload"].get("on_fail_node")
+
+            if not normalized_next_true or not normalized_next_false:
+                return "Укажите узлы для перехода при успехе и провале проверки подписки", {}
         else:
             if not all(
                 [
@@ -198,16 +217,16 @@ def _prepare_node_payload(
         normalized_next_cancel = None
 
     payload = {
-        "title": title,
-        "message_text": message_text,
-        "parse_mode": parse_mode or "HTML",
+        "title": clean_title,
+        "message_text": clean_message or " ",
+        "parse_mode": clean_parse_mode,
         "image_url": image_url or None,
         "is_enabled": is_enabled,
         "node_type": normalized_node_type,
         "input_type": normalized_input_type,
         "input_var_key": normalized_var_key,
         "input_required": bool(input_required),
-        "input_min_len": _to_optional_int(input_min_len),
+        "input_min_len": min_len_value,
         "input_error_text": input_error_text or None,
         "next_node_code_success": normalized_next_success,
         "next_node_code_cancel": normalized_next_cancel,
@@ -416,7 +435,7 @@ async def create_node(
     request: Request,
     code: str = Form(...),
     title: str = Form(...),
-    message_text: str = Form(...),
+    message_text: str | None = Form(None),
     parse_mode: str = Form("HTML"),
     image_url: str | None = Form(None),
     is_enabled: bool = Form(False),
@@ -561,7 +580,7 @@ async def edit_node(
     request: Request,
     node_id: int,
     title: str = Form(...),
-    message_text: str = Form(...),
+    message_text: str | None = Form(None),
     parse_mode: str = Form("HTML"),
     image_url: str | None = Form(None),
     is_enabled: bool = Form(False),
