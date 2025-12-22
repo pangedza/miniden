@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Каталог товаров | MiniDeN</title>
+  <link rel="stylesheet" href="/css/theme.css?v=20251218" />
+  <link rel="stylesheet" href="/css/telegram_shop.css?v=1" />
+</head>
+<body class="telegram-shop">
+  <main class="telegram-shop__main" data-shop-page data-shop-type="product">
+    <header class="telegram-shop__header">
+      <div class="telegram-shop__breadcrumbs">Каталог / Товары</div>
+      <h1 class="telegram-shop__title" id="category-title">Категория</h1>
+      <p class="telegram-shop__description" id="category-description">Подбираем товары...</p>
+    </header>
+
+    <section class="telegram-shop__content">
+      <div class="telegram-shop__loading" id="page-loading">Загружаем товары...</div>
+      <div class="telegram-shop__grid" id="items-grid" hidden></div>
+      <div class="telegram-shop__empty" id="empty-state" hidden>В этой категории пока нет товаров.</div>
+      <div class="telegram-shop__error" id="error-state" hidden></div>
+    </section>
+  </main>
+
+  <div class="telegram-shop__action-bar" id="action-bar" hidden>
+    <div class="telegram-shop__selected">Выбрано: <span id="selected-count">0</span></div>
+    <button class="telegram-shop__action-button" id="action-button" type="button" disabled>Продолжить</button>
+  </div>
+
+  <div id="toast-container"></div>
+
+  <script src="/js/api.js?v=20250610"></script>
+  <script src="/js/telegram_shop_page.js?v=1"></script>
+</body>
+</html>
