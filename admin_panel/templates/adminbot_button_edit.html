@@ -21,6 +21,7 @@
         .inline-actions { display:flex; gap:8px; align-items:center; margin-top:6px; flex-wrap: wrap; }
         .badge { display:inline-block; padding:2px 8px; border-radius:12px; background:#e0f2fe; color:#0f172a; font-size:12px; }
         .modal { border:1px solid #cbd5e1; border-radius:8px; background:#fff; padding:12px; margin-top:12px; display:none; }
+        .help-title { font-weight: bold; margin-top: 8px; }
     </style>
 </head>
 <body>
@@ -33,74 +34,87 @@
     <a href="/adminbot/logout" class="button" style="background:#dc2626;">Выйти</a>
 </header>
 <h2>{% if button %}Редактирование кнопки{% else %}Новая кнопка{% endif %} для {{ node.code }}</h2>
-<div class="hint">Кнопка управляет сценарием: переход в раздел, открытие ссылки или WebApp. Не нужно помнить коды узлов — выберите из списка.</div>
+<div class="hint">Шаги: выберите тип → настройте действие → сохраните. Все подсказки рядом, коды вводить не нужно.</div>
 {% if error %}<div class="error">{{ error }}</div>{% endif %}
 <form method="post" action="{% if button %}/adminbot/buttons/{{ button.id }}/edit{% else %}/adminbot/nodes/{{ node.id }}/buttons/new{% endif %}">
     <label>Текст кнопки</label>
     <input type="text" name="title" value="{{ button.title if button else '' }}" placeholder="Например: Товары" required>
-    <div class="hint">Что увидит пользователь в Телеграме.</div>
+    <div class="hint">Такой текст увидит пользователь в Telegram.</div>
 
-    <label>Действие кнопки</label>
-    <select name="action_type" id="action_type">
-        {% for value, label in action_types %}
-            <option value="{{ value }}" {% if form_state.action_type == value %}selected{% endif %}>{{ label }}</option>
+    <label>Тип кнопки</label>
+    <select name="type" id="button_type">
+        {% for value, label in button_types %}
+            <option value="{{ value }}" {% if form_state.button_type == value %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
-        {% if form_state.action_type == 'LEGACY' %}
-            <option value="LEGACY" selected>Старый формат (payload как есть)</option>
-        {% endif %}
     </select>
-    <div class="hint">Выберите, что произойдёт при нажатии.</div>
+    <div class="hint">Callback — действие в боте. Ссылка — открытие в браузере. WebApp — сайт внутри Telegram.</div>
 
-    <div id="node_block" class="block" style="display:none;">
-        <div class="field-row">
-            <div>
-                <label>Куда перейти</label>
-                <input type="text" id="node_search" placeholder="Поиск по названию" value="" autocomplete="off">
-                <select name="target_node_code" id="target_node_code">
-                    <option value="">— выберите узел —</option>
-                    {% for group in nodes_groups %}
-                        <optgroup label="{{ group.name }}">
-                            {% for item in group.options %}
-                                <option value="{{ item.code }}" data-label="{{ item.label|lower }}" {% if form_state.target_node_code == item.code %}selected{% endif %}>{{ item.label }} {% if item.usage %}• {{ item.usage }} раз{% endif %}</option>
-                            {% endfor %}
-                        </optgroup>
-                    {% endfor %}
+    <div id="callback_block" class="block" style="display:none;">
+        <label>Действие</label>
+        <select name="callback_action" id="callback_action">
+            {% for value, label in callback_actions %}
+                <option value="{{ value }}" {% if form_state.callback_action == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+        <div class="hint">Выберите готовое действие — payload сформируется автоматически.</div>
+
+        <div id="node_block" style="display:none;">
+            <div class="field-row">
+                <div>
+                    <label>Куда перейти</label>
+                    <input type="text" id="node_search" placeholder="Поиск по названию" value="" autocomplete="off">
+                    <select name="target_node_code" id="target_node_code">
+                        <option value="">— выберите узел —</option>
+                        {% for group in nodes_groups %}
+                            <optgroup label="{{ group.name }}">
+                                {% for item in group.options %}
+                                    <option value="{{ item.code }}" data-label="{{ item.label|lower }}" {% if form_state.target_node_code == item.code %}selected{% endif %}>{{ item.label }} {% if item.usage %}• {{ item.usage }} раз{% endif %}</option>
+                                {% endfor %}
+                            </optgroup>
+                        {% endfor %}
+                    </select>
+                    <div class="hint">Выберите узел из списка — коды подставятся сами.</div>
+                </div>
+            </div>
+            <div class="inline-actions">
+                <button type="button" class="button" id="toggle_create_node">+ Создать новый узел</button>
+                <span class="muted">Пример: MAIN_MENU → Товары → Категории.</span>
+            </div>
+            <div id="create_node_modal" class="modal">
+                <h4>Создать новый узел</h4>
+                <label>Название узла</label>
+                <input type="text" id="new_node_title" placeholder="Например: Корзинки" value="">
+                <div class="hint">Появится в списке узлов.</div>
+
+                <label>Тип узла</label>
+                <select id="new_node_type">
+                    <option value="MESSAGE">MESSAGE</option>
+                    <option value="CONDITION">CONDITION</option>
+                    <option value="INPUT">INPUT</option>
+                    <option value="ACTION">ACTION</option>
                 </select>
-                <div class="hint">Выберите раздел/категорию из списка. Не нужно писать код.</div>
+                <div class="hint">Оставьте MESSAGE, если нужна простая страница.</div>
+
+                <label>Текст узла</label>
+                <textarea id="new_node_message">Выберите пункт:</textarea>
+                <div class="hint">Что покажет бот в этом узле.</div>
+
+                <label>Код узла (генерируется автоматически)</label>
+                <input type="text" id="new_node_code" disabled value="" placeholder="Будет сгенерирован">
+                <div class="hint">Можно не трогать — код проставится сам.</div>
+
+                <div class="inline-actions" style="margin-top:10px;">
+                    <button type="button" class="button" id="create_node_btn">Создать и выбрать</button>
+                    <button type="button" class="button" style="background:#6b7280;" id="cancel_create_node">Отмена</button>
+                    <span class="muted" id="create_node_status"></span>
+                </div>
             </div>
         </div>
-        <div class="inline-actions">
-            <button type="button" class="button" id="toggle_create_node">+ Создать новый раздел</button>
-            <span class="muted">Пример структуры: MAIN_MENU → Товары → Категории.</span>
-        </div>
-        <div id="create_node_modal" class="modal">
-            <h4>Создать новый раздел</h4>
-            <label>Название раздела</label>
-            <input type="text" id="new_node_title" placeholder="Например: Корзинки" value="">
-            <div class="hint">Название появится в списке узлов.</div>
 
-            <label>Тип узла</label>
-            <select id="new_node_type">
-                <option value="MESSAGE">MESSAGE</option>
-                <option value="CONDITION">CONDITION</option>
-                <option value="INPUT">INPUT</option>
-                <option value="ACTION">ACTION</option>
-            </select>
-            <div class="hint">Оставьте MESSAGE, если нужна простая страница.</div>
-
-            <label>Текст раздела</label>
-            <textarea id="new_node_message">Выберите пункт:</textarea>
-            <div class="hint">Что покажет бот в этом разделе.</div>
-
-            <label>Код узла (генерируется автоматически)</label>
-            <input type="text" id="new_node_code" disabled value="" placeholder="Будет сгенерирован">
-            <div class="hint">Можно не трогать — код проставится сам.</div>
-
-            <div class="inline-actions" style="margin-top:10px;">
-                <button type="button" class="button" id="create_node_btn">Создать и выбрать</button>
-                <button type="button" class="button" style="background:#6b7280;" id="cancel_create_node">Отмена</button>
-                <span class="muted" id="create_node_status"></span>
-            </div>
+        <div id="raw_block" style="display:none;">
+            <label>Payload</label>
+            <input type="text" name="raw_payload" value="{{ form_state.raw_payload or '' }}" placeholder="Например: OPEN_NODE_MASTERCLASSES">
+            <div class="hint">Для продвинутых сценариев. Введите payload вручную.</div>
         </div>
     </div>
 
@@ -116,21 +130,16 @@
         <div class="hint">Откроется внутри Telegram как WebApp.</div>
     </div>
 
-    {% if form_state.legacy_payload %}
-        <input type="hidden" name="legacy_payload" value="{{ form_state.legacy_payload }}">
-        <div class="hint">Старый payload будет сохранён: {{ form_state.legacy_payload }}</div>
-    {% endif %}
-
     <div class="field-row">
         <div>
-            <label>Строка</label>
+            <label>Ряд</label>
             <input type="number" name="row" value="{{ button.row if button else 0 }}">
-            <div class="hint">0 — первая строка.</div>
+            <div class="hint">0 = первая строка кнопок.</div>
         </div>
         <div>
             <label>Позиция</label>
             <input type="number" name="pos" value="{{ button.pos if button else 0 }}">
-            <div class="hint">0 — первая позиция в строке.</div>
+            <div class="hint">0 = первая кнопка в ряду.</div>
         </div>
     </div>
 
@@ -144,10 +153,13 @@
 </form>
 
 <script>
-    const actionSelect = document.getElementById('action_type');
+    const typeSelect = document.getElementById('button_type');
+    const actionSelect = document.getElementById('callback_action');
     const nodeBlock = document.getElementById('node_block');
     const urlBlock = document.getElementById('url_block');
     const webappBlock = document.getElementById('webapp_block');
+    const callbackBlock = document.getElementById('callback_block');
+    const rawBlock = document.getElementById('raw_block');
     const nodeSearch = document.getElementById('node_search');
     const nodeSelect = document.getElementById('target_node_code');
     const toggleCreateNode = document.getElementById('toggle_create_node');
@@ -161,10 +173,14 @@
     const createNodeStatus = document.getElementById('create_node_status');
 
     function syncVisibility() {
-        const value = actionSelect.value;
-        nodeBlock.style.display = value === 'NODE' ? 'block' : 'none';
-        urlBlock.style.display = value === 'URL' ? 'block' : 'none';
-        webappBlock.style.display = value === 'WEBAPP' ? 'block' : 'none';
+        const typeValue = typeSelect.value;
+        const actionValue = actionSelect.value;
+
+        callbackBlock.style.display = typeValue === 'callback' ? 'block' : 'none';
+        nodeBlock.style.display = typeValue === 'callback' && actionValue === 'OPEN_NODE' ? 'block' : 'none';
+        rawBlock.style.display = typeValue === 'callback' && actionValue === 'RAW' ? 'block' : 'none';
+        urlBlock.style.display = typeValue === 'url' ? 'block' : 'none';
+        webappBlock.style.display = typeValue === 'webapp' ? 'block' : 'none';
     }
 
     function filterNodes() {
@@ -213,6 +229,7 @@
         }
     }
 
+    typeSelect.addEventListener('change', syncVisibility);
     actionSelect.addEventListener('change', syncVisibility);
     nodeSearch.addEventListener('input', filterNodes);
     toggleCreateNode.addEventListener('click', () => {

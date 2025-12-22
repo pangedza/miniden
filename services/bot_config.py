@@ -120,6 +120,13 @@ def _resolve_button_action(button: BotButton) -> InlineKeyboardButton | None:
             return None
         return InlineKeyboardButton(text=button.title, web_app=WebAppInfo(url=webapp_url))
 
+    if action_type in {"BACK", "RAW"}:
+        payload = button.payload
+        if not payload:
+            logger.warning("Не указан payload для callback-кнопки %s", button.id)
+            return None
+        return InlineKeyboardButton(text=button.title, callback_data=payload)
+
     # Совместимость со старыми кнопками
     if button.type == "callback":
         return InlineKeyboardButton(text=button.title, callback_data=button.payload)
