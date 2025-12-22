@@ -1,6 +1,109 @@
 import { apiRequest } from './apiClient.js';
 import { CategoryModal, ItemModal } from './modals.js';
 
+console.log('[AdminSite] constructor.js loaded');
+document.documentElement.setAttribute('data-adminsite-js', 'loaded');
+
+const API_BASE = '/api/adminsite';
+const diagnosticState = {
+    jsLoaded: true,
+    apiStatus: 'pending',
+    apiMessage: 'Проверка API...',
+};
+
+const statusBanner = document.getElementById('constructor-status-bar') || (() => {
+    const banner = document.createElement('div');
+    banner.id = 'constructor-status-bar';
+    document.body.prepend(banner);
+    return banner;
+})();
+
+function renderDiagnostics() {
+    if (!statusBanner) return;
+    statusBanner.innerHTML = '';
+
+    const pillRow = document.createElement('div');
+    pillRow.className = 'diag-pills';
+
+    const jsPill = document.createElement('span');
+    jsPill.className = `diag-pill ${diagnosticState.jsLoaded ? 'ok' : 'error'}`;
+    jsPill.textContent = diagnosticState.jsLoaded ? 'JS: LOADED' : 'JS: ERROR';
+    pillRow.appendChild(jsPill);
+
+    const apiPill = document.createElement('span');
+    const apiOk = diagnosticState.apiStatus === 'ok';
+    apiPill.className = `diag-pill ${apiOk ? 'ok' : diagnosticState.apiStatus === 'pending' ? 'muted' : 'error'}`;
+    apiPill.textContent = apiOk ? 'API: OK' : diagnosticState.apiStatus === 'pending' ? 'API: CHECKING' : 'API: ERROR';
+    pillRow.appendChild(apiPill);
+
+    statusBanner.appendChild(pillRow);
+
+    if (diagnosticState.apiMessage) {
+        const text = document.createElement('div');
+        text.className = `diag-message ${diagnosticState.apiStatus === 'ok' ? 'ok' : 'error'}`;
+        text.textContent = diagnosticState.apiMessage;
+        statusBanner.appendChild(text);
+    }
+}
+
+function setApiStatus(status, message) {
+    diagnosticState.apiStatus = status;
+    diagnosticState.apiMessage = message;
+    renderDiagnostics();
+}
+
+function reportApiFailure(error) {
+    if (!error) return;
+    if (error.status === 401) {
+        setApiStatus('error', `API вернул 401: ${error.message}`);
+        return;
+    }
+    if (error.status) {
+        setApiStatus('error', `API недоступен: HTTP ${error.status} ${error.message || ''}`.trim());
+        return;
+    }
+    if (error.message) {
+        setApiStatus('error', error.message);
+    }
+}
+
+async function checkApiHealth() {
+    try {
+        setApiStatus('pending', 'Проверка API...');
+        const response = await fetch(`${API_BASE}/health`, { credentials: 'include' });
+        const text = await response.text();
+
+        let payload = null;
+        if (text) {
+            try {
+                payload = JSON.parse(text);
+            } catch (error) {
+                setApiStatus('error', `API ответил не-JSON (${response.status}): ${text}`);
+                return;
+            }
+        }
+
+        if (!response.ok) {
+            setApiStatus('error', `API недоступен: HTTP ${response.status} ${text}`.trim());
+            return;
+        }
+
+        if (!payload?.ok) {
+            setApiStatus('error', `API ответил без ok=true: ${text || 'пустой ответ'}`);
+            return;
+        }
+
+        setApiStatus('ok', 'API: OK');
+    } catch (error) {
+        const prefix = error?.status ? `HTTP ${error.status} ` : '';
+        const message = error?.message || 'API недоступен';
+        setApiStatus('error', `API недоступен: ${prefix}${message}`.trim());
+    }
+}
+
+renderDiagnostics();
+checkApiHealth();
+
 const state = {
     categories: { product: [], course: [] },
     items: { product: [], course: [] },
@@ -61,6 +164,15 @@ function setStatus(targetId, message, isError = false) {
     }
 }
 
+async function callApi(path, options) {
+    try {
+        return await apiRequest(`${API_BASE}${path}`, options);
+    } catch (error) {
+        reportApiFailure(error);
+        throw error;
+    }
+}
+
 function categoryOptions(type) {
     return state.categories[type] || [];
 }
@@ -69,7 +181,7 @@ async function loadCategories(type) {
     const target = `status-categories-${type}`;
     setStatus(target, 'Загрузка...');
     try {
-        const data = await apiRequest(`/api/adminsite/categories?type=${type}`);
+        const data = await callApi(`/categories?type=${type}`);
         state.categories[type] = data;
         renderCategoryTable(type);
         renderCategorySelects(type);
@@ -135,7 +247,7 @@ function renderCategorySelects(type) {
 async function deleteCategory(type, id) {
     if (!confirm('Удалить категорию?')) return;
     try {
-        await apiRequest(`/api/adminsite/categories/${id}`, { method: 'DELETE' });
+        await callApi(`/categories/${id}`, { method: 'DELETE' });
         showToast('Категория удалена', 'success');
         await loadCategories(type);
     } catch (error) {
@@ -153,8 +265,8 @@ async function upsertCategory(type, payload) {
         sort: payload.sort ?? 0,
     };
     const method = payload.id ? 'PUT' : 'POST';
-    const url = payload.id ? `/api/adminsite/categories/${payload.id}` : '/api/adminsite/categories';
-    await apiRequest(url, { method, body });
+    const url = payload.id ? `/categories/${payload.id}` : '/categories';
+    await callApi(url, { method, body });
     await loadCategories(type);
     showToast('Категория сохранена', 'success');
 }
@@ -168,7 +280,7 @@ async function loadItems(type) {
     const target = `status-items-${type}`;
     setStatus(target, 'Загрузка...');
     try {
-        const data = await apiRequest(`/api/adminsite/items?${params.toString()}`);
+        const data = await callApi(`/items?${params.toString()}`);
         state.items[type] = data;
         renderItemsTable(type);
         setStatus(target, `Загружено: ${data.length}`);
@@ -215,7 +327,7 @@ function renderItemsTable(type) {
 async function deleteItem(type, id) {
     if (!confirm('Удалить элемент?')) return;
     try {
-        await apiRequest(`/api/adminsite/items/${id}`, { method: 'DELETE' });
+        await callApi(`/items/${id}`, { method: 'DELETE' });
         await loadItems(type);
         showToast('Элемент удалён', 'success');
     } catch (error) {
@@ -238,8 +350,8 @@ async function upsertItem(type, payload) {
         sort: payload.sort ?? 0,
     };
     const method = payload.id ? 'PUT' : 'POST';
-    const url = payload.id ? `/api/adminsite/items/${payload.id}` : '/api/adminsite/items';
-    await apiRequest(url, { method, body });
+    const url = payload.id ? `/items/${payload.id}` : '/items';
+    await callApi(url, { method, body });
     await loadItems(type);
     showToast('Элемент сохранён', 'success');
 }
@@ -253,7 +365,7 @@ async function loadWebappSettings() {
         params.append('category_id', categorySelect.value);
     }
     try {
-        const data = await apiRequest(`/api/adminsite/webapp-settings?${params.toString()}`);
+        const data = await callApi(`/webapp-settings?${params.toString()}`);
         document.getElementById('webapp-enabled').checked = data.action_enabled;
         document.getElementById('webapp-label').value = data.action_label || '';
         document.getElementById('webapp-min-selected').value = data.min_selected ?? 0;
@@ -283,7 +395,7 @@ async function saveWebappSettings(event) {
         min_selected: Number(document.getElementById('webapp-min-selected').value) || 0,
     };
     try {
-        await apiRequest('/api/adminsite/webapp-settings', { method: 'PUT', body: payload });
+        await callApi('/webapp-settings', { method: 'PUT', body: payload });
         setStatus('status-webapp', 'Настройки сохранены');
         showToast('Настройки сохранены', 'success');
         await loadWebappSettings();

@@ -8,25 +8,38 @@ function parseErrorDetail(detail) {
 }
 
 export async function apiRequest(url, options = {}) {
-    const opts = { credentials: 'same-origin', ...options };
+    const opts = { credentials: 'include', ...options };
     if (opts.body && !(opts.body instanceof FormData)) {
         opts.headers = { ...defaultHeaders, ...(opts.headers || {}) };
         opts.body = JSON.stringify(opts.body);
     }
 
     const response = await fetch(url, opts);
+    const responseText = response.status === 204 ? '' : await response.text();
+
     let payload = null;
-    try {
-        if (response.status !== 204) {
-            payload = await response.json();
+    let parseError = null;
+    if (responseText) {
+        try {
+            payload = JSON.parse(responseText);
+        } catch (error) {
+            parseError = error;
         }
-    } catch (_) {
-        /* ignore parse errors */
     }
 
     if (!response.ok) {
-        const message = payload ? parseErrorDetail(payload) : `HTTP ${response.status}`;
-        throw new Error(message);
+        const message = payload ? parseErrorDetail(payload) : responseText || `HTTP ${response.status}`;
+        const error = new Error(message);
+        error.status = response.status;
+        error.body = responseText;
+        throw error;
+    }
+
+    if (parseError) {
+        const error = new Error(responseText || 'Ответ не похож на JSON');
+        error.status = response.status;
+        error.body = responseText;
+        throw error;
     }
 
     return payload;
