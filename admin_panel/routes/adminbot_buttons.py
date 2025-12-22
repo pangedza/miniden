@@ -15,7 +15,7 @@ from models.admin_user import AdminRole
 
 router = APIRouter(tags=["AdminBot"])
 
-ALLOWED_ROLES = (AdminRole.superadmin, AdminRole.admin_bot)
+ALLOWED_ROLES = (AdminRole.superadmin, AdminRole.admin_bot, AdminRole.moderator)
 
 MAIN_MENU_CODE = "MAIN_MENU"
 
@@ -35,7 +35,7 @@ CALLBACK_ACTIONS = [
 
 def _login_redirect(next_url: str | None = None) -> RedirectResponse:
     target = next_url or "/adminbot"
-    return RedirectResponse(url=f"/login?next={target}", status_code=303)
+    return RedirectResponse(url=f"/adminbot/login?next={target}", status_code=303)
 
 
 def _next_from_request(request: Request) -> str:

@@ -3,7 +3,7 @@
 import argparse
 
 from database import SessionLocal, init_db
-from models.admin_user import AdminRole, AdminSession, AdminUser
+from models.admin_user import AdminRole, AdminRoleModel, AdminSession, AdminUser, AdminUserRole
 from services.passwords import hash_password
 
 
@@ -26,6 +26,19 @@ def main() -> None:
     db = SessionLocal()
     try:
         user = db.query(AdminUser).filter(AdminUser.username == args.username).first()
+        super_role = (
+            db.query(AdminRoleModel)
+            .filter(AdminRoleModel.code == AdminRole.superadmin.value)
+            .first()
+        )
+        if not super_role:
+            super_role = AdminRoleModel(
+                code=AdminRole.superadmin.value,
+                title="Суперадмин",
+                description="Полный доступ ко всем функциям",
+            )
+            db.add(super_role)
+            db.flush()
         password_hash = hash_password(args.password)
 
         if user:
@@ -34,6 +47,8 @@ def main() -> None:
             if not user.role:
                 user.role = AdminRole.superadmin.value
             _invalidate_sessions(db, user.id)
+            if not user.roles:
+                db.add(AdminUserRole(user_id=user.id, role_id=super_role.id))
             db.commit()
             message = (
                 "Пользователь '{username}' найден: пароль сброшен, пользователь активирован."
@@ -48,6 +63,8 @@ def main() -> None:
                 is_active=True,
             )
             db.add(user)
+            db.flush()
+            db.add(AdminUserRole(user_id=user.id, role_id=super_role.id))
             db.commit()
             db.refresh(user)
             print(f"Создан суперпользователь: '{user.username}' (id={user.id}). Пароль установлен.")

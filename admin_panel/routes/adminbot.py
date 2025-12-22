@@ -11,6 +11,7 @@ from models.admin_user import AdminRole
 
 from . import (
     adminbot_buttons,
+    adminbot_admins,
     adminbot_logs,
     adminbot_nodes,
     adminbot_runtime,
@@ -21,12 +22,17 @@ from . import (
 router = APIRouter(prefix="/adminbot", tags=["AdminBot"])
 
 
-ALLOWED_ROLES = (AdminRole.superadmin, AdminRole.admin_bot)
+ALLOWED_ROLES = (
+    AdminRole.superadmin,
+    AdminRole.admin_bot,
+    AdminRole.moderator,
+    AdminRole.viewer,
+)
 
 
 def _login_redirect(next_url: str | None = None) -> RedirectResponse:
     target = next_url or "/adminbot"
-    return RedirectResponse(url=f"/login?next={target}", status_code=303)
+    return RedirectResponse(url=f"/adminbot/login?next={target}", status_code=303)
 
 
 @router.get("/login")
@@ -70,3 +76,4 @@ router.include_router(adminbot_triggers.router)
 router.include_router(adminbot_runtime.router)
 router.include_router(adminbot_logs.router)
 router.include_router(adminbot_templates.router)
+router.include_router(adminbot_admins.router)

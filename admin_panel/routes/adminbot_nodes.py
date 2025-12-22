@@ -13,7 +13,7 @@ from models.admin_user import AdminRole
 router = APIRouter(tags=["AdminBot"])
 
 
-ALLOWED_ROLES = (AdminRole.superadmin, AdminRole.admin_bot)
+ALLOWED_ROLES = (AdminRole.superadmin, AdminRole.admin_bot, AdminRole.moderator)
 
 NODE_TYPES = {"MESSAGE", "INPUT", "CONDITION", "ACTION"}
 INPUT_TYPES = {"TEXT", "NUMBER", "PHONE_TEXT", "CONTACT"}
@@ -50,7 +50,7 @@ INPUT_KEY_REGEX = re.compile(r"^[a-zA-Z][a-zA-Z0-9_]{1,32}$")
 
 def _login_redirect(next_url: str | None = None) -> RedirectResponse:
     target = next_url or "/adminbot"
-    return RedirectResponse(url=f"/login?next={target}", status_code=303)
+    return RedirectResponse(url=f"/adminbot/login?next={target}", status_code=303)
 
 
 def _next_from_request(request: Request) -> str:
