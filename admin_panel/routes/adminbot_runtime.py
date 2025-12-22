@@ -16,7 +16,7 @@ ALLOWED_ROLES = (AdminRole.superadmin, AdminRole.admin_bot)
 
 def _login_redirect(next_url: str | None = None) -> RedirectResponse:
     target = next_url or "/adminbot"
-    return RedirectResponse(url=f"/login?next={target}", status_code=303)
+    return RedirectResponse(url=f"/adminbot/login?next={target}", status_code=303)
 
 
 def _next_from_request(request: Request) -> str:

@@ -382,17 +382,57 @@ def init_db() -> None:
         );
         """
 
+        create_admin_roles = """
+        CREATE TABLE IF NOT EXISTS admin_roles (
+            id BIGSERIAL PRIMARY KEY,
+            code VARCHAR(32) UNIQUE NOT NULL,
+            title VARCHAR(64) NOT NULL,
+            description TEXT NULL
+        );
+        """
+
+        create_admin_permissions = """
+        CREATE TABLE IF NOT EXISTS admin_permissions (
+            id BIGSERIAL PRIMARY KEY,
+            code VARCHAR(64) UNIQUE NOT NULL,
+            title VARCHAR(128) NOT NULL,
+            description TEXT NULL
+        );
+        """
+
+        create_admin_user_roles = """
+        CREATE TABLE IF NOT EXISTS admin_user_roles (
+            user_id BIGINT NOT NULL REFERENCES admin_users(id) ON DELETE CASCADE,
+            role_id BIGINT NOT NULL REFERENCES admin_roles(id) ON DELETE CASCADE,
+            CONSTRAINT uq_admin_user_role UNIQUE (user_id, role_id)
+        );
+        """
+
+        create_admin_role_permissions = """
+        CREATE TABLE IF NOT EXISTS admin_role_permissions (
+            role_id BIGINT NOT NULL REFERENCES admin_roles(id) ON DELETE CASCADE,
+            permission_id BIGINT NOT NULL REFERENCES admin_permissions(id) ON DELETE CASCADE,
+            CONSTRAINT uq_admin_role_permission UNIQUE (role_id, permission_id)
+        );
+        """
+
         alter_statements = [
             "ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW()",
             "ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE",
             "ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS password_hash TEXT",
             "ALTER TABLE admin_users ALTER COLUMN role SET DEFAULT 'superadmin'",
             "ALTER TABLE admin_sessions ALTER COLUMN app SET DEFAULT 'admin'",
+            "ALTER TABLE admin_users DROP CONSTRAINT IF EXISTS ck_admin_users_role",
+            "ALTER TABLE admin_users ADD CONSTRAINT ck_admin_users_role CHECK (role IN ('superadmin','admin_bot','admin_site','moderator','viewer'))",
         ]
 
         with engine.begin() as conn:
             conn.execute(text(create_admin_users))
             conn.execute(text(create_admin_sessions))
+            conn.execute(text(create_admin_roles))
+            conn.execute(text(create_admin_permissions))
+            conn.execute(text(create_admin_user_roles))
+            conn.execute(text(create_admin_role_permissions))
             for statement in alter_statements:
                 conn.execute(text(statement))
 
@@ -414,6 +454,140 @@ def init_db() -> None:
 
     _ensure_admin_tables()
 
+    def _seed_admin_roles_and_permissions() -> None:
+        from models import AdminPermission, AdminRoleModel, AdminRolePermission, AdminUser, AdminUserRole
+
+        role_seed = [
+            {
+                "code": "superadmin",
+                "title": "Суперадмин",
+                "description": "Полный доступ ко всем функциям",
+            },
+            {
+                "code": "admin_bot",
+                "title": "Админ бота",
+                "description": "Управление конструктором бота (узлы, кнопки, триггеры)",
+            },
+            {
+                "code": "moderator",
+                "title": "Модератор",
+                "description": "Может просматривать и редактировать контент/узлы, но без системных настроек",
+            },
+            {
+                "code": "viewer",
+                "title": "Только просмотр",
+                "description": "Только просмотр, без изменений",
+            },
+        ]
+
+        permissions_seed = [
+            {
+                "code": "admins.manage",
+                "title": "Управление администраторами",
+                "description": "Создание/редактирование/блокировка админов",
+            },
+            {
+                "code": "nodes.read",
+                "title": "Просмотр узлов",
+                "description": "Просмотр сценариев",
+            },
+            {
+                "code": "nodes.write",
+                "title": "Редактирование узлов",
+                "description": "Создание/изменение узлов",
+            },
+            {
+                "code": "buttons.write",
+                "title": "Редактирование кнопок",
+                "description": "Создание/изменение кнопок",
+            },
+            {
+                "code": "triggers.write",
+                "title": "Редактирование триггеров",
+                "description": "Создание/изменение триггеров",
+            },
+            {
+                "code": "logs.read",
+                "title": "Просмотр логов",
+                "description": "Доступ к странице логов",
+            },
+        ]
+
+        role_permissions_map = {
+            "superadmin": [perm["code"] for perm in permissions_seed],
+            "admin_bot": [
+                "nodes.read",
+                "nodes.write",
+                "buttons.write",
+                "triggers.write",
+                "logs.read",
+            ],
+            "moderator": [
+                "nodes.read",
+                "nodes.write",
+                "buttons.write",
+                "logs.read",
+            ],
+            "viewer": ["nodes.read", "logs.read"],
+        }
+
+        with SessionLocal() as session:
+            existing_roles = {
+                role.code: role for role in session.query(AdminRoleModel).all()
+            }
+            for role_data in role_seed:
+                role = existing_roles.get(role_data["code"])
+                if not role:
+                    role = AdminRoleModel(**role_data)
+                    session.add(role)
+                else:
+                    role.title = role_data["title"]
+                    role.description = role_data["description"]
+                existing_roles[role.code] = role
+
+            existing_perms = {
+                perm.code: perm for perm in session.query(AdminPermission).all()
+            }
+            for perm_data in permissions_seed:
+                perm = existing_perms.get(perm_data["code"])
+                if not perm:
+                    perm = AdminPermission(**perm_data)
+                    session.add(perm)
+                else:
+                    perm.title = perm_data["title"]
+                    perm.description = perm_data["description"]
+                existing_perms[perm.code] = perm
+
+            session.flush()
+
+            for role_code, perm_codes in role_permissions_map.items():
+                role = existing_roles.get(role_code)
+                if not role:
+                    continue
+                attached_codes = {perm.code for perm in role.permissions}
+                for code in perm_codes:
+                    perm = existing_perms.get(code)
+                    if perm and perm.code not in attached_codes:
+                        session.add(
+                            AdminRolePermission(role_id=role.id, permission_id=perm.id)
+                        )
+
+            session.commit()
+
+            # Автоматически проставляем роли существующим пользователям
+            default_superadmin = existing_roles.get("superadmin")
+            if default_superadmin:
+                for user in session.query(AdminUser).all():
+                    if user.roles:
+                        continue
+                    role_code = user.role or "superadmin"
+                    role = existing_roles.get(role_code, default_superadmin)
+                    if role:
+                        session.add(
+                            AdminUserRole(user_id=user.id, role_id=role.id)
+                        )
+                session.commit()
+
     def _ensure_default_superadmin() -> None:
         from models import AdminUser
         from models.admin_user import AdminRole
@@ -434,6 +608,7 @@ def init_db() -> None:
             )
 
     _ensure_default_superadmin()
+    _seed_admin_roles_and_permissions()
 
     def _ensure_product_categories_table() -> None:
         create_statement = """

@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Профиль администратора</title>
+    <style>
+        body { font-family: Arial, sans-serif; background:#0b1220; color:#e2e8f0; margin:0; padding:0; }
+        header { background:#38bdf8; color:#0b1220; padding:16px; display:flex; justify-content:space-between; align-items:center; }
+        header a { color:#0b1220; text-decoration:none; font-weight:bold; }
+        main { padding:24px; max-width:760px; margin:0 auto; }
+        h1 { margin-top:0; }
+        .card { background:#0f172a; border:1px solid #1e293b; border-radius:12px; padding:20px; margin-bottom:20px; }
+        .tag { display:inline-block; padding:6px 12px; border-radius:10px; background:#1e293b; color:#e2e8f0; margin-right:6px; margin-bottom:6px; }
+        label { display:block; margin-top:12px; font-weight:600; }
+        input { width:100%; padding:12px; border-radius:10px; border:1px solid #334155; background:#0b1220; color:#e2e8f0; margin-top:6px; }
+        .button { display:inline-block; padding:12px 16px; background:#38bdf8; color:#0b1220; border-radius:10px; text-decoration:none; font-weight:bold; border:none; cursor:pointer; }
+        .button.secondary { background:#1e293b; color:#e2e8f0; }
+        .help { color:#94a3b8; font-size:14px; margin-top:4px; }
+        .error { color:#f87171; margin-top:12px; }
+        .message { color:#22c55e; margin-top:12px; }
+    </style>
+</head>
+<body>
+<header>
+    <div style="display:flex; gap:12px; align-items:center;">
+        <a href="/adminbot" style="font-size:18px;">AdminBot</a>
+        <a href="/adminbot/nodes">Узлы</a>
+        <a href="/adminbot/templates">Шаблоны</a>
+        <a href="/adminbot/triggers">Триггеры</a>
+        <a href="/adminbot/runtime">Работа бота</a>
+        <a href="/adminbot/logs">Логи</a>
+        {% if can_manage_admins %}<a href="/adminbot/admins">Админы</a>{% endif %}
+    </div>
+    <div style="display:flex; gap:12px; align-items:center;">
+        <a href="/adminbot/profile" style="text-decoration:underline;">Профиль</a>
+        <a class="button secondary" href="/adminbot/logout">Выйти</a>
+    </div>
+</header>
+<main>
+    <div class="card">
+        <h1>Профиль</h1>
+        <p class="help">Ваш логин и назначенные роли.</p>
+        <p><strong>Логин:</strong> {{ user.username }}</p>
+        <p><strong>Мои роли:</strong>
+            {% if user.roles %}
+                {% for role in user.roles %}
+                    <span class="tag">{{ role.title }}</span>
+                {% endfor %}
+            {% else %}
+                <span class="help">Роль не указана</span>
+            {% endif %}
+        </p>
+        {% if message %}<div class="message">{{ message }}</div>{% endif %}
+        {% if error %}<div class="error">{{ error }}</div>{% endif %}
+    </div>
+
+    <div class="card">
+        <h2>Смена пароля</h2>
+        <p class="help">Введите текущий пароль и новый пароль дважды.</p>
+        <form method="post" action="/adminbot/profile/password">
+            <label>Текущий пароль
+                <input type="password" name="old_password" required>
+            </label>
+            <label>Новый пароль
+                <input type="password" name="new_password" required>
+            </label>
+            <label>Повтор нового пароля
+                <input type="password" name="new_password_confirm" required>
+            </label>
+            <div style="margin-top:12px; display:flex; gap:12px;">
+                <button class="button" type="submit">Обновить пароль</button>
+                <a class="button secondary" href="/adminbot">Назад</a>
+            </div>
+        </form>
+    </div>
+</main>
+</body>
+</html>

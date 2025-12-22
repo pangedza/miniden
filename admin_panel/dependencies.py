@@ -44,7 +44,7 @@ def require_admin(
         return user
 
     role_values = {role.value if isinstance(role, AdminRole) else role for role in roles}
-    if user.role in role_values:
+    if any(code in role_values for code in user.role_codes()):
         return user
 
     return None

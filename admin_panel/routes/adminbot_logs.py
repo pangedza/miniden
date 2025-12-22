@@ -27,7 +27,7 @@ SOURCES: dict[str, Path] = {
 
 def _login_redirect(next_url: str | None = None) -> RedirectResponse:
     target = next_url or "/adminbot/logs"
-    return RedirectResponse(url=f"/login?next={target}", status_code=303)
+    return RedirectResponse(url=f"/adminbot/login?next={target}", status_code=303)
 
 
 def _next_from_request(request: Request) -> str:

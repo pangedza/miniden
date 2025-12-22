@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Администраторы</title>
+    <style>
+        body { font-family: Arial, sans-serif; background:#0b1220; color:#e2e8f0; margin:0; padding:0; }
+        header { background:#38bdf8; color:#0b1220; padding:16px; display:flex; justify-content:space-between; align-items:center; }
+        header a { color:#0b1220; text-decoration:none; font-weight:bold; }
+        main { padding:24px; max-width:1100px; margin:0 auto; }
+        h1 { margin-top:0; }
+        .card { background:#0f172a; border:1px solid #1e293b; border-radius:12px; padding:20px; margin-bottom:20px; }
+        table { width:100%; border-collapse:collapse; margin-top:12px; }
+        th, td { padding:10px; border-bottom:1px solid #1e293b; text-align:left; vertical-align:top; }
+        th { color:#94a3b8; font-weight:600; }
+        .tag { display:inline-block; padding:4px 10px; border-radius:8px; background:#1e293b; color:#e2e8f0; margin-right:6px; margin-bottom:4px; }
+        .status-on { color:#22c55e; font-weight:bold; }
+        .status-off { color:#f87171; font-weight:bold; }
+        .button { display:inline-block; padding:10px 14px; background:#38bdf8; color:#0b1220; border-radius:10px; text-decoration:none; font-weight:bold; border:none; cursor:pointer; }
+        .button.secondary { background:#1e293b; color:#e2e8f0; }
+        .button.danger { background:#f87171; color:#0b1220; }
+        form.inline { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+        input, select { padding:10px; border-radius:8px; border:1px solid #334155; background:#0b1220; color:#e2e8f0; }
+        .checkbox { width:auto; }
+        .help { color:#94a3b8; font-size:14px; margin-top:6px; }
+        .error { color:#f87171; margin-top:12px; }
+        .message { color:#22c55e; margin-top:12px; }
+        .actions { display:flex; gap:8px; flex-wrap:wrap; }
+    </style>
+</head>
+<body>
+<header>
+    <div style="display:flex; gap:12px; align-items:center;">
+        <a href="/adminbot" style="font-size:18px;">AdminBot</a>
+        <a href="/adminbot/nodes">Узлы</a>
+        <a href="/adminbot/templates">Шаблоны</a>
+        <a href="/adminbot/triggers">Триггеры</a>
+        <a href="/adminbot/runtime">Работа бота</a>
+        <a href="/adminbot/logs">Логи</a>
+    </div>
+    <div style="display:flex; gap:12px; align-items:center;">
+        <a href="/adminbot/admins" style="text-decoration:underline;">Админы</a>
+        <a href="/adminbot/profile">Профиль</a>
+        <a class="button secondary" href="/adminbot/logout">Выйти</a>
+    </div>
+</header>
+<main>
+    <div class="card">
+        <h1>Администраторы</h1>
+        <p class="help">Здесь вы управляете пользователями админки и их правами.</p>
+        {% if message %}<div class="message">{{ message }}</div>{% endif %}
+        {% if error %}<div class="error">{{ error }}</div>{% endif %}
+        <div style="margin-top:12px;">
+            <a class="button" href="/adminbot/admins/new">Создать админа</a>
+        </div>
+    </div>
+
+    <div class="card">
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Логин</th>
+                    <th>Роли</th>
+                    <th>Статус</th>
+                    <th>Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for item in users %}
+                <tr>
+                    <td>#{{ item.id }}</td>
+                    <td>{{ item.username }}</td>
+                    <td>
+                        {% for role in item.roles %}
+                            <span class="tag">{{ role.title }}</span>
+                        {% endfor %}
+                    </td>
+                    <td>
+                        {% if item.is_active %}
+                            <span class="status-on">Активен</span>
+                        {% else %}
+                            <span class="status-off">Выключен</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="actions">
+                            <a class="button secondary" href="/adminbot/admins/{{ item.id }}/edit">Редактировать</a>
+                            <form method="post" action="/adminbot/admins/{{ item.id }}/resetpass" onsubmit="return confirm('Сменить пароль этому пользователю?');">
+                                <input type="password" name="new_password" placeholder="Новый пароль" required>
+                                <button class="button" type="submit">Сменить пароль</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</main>
+</body>
+</html>

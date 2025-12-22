@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>{% if target %}Редактирование администратора{% else %}Создание администратора{% endif %}</title>
+    <style>
+        body { font-family: Arial, sans-serif; background:#0b1220; color:#e2e8f0; margin:0; padding:0; }
+        header { background:#38bdf8; color:#0b1220; padding:16px; display:flex; justify-content:space-between; align-items:center; }
+        header a { color:#0b1220; text-decoration:none; font-weight:bold; }
+        main { padding:24px; max-width:720px; margin:0 auto; }
+        h1 { margin-top:0; }
+        .card { background:#0f172a; border:1px solid #1e293b; border-radius:12px; padding:20px; margin-bottom:20px; }
+        label { display:block; margin-top:12px; font-weight:600; }
+        input, select { width:100%; padding:12px; border-radius:10px; border:1px solid #334155; background:#0b1220; color:#e2e8f0; margin-top:6px; }
+        .checkbox { width:auto; }
+        .help { color:#94a3b8; font-size:14px; margin-top:4px; }
+        .button { display:inline-block; padding:12px 16px; background:#38bdf8; color:#0b1220; border-radius:10px; text-decoration:none; font-weight:bold; border:none; cursor:pointer; }
+        .button.secondary { background:#1e293b; color:#e2e8f0; }
+        .error { color:#f87171; margin-top:12px; }
+        .roles { display:flex; flex-direction:column; gap:8px; margin-top:8px; }
+        .role-item { display:flex; align-items:center; gap:8px; }
+    </style>
+</head>
+<body>
+<header>
+    <div style="display:flex; gap:12px; align-items:center;">
+        <a href="/adminbot" style="font-size:18px;">AdminBot</a>
+        <a href="/adminbot/admins">Админы</a>
+    </div>
+    <div style="display:flex; gap:12px; align-items:center;">
+        <a href="/adminbot/profile">Профиль</a>
+        <a class="button secondary" href="/adminbot/logout">Выйти</a>
+    </div>
+</header>
+<main>
+    <div class="card">
+        <h1>{% if target %}Редактирование администратора{% else %}Создание администратора{% endif %}</h1>
+        <p class="help">Логин обязателен. Пароль обязателен при создании. Нельзя отключить последнего суперадмина.</p>
+        {% if error %}<div class="error">{{ error }}</div>{% endif %}
+        <form method="post" action="{% if target %}/adminbot/admins/{{ target.id }}/edit{% else %}/adminbot/admins/new{% endif %}">
+            <label>Логин
+                <input type="text" name="username" value="{{ target.username if target else '' }}" required>
+                <div class="help">Латиница/цифры. Например: admin2</div>
+            </label>
+            {% if not target %}
+            <label>Пароль
+                <input type="password" name="password" required>
+                <div class="help">Задайте пароль. Можно поменять позже.</div>
+            </label>
+            {% endif %}
+            <label class="role-label">Роли</label>
+            <div class="roles">
+                {% for role in roles %}
+                <label class="role-item">
+                    <input class="checkbox" type="checkbox" name="roles" value="{{ role.code }}" {% if target and role in target.roles %}checked{% endif %}> {{ role.title }}
+                    <span class="help">{{ role.description }}</span>
+                </label>
+                {% endfor %}
+            </div>
+            <label>
+                <input class="checkbox" type="checkbox" name="is_active" {% if not target or target.is_active %}checked{% endif %}> Активен
+                <div class="help">Если выключить — вход будет запрещен.</div>
+            </label>
+            {% if target %}
+            <label>Новый пароль (опционально)
+                <input type="password" name="new_password" placeholder="Оставьте пустым, чтобы не менять">
+            </label>
+            {% endif %}
+            <div style="display:flex; gap:12px; margin-top:16px;">
+                <button class="button" type="submit">Сохранить</button>
+                <a class="button secondary" href="/adminbot/admins">Назад</a>
+            </div>
+        </form>
+    </div>
+</main>
+</body>
+</html>

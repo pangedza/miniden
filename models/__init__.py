@@ -25,7 +25,15 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
 from database import Base
-from models.admin_user import AdminRole, AdminSession, AdminUser
+from models.admin_user import (
+    AdminPermission,
+    AdminRole,
+    AdminRoleModel,
+    AdminRolePermission,
+    AdminSession,
+    AdminUser,
+    AdminUserRole,
+)
 
 
 class BotNode(Base):
