@@ -81,7 +81,9 @@ from schemas.home import HomeBlockIn, HomePostIn, HomeSectionIn
 BASE_DIR = Path(__file__).resolve().parent
 WEBAPP_DIR = BASE_DIR / "webapp"
 STATIC_DIR_PUBLIC = BASE_DIR / "static"
-ADMIN_SITE_STATIC_DIR = BASE_DIR / "admin_panel" / "adminsite" / "static" / "adminsite"
+ADMIN_SITE_STATIC_ROOT = BASE_DIR / "admin_panel" / "adminsite" / "static"
+ADMIN_SITE_STATIC_DIR = ADMIN_SITE_STATIC_ROOT / "adminsite"
+ADMIN_SITE_CONSTRUCTOR_PATH = ADMIN_SITE_STATIC_DIR / "constructor.js"
 
 setup_logging(log_file=API_LOG_FILE)
 
@@ -201,6 +203,7 @@ def ensure_admin_static_dirs() -> bool:
 
 def ensure_adminsite_static_dir() -> bool:
     try:
+        ADMIN_SITE_STATIC_ROOT.mkdir(parents=True, exist_ok=True)
         ADMIN_SITE_STATIC_DIR.mkdir(parents=True, exist_ok=True)
     except Exception as exc:  # pragma: no cover - defensive
         logger.warning(
@@ -211,23 +214,42 @@ def ensure_adminsite_static_dir() -> bool:
     return True
 
 
+class CombinedStaticFiles(StaticFiles):
+    """Serve static files from multiple directories in priority order."""
+
+    def __init__(self, directories: list[Path], **kwargs):
+        if not directories:
+            raise ValueError("At least one directory must be provided for static files")
+
+        self.directories = [Path(directory).resolve() for directory in directories]
+        self.apps = [
+            StaticFiles(directory=str(directory), check_dir=False, **kwargs)
+            for directory in self.directories
+        ]
+        super().__init__(directory=str(self.directories[0]), check_dir=False, **kwargs)
+
+    async def get_response(self, path: str, scope):  # type: ignore[override]
+        for app in self.apps:
+            response = await app.get_response(path, scope)
+            if getattr(response, "status_code", None) != 404:
+                return response
+
+        return await self.not_found(path, scope)
+
+
 app.mount("/media", StaticFiles(directory=MEDIA_ROOT), name="media")
+static_directories = [STATIC_DIR_PUBLIC]
 if ensure_adminsite_static_dir():
-    try:
-        app.mount(
-            "/static/adminsite",
-            StaticFiles(directory=ADMIN_SITE_STATIC_DIR),
-            name="adminsite-static",
-        )
-    except Exception as exc:  # pragma: no cover - defensive
-        logger.warning(
-            "AdminSite static will not be served because mount failed: %s", exc
-        )
+    static_directories.insert(0, ADMIN_SITE_STATIC_ROOT)
 else:  # pragma: no cover - defensive
     logger.warning(
         "AdminSite static will not be served because the directory is missing or unreadable."
     )
-app.mount("/static", StaticFiles(directory=STATIC_DIR_PUBLIC), name="public-static")
+app.mount(
+    "/static",
+    CombinedStaticFiles(directories=static_directories),
+    name="static",
+)
 app.mount("/css", StaticFiles(directory=WEBAPP_DIR / "css"), name="css")
 app.mount("/js", StaticFiles(directory=WEBAPP_DIR / "js"), name="js")
 if ensure_admin_static_dirs():
@@ -434,6 +456,13 @@ def startup_event() -> None:
     ensure_media_dirs()
     init_db()
 
+    static_dir = ADMIN_SITE_STATIC_ROOT.resolve()
+    logger.info(
+        "AdminSite static root: %s (constructor.js exists=%s)",
+        static_dir,
+        ADMIN_SITE_CONSTRUCTOR_PATH.exists(),
+    )
+
 
 @app.get("/api/env")
 def api_env():
@@ -472,6 +501,20 @@ def api_homepage_blocks():
 @app.get("/api/health")
 def api_health():
     return {"ok": True}
+
+
+@app.get("/api/adminsite/debug/static")
+def adminsite_debug_static():
+    static_dir = ADMIN_SITE_STATIC_ROOT.resolve()
+    constructor_path = ADMIN_SITE_CONSTRUCTOR_PATH.resolve()
+
+    return {
+        "static_mount": "/static",
+        "static_dir": str(static_dir),
+        "static_dir_exists": static_dir.exists(),
+        "constructor_path": str(constructor_path),
+        "constructor_exists": constructor_path.exists(),
+    }
 
 
 @app.get("/api/faq")
