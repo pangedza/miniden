@@ -12,6 +12,7 @@ from models.admin_user import AdminRole
 from . import (
     adminbot_buttons,
     adminbot_admins,
+    adminbot_media,
     adminbot_logs,
     adminbot_nodes,
     adminbot_runtime,
@@ -77,3 +78,4 @@ router.include_router(adminbot_runtime.router)
 router.include_router(adminbot_logs.router)
 router.include_router(adminbot_templates.router)
 router.include_router(adminbot_admins.router)
+router.include_router(adminbot_media.router)

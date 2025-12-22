@@ -35,8 +35,11 @@ def _normalize_code(value: str) -> str:
     return sanitized.upper() or "NODE"
 
 
-def _generate_code_map(nodes: Iterable[dict], existing_codes: set[str]) -> dict[str, str]:
+def _generate_code_map(
+    nodes: Iterable[dict], existing_codes: set[str], template_code: str | None = None
+) -> dict[str, str]:
     used = {code.upper() for code in existing_codes if code}
+    prefix = _normalize_code(template_code or "")
     mapping: dict[str, str] = {}
 
     for node in nodes:
@@ -45,7 +48,12 @@ def _generate_code_map(nodes: Iterable[dict], existing_codes: set[str]) -> dict[
         candidate = base_code
         suffix = 1
         while candidate.upper() in used:
-            candidate = f"{base_code}_{suffix}"
+            if prefix:
+                candidate = f"{prefix}_{base_code}"
+            else:
+                candidate = base_code
+            if suffix > 1:
+                candidate = f"{candidate}_{suffix}"
             suffix += 1
         used.add(candidate.upper())
         mapping[source_code] = candidate
@@ -104,7 +112,9 @@ def _build_node_payload(node_data: dict, *, code: str, code_map: dict[str, str])
         "input_type": node_data.get("input_type"),
         "input_var_key": node_data.get("input_var_key"),
         "input_required": bool(node_data.get("input_required", True)),
-        "input_min_len": node_data.get("input_min_len"),
+        "input_min_len": _to_int(node_data.get("input_min_len"), 0)
+        if node_type == "INPUT"
+        else None,
         "input_error_text": node_data.get("input_error_text"),
         "next_node_code_success": _map_node_code(
             node_data.get("next_node_code_success"), code_map
@@ -123,6 +133,7 @@ def _build_node_payload(node_data: dict, *, code: str, code_map: dict[str, str])
             node_data.get("next_node_code_false"), code_map
         ),
         "is_enabled": bool(node_data.get("is_enabled", True)),
+        "config_json": node_data.get("config_json"),
     }
 
     if node_type != "INPUT":
@@ -146,6 +157,7 @@ def _build_node_payload(node_data: dict, *, code: str, code_map: dict[str, str])
                 "cond_value": None,
                 "next_node_code_true": None,
                 "next_node_code_false": None,
+                "config_json": None,
             }
         )
 
@@ -187,9 +199,10 @@ def _apply_template(db: Session, template: BotTemplate) -> dict:
         raise ValueError("В шаблоне нет узлов для применения")
 
     existing_codes = {code for (code,) in db.query(BotNode.code).all() if code}
-    code_map = _generate_code_map(nodes_data, existing_codes)
+    code_map = _generate_code_map(nodes_data, existing_codes, template.code)
 
     created_nodes: list[dict[str, Any]] = []
+    buttons_created = 0
     for node_data in nodes_data:
         source_code = node_data.get("code") or "NODE"
         mapped_code = code_map.get(source_code, _normalize_code(source_code))
@@ -249,6 +262,7 @@ def _apply_template(db: Session, template: BotTemplate) -> dict:
                     is_enabled=bool(button_data.get("is_enabled", True)),
                 )
             )
+            buttons_created += 1
 
         for action_data in node_data.get("actions") or []:
             action_type = action_data.get("action_type")
@@ -300,7 +314,12 @@ def _apply_template(db: Session, template: BotTemplate) -> dict:
     _bump_runtime(db)
     db.commit()
 
-    return {"code_map": code_map, "nodes": created_nodes, "triggers": created_triggers}
+    return {
+        "code_map": code_map,
+        "nodes": created_nodes,
+        "triggers": created_triggers,
+        "buttons_created": buttons_created,
+    }
 
 
 def _build_preview(nodes_data: list[dict], triggers_data: list[dict], code_map: dict[str, str]):
@@ -372,7 +391,9 @@ async def template_preview(
     nodes_data = template_data.get("nodes") or []
     triggers_data = template_data.get("triggers") or []
     code_map = _generate_code_map(
-        nodes_data, {code for (code,) in db.query(BotNode.code).all() if code}
+        nodes_data,
+        {code for (code,) in db.query(BotNode.code).all() if code},
+        template.code,
     )
     preview_nodes, preview_triggers = _build_preview(nodes_data, triggers_data, code_map)
 

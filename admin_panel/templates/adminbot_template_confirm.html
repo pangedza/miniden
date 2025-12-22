@@ -24,6 +24,7 @@
     <a href="/adminbot/templates" class="button" style="background:#0ea5e9;">Шаблоны</a>
     <a href="/adminbot/nodes" class="button">Узлы</a>
     <a href="/adminbot/triggers" class="button">Триггеры</a>
+    <a href="/adminbot/media" class="button">Медиа</a>
     <a href="/adminbot/runtime" class="button">Работа бота</a>
     <a href="/adminbot/logs" class="button">Логи</a>
     <a href="/adminbot/logout" class="button" style="background:#dc2626;">Выйти</a>
@@ -42,7 +43,7 @@
     </div>
     {% if applied and result %}
     <div class="success" style="margin-top:10px;">
-        Шаблон применён. Создано узлов: {{ result.nodes|length }}, триггеров: {{ result.triggers|length }}.
+        Шаблон применён. Создано узлов: {{ result.nodes|length }}, кнопок: {{ result.buttons_created or 0 }}, триггеров: {{ result.triggers|length }}.
     </div>
     {% endif %}
     {% if error %}
