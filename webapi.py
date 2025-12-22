@@ -34,7 +34,7 @@ from fastapi import (
     UploadFile,
 )
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 from pydantic import Field
@@ -113,6 +113,39 @@ async def validation_exception_handler(
         exc.errors(),
         list(body_preview.keys()) if isinstance(body_preview, dict) else None,
     )
+
+    if request.url.path.startswith("/adminbot"):
+        human_fields = {
+            "code": "Код узла",
+            "title": "Название",
+            "node_type": "Тип узла",
+            "input_min_len": "Минимальная длина",
+            "row": "Ряд",
+            "pos": "Позиция",
+        }
+
+        rendered_errors: list[str] = []
+        for err in exc.errors():
+            location = err.get("loc", [])
+            field = location[-1] if location else ""
+            human_name = human_fields.get(str(field), str(field) or "поле")
+            rendered_errors.append(f"{human_name}: {err.get('msg', 'ошибка ввода')}")
+
+        content = """
+        <html lang='ru'><head><meta charset='UTF-8'><title>Ошибка ввода</title>
+        <style>body{font-family:Arial,sans-serif;padding:24px;background:#f8fafc;color:#0f172a;} .card{max-width:720px;margin:0 auto;border:1px solid #cbd5e1;background:#fff;border-radius:10px;padding:16px;} h2{margin-top:0;} ul{margin:8px 0 0 20px;} a.button{display:inline-block;margin-top:12px;padding:8px 12px;background:#2563eb;color:#fff;border-radius:6px;text-decoration:none;}</style>
+        </head><body>
+        <div class='card'>
+            <h2>Не удалось сохранить данные</h2>
+            <p>Пожалуйста, проверьте форму: некоторые поля заполнены некорректно.</p>
+            <ul>{errors}</ul>
+            <a class='button' href="javascript:history.back()">Вернуться и исправить</a>
+        </div>
+        </body></html>
+        """.replace("{errors}", "".join([f"<li>{item}</li>" for item in rendered_errors]))
+
+        return HTMLResponse(status_code=422, content=content)
+
     return JSONResponse(status_code=422, content={"detail": exc.errors()})
 
 

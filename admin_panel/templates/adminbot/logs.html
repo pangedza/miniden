@@ -55,7 +55,7 @@
         </form>
 
         {% if not_found %}
-            <div class="empty">Файл лога не найден. Логи ещё не настроены или сервис не писал лог. Подключите запись логов в utils.logging_config.</div>
+            <div class="empty">Логи пока не подключены. Проверьте /opt/miniden/logs/ и настройки записи логов.</div>
         {% elif not lines %}
             <div class="empty">Файл найден, но пока пустой.</div>
         {% else %}
