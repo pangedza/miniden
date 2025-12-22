@@ -81,7 +81,7 @@ from schemas.home import HomeBlockIn, HomePostIn, HomeSectionIn
 BASE_DIR = Path(__file__).resolve().parent
 WEBAPP_DIR = BASE_DIR / "webapp"
 STATIC_DIR_PUBLIC = BASE_DIR / "static"
-ADMIN_SITE_STATIC_ROOT = BASE_DIR / "admin_panel" / "adminsite" / "static"
+ADMIN_SITE_STATIC_ROOT = Path(__file__).resolve().parent / "admin_panel" / "adminsite" / "static"
 ADMIN_SITE_STATIC_DIR = ADMIN_SITE_STATIC_ROOT / "adminsite"
 ADMIN_SITE_CONSTRUCTOR_PATH = ADMIN_SITE_STATIC_DIR / "constructor.js"
 
@@ -214,42 +214,17 @@ def ensure_adminsite_static_dir() -> bool:
     return True
 
 
-class CombinedStaticFiles(StaticFiles):
-    """Serve static files from multiple directories in priority order."""
-
-    def __init__(self, directories: list[Path], **kwargs):
-        if not directories:
-            raise ValueError("At least one directory must be provided for static files")
-
-        self.directories = [Path(directory).resolve() for directory in directories]
-        self.apps = [
-            StaticFiles(directory=str(directory), check_dir=False, **kwargs)
-            for directory in self.directories
-        ]
-        super().__init__(directory=str(self.directories[0]), check_dir=False, **kwargs)
-
-    async def get_response(self, path: str, scope):  # type: ignore[override]
-        for app in self.apps:
-            response = await app.get_response(path, scope)
-            if getattr(response, "status_code", None) != 404:
-                return response
-
-        return await self.not_found(path, scope)
-
-
 app.mount("/media", StaticFiles(directory=MEDIA_ROOT), name="media")
-static_directories = [STATIC_DIR_PUBLIC]
 if ensure_adminsite_static_dir():
-    static_directories.insert(0, ADMIN_SITE_STATIC_ROOT)
+    app.mount(
+        "/static",
+        StaticFiles(directory=str(ADMIN_SITE_STATIC_ROOT.resolve())),
+        name="static",
+    )
 else:  # pragma: no cover - defensive
     logger.warning(
         "AdminSite static will not be served because the directory is missing or unreadable."
     )
-app.mount(
-    "/static",
-    CombinedStaticFiles(directories=static_directories),
-    name="static",
-)
 app.mount("/css", StaticFiles(directory=WEBAPP_DIR / "css"), name="css")
 app.mount("/js", StaticFiles(directory=WEBAPP_DIR / "js"), name="js")
 if ensure_admin_static_dirs():

@@ -20,6 +20,61 @@ body {
     margin: 0;
 }
 
+#constructor-status-bar {
+    background: #0f172a;
+    border-bottom: 1px solid var(--border);
+    padding: 10px 24px;
+    position: sticky;
+    top: 64px;
+    z-index: 9;
+}
+
+.diag-pills {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.diag-pill {
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-weight: bold;
+    font-size: 13px;
+    background: #1e293b;
+    color: var(--muted);
+    border: 1px solid var(--border);
+}
+
+.diag-pill.ok {
+    background: var(--success);
+    color: #0b1220;
+    border-color: var(--success);
+}
+
+.diag-pill.error {
+    background: var(--danger);
+    color: #0b1220;
+    border-color: var(--danger);
+}
+
+.diag-pill.muted {
+    opacity: 0.75;
+}
+
+.diag-message {
+    font-size: 13px;
+    margin-top: 6px;
+}
+
+.diag-message.ok {
+    color: var(--success);
+}
+
+.diag-message.error {
+    color: var(--danger);
+}
+
 header {
     background: var(--primary);
     color: #0b1220;

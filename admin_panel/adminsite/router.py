@@ -5,7 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
-from admin_panel.dependencies import get_db_session
+from admin_panel.dependencies import get_current_admin, get_db_session
 from . import service
 from .schemas import (
     CategoryPayload,
@@ -26,6 +26,16 @@ router = APIRouter(prefix="/api/adminsite", tags=["AdminSite"])
 @router.get("/health")
 def healthcheck() -> dict[str, bool]:
     return {"ok": True}
+
+
+@router.get("/debug/env")
+def debug_env(request: Request, db: Session = Depends(get_db_session)) -> dict[str, str | bool]:
+    user = get_current_admin(request, db)
+    return {
+        "base_url_detected": str(request.base_url),
+        "request_host": request.headers.get("host", ""),
+        "auth_required": user is None,
+    }
 
 
 @router.get("/categories", response_model=list[CategoryResponse])
