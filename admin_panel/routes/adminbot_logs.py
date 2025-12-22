@@ -40,6 +40,7 @@ async def adminbot_file_logs(
     request: Request,
     source: str = "api",
     limit: int = DEFAULT_LIMIT,
+    level: str | None = None,
     db: Session = Depends(get_db_session),
 ):
     user = require_admin(request, db, roles=ALLOWED_ROLES)
@@ -62,6 +63,7 @@ async def adminbot_file_logs(
             "limit": normalized_limit,
             "not_found": not_found,
             "sources": SOURCES,
+            "selected_level": (level or "").upper(),
         },
     )
 
