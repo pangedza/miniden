@@ -212,10 +212,11 @@ AdminPanel/adminsite: страницы конструктора
 - Маршрут `/adminsite/constructor` открывает новый раздел "AdminSite Конструктор" с вкладками для CRUD категорий и элементов, а также настройки красной WebApp-кнопки.
 - Шаблон: `admin_panel/templates/adminsite/constructor.html` (вкладки, таблицы, форма WebApp).
 - Статические модули:
-  - `admin_panel/static/js/adminsite/apiClient.js` — обёртка над fetch с разбором ошибок.
-  - `admin_panel/static/js/adminsite/modals.js` — компоненты CategoryModal и ItemModal с блокировкой кнопок на время сохранения.
-  - `admin_panel/static/js/adminsite/constructor.js` — логика страниц: загрузка данных, фильтры, поиск по названию, CRUD и настройка WebApp.
-  - `admin_panel/static/css/adminsite/constructor.css` — стили карточек, таблиц, модалок и тостов.
+  - `admin_panel/adminsite/static/adminsite/apiClient.js` — обёртка над fetch с разбором ошибок.
+  - `admin_panel/adminsite/static/adminsite/modals.js` — компоненты CategoryModal и ItemModal с блокировкой кнопок на время сохранения.
+  - `admin_panel/adminsite/static/adminsite/constructor.js` — логика страниц: загрузка данных, фильтры, поиск по названию, CRUD и настройка WebApp.
+  - `admin_panel/adminsite/static/adminsite/constructor.css` — стили карточек, таблиц, модалок и тостов.
+  - URL для загрузки конструкторских статик-ресурсов: `/static/adminsite/constructor.js` и `/static/adminsite/constructor.css`.
 - Новые кнопки навигации на страницах админки ведут в раздел "AdminSite Конструктор".
 
 Примеры curl (замените `<cookie>` на значение `admin_session`):
