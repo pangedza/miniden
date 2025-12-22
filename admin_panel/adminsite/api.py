@@ -7,7 +7,7 @@ from decimal import Decimal
 from typing import Iterable
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, ConfigDict, ValidationInfo, field_validator
 from sqlalchemy.orm import Session
 
 from admin_panel.dependencies import get_db_session, require_admin
@@ -21,7 +21,7 @@ ALLOWED_ROLES: Iterable[AdminRole] = (AdminRole.superadmin, AdminRole.admin_site
 
 
 class CategoryPayload(BaseModel):
-    type: str = Field(..., regex="^(product|course)$")
+    type: str = Field(..., pattern="^(product|course)$")
     title: str
     slug: str | None = None
     parent_id: int | None = None
@@ -30,15 +30,14 @@ class CategoryPayload(BaseModel):
 
 
 class CategoryUpdatePayload(BaseModel):
-    type: str | None = Field(None, regex="^(product|course)$")
+    type: str | None = Field(None, pattern="^(product|course)$")
     title: str | None = None
     slug: str | None = None
     parent_id: int | None = None
     is_active: bool | None = None
     sort: int | None = None
 
-    class Config:
-        extra = "ignore"
+    model_config = ConfigDict(extra="ignore")
 
 
 class CategoryResponse(BaseModel):
@@ -51,12 +50,11 @@ class CategoryResponse(BaseModel):
     sort: int
     created_at: datetime
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ItemPayload(BaseModel):
-    type: str = Field(..., regex="^(product|course)$")
+    type: str = Field(..., pattern="^(product|course)$")
     category_id: int
     title: str
     slug: str | None = None
@@ -67,13 +65,13 @@ class ItemPayload(BaseModel):
     is_active: bool = True
     sort: int = 0
 
-    @validator("price", pre=True)
+    @field_validator("price", mode="before")
     def _coerce_price(cls, value: Decimal | str | int) -> Decimal:
         return Decimal(value)
 
 
 class ItemUpdatePayload(BaseModel):
-    type: str | None = Field(None, regex="^(product|course)$")
+    type: str | None = Field(None, pattern="^(product|course)$")
     category_id: int | None = None
     title: str | None = None
     slug: str | None = None
@@ -84,10 +82,9 @@ class ItemUpdatePayload(BaseModel):
     is_active: bool | None = None
     sort: int | None = None
 
-    class Config:
-        extra = "ignore"
+    model_config = ConfigDict(extra="ignore")
 
-    @validator("price", pre=True)
+    @field_validator("price", mode="before")
     def _coerce_price(cls, value: Decimal | str | int | None) -> Decimal | None:
         if value is None:
             return None
@@ -108,23 +105,22 @@ class ItemResponse(BaseModel):
     sort: int
     created_at: datetime
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class WebAppSettingsPayload(BaseModel):
-    scope: str = Field(..., regex="^(global|category)$")
-    type: str = Field(..., regex="^(product|course)$")
+    scope: str = Field(..., pattern="^(global|category)$")
+    type: str = Field(..., pattern="^(product|course)$")
     category_id: int | None = None
     action_enabled: bool = True
     action_label: str | None = None
     min_selected: int = Field(1, ge=0)
 
-    @validator("category_id")
+    @field_validator("category_id")
     def _validate_category_scope(
-        cls, value: int | None, values: dict
+        cls, value: int | None, info: ValidationInfo
     ) -> int | None:
-        scope = values.get("scope")
+        scope = (info.data or {}).get("scope")
         if scope == "category" and value is None:
             raise ValueError("category_id is required when scope=category")
         if scope == "global" and value is not None:
@@ -141,8 +137,7 @@ class WebAppSettingsResponse(BaseModel):
     action_label: str | None
     min_selected: int
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 def _ensure_admin(request: Request, db: Session) -> None:
@@ -198,10 +193,15 @@ def _get_category(db: Session, category_id: int) -> AdminSiteCategory:
     return category
 
 
+@router.get("/health")
+def healthcheck() -> dict[str, bool]:
+    return {"ok": True}
+
+
 @router.get("/categories", response_model=list[CategoryResponse])
 def list_categories(
     request: Request,
-    type: str = Query(..., regex="^(product|course)$"),
+    type: str = Query(..., pattern="^(product|course)$"),
     db: Session = Depends(get_db_session),
 ):
     _ensure_admin(request, db)
@@ -334,7 +334,7 @@ def delete_category(
 @router.get("/items", response_model=list[ItemResponse])
 def list_items(
     request: Request,
-    type: str = Query(..., regex="^(product|course)$"),
+    type: str = Query(..., pattern="^(product|course)$"),
     category_id: int | None = Query(None),
     db: Session = Depends(get_db_session),
 ):
@@ -474,7 +474,7 @@ def delete_item(
 @router.get("/webapp-settings", response_model=WebAppSettingsResponse)
 def get_webapp_settings(
     request: Request,
-    type: str = Query(..., regex="^(product|course)$"),
+    type: str = Query(..., pattern="^(product|course)$"),
     category_id: int | None = Query(None),
     db: Session = Depends(get_db_session),
 ):
