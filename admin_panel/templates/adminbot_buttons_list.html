@@ -11,6 +11,11 @@
         th { background: #e2e8f0; }
         a.button { padding: 6px 10px; background: #2563eb; color: #fff; text-decoration: none; border-radius: 4px; }
         .muted { color: #475569; font-size: 14px; }
+        .inline { display:flex; gap:12px; align-items:center; flex-wrap: wrap; }
+        .modal { border:1px solid #cbd5e1; border-radius:8px; background:#fff; padding:12px; margin-top:12px; display:none; max-width:420px; }
+        .error { color:#dc2626; margin-top:8px; }
+        input[type="text"], input[type="checkbox"], label, textarea { font-size:14px; }
+        input[type="text"], textarea { width:100%; padding:8px; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:6px; }
     </style>
 </head>
 <body>
@@ -24,16 +29,39 @@
 </header>
 <h2>Кнопки: {{ node.title }} ({{ node.code }})</h2>
 <div class="muted">Выберите действие для каждой кнопки: переход в узел, ссылка или WebApp. Старые кнопки продолжают работать.</div>
-<div style="margin:12px 0; display:flex; gap:12px; align-items:center; flex-wrap: wrap;">
+<div style="margin:12px 0;" class="inline">
     <a href="/adminbot/nodes/{{ node.id }}/buttons/new" class="button">Создать кнопку</a>
+    <button id="open_submenu" class="button" style="border:none;">Создать подменю</button>
     <span class="muted">Совет: начинайте с MAIN_MENU → Товары → Категории.</span>
+</div>
+<div id="submenu_modal" class="modal">
+    <h4>Быстрое подменю</h4>
+    <label>Название подменю</label>
+    <input type="text" id="submenu_title" placeholder="Например: Товары">
+    <div class="muted">Название кнопки и нового узла.</div>
+
+    <label style="margin-top:8px;">Код узла (опционально)</label>
+    <input type="text" id="submenu_code" placeholder="Оставьте пустым, сгенерируем">
+    <div class="muted">Если пусто — код появится автоматически.</div>
+
+    <label style="margin-top:8px;">
+        <input type="checkbox" id="add_back_button" checked> Добавить кнопку «Назад»
+    </label>
+    <div class="muted">Вернёт пользователя в исходный узел.</div>
+
+    <div class="inline" style="margin-top:10px;">
+        <button id="create_submenu" class="button">Создать</button>
+        <button id="cancel_submenu" class="button" style="background:#6b7280; border:none;">Отмена</button>
+        <span class="muted" id="submenu_status"></span>
+    </div>
+    <div class="error" id="submenu_error" style="display:none;"></div>
 </div>
 <table>
     <thead>
     <tr>
         <th>Текст кнопки</th>
-        <th>Действие</th>
-        <th>Значение</th>
+        <th>Тип</th>
+        <th>Цель / payload</th>
         <th>Строка</th>
         <th>Позиция</th>
         <th>Включена</th>
@@ -60,5 +88,58 @@
     {% endfor %}
     </tbody>
 </table>
+<script>
+    const openSubmenuBtn = document.getElementById('open_submenu');
+    const submenuModal = document.getElementById('submenu_modal');
+    const createSubmenuBtn = document.getElementById('create_submenu');
+    const cancelSubmenuBtn = document.getElementById('cancel_submenu');
+    const statusEl = document.getElementById('submenu_status');
+    const errorEl = document.getElementById('submenu_error');
+    const titleInput = document.getElementById('submenu_title');
+    const codeInput = document.getElementById('submenu_code');
+    const backInput = document.getElementById('add_back_button');
+
+    function toggleModal(show) {
+        submenuModal.style.display = show ? 'block' : 'none';
+        if (show) {
+            statusEl.textContent = '';
+            errorEl.style.display = 'none';
+            errorEl.textContent = '';
+        }
+    }
+
+    async function createSubmenu() {
+        statusEl.textContent = 'Создаём подменю...';
+        errorEl.style.display = 'none';
+        const payload = new FormData();
+        payload.append('submenu_title', titleInput.value || 'Новое подменю');
+        payload.append('submenu_code', codeInput.value || '');
+        payload.append('add_back_button', backInput.checked ? 'true' : '');
+
+        try {
+            const response = await fetch('/adminbot/nodes/{{ node.id }}/submenu', {
+                method: 'POST',
+                body: payload,
+            });
+            const data = await response.json();
+            if (!data.ok) {
+                errorEl.textContent = data.error || 'Не удалось создать подменю';
+                errorEl.style.display = 'block';
+                statusEl.textContent = '';
+                return;
+            }
+            statusEl.textContent = 'Готово, перенаправляем...';
+            window.location.href = data.redirect || `/adminbot/nodes/${data.node.id}/buttons`;
+        } catch (e) {
+            errorEl.textContent = 'Ошибка сети при создании подменю';
+            errorEl.style.display = 'block';
+            statusEl.textContent = '';
+        }
+    }
+
+    openSubmenuBtn.addEventListener('click', () => toggleModal(true));
+    cancelSubmenuBtn.addEventListener('click', (e) => { e.preventDefault(); toggleModal(false); });
+    createSubmenuBtn.addEventListener('click', (e) => { e.preventDefault(); createSubmenu(); });
+</script>
 </body>
 </html>
