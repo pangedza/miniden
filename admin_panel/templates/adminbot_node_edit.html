@@ -25,6 +25,12 @@
         .action-fields { margin-top: 10px; }
         .action-fields .row { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
         .help-icon { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:50%; background:#e0f2fe; color:#0f172a; font-size:12px; cursor:help; margin-left:6px; }
+        .pill { display:inline-block; padding:4px 8px; border-radius:12px; background:#e0f2fe; color:#0f172a; font-size:12px; }
+        .danger { background:#fef2f2; border:1px solid #fecdd3; color:#b91c1c; padding:10px; border-radius:8px; margin-top:10px; }
+        .upload-modal { position:fixed; inset:0; background:rgba(0,0,0,0.35); display:none; align-items:center; justify-content:center; }
+        .upload-modal .modal-content { background:#fff; padding:16px; border-radius:10px; width:420px; max-width:90%; box-shadow:0 10px 30px rgba(0,0,0,0.2); }
+        .flex { display:flex; gap:8px; align-items:center; }
+        .chips { display:flex; gap:6px; flex-wrap:wrap; margin-top:6px; }
     </style>
 </head>
 <body>
@@ -32,6 +38,7 @@
     <a href="/adminbot/nodes" class="button">Назад к списку</a>
     <a href="/adminbot/templates" class="button">Шаблоны</a>
     <a href="/adminbot/triggers" class="button" title="Триггеры — с чего бот начинает">Триггеры</a>
+    <a href="/adminbot/media" class="button" title="Загрузка картинок для узлов">Медиа</a>
     <a href="/adminbot/runtime" class="button" title="Работа бота — обновление версии сценария">Работа бота</a>
     <a href="/adminbot/logs" class="button" title="Логи помогут проверить ход сценария">Логи</a>
     <a href="/adminbot/logout" class="button" style="background:#dc2626;">Выйти</a>
@@ -45,6 +52,29 @@
     {% endif %}
 </div>
 <div id="client_errors" class="error" style="display:none;"></div>
+{% set ref_nodes = references.nodes if references else [] %}
+{% set ref_buttons = references.buttons if references else [] %}
+{% set ref_triggers = references.triggers if references else [] %}
+{% if node %}
+<div class="card" style="border-color:#fed7aa; background:#fff7ed;">
+    <h3>Связи узла</h3>
+    <div class="muted">Если удалить узел, переходы и кнопки ниже будут очищены или выключены.</div>
+    <div class="chips">
+        <span class="pill">Узлы ссылаются: {{ ref_nodes|length }}</span>
+        <span class="pill">Кнопок: {{ ref_buttons|length }}</span>
+        <span class="pill">Триггеров: {{ ref_triggers|length }}</span>
+    </div>
+    {% if ref_nodes %}
+        <div class="muted">Узлы: {% for ref in ref_nodes %}{{ ref.code }}{% if not loop.last %}, {% endif %}{% endfor %}</div>
+    {% endif %}
+    {% if ref_buttons %}
+        <div class="muted">Кнопки: {% for btn in ref_buttons %}{{ btn.title }} ({{ btn.node.code if btn.node else 'узел?' }}){% if not loop.last %}, {% endif %}{% endfor %}</div>
+    {% endif %}
+    {% if ref_triggers %}
+        <div class="muted">Триггеры: {% for trig in ref_triggers %}{{ trig.trigger_type }} {{ trig.trigger_value or '—' }}{% if not loop.last %}, {% endif %}{% endfor %}</div>
+    {% endif %}
+</div>
+{% endif %}
 {% set cond_config = node.config_json if node and node.config_json else {} %}
 {% set sub_payload = cond_config.get('condition_payload', {}) if cond_config else {} %}
 <form method="post" action="{% if node %}/adminbot/nodes/{{ node.id }}/edit{% else %}/adminbot/nodes/new{% endif %}">
@@ -81,7 +111,12 @@
             </div>
             <div>
                 <label>Изображение (URL) <span class="help-icon" title="Ссылка на картинку, которую бот пришлёт вместе с текстом.">?</span></label>
-                <input type="text" name="image_url" data-section="message" value="{{ node.image_url if node else '' }}" placeholder="https://example.com/image.jpg">
+                <div class="flex">
+                    <input type="text" name="image_url" id="image_url_input" data-section="message" value="{{ node.image_url if node else '' }}" placeholder="https://example.com/image.jpg" style="flex:1;">
+                    <button type="button" class="button" id="open_upload_modal" style="background:#0ea5e9;">Загрузить</button>
+                    <button type="button" class="button" id="copy_image_url_btn" title="Скопировать значение поля">Скопировать</button>
+                </div>
+                <div class="hint">Можно вставить внешний URL или загрузить файл через админку (кнопка «Загрузить»).</div>
             </div>
         </div>
 
@@ -261,6 +296,29 @@
     </div>
 </form>
 
+{% if node %}
+<div class="card danger">
+    <h3>Удалить узел</h3>
+    <div class="muted">Удаление очистит кнопки, действия и отключит триггеры, которые ведут на этот узел. Переходы в других узлах будут очищены.</div>
+    <form method="post" action="/adminbot/nodes/{{ node.id }}/delete" id="delete_node_form" style="margin-top:10px;">
+        <button type="submit" class="button" style="background:#dc2626;">Удалить узел</button>
+    </form>
+</div>
+{% endif %}
+
+<div class="upload-modal" id="upload_modal">
+    <div class="modal-content">
+        <h3>Загрузка картинки</h3>
+        <p class="muted">Допустимые форматы: jpg, png, webp. Размер до 5 МБ. После загрузки ссылка автоматически подставится в поле.</p>
+        <input type="file" id="upload_input" accept="image/jpeg,image/png,image/webp" style="margin:10px 0; width:100%;">
+        <div class="actions">
+            <button type="button" class="button" id="start_upload_btn">Загрузить</button>
+            <button type="button" class="button" id="close_upload_modal" style="background:#6b7280;">Закрыть</button>
+        </div>
+        <div id="upload_hint" class="muted" style="margin-top:6px;"></div>
+    </div>
+</div>
+
 <script type="application/json" id="initial_actions_data">{{ actions_json|default([])|tojson }}</script>
 
 <script>
@@ -282,6 +340,15 @@
     const addActionBtn = document.getElementById('add_action_btn');
     const actionsDataElement = document.getElementById('initial_actions_data');
     const inputMinLenInput = document.querySelector('input[name="input_min_len"]');
+    const uploadModal = document.getElementById('upload_modal');
+    const openUploadBtn = document.getElementById('open_upload_modal');
+    const closeUploadBtn = document.getElementById('close_upload_modal');
+    const startUploadBtn = document.getElementById('start_upload_btn');
+    const uploadInput = document.getElementById('upload_input');
+    const uploadHint = document.getElementById('upload_hint');
+    const imageUrlInput = document.getElementById('image_url_input');
+    const copyImageBtn = document.getElementById('copy_image_url_btn');
+    const deleteForm = document.getElementById('delete_node_form');
 
     const FIELDS_BY_TYPE = {
         SET_VAR: ['var', 'value'],
@@ -681,6 +748,57 @@
         });
     }
 
+    function toggleUploadModal(show) {
+        if (!uploadModal) return;
+        uploadModal.style.display = show ? 'flex' : 'none';
+        if (show && uploadInput) {
+            uploadInput.value = '';
+        }
+        if (uploadHint) {
+            uploadHint.textContent = '';
+        }
+    }
+
+    async function uploadImage() {
+        if (!uploadInput || !uploadInput.files.length) {
+            if (uploadHint) uploadHint.textContent = 'Выберите файл изображения.';
+            return;
+        }
+        const file = uploadInput.files[0];
+        const formData = new FormData();
+        formData.append('file', file);
+        uploadHint.textContent = 'Загружаем...';
+        try {
+            const response = await fetch('/adminbot/media/upload', { method: 'POST', body: formData });
+            const data = await response.json();
+            if (!response.ok) {
+                uploadHint.textContent = data.error || 'Не удалось загрузить изображение.';
+                return;
+            }
+            if (imageUrlInput) {
+                imageUrlInput.value = data.url;
+            }
+            uploadHint.textContent = 'Готово! Ссылка подставлена.';
+            toggleUploadModal(false);
+        } catch (err) {
+            uploadHint.textContent = 'Ошибка загрузки: ' + err;
+        }
+    }
+
+    function copyImageUrl() {
+        if (!imageUrlInput) return;
+        const value = imageUrlInput.value || '';
+        if (!value) {
+            alert('Поле пустое: загрузите изображение или вставьте ссылку.');
+            return;
+        }
+        navigator.clipboard.writeText(value).then(() => {
+            alert('URL скопирован.');
+        }).catch(() => {
+            imageUrlInput.select();
+        });
+    }
+
     if (form) {
         form.addEventListener('submit', (event) => {
             syncFormByType();
@@ -691,6 +809,36 @@
                 return;
             }
             cleanEmptyNumbers(form, activeType);
+        });
+    }
+
+    if (openUploadBtn) {
+        openUploadBtn.addEventListener('click', () => toggleUploadModal(true));
+    }
+    if (closeUploadBtn) {
+        closeUploadBtn.addEventListener('click', () => toggleUploadModal(false));
+    }
+    if (startUploadBtn) {
+        startUploadBtn.addEventListener('click', uploadImage);
+    }
+    if (uploadModal) {
+        uploadModal.addEventListener('click', (event) => {
+            if (event.target === uploadModal) {
+                toggleUploadModal(false);
+            }
+        });
+    }
+    if (copyImageBtn) {
+        copyImageBtn.addEventListener('click', copyImageUrl);
+    }
+
+    if (deleteForm) {
+        const refCounts = { nodes: {{ ref_nodes|length if node else 0 }}, buttons: {{ ref_buttons|length if node else 0 }}, triggers: {{ ref_triggers|length if node else 0 }} };
+        deleteForm.addEventListener('submit', (event) => {
+            const warning = `Вы точно хотите удалить узел? Будут очищены переходы (${refCounts.nodes}), кнопки (${refCounts.buttons}) и отключены триггеры (${refCounts.triggers}).`;
+            if (!confirm(warning)) {
+                event.preventDefault();
+            }
         });
     }
 

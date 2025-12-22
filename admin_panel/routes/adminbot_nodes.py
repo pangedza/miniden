@@ -1,13 +1,15 @@
 """CRUD для бот-узлов (экраны/сообщения)."""
 
+import re
+
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
-import re
 
 from admin_panel import TEMPLATES
 from admin_panel.dependencies import get_db_session, require_admin
-from models import BotNode, BotNodeAction
+from models import BotButton, BotNode, BotNodeAction, BotRuntime, BotTrigger
 from models.admin_user import AdminRole
 
 router = APIRouter(tags=["AdminBot"])
@@ -58,6 +60,14 @@ def _next_from_request(request: Request) -> str:
     return f"{request.url.path}{query}"
 
 
+def _bump_runtime(db: Session) -> None:
+    runtime = db.query(BotRuntime).first()
+    if not runtime:
+        runtime = BotRuntime(config_version=1)
+    runtime.config_version = (runtime.config_version or 1) + 1
+    db.add(runtime)
+
+
 def _to_optional_int(value: int | str | None) -> int | None:
     if value is None:
         return None
@@ -69,6 +79,101 @@ def _to_optional_int(value: int | str | None) -> int | None:
         return int(value)
     except Exception:
         return None
+
+
+def _find_incoming_links(db: Session, node_code: str | None) -> dict:
+    if not node_code:
+        return {"nodes": [], "buttons": [], "triggers": []}
+
+    linked_nodes = (
+        db.query(BotNode)
+        .filter(
+            or_(
+                BotNode.next_node_code == node_code,
+                BotNode.next_node_code_success == node_code,
+                BotNode.next_node_code_cancel == node_code,
+                BotNode.next_node_code_true == node_code,
+                BotNode.next_node_code_false == node_code,
+            )
+        )
+        .all()
+    )
+
+    linked_buttons = (
+        db.query(BotButton)
+        .filter(
+            or_(
+                BotButton.target_node_code == node_code,
+                BotButton.payload.ilike(f"%OPEN_NODE:{node_code}%"),
+            )
+        )
+        .all()
+    )
+
+    linked_triggers = (
+        db.query(BotTrigger)
+        .filter(BotTrigger.target_node_code == node_code)
+        .all()
+    )
+
+    return {
+        "nodes": linked_nodes,
+        "buttons": linked_buttons,
+        "triggers": linked_triggers,
+    }
+
+
+def _cleanup_node_links(db: Session, node_code: str) -> None:
+    linked_nodes = (
+        db.query(BotNode)
+        .filter(
+            or_(
+                BotNode.next_node_code == node_code,
+                BotNode.next_node_code_success == node_code,
+                BotNode.next_node_code_cancel == node_code,
+                BotNode.next_node_code_true == node_code,
+                BotNode.next_node_code_false == node_code,
+            )
+        )
+        .all()
+    )
+    for ref in linked_nodes:
+        if ref.next_node_code == node_code:
+            ref.next_node_code = None
+        if ref.next_node_code_success == node_code:
+            ref.next_node_code_success = None
+        if ref.next_node_code_cancel == node_code:
+            ref.next_node_code_cancel = None
+        if ref.next_node_code_true == node_code:
+            ref.next_node_code_true = None
+        if ref.next_node_code_false == node_code:
+            ref.next_node_code_false = None
+        db.add(ref)
+
+    buttons = (
+        db.query(BotButton)
+        .filter(
+            or_(
+                BotButton.target_node_code == node_code,
+                BotButton.payload.ilike(f"%OPEN_NODE:{node_code}%"),
+            )
+        )
+        .all()
+    )
+    for btn in buttons:
+        btn.target_node_code = None
+        payload = (btn.payload or "").strip()
+        if payload.startswith("OPEN_NODE:"):
+            btn.payload = ""
+        btn.is_enabled = False
+        db.add(btn)
+
+    triggers = db.query(BotTrigger).filter(BotTrigger.target_node_code == node_code).all()
+    for trig in triggers:
+        trig.is_enabled = False
+        db.add(trig)
+
+    db.query(BotNodeAction).filter(BotNodeAction.node_code == node_code).delete()
 
 
 def _prepare_node_payload(
@@ -426,6 +531,7 @@ async def new_node_form(request: Request, db: Session = Depends(get_db_session))
             "error": None,
             "actions": [],
             "actions_json": [],
+            "references": {"nodes": [], "buttons": [], "triggers": []},
         },
     )
 
@@ -480,6 +586,7 @@ async def create_node(
                 "user": user,
                 "node": None,
                 "error": "Код узла уже используется",
+                "references": {"nodes": [], "buttons": [], "triggers": []},
             },
             status_code=400,
         )
@@ -527,6 +634,7 @@ async def create_node(
                 "error": error or actions_error,
                 "actions": render_actions,
                 "actions_json": _serialize_actions(render_actions),
+                "references": {"nodes": [], "buttons": [], "triggers": []},
             },
             status_code=400,
         )
@@ -536,6 +644,9 @@ async def create_node(
 
     if actions:
         _save_node_actions(db, code, actions)
+
+    _bump_runtime(db)
+    db.commit()
 
     return RedirectResponse(url="/adminbot/nodes", status_code=303)
 
@@ -561,6 +672,7 @@ async def edit_node_form(
         .all()
     )
     actions_json = _serialize_actions(actions)
+    references = _find_incoming_links(db, node.code)
 
     return TEMPLATES.TemplateResponse(
         "adminbot_node_edit.html",
@@ -571,6 +683,7 @@ async def edit_node_form(
             "error": None,
             "actions": actions,
             "actions_json": actions_json,
+            "references": references,
         },
     )
 
@@ -663,6 +776,7 @@ async def edit_node(
                 "error": error or actions_error,
                 "actions": render_actions,
                 "actions_json": _serialize_actions(render_actions),
+                "references": _find_incoming_links(db, node.code),
             },
             status_code=400,
         )
@@ -675,4 +789,47 @@ async def edit_node(
 
     _save_node_actions(db, node.code, actions)
 
+    _bump_runtime(db)
+    db.commit()
+
     return RedirectResponse(url="/adminbot/nodes", status_code=303)
+
+
+@router.post("/nodes/{node_id}/delete")
+async def delete_node(request: Request, node_id: int, db: Session = Depends(get_db_session)):
+    user = require_admin(request, db, roles=ALLOWED_ROLES)
+    if not user:
+        return _login_redirect(_next_from_request(request))
+
+    node = db.get(BotNode, node_id)
+    if not node:
+        return RedirectResponse(url="/adminbot/nodes", status_code=303)
+
+    try:
+        _cleanup_node_links(db, node.code)
+        db.delete(node)
+        db.commit()
+        _bump_runtime(db)
+        db.commit()
+        return RedirectResponse(url="/adminbot/nodes", status_code=303)
+    except Exception as exc:  # noqa: WPS440
+        db.rollback()
+        actions = (
+            db.query(BotNodeAction)
+            .filter(BotNodeAction.node_code == node.code)
+            .order_by(BotNodeAction.sort_order, BotNodeAction.id)
+            .all()
+        )
+        return TEMPLATES.TemplateResponse(
+            "adminbot_node_edit.html",
+            {
+                "request": request,
+                "user": user,
+                "node": node,
+                "error": f"Не удалось удалить узел: {exc}",
+                "actions": actions,
+                "actions_json": _serialize_actions(actions),
+                "references": _find_incoming_links(db, node.code),
+            },
+            status_code=500,
+        )
