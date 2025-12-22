@@ -14,7 +14,7 @@ from models.admin_user import AdminRole, AdminUser, AdminRoleModel
 from services import auth as auth_service
 from services.passwords import hash_password, verify_password
 
-router = APIRouter(prefix="/adminbot", tags=["AdminBotAdmins"])
+router = APIRouter(tags=["AdminBotAdmins"])
 
 ADMIN_ROLES = (
     AdminRole.superadmin,
