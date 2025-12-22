@@ -37,17 +37,24 @@
     <a href="/adminbot/logout" class="button" style="background:#dc2626;">Выйти</a>
 </header>
 <h2>{% if node %}Редактирование: {{ node.code }}{% else %}Новый узел{% endif %}</h2>
-{% if error %}<div class="error">{{ error }}</div>{% endif %}
+<div id="server_errors" class="error" style="display:{% if error %}block{% else %}none{% endif %};">
+    {% if error is iterable and error is not string %}
+        {% for item in error %}<div>{{ item }}</div>{% endfor %}
+    {% elif error %}
+        <div>{{ error }}</div>
+    {% endif %}
+</div>
+<div id="client_errors" class="error" style="display:none;"></div>
 {% set cond_config = node.config_json if node and node.config_json else {} %}
 {% set sub_payload = cond_config.get('condition_payload', {}) if cond_config else {} %}
 <form method="post" action="{% if node %}/adminbot/nodes/{{ node.id }}/edit{% else %}/adminbot/nodes/new{% endif %}">
     <label>Код узла <span class="help-icon" title="Уникальный код шага (латиница/цифры/_). Например: MAIN_MENU">?</span></label>
-    <input type="text" name="code" value="{{ node.code if node else '' }}" {% if node %}readonly{% endif %} required data-lock-required="true">
+    <input type="text" name="code" value="{{ node.code if node else '' }}" {% if node %}readonly{% endif %} data-lock-required="true">
 
     <div class="row">
         <div>
             <label>Название для себя <span class="help-icon" title="Свободное название, видно только вам. Помогает понять, что делает узел.">?</span></label>
-            <input type="text" name="title" value="{{ node.title if node else '' }}" placeholder="Например: Приветствие" required data-lock-required="true">
+            <input type="text" name="title" value="{{ node.title if node else '' }}" placeholder="Например: Приветствие" data-lock-required="true">
         </div>
         <div>
             <label>Тип узла <span class="help-icon" title="Определяет, что бот делает на этом шаге: сообщение, ожидание ответа, проверка условия или действие">?</span></label>
@@ -315,6 +322,9 @@
             if (!el.dataset.keepEnabled) {
                 el.disabled = !enabled;
             }
+            if (!enabled) {
+                el.required = false;
+            }
             if (clearValues && !enabled && !el.dataset.keepValue) {
                 if (el.type === 'checkbox') {
                     el.checked = false;
@@ -349,7 +359,9 @@
 
     function resetRequired() {
         form.querySelectorAll('input, select, textarea').forEach((el) => {
-            if (!el.dataset.lockRequired) {
+            if (el.dataset.lockRequired) {
+                el.required = true;
+            } else {
                 el.required = false;
             }
         });
@@ -408,6 +420,70 @@
 
         syncConditionValueRequirement(type);
         ensureDefaultNumbers(type);
+    }
+
+    function showClientErrors(errors) {
+        const errorBox = document.getElementById('client_errors');
+        if (!errorBox) return;
+        if (!errors.length) {
+            errorBox.style.display = 'none';
+            errorBox.innerHTML = '';
+            return;
+        }
+        errorBox.innerHTML = errors.map((item) => `<div>${item}</div>`).join('');
+        errorBox.style.display = 'block';
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function validateFormBeforeSubmit() {
+        const type = (nodeTypeSelect.value || 'MESSAGE').toUpperCase();
+        const errors = [];
+        const codeValue = (form.elements['code']?.value || '').trim();
+        const titleValue = (form.elements['title']?.value || '').trim();
+
+        if (!codeValue) {
+            errors.push('Укажите код узла (пример: MAIN_MENU).');
+        }
+        if (!titleValue) {
+            errors.push('Заполните название узла.');
+        }
+
+        if (type === 'INPUT') {
+            const inputTypeValue = (form.elements['input_type']?.value || '').trim();
+            const varKeyValue = (form.elements['input_var_key']?.value || '').trim();
+            const successNodeValue = (form.elements['next_node_code_success']?.value || '').trim();
+
+            if (!inputTypeValue) {
+                errors.push('Выберите тип ввода.');
+            }
+            if (!varKeyValue) {
+                errors.push('Укажите ключ переменной для сохранения ответа.');
+            }
+            if (!successNodeValue) {
+                errors.push('Добавьте переход при успешном вводе.');
+            }
+        }
+
+        if (type === 'CONDITION') {
+            const condType = (conditionTypeSelect?.value || 'LEGACY').toUpperCase();
+            if (condType === 'CHECK_SUBSCRIPTION') {
+                const channels = (form.elements['cond_sub_channels']?.value || '').trim();
+                if (!channels) {
+                    errors.push('Добавьте хотя бы один канал для проверки подписки.');
+                }
+            } else {
+                const condVar = (form.elements['cond_var_key']?.value || '').trim();
+                const condOperator = (form.elements['cond_operator']?.value || '').trim();
+                const condTrue = (form.elements['next_node_code_true']?.value || '').trim();
+                const condFalse = (form.elements['next_node_code_false']?.value || '').trim();
+                if (!condVar || !condOperator || !condTrue || !condFalse) {
+                    errors.push('Заполните все обязательные поля для узла «Условие».');
+                }
+            }
+        }
+
+        showClientErrors(errors);
+        return !errors.length;
     }
 
     function escapeHtml(value) {
@@ -581,13 +657,24 @@
         conditionTypeSelect.addEventListener('change', () => syncFormByType());
     }
 
-    function cleanEmptyNumbers(targetForm) {
+    function cleanEmptyNumbers(targetForm, activeType) {
         const numericInputs = targetForm.querySelectorAll('input[type="number"]');
         numericInputs.forEach((input) => {
             if (input.disabled) {
                 return;
             }
             const value = (input.value || '').toString().trim();
+            if (input.name === 'input_min_len') {
+                if (activeType !== 'INPUT') {
+                    input.disabled = true;
+                    input.value = '';
+                    return;
+                }
+                if (value === '') {
+                    input.value = '0';
+                }
+                return;
+            }
             if (value === '') {
                 input.disabled = true;
             }
@@ -595,9 +682,15 @@
     }
 
     if (form) {
-        form.addEventListener('submit', () => {
+        form.addEventListener('submit', (event) => {
             syncFormByType();
-            cleanEmptyNumbers(form);
+            const activeType = (nodeTypeSelect.value || 'MESSAGE').toUpperCase();
+            const isValid = validateFormBeforeSubmit();
+            if (!isValid) {
+                event.preventDefault();
+                return;
+            }
+            cleanEmptyNumbers(form, activeType);
         });
     }
 

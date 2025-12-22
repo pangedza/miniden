@@ -35,11 +35,27 @@ def _next_from_request(request: Request) -> str:
     return f"{request.url.path}{query}"
 
 
+def _normalize_int(value: int | str | None, *, default: int, min_value: int, max_value: int) -> int:
+    try:
+        if value is None:
+            raise ValueError
+        if isinstance(value, str):
+            value = value.strip()
+            if not value:
+                raise ValueError
+        normalized = int(value)
+    except Exception:
+        normalized = default
+
+    return max(min_value, min(normalized, max_value))
+
+
 @router.get("/logs")
+@router.get("/logs/")
 async def adminbot_file_logs(
     request: Request,
     source: str = "api",
-    limit: int = DEFAULT_LIMIT,
+    limit: int | str = DEFAULT_LIMIT,
     level: str | None = None,
     db: Session = Depends(get_db_session),
 ):
@@ -51,7 +67,7 @@ async def adminbot_file_logs(
     if normalized_source not in SOURCES:
         normalized_source = "api"
 
-    normalized_limit = max(1, min(limit, MAX_LIMIT))
+    normalized_limit = _normalize_int(limit, default=DEFAULT_LIMIT, min_value=1, max_value=MAX_LIMIT)
     lines, not_found = read_tail(SOURCES[normalized_source], limit=normalized_limit)
 
     return TEMPLATES.TemplateResponse(
