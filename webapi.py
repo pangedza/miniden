@@ -41,6 +41,7 @@ from pydantic import Field
 from sqlalchemy.orm import Session
 
 from admin_panel import STATIC_DIR
+from admin_panel.adminsite import router as adminsite_api_router
 from admin_panel.routes import adminbot, adminsite
 from admin_panel.routes import auth as admin_auth
 from admin_panel.routes import users as admin_users
@@ -218,6 +219,7 @@ app.include_router(admin_auth.router)
 app.include_router(adminbot.router)
 app.include_router(adminsite.router)
 app.include_router(admin_users.router)
+app.include_router(adminsite_api_router)
 
 
 class WebChatStartPayload(BaseModel):

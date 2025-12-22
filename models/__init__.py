@@ -11,6 +11,7 @@ from sqlalchemy import (
     Boolean,
     BigInteger,
     Column,
+    CheckConstraint,
     DateTime,
     ForeignKey,
     Index,
@@ -19,6 +20,7 @@ from sqlalchemy import (
     SmallInteger,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB
@@ -575,6 +577,113 @@ class WebChatMessage(Base):
     session = relationship("WebChatSession", back_populates="messages")
 
 
+class AdminSiteCategory(Base):
+    __tablename__ = "adminsite_categories"
+    __table_args__ = (
+        CheckConstraint(
+            "type IN ('product', 'course')",
+            name="ck_adminsite_categories_type",
+        ),
+        UniqueConstraint(
+            "type",
+            "slug",
+            name="uq_adminsite_categories_type_slug",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    type = Column(String(32), nullable=False)
+    title = Column(Text, nullable=False)
+    slug = Column(String(150), nullable=False)
+    parent_id = Column(Integer, ForeignKey("adminsite_categories.id"), nullable=True)
+    is_active = Column(Boolean, nullable=False, default=True, server_default="true")
+    sort = Column(Integer, nullable=False, default=0, server_default="0")
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    children = relationship("AdminSiteCategory", remote_side=[id], lazy="selectin")
+    items = relationship(
+        "AdminSiteItem",
+        back_populates="category",
+        lazy="selectin",
+    )
+
+
+class AdminSiteItem(Base):
+    __tablename__ = "adminsite_items"
+    __table_args__ = (
+        CheckConstraint(
+            "type IN ('product', 'course')",
+            name="ck_adminsite_items_type",
+        ),
+        UniqueConstraint(
+            "type",
+            "category_id",
+            "slug",
+            name="uq_adminsite_items_type_category_slug",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    type = Column(String(32), nullable=False)
+    category_id = Column(
+        Integer,
+        ForeignKey("adminsite_categories.id"),
+        nullable=False,
+    )
+    title = Column(Text, nullable=False)
+    slug = Column(String(150), nullable=False)
+    price = Column(Numeric(12, 2), nullable=False, default=0, server_default="0")
+    image_url = Column(Text, nullable=True)
+    short_text = Column(Text, nullable=True)
+    description = Column(Text, nullable=True)
+    is_active = Column(Boolean, nullable=False, default=True, server_default="true")
+    sort = Column(Integer, nullable=False, default=0, server_default="0")
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    category = relationship("AdminSiteCategory", back_populates="items")
+
+
+class AdminSiteWebAppSettings(Base):
+    __tablename__ = "adminsite_webapp_settings"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    scope = Column(String(32), nullable=False)
+    type = Column(String(32), nullable=False)
+    category_id = Column(
+        Integer, ForeignKey("adminsite_categories.id"), nullable=True
+    )
+    action_enabled = Column(
+        Boolean,
+        nullable=False,
+        default=True,
+        server_default="true",
+    )
+    action_label = Column(Text, nullable=True)
+    min_selected = Column(Integer, nullable=False, default=1, server_default="1")
+
+    __table_args__ = (
+        CheckConstraint(
+            "scope IN ('global', 'category')",
+            name="ck_adminsite_settings_scope",
+        ),
+        CheckConstraint(
+            "type IN ('product', 'course')",
+            name="ck_adminsite_settings_type",
+        ),
+        CheckConstraint(
+            "(scope = 'category' AND category_id IS NOT NULL) OR (scope = 'global' AND category_id IS NULL)",
+            name="ck_adminsite_settings_scope_category",
+        ),
+        Index(
+            "uq_adminsite_webapp_settings_scope_type_category",
+            "scope",
+            "type",
+            func.coalesce(category_id, -1),
+            unique=True,
+        ),
+    )
+
+
 __all__ = [
     "BotNode",
     "BotButton",
@@ -605,4 +714,7 @@ __all__ = [
     "FaqItem",
     "WebChatSession",
     "WebChatMessage",
+    "AdminSiteCategory",
+    "AdminSiteItem",
+    "AdminSiteWebAppSettings",
 ]
