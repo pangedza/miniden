@@ -183,6 +183,48 @@ Production деплой одной командой
 - Добавлен раздел «Брендинг»: из админки можно задать название сайта, загрузить логотип и favicon. Пути хранятся в таблице `site_branding`, файлы складываются в `/media/branding/`.
 - Поддерживаемые форматы: логотип — PNG/JPG/JPEG/WEBP/SVG (до 5 МБ), favicon — ICO/PNG/SVG (до 2 МБ). При отсутствии файлов используется дефолтный `/favicon.ico` и текстовый логотип MiniDeN.
 - После замены логотипа или favicon автоматически увеличивается `assets_version`, а ссылки на ресурсы приходят с суффиксом `?v=...`, чтобы сбрасывать кеш в браузерах.
+- Данные брендинга отдаются через публичный endpoint `/api/branding` для WebApp.
+
+AdminSite API (категории, товары/курсы, настройки WebApp)
+----------------------------------------------------------
+
+Все методы под префиксом `/api/adminsite/*`, требуют авторизации администратора (`superadmin` или `admin_site`). Схемы полностью совместимы с Pydantic v2.
+
+- Health-check: `GET /api/adminsite/health` → `{ "ok": true }`.
+- Категории:
+  - `GET /api/adminsite/categories?type=product|course`
+  - `POST /api/adminsite/categories`
+  - `PUT /api/adminsite/categories/{id}`
+  - `DELETE /api/adminsite/categories/{id}` (удаление запрещено, если есть товары/курсы в категории)
+- Элементы (товары/мастер-классы):
+  - `GET /api/adminsite/items?type=product|course&category_id=<id>`
+  - `POST /api/adminsite/items`
+  - `PUT /api/adminsite/items/{id}`
+  - `DELETE /api/adminsite/items/{id}`
+- Настройки WebApp (красная кнопка):
+  - `GET /api/adminsite/webapp-settings?type=product|course&category_id=<id>` — отдаёт настройки для категории или глобальные, если категория не настроена.
+  - `PUT /api/adminsite/webapp-settings` — upsert по `scope+type+category_id`.
+
+Примеры curl (замените `<cookie>` на значение `admin_session`):
+
+```bash
+curl -H "Cookie: admin_session=<cookie>" "http://127.0.0.1:8000/api/adminsite/categories?type=product"
+
+curl -H "Cookie: admin_session=<cookie>" \
+  -H "Content-Type: application/json" \
+  -d '{"type":"product","title":"Керамика","slug":null,"sort":10}' \
+  http://127.0.0.1:8000/api/adminsite/categories
+
+curl -H "Cookie: admin_session=<cookie>" \
+  -H "Content-Type: application/json" \
+  -d '{"type":"product","category_id":1,"title":"Бокал","price":990}' \
+  http://127.0.0.1:8000/api/adminsite/items
+
+curl -H "Cookie: admin_session=<cookie>" \
+  -H "Content-Type: application/json" \
+  -d '{"scope":"global","type":"product","action_label":"Купить","min_selected":1}' \
+  http://127.0.0.1:8000/api/adminsite/webapp-settings
+```
 
 ### Система отзывов
 

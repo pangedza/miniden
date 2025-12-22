@@ -2,163 +2,45 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from datetime import datetime
-from decimal import Decimal
 from typing import Iterable
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from pydantic import BaseModel, Field, ConfigDict, ValidationInfo, field_validator
+from fastapi import HTTPException, Request
 from sqlalchemy.orm import Session
 
-from admin_panel.dependencies import get_db_session, require_admin
+from admin_panel.dependencies import require_admin
 from models import AdminSiteCategory, AdminSiteItem, AdminSiteWebAppSettings
 from models.admin_user import AdminRole
-
-router = APIRouter(prefix="/api/adminsite", tags=["AdminSite"])
+from .schemas import (
+    CategoryPayload,
+    CategoryUpdatePayload,
+    ItemPayload,
+    ItemUpdatePayload,
+    WebAppSettingsPayload,
+)
 
 ALLOWED_TYPES = {"product", "course"}
 ALLOWED_ROLES: Iterable[AdminRole] = (AdminRole.superadmin, AdminRole.admin_site)
 
 
-class CategoryPayload(BaseModel):
-    type: str = Field(..., pattern="^(product|course)$")
-    title: str
-    slug: str | None = None
-    parent_id: int | None = None
-    is_active: bool = True
-    sort: int = 0
-
-
-class CategoryUpdatePayload(BaseModel):
-    type: str | None = Field(None, pattern="^(product|course)$")
-    title: str | None = None
-    slug: str | None = None
-    parent_id: int | None = None
-    is_active: bool | None = None
-    sort: int | None = None
-
-    model_config = ConfigDict(extra="ignore")
-
-
-class CategoryResponse(BaseModel):
-    id: int
-    type: str
-    title: str
-    slug: str
-    parent_id: int | None
-    is_active: bool
-    sort: int
-    created_at: datetime
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class ItemPayload(BaseModel):
-    type: str = Field(..., pattern="^(product|course)$")
-    category_id: int
-    title: str
-    slug: str | None = None
-    price: Decimal = Field(ge=0)
-    image_url: str | None = None
-    short_text: str | None = None
-    description: str | None = None
-    is_active: bool = True
-    sort: int = 0
-
-    @field_validator("price", mode="before")
-    def _coerce_price(cls, value: Decimal | str | int) -> Decimal:
-        return Decimal(value)
-
-
-class ItemUpdatePayload(BaseModel):
-    type: str | None = Field(None, pattern="^(product|course)$")
-    category_id: int | None = None
-    title: str | None = None
-    slug: str | None = None
-    price: Decimal | None = Field(None, ge=0)
-    image_url: str | None = None
-    short_text: str | None = None
-    description: str | None = None
-    is_active: bool | None = None
-    sort: int | None = None
-
-    model_config = ConfigDict(extra="ignore")
-
-    @field_validator("price", mode="before")
-    def _coerce_price(cls, value: Decimal | str | int | None) -> Decimal | None:
-        if value is None:
-            return None
-        return Decimal(value)
-
-
-class ItemResponse(BaseModel):
-    id: int
-    type: str
-    category_id: int
-    title: str
-    slug: str
-    price: Decimal
-    image_url: str | None
-    short_text: str | None
-    description: str | None
-    is_active: bool
-    sort: int
-    created_at: datetime
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class WebAppSettingsPayload(BaseModel):
-    scope: str = Field(..., pattern="^(global|category)$")
-    type: str = Field(..., pattern="^(product|course)$")
-    category_id: int | None = None
-    action_enabled: bool = True
-    action_label: str | None = None
-    min_selected: int = Field(1, ge=0)
-
-    @field_validator("category_id")
-    def _validate_category_scope(
-        cls, value: int | None, info: ValidationInfo
-    ) -> int | None:
-        scope = (info.data or {}).get("scope")
-        if scope == "category" and value is None:
-            raise ValueError("category_id is required when scope=category")
-        if scope == "global" and value is not None:
-            raise ValueError("category_id must be null when scope=global")
-        return value
-
-
-class WebAppSettingsResponse(BaseModel):
-    id: int
-    scope: str
-    type: str
-    category_id: int | None
-    action_enabled: bool
-    action_label: str | None
-    min_selected: int
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-def _ensure_admin(request: Request, db: Session) -> None:
+def ensure_admin(request: Request, db: Session) -> None:
     user = require_admin(request, db, roles=ALLOWED_ROLES)
     if not user:
         raise HTTPException(status_code=401, detail="Admin authentication required")
 
 
-def _validate_type(value: str) -> None:
+def validate_type(value: str) -> None:
     if value not in ALLOWED_TYPES:
         raise HTTPException(status_code=400, detail="Unsupported type value")
 
 
-def _slugify(value: str) -> str:
+def slugify(value: str) -> str:
     normalized = unicodedata.normalize("NFKD", value)
     ascii_text = normalized.encode("ascii", "ignore").decode("ascii")
     slug = re.sub(r"[^a-zA-Z0-9]+", "-", ascii_text).strip("-").lower()
     return slug
 
 
-def _generate_unique_slug(
+def generate_unique_slug(
     db: Session,
     model,
     slug_base: str,
@@ -178,62 +60,44 @@ def _generate_unique_slug(
         counter += 1
 
 
-def _normalize_slug(value: str | None, *, title: str) -> str:
+def normalize_slug(value: str | None, *, title: str) -> str:
     base = (value or "").strip() or title
-    slug = _slugify(base)
+    slug = slugify(base)
     if not slug:
         raise HTTPException(status_code=400, detail="Slug cannot be empty")
     return slug
 
 
-def _get_category(db: Session, category_id: int) -> AdminSiteCategory:
+def get_category(db: Session, category_id: int) -> AdminSiteCategory:
     category = db.get(AdminSiteCategory, category_id)
     if not category:
         raise HTTPException(status_code=404, detail="Category not found")
     return category
 
 
-@router.get("/health")
-def healthcheck() -> dict[str, bool]:
-    return {"ok": True}
-
-
-@router.get("/categories", response_model=list[CategoryResponse])
-def list_categories(
-    request: Request,
-    type: str = Query(..., pattern="^(product|course)$"),
-    db: Session = Depends(get_db_session),
-):
-    _ensure_admin(request, db)
-    _validate_type(type)
+def list_categories(db: Session, type_value: str) -> list[AdminSiteCategory]:
+    validate_type(type_value)
     categories = (
         db.query(AdminSiteCategory)
-        .filter(AdminSiteCategory.type == type)
+        .filter(AdminSiteCategory.type == type_value)
         .order_by(AdminSiteCategory.sort, AdminSiteCategory.id)
         .all()
     )
     return categories
 
 
-@router.post("/categories", response_model=CategoryResponse)
-def create_category(
-    payload: CategoryPayload,
-    request: Request,
-    db: Session = Depends(get_db_session),
-):
-    _ensure_admin(request, db)
-    _validate_type(payload.type)
-    parent_id = payload.parent_id
-    if parent_id is not None:
-        parent = _get_category(db, parent_id)
+def create_category(db: Session, payload: CategoryPayload) -> AdminSiteCategory:
+    validate_type(payload.type)
+    if payload.parent_id is not None:
+        parent = get_category(db, payload.parent_id)
         if parent.type != payload.type:
             raise HTTPException(
                 status_code=400,
                 detail="Parent category type does not match",
             )
 
-    slug_base = _normalize_slug(payload.slug, title=payload.title)
-    slug = _generate_unique_slug(
+    slug_base = normalize_slug(payload.slug, title=payload.title)
+    slug = generate_unique_slug(
         db,
         AdminSiteCategory,
         slug_base,
@@ -254,21 +118,16 @@ def create_category(
     return category
 
 
-@router.put("/categories/{category_id}", response_model=CategoryResponse)
 def update_category(
-    category_id: int,
-    payload: CategoryUpdatePayload,
-    request: Request,
-    db: Session = Depends(get_db_session),
-):
-    _ensure_admin(request, db)
-    category = _get_category(db, category_id)
+    db: Session, category_id: int, payload: CategoryUpdatePayload
+) -> AdminSiteCategory:
+    category = get_category(db, category_id)
 
     new_type = payload.type or category.type
-    _validate_type(new_type)
+    validate_type(new_type)
 
     if payload.parent_id is not None:
-        parent = _get_category(db, payload.parent_id)
+        parent = get_category(db, payload.parent_id)
         if parent.type != new_type:
             raise HTTPException(
                 status_code=400,
@@ -283,12 +142,12 @@ def update_category(
 
     slug_base = None
     if "slug" in payload.__fields_set__:
-        slug_base = _normalize_slug(payload.slug, title=category.title)
+        slug_base = normalize_slug(payload.slug, title=category.title)
     elif "title" in payload.__fields_set__:
-        slug_base = _normalize_slug(None, title=category.title)
+        slug_base = normalize_slug(None, title=category.title)
 
     if slug_base:
-        category.slug = _generate_unique_slug(
+        category.slug = generate_unique_slug(
             db,
             AdminSiteCategory,
             slug_base,
@@ -308,14 +167,8 @@ def update_category(
     return category
 
 
-@router.delete("/categories/{category_id}")
-def delete_category(
-    category_id: int,
-    request: Request,
-    db: Session = Depends(get_db_session),
-):
-    _ensure_admin(request, db)
-    category = _get_category(db, category_id)
+def delete_category(db: Session, category_id: int) -> dict[str, str]:
+    category = get_category(db, category_id)
     has_items = (
         db.query(AdminSiteItem.id)
         .filter(AdminSiteItem.category_id == category_id)
@@ -331,39 +184,28 @@ def delete_category(
     return {"status": "ok"}
 
 
-@router.get("/items", response_model=list[ItemResponse])
 def list_items(
-    request: Request,
-    type: str = Query(..., pattern="^(product|course)$"),
-    category_id: int | None = Query(None),
-    db: Session = Depends(get_db_session),
-):
-    _ensure_admin(request, db)
-    _validate_type(type)
-    query = db.query(AdminSiteItem).filter(AdminSiteItem.type == type)
+    db: Session, type_value: str, category_id: int | None
+) -> list[AdminSiteItem]:
+    validate_type(type_value)
+    query = db.query(AdminSiteItem).filter(AdminSiteItem.type == type_value)
     if category_id is not None:
         query = query.filter(AdminSiteItem.category_id == category_id)
     items = query.order_by(AdminSiteItem.sort, AdminSiteItem.id).all()
     return items
 
 
-@router.post("/items", response_model=ItemResponse)
-def create_item(
-    payload: ItemPayload,
-    request: Request,
-    db: Session = Depends(get_db_session),
-):
-    _ensure_admin(request, db)
-    _validate_type(payload.type)
-    category = _get_category(db, payload.category_id)
+def create_item(db: Session, payload: ItemPayload) -> AdminSiteItem:
+    validate_type(payload.type)
+    category = get_category(db, payload.category_id)
     if category.type != payload.type:
         raise HTTPException(
             status_code=400,
             detail="Item type does not match category",
         )
 
-    slug_base = _normalize_slug(payload.slug, title=payload.title)
-    slug = _generate_unique_slug(
+    slug_base = normalize_slug(payload.slug, title=payload.title)
+    slug = generate_unique_slug(
         db,
         AdminSiteItem,
         slug_base,
@@ -391,23 +233,16 @@ def create_item(
     return item
 
 
-@router.put("/items/{item_id}", response_model=ItemResponse)
-def update_item(
-    item_id: int,
-    payload: ItemUpdatePayload,
-    request: Request,
-    db: Session = Depends(get_db_session),
-):
-    _ensure_admin(request, db)
+def update_item(db: Session, item_id: int, payload: ItemUpdatePayload) -> AdminSiteItem:
     item = db.get(AdminSiteItem, item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
 
     new_type = payload.type or item.type
-    _validate_type(new_type)
+    validate_type(new_type)
 
     new_category_id = payload.category_id if payload.category_id is not None else item.category_id
-    category = _get_category(db, new_category_id)
+    category = get_category(db, new_category_id)
     if category.type != new_type:
         raise HTTPException(
             status_code=400,
@@ -431,12 +266,12 @@ def update_item(
 
     slug_base = None
     if "slug" in payload.__fields_set__:
-        slug_base = _normalize_slug(payload.slug, title=item.title)
+        slug_base = normalize_slug(payload.slug, title=item.title)
     elif "title" in payload.__fields_set__:
-        slug_base = _normalize_slug(None, title=item.title)
+        slug_base = normalize_slug(None, title=item.title)
 
     if slug_base:
-        item.slug = _generate_unique_slug(
+        item.slug = generate_unique_slug(
             db,
             AdminSiteItem,
             slug_base,
@@ -456,13 +291,7 @@ def update_item(
     return item
 
 
-@router.delete("/items/{item_id}")
-def delete_item(
-    item_id: int,
-    request: Request,
-    db: Session = Depends(get_db_session),
-):
-    _ensure_admin(request, db)
+def delete_item(db: Session, item_id: int) -> dict[str, str]:
     item = db.get(AdminSiteItem, item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
@@ -471,24 +300,19 @@ def delete_item(
     return {"status": "ok"}
 
 
-@router.get("/webapp-settings", response_model=WebAppSettingsResponse)
 def get_webapp_settings(
-    request: Request,
-    type: str = Query(..., pattern="^(product|course)$"),
-    category_id: int | None = Query(None),
-    db: Session = Depends(get_db_session),
-):
-    _ensure_admin(request, db)
-    _validate_type(type)
+    db: Session, type_value: str, category_id: int | None
+) -> AdminSiteWebAppSettings:
+    validate_type(type_value)
 
     settings: AdminSiteWebAppSettings | None = None
     if category_id is not None:
-        _get_category(db, category_id)
+        get_category(db, category_id)
         settings = (
             db.query(AdminSiteWebAppSettings)
             .filter(
                 AdminSiteWebAppSettings.scope == "category",
-                AdminSiteWebAppSettings.type == type,
+                AdminSiteWebAppSettings.type == type_value,
                 AdminSiteWebAppSettings.category_id == category_id,
             )
             .first()
@@ -499,7 +323,7 @@ def get_webapp_settings(
             db.query(AdminSiteWebAppSettings)
             .filter(
                 AdminSiteWebAppSettings.scope == "global",
-                AdminSiteWebAppSettings.type == type,
+                AdminSiteWebAppSettings.type == type_value,
             )
             .first()
         )
@@ -510,18 +334,14 @@ def get_webapp_settings(
     return settings
 
 
-@router.put("/webapp-settings", response_model=WebAppSettingsResponse)
 def upsert_webapp_settings(
-    payload: WebAppSettingsPayload,
-    request: Request,
-    db: Session = Depends(get_db_session),
-):
-    _ensure_admin(request, db)
-    _validate_type(payload.type)
+    db: Session, payload: WebAppSettingsPayload
+) -> AdminSiteWebAppSettings:
+    validate_type(payload.type)
 
     category_id = payload.category_id
     if payload.scope == "category":
-        category = _get_category(db, payload.category_id or 0)
+        category = get_category(db, payload.category_id or 0)
         if category.type != payload.type:
             raise HTTPException(
                 status_code=400,
