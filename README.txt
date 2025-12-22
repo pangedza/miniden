@@ -198,12 +198,24 @@ AdminSite API (категории, товары/курсы, настройки W
   - `DELETE /api/adminsite/categories/{id}` (удаление запрещено, если есть товары/курсы в категории)
 - Элементы (товары/мастер-классы):
   - `GET /api/adminsite/items?type=product|course&category_id=<id>`
-  - `POST /api/adminsite/items`
-  - `PUT /api/adminsite/items/{id}`
-  - `DELETE /api/adminsite/items/{id}`
-- Настройки WebApp (красная кнопка):
-  - `GET /api/adminsite/webapp-settings?type=product|course&category_id=<id>` — отдаёт настройки для категории или глобальные, если категория не настроена.
-  - `PUT /api/adminsite/webapp-settings` — upsert по `scope+type+category_id`.
+
+    - `POST /api/adminsite/items`
+    - `PUT /api/adminsite/items/{id}`
+    - `DELETE /api/adminsite/items/{id}`
+  - Настройки WebApp (красная кнопка):
+    - `GET /api/adminsite/webapp-settings?type=product|course&category_id=<id>` — отдаёт настройки для категории или глобальные, если категория не настроена.
+    - `PUT /api/adminsite/webapp-settings` — upsert по `scope+type+category_id`.
+
+AdminPanel/adminsite: страницы конструктора
+-------------------------------------------
+- Маршрут `/adminsite/constructor` открывает новый раздел "AdminSite Конструктор" с вкладками для CRUD категорий и элементов, а также настройки красной WebApp-кнопки.
+- Шаблон: `admin_panel/templates/adminsite/constructor.html` (вкладки, таблицы, форма WebApp).
+- Статические модули:
+  - `admin_panel/static/js/adminsite/apiClient.js` — обёртка над fetch с разбором ошибок.
+  - `admin_panel/static/js/adminsite/modals.js` — компоненты CategoryModal и ItemModal с блокировкой кнопок на время сохранения.
+  - `admin_panel/static/js/adminsite/constructor.js` — логика страниц: загрузка данных, фильтры, поиск по названию, CRUD и настройка WebApp.
+  - `admin_panel/static/css/adminsite/constructor.css` — стили карточек, таблиц, модалок и тостов.
+- Новые кнопки навигации на страницах админки ведут в раздел "AdminSite Конструктор".
 
 Примеры curl (замените `<cookie>` на значение `admin_session`):
 
