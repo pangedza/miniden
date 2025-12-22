@@ -52,3 +52,16 @@ async def dashboard(
 @router.get("/logout")
 async def logout(request: Request, db: Session = Depends(get_db_session)):
     return await auth_routes.logout(request, db)
+
+
+@router.get("/constructor")
+async def constructor(
+    request: Request, db: Session = Depends(get_db_session)
+):
+    user = require_admin(request, db, roles=ALLOWED_ROLES)
+    if not user:
+        return _login_redirect()
+
+    return TEMPLATES.TemplateResponse(
+        "adminsite/constructor.html", {"request": request, "user": user}
+    )
