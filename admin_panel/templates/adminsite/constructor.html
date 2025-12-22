@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Конструктор AdminSite</title>
+    <style>
+        :root {
+            --bg: #0b1220;
+            --card: #0f172a;
+            --border: #1e293b;
+            --primary: #a855f7;
+            --primary-dark: #7c3aed;
+            --text: #e5e7eb;
+            --muted: #9ca3af;
+            --danger: #f87171;
+            --success: #34d399;
+            --accent: #38bdf8;
+        }
+        * { box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: var(--bg); color: var(--text); margin:0; }
+        header { background: var(--primary); color:#0b1220; padding:16px; display:flex; justify-content:space-between; align-items:center; position:sticky; top:0; z-index:10; }
+        header .nav { display:flex; gap:12px; align-items:center; }
+        header a { color:#0b1220; font-weight:bold; text-decoration:none; }
+        main { padding:24px; }
+        h1 { margin:0 0 12px; }
+        .tabs { display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; }
+        .tab { padding:10px 14px; border-radius:10px; border:1px solid var(--border); background: var(--card); color: var(--text); cursor:pointer; transition: all 0.2s; }
+        .tab.active { background: var(--primary); color:#0b1220; border-color: var(--primary); }
+        .panel { display:none; }
+        .panel.active { display:block; }
+        .grid { display:grid; grid-template-columns: 320px 1fr; gap:16px; align-items:start; }
+        .card { background: var(--card); border:1px solid var(--border); border-radius:12px; padding:16px; }
+        label { display:block; margin-top:10px; font-size:14px; color:var(--muted); }
+        input, select, textarea { width:100%; padding:10px; border-radius:10px; border:1px solid var(--border); background:#0b1220; color:var(--text); margin-top:6px; }
+        textarea { min-height:100px; resize:vertical; }
+        .actions { margin-top:14px; display:flex; gap:8px; }
+        button { border:none; border-radius:10px; cursor:pointer; padding:10px 14px; font-weight:bold; }
+        .btn-primary { background: var(--primary); color:#0b1220; }
+        .btn-secondary { background: var(--border); color: var(--text); }
+        .btn-danger { background: var(--danger); color:#0b1220; }
+        table { width:100%; border-collapse: collapse; margin-top:8px; }
+        th, td { border:1px solid var(--border); padding:8px; text-align:left; }
+        th { background:#111827; color:var(--muted); }
+        tr:nth-child(even) { background:#0b1220; }
+        .badge { padding:4px 8px; border-radius:999px; font-size:12px; background:#1e293b; color:var(--muted); }
+        .muted { color: var(--muted); font-size:13px; }
+        .flex { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+        .status { margin:0 0 12px; min-height:20px; }
+        .status.error { color: var(--danger); }
+        .status.success { color: var(--success); }
+        .table-actions { display:flex; gap:8px; flex-wrap:wrap; }
+        .pill { background:#111827; padding:4px 6px; border-radius:8px; font-size:12px; color:var(--muted); }
+        .stack { display:flex; flex-direction:column; gap:6px; }
+        @media (max-width: 1024px) { .grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+<header>
+    <div class="flex" style="gap:14px;">
+        <div style="font-size:20px; font-weight:bold;">Конструктор AdminSite</div>
+        <span class="pill">{{ user.username }}</span>
+    </div>
+    <div class="nav">
+        <a href="/adminbot">AdminBot</a>
+        <a href="/adminsite">AdminSite</a>
+        <a href="/admin/users">Админы</a>
+        <a href="/admin/profile">Профиль</a>
+        <form method="post" action="/logout" style="margin:0;">
+            <button class="btn-secondary" type="submit">Выйти</button>
+        </form>
+    </div>
+</header>
+<main>
+    <h1>Категории, товары и настройки WebApp кнопки</h1>
+    <p class="muted">Управляйте категориями и элементами витрины. Используйте вкладку «WebApp кнопка», чтобы настроить действие красной кнопки в клиенте.</p>
+
+    <div id="global-status" class="status"></div>
+
+    <div class="tabs">
+        <button class="tab active" data-tab="categories-product">Категории товаров</button>
+        <button class="tab" data-tab="categories-course">Категории мастер-классов</button>
+        <button class="tab" data-tab="items-product">Товары</button>
+        <button class="tab" data-tab="items-course">Мастер-классы</button>
+        <button class="tab" data-tab="webapp">WebApp кнопка</button>
+    </div>
+
+    <section class="panel active" id="panel-categories-product">
+        <div class="grid">
+            <div class="card">
+                <h3>Категория товара</h3>
+                <div class="muted">Slug можно оставить пустым — он сгенерируется из названия.</div>
+                <form id="category-form-product" data-type="product">
+                    <input type="hidden" name="id">
+                    <label>Название
+                        <input type="text" name="title" required placeholder="Например: Свитеры">
+                    </label>
+                    <label>Slug
+                        <div class="flex">
+                            <input type="text" name="slug" placeholder="svitery">
+                            <button type="button" class="btn-secondary generate-slug">Сгенерировать</button>
+                        </div>
+                    </label>
+                    <label>Порядок
+                        <input type="number" name="sort" value="0">
+                    </label>
+                    <label class="flex" style="margin-top:12px;">
+                        <input type="checkbox" name="is_active" checked> Активна
+                    </label>
+                    <div class="actions">
+                        <button type="submit" class="btn-primary">Сохранить</button>
+                        <button type="button" class="btn-secondary reset-form">Сбросить</button>
+                    </div>
+                </form>
+            </div>
+            <div class="card">
+                <div class="flex" style="justify-content:space-between; align-items:center;">
+                    <h3>Категории (product)</h3>
+                    <div class="flex">
+                        <span class="muted">Создайте несколько категорий для фильтрации товаров.</span>
+                        <button type="button" class="btn-primary" onclick="resetCategoryForm('product'); document.getElementById('category-form-product').scrollIntoView({behavior:'smooth'});">Создать</button>
+                    </div>
+                </div>
+                <div class="status" id="status-categories-product"></div>
+                <table>
+                    <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Название</th>
+                        <th>Slug</th>
+                        <th>Активна</th>
+                        <th>Порядок</th>
+                        <th>Создана</th>
+                        <th>Действия</th>
+                    </tr>
+                    </thead>
+                    <tbody id="categories-list-product"></tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <section class="panel" id="panel-categories-course">
+        <div class="grid">
+            <div class="card">
+                <h3>Категория мастер-классов</h3>
+                <div class="muted">Slug можно оставить пустым — он сгенерируется из названия.</div>
+                <form id="category-form-course" data-type="course">
+                    <input type="hidden" name="id">
+                    <label>Название
+                        <input type="text" name="title" required placeholder="Например: Вязание">
+                    </label>
+                    <label>Slug
+                        <div class="flex">
+                            <input type="text" name="slug" placeholder="vyazanie">
+                            <button type="button" class="btn-secondary generate-slug">Сгенерировать</button>
+                        </div>
+                    </label>
+                    <label>Порядок
+                        <input type="number" name="sort" value="0">
+                    </label>
+                    <label class="flex" style="margin-top:12px;">
+                        <input type="checkbox" name="is_active" checked> Активна
+                    </label>
+                    <div class="actions">
+                        <button type="submit" class="btn-primary">Сохранить</button>
+                        <button type="button" class="btn-secondary reset-form">Сбросить</button>
+                    </div>
+                </form>
+            </div>
+            <div class="card">
+                <div class="flex" style="justify-content:space-between; align-items:center;">
+                    <h3>Категории (course)</h3>
+                    <div class="flex">
+                        <span class="muted">Создайте категории для мастер-классов.</span>
+                        <button type="button" class="btn-primary" onclick="resetCategoryForm('course'); document.getElementById('category-form-course').scrollIntoView({behavior:'smooth'});">Создать</button>
+                    </div>
+                </div>
+                <div class="status" id="status-categories-course"></div>
+                <table>
+                    <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Название</th>
+                        <th>Slug</th>
+                        <th>Активна</th>
+                        <th>Порядок</th>
+                        <th>Создана</th>
+                        <th>Действия</th>
+                    </tr>
+                    </thead>
+                    <tbody id="categories-list-course"></tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <section class="panel" id="panel-items-product">
+        <div class="grid">
+            <div class="card">
+                <h3>Товар</h3>
+                <div class="muted">Все поля сохраняются сразу через API /api/adminsite/items.</div>
+                <form id="item-form-product" data-type="product">
+                    <input type="hidden" name="id">
+                    <label>Категория
+                        <select name="category_id" id="item-category-product" required></select>
+                    </label>
+                    <label>Название
+                        <input type="text" name="title" required placeholder="Например: Плед">
+                    </label>
+                    <label>Slug
+                        <div class="flex">
+                            <input type="text" name="slug" placeholder="pled">
+                            <button type="button" class="btn-secondary generate-slug">Сгенерировать</button>
+                        </div>
+                    </label>
+                    <label>Цена
+                        <input type="number" name="price" step="0.01" value="0">
+                    </label>
+                    <label>Картинка (URL)
+                        <input type="url" name="image_url" placeholder="https://...">
+                    </label>
+                    <label>Короткий текст
+                        <textarea name="short_text" placeholder="Краткое описание"></textarea>
+                    </label>
+                    <label>Описание
+                        <textarea name="description" placeholder="Полное описание"></textarea>
+                    </label>
+                    <label>Порядок
+                        <input type="number" name="sort" value="0">
+                    </label>
+                    <label class="flex" style="margin-top:12px;">
+                        <input type="checkbox" name="is_active" checked> Активен
+                    </label>
+                    <div class="actions">
+                        <button type="submit" class="btn-primary">Сохранить</button>
+                        <button type="button" class="btn-secondary reset-form">Сбросить</button>
+                    </div>
+                </form>
+            </div>
+            <div class="card">
+                <div class="flex" style="justify-content:space-between; align-items:center;">
+                    <h3>Товары</h3>
+                    <div class="flex">
+                        <button type="button" class="btn-primary" onclick="resetItemForm('product'); document.getElementById('item-form-product').scrollIntoView({behavior:'smooth'});">Создать</button>
+                        <label class="muted">Фильтр:
+                            <select id="items-filter-product"></select>
+                        </label>
+                    </div>
+                </div>
+                <div class="status" id="status-items-product"></div>
+                <table>
+                    <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Название</th>
+                        <th>Категория</th>
+                        <th>Цена</th>
+                        <th>Slug</th>
+                        <th>Активен</th>
+                        <th>Порядок</th>
+                        <th>Действия</th>
+                    </tr>
+                    </thead>
+                    <tbody id="items-list-product"></tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <section class="panel" id="panel-items-course">
+        <div class="grid">
+            <div class="card">
+                <h3>Мастер-класс</h3>
+                <div class="muted">Выберите категорию типа course и заполните карточку.</div>
+                <form id="item-form-course" data-type="course">
+                    <input type="hidden" name="id">
+                    <label>Категория
+                        <select name="category_id" id="item-category-course" required></select>
+                    </label>
+                    <label>Название
+                        <input type="text" name="title" required placeholder="Например: Базовый курс">
+                    </label>
+                    <label>Slug
+                        <div class="flex">
+                            <input type="text" name="slug" placeholder="bazovyj-kurs">
+                            <button type="button" class="btn-secondary generate-slug">Сгенерировать</button>
+                        </div>
+                    </label>
+                    <label>Цена
+                        <input type="number" name="price" step="0.01" value="0">
+                    </label>
+                    <label>Картинка (URL)
+                        <input type="url" name="image_url" placeholder="https://...">
+                    </label>
+                    <label>Короткий текст
+                        <textarea name="short_text" placeholder="Краткое описание"></textarea>
+                    </label>
+                    <label>Описание
+                        <textarea name="description" placeholder="Полное описание"></textarea>
+                    </label>
+                    <label>Порядок
+                        <input type="number" name="sort" value="0">
+                    </label>
+                    <label class="flex" style="margin-top:12px;">
+                        <input type="checkbox" name="is_active" checked> Активен
+                    </label>
+                    <div class="actions">
+                        <button type="submit" class="btn-primary">Сохранить</button>
+                        <button type="button" class="btn-secondary reset-form">Сбросить</button>
+                    </div>
+                </form>
+            </div>
+            <div class="card">
+                <div class="flex" style="justify-content:space-between; align-items:center;">
+                    <h3>Мастер-классы</h3>
+                    <div class="flex">
+                        <button type="button" class="btn-primary" onclick="resetItemForm('course'); document.getElementById('item-form-course').scrollIntoView({behavior:'smooth'});">Создать</button>
+                        <label class="muted">Фильтр:
+                            <select id="items-filter-course"></select>
+                        </label>
+                    </div>
+                </div>
+                <div class="status" id="status-items-course"></div>
+                <table>
+                    <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Название</th>
+                        <th>Категория</th>
+                        <th>Цена</th>
+                        <th>Slug</th>
+                        <th>Активен</th>
+                        <th>Порядок</th>
+                        <th>Действия</th>
+                    </tr>
+                    </thead>
+                    <tbody id="items-list-course"></tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <section class="panel" id="panel-webapp">
+        <div class="card" style="max-width:840px;">
+            <h3>WebApp кнопка</h3>
+            <p class="muted">Настройки красной кнопки: выберите тип, область действия и при необходимости категорию.</p>
+            <div class="status" id="status-webapp"></div>
+            <form id="webapp-form">
+                <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));">
+                    <div>
+                        <label>Тип
+                            <select name="type" id="webapp-type">
+                                <option value="product">Товары (product)</option>
+                                <option value="course">Мастер-классы (course)</option>
+                            </select>
+                        </label>
+                    </div>
+                    <div>
+                        <label>Scope
+                            <select name="scope" id="webapp-scope">
+                                <option value="global">Global</option>
+                                <option value="category">Category</option>
+                            </select>
+                        </label>
+                    </div>
+                    <div id="webapp-category-wrapper">
+                        <label>Категория
+                            <select name="category_id" id="webapp-category"></select>
+                        </label>
+                    </div>
+                    <div>
+                        <label>Label
+                            <input type="text" name="action_label" id="webapp-label" placeholder="Например: Купить">
+                        </label>
+                    </div>
+                    <div>
+                        <label>Минимум выбранных
+                            <input type="number" name="min_selected" id="webapp-min-selected" min="0" value="1">
+                        </label>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px; margin-top:26px;">
+                        <input type="checkbox" id="webapp-enabled" checked>
+                        <label for="webapp-enabled" class="muted">Действие включено</label>
+                    </div>
+                </div>
+                <div class="actions" style="margin-top:18px;">
+                    <button type="submit" class="btn-primary">Сохранить</button>
+                    <button type="button" class="btn-secondary" id="webapp-reload">Обновить</button>
+                </div>
+            </form>
+        </div>
+    </section>
+</main>
+<script>
+const state = {
+    categories: { product: [], course: [] },
+    items: { product: [], course: [] },
+    categoryEditing: { product: null, course: null },
+    itemEditing: { product: null, course: null },
+};
+
+const statusGlobal = document.getElementById('global-status');
+
+function showMessage(target, message, isError = false) {
+    if (!target) return;
+    target.textContent = message || '';
+    target.classList.remove('error', 'success');
+    if (message) {
+        target.classList.add(isError ? 'error' : 'success');
+    }
+}
+
+const translitMap = {
+    'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'e', 'ж': 'zh', 'з': 'z', 'и': 'i',
+    'й': 'i', 'к': 'k', 'л': 'l', 'м': 'm', 'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't',
+    'у': 'u', 'ф': 'f', 'х': 'h', 'ц': 'c', 'ч': 'ch', 'ш': 'sh', 'щ': 'sch', 'ы': 'y', 'э': 'e', 'ю': 'yu', 'я': 'ya',
+    'ъ': '', 'ь': ''
+};
+
+function transliterate(value) {
+    return value
+        .split('')
+        .map((ch) => {
+            const lower = ch.toLowerCase();
+            const mapped = translitMap[lower];
+            if (mapped === undefined) return ch;
+            return ch === lower ? mapped : mapped.toUpperCase();
+        })
+        .join('');
+}
+
+function slugify(value) {
+    const transliterated = transliterate(value);
+    const normalized = transliterated.normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
+    return normalized
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '')
+        .replace(/-{2,}/g, '-');
+}
+
+async function fetchJson(url, options = {}) {
+    const opts = { credentials: 'same-origin', ...options };
+    if (opts.body && !(opts.body instanceof FormData)) {
+        opts.headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
+        opts.body = JSON.stringify(opts.body);
+    }
+    const response = await fetch(url, opts);
+    if (!response.ok) {
+        let detail = `HTTP ${response.status}`;
+        try {
+            const data = await response.json();
+            detail = data.detail || detail;
+        } catch (e) { /* ignore */ }
+        throw new Error(detail);
+    }
+    if (response.status === 204) return null;
+    return response.json();
+}
+
+function resetCategoryForm(type) {
+    const form = document.getElementById(`category-form-${type}`);
+    form.reset();
+    form.querySelector('input[name="id"]').value = '';
+    form.querySelector('input[name="sort"]').value = 0;
+    form.querySelector('input[name="is_active"]').checked = true;
+    state.categoryEditing[type] = null;
+    showMessage(document.getElementById(`status-categories-${type}`), '');
+}
+
+function resetItemForm(type) {
+    const form = document.getElementById(`item-form-${type}`);
+    form.reset();
+    form.querySelector('input[name="id"]').value = '';
+    form.querySelector('input[name="price"]').value = 0;
+    form.querySelector('input[name="sort"]').value = 0;
+    form.querySelector('input[name="is_active"]').checked = true;
+    state.itemEditing[type] = null;
+    showMessage(document.getElementById(`status-items-${type}`), '');
+    populateCategoryOptions(type);
+}
+
+function populateCategoryOptions(type) {
+    const categories = state.categories[type];
+    const select = document.getElementById(`item-category-${type}`);
+    const filter = document.getElementById(`items-filter-${type}`);
+    if (select) {
+        select.innerHTML = '';
+        categories.forEach((cat) => {
+            const option = document.createElement('option');
+            option.value = cat.id;
+            option.textContent = `${cat.title} (${cat.slug})`;
+            select.appendChild(option);
+        });
+    }
+    if (filter) {
+        filter.innerHTML = '';
+        const any = document.createElement('option');
+        any.value = '';
+        any.textContent = 'Все категории';
+        filter.appendChild(any);
+        categories.forEach((cat) => {
+            const option = document.createElement('option');
+            option.value = cat.id;
+            option.textContent = cat.title;
+            filter.appendChild(option);
+        });
+    }
+    const webappType = document.getElementById('webapp-type').value;
+    if (type === webappType) {
+        const webappSelect = document.getElementById('webapp-category');
+        if (webappSelect) {
+            webappSelect.innerHTML = '';
+            categories.forEach((cat) => {
+                const option = document.createElement('option');
+                option.value = cat.id;
+                option.textContent = cat.title;
+                webappSelect.appendChild(option);
+            });
+        }
+    }
+}
+
+function renderCategories(type) {
+    const tbody = document.getElementById(`categories-list-${type}`);
+    tbody.innerHTML = '';
+    const list = state.categories[type];
+    if (!list.length) {
+        const row = document.createElement('tr');
+        const cell = document.createElement('td');
+        cell.colSpan = 7;
+        cell.textContent = 'Нет категорий';
+        row.appendChild(cell);
+        tbody.appendChild(row);
+        return;
+    }
+    list.forEach((cat) => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${cat.id}</td>
+            <td>${cat.title}</td>
+            <td><span class="badge">${cat.slug}</span></td>
+            <td>${cat.is_active ? '✅' : '⛔'}</td>
+            <td>${cat.sort}</td>
+            <td class="muted">${cat.created_at}</td>
+            <td>
+                <div class="table-actions">
+                    <button class="btn-secondary" data-action="edit" data-id="${cat.id}" data-type="${type}">Редактировать</button>
+                    <button class="btn-danger" data-action="delete" data-id="${cat.id}" data-type="${type}">Удалить</button>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+    tbody.querySelectorAll('button').forEach((btn) => {
+        const action = btn.dataset.action;
+        const id = Number(btn.dataset.id);
+        const catType = btn.dataset.type;
+        if (action === 'edit') {
+            btn.addEventListener('click', () => fillCategoryForm(catType, id));
+        } else {
+            btn.addEventListener('click', () => deleteCategory(catType, id));
+        }
+    });
+}
+
+function renderItems(type) {
+    const tbody = document.getElementById(`items-list-${type}`);
+    tbody.innerHTML = '';
+    const items = state.items[type];
+    const categories = Object.fromEntries(state.categories[type].map((c) => [c.id, c]));
+    if (!items.length) {
+        const row = document.createElement('tr');
+        const cell = document.createElement('td');
+        cell.colSpan = 8;
+        cell.textContent = 'Нет элементов';
+        row.appendChild(cell);
+        tbody.appendChild(row);
+        return;
+    }
+    items.forEach((item) => {
+        const category = categories[item.category_id];
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${item.id}</td>
+            <td>${item.title}</td>
+            <td>${category ? category.title : '—'}</td>
+            <td>${item.price}</td>
+            <td><span class="badge">${item.slug}</span></td>
+            <td>${item.is_active ? '✅' : '⛔'}</td>
+            <td>${item.sort}</td>
+            <td>
+                <div class="table-actions">
+                    <button class="btn-secondary" data-action="edit" data-id="${item.id}" data-type="${type}">Редактировать</button>
+                    <button class="btn-danger" data-action="delete" data-id="${item.id}" data-type="${type}">Удалить</button>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+    tbody.querySelectorAll('button').forEach((btn) => {
+        const action = btn.dataset.action;
+        const id = Number(btn.dataset.id);
+        const itemType = btn.dataset.type;
+        if (action === 'edit') {
+            btn.addEventListener('click', () => fillItemForm(itemType, id));
+        } else {
+            btn.addEventListener('click', () => deleteItem(itemType, id));
+        }
+    });
+}
+
+async function loadCategories(type) {
+    try {
+        const data = await fetchJson(`/api/adminsite/categories?type=${type}`);
+        state.categories[type] = data;
+        renderCategories(type);
+        populateCategoryOptions(type);
+        showMessage(document.getElementById(`status-categories-${type}`), '');
+    } catch (error) {
+        showMessage(document.getElementById(`status-categories-${type}`), error.message, true);
+    }
+}
+
+async function loadItems(type) {
+    const filter = document.getElementById(`items-filter-${type}`);
+    const categoryId = filter && filter.value ? Number(filter.value) : null;
+    const query = new URLSearchParams({ type });
+    if (categoryId) query.append('category_id', String(categoryId));
+    try {
+        const data = await fetchJson(`/api/adminsite/items?${query.toString()}`);
+        state.items[type] = data;
+        renderItems(type);
+        showMessage(document.getElementById(`status-items-${type}`), '');
+    } catch (error) {
+        showMessage(document.getElementById(`status-items-${type}`), error.message, true);
+    }
+}
+
+function fillCategoryForm(type, id) {
+    const category = state.categories[type].find((c) => c.id === id);
+    if (!category) return;
+    const form = document.getElementById(`category-form-${type}`);
+    form.querySelector('input[name="id"]').value = category.id;
+    form.querySelector('input[name="title"]').value = category.title;
+    form.querySelector('input[name="slug"]').value = category.slug;
+    form.querySelector('input[name="sort"]').value = category.sort;
+    form.querySelector('input[name="is_active"]').checked = category.is_active;
+    state.categoryEditing[type] = category.id;
+}
+
+function fillItemForm(type, id) {
+    const item = state.items[type].find((c) => c.id === id);
+    if (!item) return;
+    const form = document.getElementById(`item-form-${type}`);
+    form.querySelector('input[name="id"]').value = item.id;
+    form.querySelector('select[name="category_id"]').value = item.category_id;
+    form.querySelector('input[name="title"]').value = item.title;
+    form.querySelector('input[name="slug"]').value = item.slug;
+    form.querySelector('input[name="price"]').value = item.price;
+    form.querySelector('input[name="image_url"]').value = item.image_url || '';
+    form.querySelector('textarea[name="short_text"]').value = item.short_text || '';
+    form.querySelector('textarea[name="description"]').value = item.description || '';
+    form.querySelector('input[name="sort"]').value = item.sort;
+    form.querySelector('input[name="is_active"]').checked = item.is_active;
+    state.itemEditing[type] = item.id;
+}
+
+async function deleteCategory(type, id) {
+    if (!confirm('Удалить категорию?')) return;
+    try {
+        await fetchJson(`/api/adminsite/categories/${id}`, { method: 'DELETE' });
+        showMessage(document.getElementById(`status-categories-${type}`), 'Категория удалена');
+        await loadCategories(type);
+        await loadItems(type);
+    } catch (error) {
+        showMessage(document.getElementById(`status-categories-${type}`), error.message, true);
+    }
+}
+
+async function deleteItem(type, id) {
+    if (!confirm('Удалить элемент?')) return;
+    try {
+        await fetchJson(`/api/adminsite/items/${id}`, { method: 'DELETE' });
+        showMessage(document.getElementById(`status-items-${type}`), 'Элемент удалён');
+        await loadItems(type);
+    } catch (error) {
+        showMessage(document.getElementById(`status-items-${type}`), error.message, true);
+    }
+}
+
+async function saveCategory(event) {
+    event.preventDefault();
+    const form = event.target;
+    const type = form.dataset.type;
+    const id = form.querySelector('input[name="id"]').value;
+    const title = form.querySelector('input[name="title"]').value.trim();
+    const slugInput = form.querySelector('input[name="slug"]').value.trim();
+    const payload = {
+        type,
+        title,
+        slug: slugInput || slugify(title),
+        is_active: form.querySelector('input[name="is_active"]').checked,
+        sort: Number(form.querySelector('input[name="sort"]').value) || 0,
+    };
+    const method = id ? 'PUT' : 'POST';
+    const url = id ? `/api/adminsite/categories/${id}` : '/api/adminsite/categories';
+    try {
+        await fetchJson(url, { method, body: payload });
+        showMessage(document.getElementById(`status-categories-${type}`), 'Сохранено');
+        resetCategoryForm(type);
+        await loadCategories(type);
+    } catch (error) {
+        showMessage(document.getElementById(`status-categories-${type}`), error.message, true);
+    }
+}
+
+async function saveItem(event) {
+    event.preventDefault();
+    const form = event.target;
+    const type = form.dataset.type;
+    const id = form.querySelector('input[name="id"]').value;
+    const title = form.querySelector('input[name="title"]').value.trim();
+    const slugInput = form.querySelector('input[name="slug"]').value.trim();
+    const payload = {
+        type,
+        category_id: Number(form.querySelector('select[name="category_id"]').value),
+        title,
+        slug: slugInput || slugify(title),
+        price: form.querySelector('input[name="price"]').value || 0,
+        image_url: form.querySelector('input[name="image_url"]').value || null,
+        short_text: form.querySelector('textarea[name="short_text"]').value || null,
+        description: form.querySelector('textarea[name="description"]').value || null,
+        is_active: form.querySelector('input[name="is_active"]').checked,
+        sort: Number(form.querySelector('input[name="sort"]').value) || 0,
+    };
+    const method = id ? 'PUT' : 'POST';
+    const url = id ? `/api/adminsite/items/${id}` : '/api/adminsite/items';
+    try {
+        await fetchJson(url, { method, body: payload });
+        showMessage(document.getElementById(`status-items-${type}`), 'Сохранено');
+        resetItemForm(type);
+        await loadItems(type);
+    } catch (error) {
+        showMessage(document.getElementById(`status-items-${type}`), error.message, true);
+    }
+}
+
+function setupSlugButtons() {
+    document.querySelectorAll('.generate-slug').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const wrapper = btn.closest('form');
+            const titleInput = wrapper.querySelector('input[name="title"]');
+            const slugInput = wrapper.querySelector('input[name="slug"]');
+            slugInput.value = slugify(titleInput.value || '');
+        });
+    });
+}
+
+function setupTabs() {
+    document.querySelectorAll('.tab').forEach((tab) => {
+        tab.addEventListener('click', () => {
+            const target = tab.dataset.tab;
+            document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
+            tab.classList.add('active');
+            document.querySelectorAll('.panel').forEach((panel) => {
+                panel.classList.toggle('active', panel.id === `panel-${target}`);
+            });
+        });
+    });
+}
+
+function setupForms() {
+    ['product', 'course'].forEach((type) => {
+        const categoryForm = document.getElementById(`category-form-${type}`);
+        const itemForm = document.getElementById(`item-form-${type}`);
+        categoryForm.addEventListener('submit', saveCategory);
+        itemForm.addEventListener('submit', saveItem);
+        categoryForm.querySelector('.reset-form').addEventListener('click', () => resetCategoryForm(type));
+        itemForm.querySelector('.reset-form').addEventListener('click', () => resetItemForm(type));
+    });
+}
+
+function setupFilters() {
+    ['product', 'course'].forEach((type) => {
+        const filter = document.getElementById(`items-filter-${type}`);
+        filter.addEventListener('change', () => loadItems(type));
+    });
+}
+
+function toggleWebappCategoryVisibility() {
+    const scope = document.getElementById('webapp-scope').value;
+    const wrapper = document.getElementById('webapp-category-wrapper');
+    wrapper.style.display = scope === 'category' ? 'block' : 'none';
+}
+
+async function loadWebappSettings() {
+    const type = document.getElementById('webapp-type').value;
+    const scope = document.getElementById('webapp-scope').value;
+    const categorySelect = document.getElementById('webapp-category');
+    const statusEl = document.getElementById('status-webapp');
+    const params = new URLSearchParams({ type });
+    if (scope === 'category' && categorySelect.value) {
+        params.append('category_id', categorySelect.value);
+    }
+    try {
+        const data = await fetchJson(`/api/adminsite/webapp-settings?${params.toString()}`);
+        document.getElementById('webapp-enabled').checked = data.action_enabled;
+        document.getElementById('webapp-label').value = data.action_label || '';
+        document.getElementById('webapp-min-selected').value = data.min_selected;
+        showMessage(statusEl, 'Настройки загружены');
+    } catch (error) {
+        document.getElementById('webapp-enabled').checked = true;
+        document.getElementById('webapp-label').value = '';
+        document.getElementById('webapp-min-selected').value = 1;
+        const message = error.message.toLowerCase().includes('not found') || error.message.includes('404')
+            ? 'Настройки не найдены, сохраните форму'
+            : error.message;
+        showMessage(statusEl, message, true);
+    }
+}
+
+async function saveWebappSettings(event) {
+    event.preventDefault();
+    const type = document.getElementById('webapp-type').value;
+    const scope = document.getElementById('webapp-scope').value;
+    const categorySelect = document.getElementById('webapp-category');
+    const payload = {
+        type,
+        scope,
+        category_id: scope === 'category' ? Number(categorySelect.value) : null,
+        action_enabled: document.getElementById('webapp-enabled').checked,
+        action_label: document.getElementById('webapp-label').value || null,
+        min_selected: Number(document.getElementById('webapp-min-selected').value) || 0,
+    };
+    try {
+        await fetchJson('/api/adminsite/webapp-settings', { method: 'PUT', body: payload });
+        showMessage(document.getElementById('status-webapp'), 'Настройки сохранены');
+        await loadWebappSettings();
+    } catch (error) {
+        showMessage(document.getElementById('status-webapp'), error.message, true);
+    }
+}
+
+function setupWebappForm() {
+    document.getElementById('webapp-form').addEventListener('submit', saveWebappSettings);
+    document.getElementById('webapp-reload').addEventListener('click', loadWebappSettings);
+    document.getElementById('webapp-type').addEventListener('change', async () => {
+        populateCategoryOptions(document.getElementById('webapp-type').value);
+        await loadWebappSettings();
+    });
+    document.getElementById('webapp-scope').addEventListener('change', async () => {
+        toggleWebappCategoryVisibility();
+        await loadWebappSettings();
+    });
+    document.getElementById('webapp-category').addEventListener('change', loadWebappSettings);
+    toggleWebappCategoryVisibility();
+}
+
+async function bootstrap() {
+    setupTabs();
+    setupForms();
+    setupFilters();
+    setupSlugButtons();
+    setupWebappForm();
+    try {
+        await loadCategories('product');
+        await loadCategories('course');
+        await loadItems('product');
+        await loadItems('course');
+        await loadWebappSettings();
+        showMessage(statusGlobal, 'Данные загружены');
+    } catch (error) {
+        showMessage(statusGlobal, error.message, true);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', bootstrap);
+</script>
+</body>
+</html>
