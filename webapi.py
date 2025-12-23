@@ -211,28 +211,26 @@ def ensure_admin_static_dirs() -> bool:
     return True
 
 
-def ensure_adminsite_static_dir() -> bool:
-    """Check that AdminSite static directory exists before mounting."""
+def ensure_adminsite_static_dir() -> None:
+    """Ensure AdminSite static directory exists before mounting."""
 
-    if ADMINSITE_STATIC_DIR.exists():
-        return True
-
-    logger.error("AdminSite static directory is missing: %s", ADMINSITE_STATIC_DIR)
-    return False
+    try:
+        ADMINSITE_STATIC_PATH.mkdir(parents=True, exist_ok=True)
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning(
+            "AdminSite static directory is unavailable, continuing mount anyway: %s",
+            exc,
+        )
 
 
 app.mount("/media", StaticFiles(directory=MEDIA_ROOT), name="media")
-if ensure_adminsite_static_dir():
-    app.mount(
-        "/static",
-        # AdminSite templates rely on url_for('static', path='adminsite/...').
-        LoggingStaticFiles(directory=str(ADMINSITE_STATIC_PATH)),
-        name="static",
-    )
-else:  # pragma: no cover - defensive
-    raise RuntimeError(
-        f"Static dir not found or unreadable: {ADMINSITE_STATIC_PATH}"
-    )
+ensure_adminsite_static_dir()
+app.mount(
+    "/static",
+    # AdminSite templates rely on url_for('static', path='adminsite/...').
+    LoggingStaticFiles(directory=str(ADMINSITE_STATIC_PATH), check_dir=False),
+    name="static",
+)
 app.mount("/css", StaticFiles(directory=WEBAPP_DIR / "css"), name="css")
 app.mount("/js", StaticFiles(directory=WEBAPP_DIR / "js"), name="js")
 if ensure_admin_static_dirs():
