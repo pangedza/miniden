@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}AdminSite{% endblock %}</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='adminsite/base.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', path='adminsite/base.css') }}">
     {% block head_extra %}{% endblock %}
 </head>
 <body class="{{ body_class | default('') }}">
