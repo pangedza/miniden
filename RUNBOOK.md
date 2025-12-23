@@ -3,7 +3,7 @@
 ## Services and entrypoints
 - Backend app: `webapi:app` (FastAPI), launched by `uvicorn`.
 - Systemd unit template: `deploy/miniden-api.service`.
-- Nginx config template: `deploy/miniden-nginx.conf`.
+- Nginx config template: `deploy/nginx/miniden.conf` (single source of truth).
 
 ## Deploy / update steps
 1. Upload the repository to `/opt/miniden` on the server (including updated templates and static files).
@@ -20,9 +20,9 @@
    sudo systemctl enable miniden-api.service
    sudo systemctl restart miniden-api.service
    ```
-4. Deploy nginx config:
+4. Deploy nginx config (or run `/opt/miniden/deploy.sh`):
    ```bash
-   sudo cp /opt/miniden/deploy/miniden-nginx.conf /etc/nginx/sites-available/miniden.conf
+   sudo cp /opt/miniden/deploy/nginx/miniden.conf /etc/nginx/sites-available/miniden.conf
    sudo ln -sf /etc/nginx/sites-available/miniden.conf /etc/nginx/sites-enabled/miniden.conf
    sudo nginx -t
    sudo systemctl reload nginx

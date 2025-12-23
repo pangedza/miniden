@@ -214,16 +214,13 @@ def ensure_admin_static_dirs() -> bool:
 
 
 def ensure_adminsite_static_dir() -> bool:
-    try:
-        ADMINSITE_STATIC_ROOT.mkdir(parents=True, exist_ok=True)
-        ADMINSITE_STATIC_DIR.mkdir(parents=True, exist_ok=True)
-    except Exception as exc:  # pragma: no cover - defensive
-        logger.warning(
-            "AdminSite static directory is unavailable, skipping mount: %s", exc
-        )
-        return False
+    """Check that AdminSite static directory exists before mounting."""
 
-    return True
+    if ADMINSITE_STATIC_DIR.exists():
+        return True
+
+    logger.error("AdminSite static directory is missing: %s", ADMINSITE_STATIC_DIR)
+    return False
 
 
 app.mount("/media", StaticFiles(directory=MEDIA_ROOT), name="media")
@@ -235,8 +232,8 @@ if ensure_adminsite_static_dir():
         name="static",
     )
 else:  # pragma: no cover - defensive
-    logger.warning(
-        "AdminSite static will not be served because the directory is missing or unreadable."
+    raise RuntimeError(
+        f"Static dir not found or unreadable: {ADMINSITE_STATIC_PATH}"
     )
 app.mount("/css", StaticFiles(directory=WEBAPP_DIR / "css"), name="css")
 app.mount("/js", StaticFiles(directory=WEBAPP_DIR / "js"), name="js")
