@@ -221,5 +221,5 @@
 </section>
 {% endblock %}
 {% block scripts %}
-    <script type="module" src="/static/adminsite/constructor.js"></script>
+    <script type="module" src="{{ url_for('static', path='adminsite/constructor.js') }}"></script>
 {% endblock %}
