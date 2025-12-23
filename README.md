@@ -213,6 +213,10 @@ location /api/ {
 }
 ```
 
+В продакшене эталонный конфиг лежит в `deploy/nginx/miniden.conf` и на деплое
+копируется в `/etc/nginx/sites-available/miniden.conf` (с symlink в
+`sites-enabled`). Редактировать следует только исходный файл в репозитории.
+
 Пример systemd unit для фонового запуска backend'а (`/etc/systemd/system/miniden-api.service`):
 
 ```

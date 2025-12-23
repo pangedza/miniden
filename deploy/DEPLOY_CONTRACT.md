@@ -5,7 +5,7 @@
 - код API
 - код Telegram-бота
 - webapp (HTML/JS/CSS) для раздачи nginx
-- эталонные server-конфиги (deploy/nginx и deploy/systemd)
+- эталонные server-конфиги (deploy/nginx/miniden.conf и deploy/systemd)
 
 ## Одна команда деплоя на сервере
 sudo /opt/miniden/deploy.sh
@@ -18,7 +18,12 @@ sudo /opt/miniden/deploy.sh
 - systemd units -> /etc/systemd/system/
 - restart: miniden-api, miniden-bot
 - reload: nginx
-- post-check: curl http://127.0.0.1:8000/api/health
+- post-checks (деплой падает, если любая проверка не прошла):
+  - curl http://127.0.0.1:8000/adminsite/
+  - curl http://127.0.0.1:8000/static/adminsite/base.css
+  - curl http://127.0.0.1:8000/static/adminsite/constructor.js
+  - curl -I https://miniden.ru/adminsite/
+  - curl -I https://miniden.ru/static/adminsite/constructor.js (Content-Type не text/html)
 
 ## Что деплой НЕ ИМЕЕТ ПРАВА трогать
 - /opt/miniden/.env

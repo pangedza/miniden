@@ -11,4 +11,5 @@ from fastapi.templating import Jinja2Templates
 
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATES = Jinja2Templates(directory=str(BASE_DIR / "templates"))
-STATIC_DIR = BASE_DIR / "static"
+# Все статические ассеты AdminSite/constructor лежат в admin_panel/adminsite/static
+STATIC_DIR = BASE_DIR / "adminsite" / "static"

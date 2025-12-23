@@ -84,9 +84,7 @@ from schemas.home import HomeBlockIn, HomePostIn, HomeSectionIn
 
 
 BASE_DIR = Path(__file__).resolve().parent
-ADMINSITE_STATIC_PATH = (
-    BASE_DIR / "admin_panel" / "adminsite" / "static"
-).resolve()
+ADMINSITE_STATIC_PATH = ADMINSITE_STATIC_ROOT.resolve()
 WEBAPP_DIR = BASE_DIR / "webapp"
 STATIC_DIR_PUBLIC = BASE_DIR / "static"
 setup_logging(log_file=API_LOG_FILE)
