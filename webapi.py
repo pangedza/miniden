@@ -95,6 +95,14 @@ app = FastAPI(title="MiniDeN Web API", version="1.0.0")
 
 logger = logging.getLogger(__name__)
 
+
+class LoggingStaticFiles(StaticFiles):
+    """StaticFiles wrapper to log each incoming request path."""
+
+    async def get_response(self, path: str, scope):  # type: ignore[override]
+        logger.info("[static] request path=%s", scope.get("path"))
+        return await super().get_response(path, scope)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -223,7 +231,7 @@ if ensure_adminsite_static_dir():
     app.mount(
         "/static",
         # AdminSite templates rely on url_for('static', path='adminsite/...').
-        StaticFiles(directory=str(ADMINSITE_STATIC_PATH)),
+        LoggingStaticFiles(directory=str(ADMINSITE_STATIC_PATH)),
         name="static",
     )
 else:  # pragma: no cover - defensive
@@ -245,6 +253,7 @@ else:  # pragma: no cover - defensive
     logger.warning(
         "Admin static will not be served because the directory is missing or unreadable."
     )
+# Keep admin/site routers below static mounts so catch-all paths never override /static.
 app.include_router(admin_auth.router)
 app.include_router(adminbot.router)
 app.include_router(adminsite.router)
