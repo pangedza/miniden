@@ -1,17 +1,19 @@
 """Маршруты AdminSite."""
 
 from datetime import datetime
+import logging
+import traceback
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
-from admin_panel import TEMPLATES
 from admin_panel.dependencies import (
     SESSION_COOKIE_NAME,
     get_db_session,
     require_admin,
 )
+from admin_panel.adminsite import TEMPLATES
 from admin_panel.routes import auth as auth_routes
 from models.admin_user import AdminRole
 from services import auth as auth_service
@@ -19,6 +21,7 @@ from services import auth as auth_service
 router = APIRouter(prefix="/adminsite", tags=["AdminSite"])
 
 
+logger = logging.getLogger(__name__)
 ALLOWED_ROLES = (AdminRole.superadmin, AdminRole.admin_site)
 
 
@@ -29,7 +32,7 @@ def _login_redirect() -> RedirectResponse:
 @router.get("/login")
 async def login_form(request: Request):
     return TEMPLATES.TemplateResponse(
-        "adminsite/login.html",
+        "login.html",
         {
             "request": request,
             "error": None,
@@ -54,7 +57,7 @@ async def login(
     user = auth_service.authenticate_admin(db, username or "", password or "")
     if not user:
         return TEMPLATES.TemplateResponse(
-            "adminsite/login.html",
+            "login.html",
             {
                 "request": request,
                 "error": "Неверный логин или пароль",
@@ -82,13 +85,18 @@ async def login(
 async def dashboard(
     request: Request, db: Session = Depends(get_db_session)
 ):
-    user = require_admin(request, db, roles=ALLOWED_ROLES)
-    if not user:
-        return _login_redirect()
+    try:
+        user = require_admin(request, db, roles=ALLOWED_ROLES)
+        if not user:
+            return _login_redirect()
 
-    return TEMPLATES.TemplateResponse(
-        "adminsite/dashboard.html", {"request": request, "user": user}
-    )
+        return TEMPLATES.TemplateResponse(
+            "dashboard.html", {"request": request, "user": user}
+        )
+    except Exception:  # noqa: WPS329 - log full traceback for diagnostics
+        logger.exception("Failed to render /adminsite dashboard")
+        print(traceback.format_exc())
+        raise
 
 
 @router.get("/logout")
@@ -105,5 +113,5 @@ async def constructor(
         return _login_redirect()
 
     return TEMPLATES.TemplateResponse(
-        "adminsite/constructor.html", {"request": request, "user": user}
+        "constructor.html", {"request": request, "user": user}
     )
