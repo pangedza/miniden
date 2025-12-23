@@ -77,12 +77,19 @@ fi
 
 log "-> Install nginx config: $NGINX_SRC -> $NGINX_DST"
 if [ -f "$NGINX_SRC" ]; then
-  sudo cp -f "$NGINX_SRC" "$NGINX_DST"
-  sudo ln -sf "$NGINX_DST" "$NGINX_ENABLED_DST"
+  log "-> Backing up current nginx config (if exists)"
+  sudo cp -a "$NGINX_DST" "$NGINX_DST.bak.$(date +%F_%H%M%S)" || true
+
+  sudo install -m 0644 "$NGINX_SRC" "$NGINX_DST"
+  sudo ln -sfn "$NGINX_DST" "$NGINX_ENABLED_DST"
+
+  log "-> Guard: verifying https listener is present"
+  sudo grep -q 'listen 443 ssl' "$NGINX_DST" || fail_with_logs "nginx config does not contain https listener"
+
   log "-> nginx config test"
   sudo nginx -t
-  log "-> Reload nginx"
-  sudo systemctl reload nginx
+  log "-> Reload systemd configuration"
+  sudo systemctl daemon-reload
   log "-> Active nginx config: $(sudo readlink -f "$NGINX_ENABLED_DST")"
 else
   fail_with_logs "nginx source config not found: $NGINX_SRC"
@@ -96,6 +103,9 @@ for service_name in miniden-api miniden-bot; do
   sudo systemctl status "$service_name" --no-pager || warn "status check failed for $service_name"
 
 done
+
+log "-> Reload nginx"
+sudo systemctl reload nginx
 
 log "-> Post-deploy healthchecks (local)"
 check_http_ok "http://127.0.0.1:8000/adminsite/"
