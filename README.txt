@@ -117,6 +117,12 @@ AdminSite UI / шаблоны
   - `/adminsite/constructor` (конструктор витрины)
   - `/static/adminsite/constructor.js` (JS возвращается с корректным Content-Type)
 
+AdminSite Static
+----------------
+- FastAPI монтирует `/static` напрямую на `admin_panel/adminsite/static`, чтобы `url_for('static', filename='adminsite/...')` работал во всех шаблонах AdminSite.
+- Каталоги создаются при старте приложения; в `static/adminsite/` лежат `base.css` и `constructor.js`, доступные по URL `/static/adminsite/base.css` и `/static/adminsite/constructor.js`.
+- Если сервер отдаёт 500 на `/adminsite/`, проверьте, что маршрут `static` зарегистрирован (`GET /api/adminsite/debug/routes`) и что `admin_panel/adminsite/static` существует на диске.
+
 Логи AdminBot
 -------------
 - Каталог логов: `/opt/miniden/logs` (создаётся автоматически при старте приложений).
