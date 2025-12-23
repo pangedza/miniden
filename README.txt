@@ -131,6 +131,10 @@ Production деплой одной командой
 - JS конструктора подключается по пути `/static/adminsite/constructor.js`; при корректной настройке сервер отдаёт сам JS-код, а не HTML.
 - Быстрая проверка API: `GET /api/adminsite/health` (ожидается `{ "ok": true }`).
 - На странице `/adminsite/constructor` вверху отображается статусный блок: «JS: LOADED» появляется после выполнения `constructor.js`, «API: OK» — после успешного ответа health-checkа. Ошибки API (например, 401/403/500 или не-JSON ответы) показываются там же.
+- Nginx должен проксировать `/static/` в backend до fallback на `/index.html`. Эталонный блок (см. `deploy/nginx/miniden.conf`):
+  - `location ^~ /static/ { proxy_pass http://127.0.0.1:8000; ... }`
+  - после применения конфигурации `curl -I https://<host>/static/adminsite/constructor.js` должен отдавать `Content-Type: application/javascript`, а не HTML.
+  - контрольный эндпоинт: `GET /api/adminsite/debug/static` возвращает путь и факт наличия `constructor.js` на сервере.
 
 Фронтенд-оболочка
 ------------------
