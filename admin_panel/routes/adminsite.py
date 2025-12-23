@@ -13,7 +13,12 @@ from admin_panel.dependencies import (
     get_db_session,
     require_admin,
 )
-from admin_panel.adminsite import TEMPLATES
+from admin_panel.adminsite import (
+    ADMINSITE_CONSTRUCTOR_PATH,
+    ADMINSITE_STATIC_DIR,
+    ADMINSITE_STATIC_ROOT,
+    TEMPLATES,
+)
 from admin_panel.routes import auth as auth_routes
 from models.admin_user import AdminRole
 from services import auth as auth_service
@@ -27,6 +32,17 @@ ALLOWED_ROLES = (AdminRole.superadmin, AdminRole.admin_site)
 
 def _login_redirect() -> RedirectResponse:
     return RedirectResponse(url="/adminsite/login?next=/adminsite", status_code=303)
+
+
+@router.get("/_debug_static")
+async def debug_static_assets() -> dict[str, str | bool]:
+    base_css = ADMINSITE_STATIC_DIR / "base.css"
+    constructor_js = ADMINSITE_CONSTRUCTOR_PATH
+    return {
+        "static_root": str(ADMINSITE_STATIC_ROOT),
+        "base_css_exists": base_css.exists(),
+        "constructor_js_exists": constructor_js.exists(),
+    }
 
 
 @router.get("/login")
