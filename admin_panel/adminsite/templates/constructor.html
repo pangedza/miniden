@@ -1,4 +1,4 @@
-{% extends "adminsite/base_adminsite.html" %}
+{% extends "base_adminsite.html" %}
 {% block title %}AdminSite Конструктор{% endblock %}
 {% block head_extra %}
     <link rel="stylesheet" href="{{ url_for('static', filename='adminsite/constructor.css') }}">
@@ -221,5 +221,5 @@
 </section>
 {% endblock %}
 {% block scripts %}
-    <script type="module" src="{{ url_for('static', filename='adminsite/constructor.js') }}"></script>
+    <script type="module" src="/static/adminsite/constructor.js"></script>
 {% endblock %}

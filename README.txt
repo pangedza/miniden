@@ -103,10 +103,19 @@ Production деплой одной командой
 
 AdminSite UI / шаблоны
 ----------------------
-- Базовый макет и меню AdminSite: `admin_panel/templates/adminsite/base_adminsite.html` (подключает `adminsite/base.css`, навигация AdminBot | AdminSite | Админы | Профиль | Выход).
-- Страницы AdminSite используют собственные шаблоны и стили: `dashboard.html`, `constructor.html`, `login.html` в каталоге `admin_panel/templates/adminsite/`.
-- Общий UI-kit (карточки, таблицы, кнопки, адаптивность): `admin_panel/adminsite/static/adminsite/base.css`; страница конструктора дополняет его стилями `constructor.css` и логикой `constructor.js`.
-- Статика AdminSite доступна по пути `/static/adminsite/...`; подключайте файлы через `url_for('static', filename='adminsite/<имя>')`, чтобы избежать 404.
+- Жёсткая структура AdminSite:
+  - `admin_panel/adminsite/templates/base_adminsite.html`
+  - `admin_panel/adminsite/templates/dashboard.html`
+  - `admin_panel/adminsite/templates/constructor.html`
+  - `admin_panel/adminsite/templates/login.html`
+  - `admin_panel/adminsite/static/adminsite/*` (base.css, constructor.css/js, apiClient.js, modals.js)
+- Макет `base_adminsite.html` подключает `/static/adminsite/base.css` и навигацию AdminBot | AdminSite | Админы | Профиль | Выход.
+- Страница конструктора подключает JS по абсолютному пути `/static/adminsite/constructor.js` (отдаётся как JavaScript, не как HTML).
+- Рабочие URL после поднятия приложения и nginx:
+  - `/adminsite/` (дашборд админки)
+  - `/adminsite/login` (форма входа)
+  - `/adminsite/constructor` (конструктор витрины)
+  - `/static/adminsite/constructor.js` (JS возвращается с корректным Content-Type)
 
 Логи AdminBot
 -------------
@@ -141,7 +150,7 @@ AdminSite UI / шаблоны
 - Nginx должен проксировать `/static/` в backend до fallback на `/index.html`. Эталонный блок (см. `deploy/nginx/miniden.conf`):
   - `location ^~ /static/ { proxy_pass http://127.0.0.1:8000; ... }`
   - после применения конфигурации `curl -I https://<host>/static/adminsite/constructor.js` должен отдавать `Content-Type: application/javascript`, а не HTML.
-  - контрольный эндпоинт: `GET /api/adminsite/debug/static` возвращает путь и факт наличия `constructor.js` на сервере.
+  - контрольные эндпоинты: `GET /api/adminsite/debug/static` (путь/наличие constructor.js) и `GET /api/adminsite/debug/routes` (список зарегистрированных маршрутов).
 
 Фронтенд-оболочка
 ------------------
@@ -227,7 +236,7 @@ AdminSite API (категории, товары/курсы, настройки W
 AdminPanel/adminsite: страницы конструктора
 -------------------------------------------
 - Маршрут `/adminsite/constructor` открывает новый раздел "AdminSite Конструктор" с вкладками для CRUD категорий и элементов, а также настройки красной WebApp-кнопки.
-- Шаблон: `admin_panel/templates/adminsite/constructor.html` (вкладки, таблицы, форма WebApp).
+- Шаблон: `admin_panel/adminsite/templates/constructor.html` (вкладки, таблицы, форма WebApp).
 - Статические модули:
   - `admin_panel/adminsite/static/adminsite/apiClient.js` — обёртка над fetch с разбором ошибок.
   - `admin_panel/adminsite/static/adminsite/modals.js` — компоненты CategoryModal и ItemModal с блокировкой кнопок на время сохранения.

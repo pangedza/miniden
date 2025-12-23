@@ -41,7 +41,12 @@ from pydantic import Field
 from sqlalchemy.orm import Session
 
 from admin_panel import STATIC_DIR
-from admin_panel.adminsite import router as adminsite_api_router
+from admin_panel.adminsite import (
+    ADMINSITE_CONSTRUCTOR_PATH,
+    ADMINSITE_STATIC_DIR,
+    ADMINSITE_STATIC_ROOT,
+    router as adminsite_api_router,
+)
 from admin_panel.routes import adminbot, adminsite
 from admin_panel.routes import auth as admin_auth
 from admin_panel.routes import users as admin_users
@@ -81,10 +86,6 @@ from schemas.home import HomeBlockIn, HomePostIn, HomeSectionIn
 BASE_DIR = Path(__file__).resolve().parent
 WEBAPP_DIR = BASE_DIR / "webapp"
 STATIC_DIR_PUBLIC = BASE_DIR / "static"
-ADMIN_SITE_STATIC_ROOT = Path(__file__).resolve().parent / "admin_panel" / "adminsite" / "static"
-ADMIN_SITE_STATIC_DIR = ADMIN_SITE_STATIC_ROOT / "adminsite"
-ADMIN_SITE_CONSTRUCTOR_PATH = ADMIN_SITE_STATIC_DIR / "constructor.js"
-
 setup_logging(log_file=API_LOG_FILE)
 
 app = FastAPI(title="MiniDeN Web API", version="1.0.0")
@@ -203,8 +204,8 @@ def ensure_admin_static_dirs() -> bool:
 
 def ensure_adminsite_static_dir() -> bool:
     try:
-        ADMIN_SITE_STATIC_ROOT.mkdir(parents=True, exist_ok=True)
-        ADMIN_SITE_STATIC_DIR.mkdir(parents=True, exist_ok=True)
+        ADMINSITE_STATIC_ROOT.mkdir(parents=True, exist_ok=True)
+        ADMINSITE_STATIC_DIR.mkdir(parents=True, exist_ok=True)
     except Exception as exc:  # pragma: no cover - defensive
         logger.warning(
             "AdminSite static directory is unavailable, skipping mount: %s", exc
@@ -218,7 +219,7 @@ app.mount("/media", StaticFiles(directory=MEDIA_ROOT), name="media")
 if ensure_adminsite_static_dir():
     app.mount(
         "/static",
-        StaticFiles(directory=str(ADMIN_SITE_STATIC_ROOT.resolve())),
+        StaticFiles(directory=str(ADMINSITE_STATIC_ROOT.resolve())),
         name="static",
     )
 else:  # pragma: no cover - defensive
@@ -431,11 +432,11 @@ def startup_event() -> None:
     ensure_media_dirs()
     init_db()
 
-    static_dir = ADMIN_SITE_STATIC_ROOT.resolve()
+    static_dir = ADMINSITE_STATIC_ROOT.resolve()
     logger.info(
         "AdminSite static root: %s (constructor.js exists=%s)",
         static_dir,
-        ADMIN_SITE_CONSTRUCTOR_PATH.exists(),
+        ADMINSITE_CONSTRUCTOR_PATH.exists(),
     )
 
 
@@ -480,8 +481,8 @@ def api_health():
 
 @app.get("/api/adminsite/debug/static")
 def adminsite_debug_static():
-    static_dir = ADMIN_SITE_STATIC_ROOT.resolve()
-    constructor_path = ADMIN_SITE_CONSTRUCTOR_PATH.resolve()
+    static_dir = ADMINSITE_STATIC_ROOT.resolve()
+    constructor_path = ADMINSITE_CONSTRUCTOR_PATH.resolve()
 
     return {
         "static_mount": "/static",
@@ -490,6 +491,14 @@ def adminsite_debug_static():
         "constructor_path": str(constructor_path),
         "constructor_exists": constructor_path.exists(),
     }
+
+
+@app.get("/api/adminsite/debug/routes")
+def adminsite_debug_routes():
+    return [
+        {"path": getattr(route, "path", ""), "name": getattr(route, "name", "")}
+        for route in app.routes
+    ]
 
 
 @app.get("/api/faq")
