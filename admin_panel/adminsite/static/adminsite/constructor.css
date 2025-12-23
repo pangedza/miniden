@@ -1,24 +1,4 @@
-:root {
-    --bg: #0b1220;
-    --card: #0f172a;
-    --border: #1e293b;
-    --primary: #a855f7;
-    --primary-dark: #7c3aed;
-    --text: #e5e7eb;
-    --muted: #9ca3af;
-    --danger: #f87171;
-    --success: #34d399;
-    --accent: #38bdf8;
-}
-
-* { box-sizing: border-box; }
-
-body {
-    font-family: Arial, sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    margin: 0;
-}
+@import url("./base.css");
 
 #constructor-status-bar {
     background: #0f172a;

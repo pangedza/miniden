@@ -1,51 +1,47 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <title>AdminSite Конструктор</title>
-    <link rel="stylesheet" href="/static/adminsite/constructor.css">
-</head>
-<body>
-<header>
-    <div class="flex" style="gap:14px;">
-        <div style="font-size:20px; font-weight:bold;">AdminSite Конструктор</div>
-        <span class="pill">{{ user.username }}</span>
-    </div>
-    <div class="nav">
-        <a href="/adminbot">AdminBot</a>
-        <a href="/adminsite">AdminSite</a>
-        <a href="/admin/users">Админы</a>
-        <a href="/admin/profile">Профиль</a>
-        <form method="post" action="/logout" style="margin:0;">
-            <button class="btn-secondary" type="submit">Выйти</button>
-        </form>
-    </div>
-</header>
+{% extends "adminsite/base_adminsite.html" %}
+{% block title %}AdminSite Конструктор{% endblock %}
+{% block head_extra %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='adminsite/constructor.css') }}">
+{% endblock %}
+{% block content %}
 <div id="constructor-status-bar"></div>
-<main>
-    <h1>Категории, элементы и WebApp кнопка</h1>
-    <p class="muted">Управляйте категориями и элементами витрины. Используйте вкладку «WebApp кнопка», чтобы настроить действие красной кнопки.</p>
-
-    <div id="global-status" class="status"></div>
-
-    <div class="tabs">
-        <button class="tab active" data-tab="categories-product">Категории товаров</button>
-        <button class="tab" data-tab="categories-course">Категории мастер-классов</button>
-        <button class="tab" data-tab="items-product">Товары</button>
-        <button class="tab" data-tab="items-course">Мастер-классы</button>
-        <button class="tab" data-tab="webapp">WebApp кнопка</button>
+<div class="page-actions" style="justify-content: space-between; align-items:flex-start; gap:16px;">
+    <div>
+        <h1>Категории, элементы и WebApp кнопка</h1>
+        <p class="muted">Управляйте категориями и элементами витрины. Используйте вкладку «WebApp кнопка», чтобы настроить действие красной кнопки.</p>
     </div>
+    <div class="notice" style="max-width: 360px;">
+        <div class="badge-list">
+            <span class="tag">Категории</span>
+            <span class="tag">Товары</span>
+            <span class="tag">Мастер-классы</span>
+            <span class="tag">WebApp</span>
+        </div>
+        <p style="margin-top:10px;">Все изменения сохраняются через API AdminSite без перезагрузки страницы.</p>
+    </div>
+</div>
 
-    <section class="panel active" id="panel-categories-product">
-        <div class="card">
-            <div class="table-top">
-                <div>
-                    <h3 style="margin:0;">Категории товаров</h3>
-                    <p class="muted">Slug можно оставить пустым — сервер сгенерирует его.</p>
-                </div>
-                <button id="category-create-product" class="btn-primary" type="button">Создать</button>
+<div id="global-status" class="status"></div>
+
+<div class="tabs">
+    <button class="tab active" data-tab="categories-product">Категории товаров</button>
+    <button class="tab" data-tab="categories-course">Категории мастер-классов</button>
+    <button class="tab" data-tab="items-product">Товары</button>
+    <button class="tab" data-tab="items-course">Мастер-классы</button>
+    <button class="tab" data-tab="webapp">WebApp кнопка</button>
+</div>
+
+<section class="panel active" id="panel-categories-product">
+    <div class="card">
+        <div class="table-top">
+            <div>
+                <h3 style="margin:0;">Категории товаров</h3>
+                <p class="muted">Slug можно оставить пустым — сервер сгенерирует его.</p>
             </div>
-            <div class="status" id="status-categories-product"></div>
+            <button id="category-create-product" class="btn-primary" type="button">Создать</button>
+        </div>
+        <div class="status" id="status-categories-product"></div>
+        <div class="table-wrapper">
             <table>
                 <thead>
                 <tr>
@@ -61,18 +57,20 @@
                 <tbody id="categories-list-product"></tbody>
             </table>
         </div>
-    </section>
+    </div>
+</section>
 
-    <section class="panel" id="panel-categories-course">
-        <div class="card">
-            <div class="table-top">
-                <div>
-                    <h3 style="margin:0;">Категории мастер-классов</h3>
-                    <p class="muted">Для типа course: slug можно оставить пустым.</p>
-                </div>
-                <button id="category-create-course" class="btn-primary" type="button">Создать</button>
+<section class="panel" id="panel-categories-course">
+    <div class="card">
+        <div class="table-top">
+            <div>
+                <h3 style="margin:0;">Категории мастер-классов</h3>
+                <p class="muted">Для типа course: slug можно оставить пустым.</p>
             </div>
-            <div class="status" id="status-categories-course"></div>
+            <button id="category-create-course" class="btn-primary" type="button">Создать</button>
+        </div>
+        <div class="status" id="status-categories-course"></div>
+        <div class="table-wrapper">
             <table>
                 <thead>
                 <tr>
@@ -88,22 +86,24 @@
                 <tbody id="categories-list-course"></tbody>
             </table>
         </div>
-    </section>
+    </div>
+</section>
 
-    <section class="panel" id="panel-items-product">
-        <div class="card">
-            <div class="table-top">
-                <div>
-                    <h3 style="margin:0;">Товары</h3>
-                    <p class="muted">CRUD для элементов типа product.</p>
-                </div>
-                <div class="flex">
-                    <input type="search" id="items-search-product" class="search-input" placeholder="Поиск по названию">
-                    <select id="items-filter-product"></select>
-                    <button id="item-create-product" class="btn-primary" type="button">Создать</button>
-                </div>
+<section class="panel" id="panel-items-product">
+    <div class="card">
+        <div class="table-top">
+            <div>
+                <h3 style="margin:0;">Товары</h3>
+                <p class="muted">CRUD для элементов типа product.</p>
             </div>
-            <div class="status" id="status-items-product"></div>
+            <div class="action-links">
+                <input type="search" id="items-search-product" class="search-input" placeholder="Поиск по названию">
+                <select id="items-filter-product"></select>
+                <button id="item-create-product" class="btn-primary" type="button">Создать</button>
+            </div>
+        </div>
+        <div class="status" id="status-items-product"></div>
+        <div class="table-wrapper">
             <table>
                 <thead>
                 <tr>
@@ -119,22 +119,24 @@
                 <tbody id="items-list-product"></tbody>
             </table>
         </div>
-    </section>
+    </div>
+</section>
 
-    <section class="panel" id="panel-items-course">
-        <div class="card">
-            <div class="table-top">
-                <div>
-                    <h3 style="margin:0;">Мастер-классы</h3>
-                    <p class="muted">CRUD для элементов типа course.</p>
-                </div>
-                <div class="flex">
-                    <input type="search" id="items-search-course" class="search-input" placeholder="Поиск по названию">
-                    <select id="items-filter-course"></select>
-                    <button id="item-create-course" class="btn-primary" type="button">Создать</button>
-                </div>
+<section class="panel" id="panel-items-course">
+    <div class="card">
+        <div class="table-top">
+            <div>
+                <h3 style="margin:0;">Мастер-классы</h3>
+                <p class="muted">CRUD для элементов типа course.</p>
             </div>
-            <div class="status" id="status-items-course"></div>
+            <div class="action-links">
+                <input type="search" id="items-search-course" class="search-input" placeholder="Поиск по названию">
+                <select id="items-filter-course"></select>
+                <button id="item-create-course" class="btn-primary" type="button">Создать</button>
+            </div>
+        </div>
+        <div class="status" id="status-items-course"></div>
+        <div class="table-wrapper">
             <table>
                 <thead>
                 <tr>
@@ -150,63 +152,74 @@
                 <tbody id="items-list-course"></tbody>
             </table>
         </div>
-    </section>
+    </div>
+</section>
 
-    <section class="panel" id="panel-webapp">
-        <div class="card" style="max-width:880px;">
-            <div class="table-top">
-                <div>
-                    <h3 style="margin:0;">WebApp кнопка</h3>
-                    <p class="muted">Переключатели type/scope и действие красной кнопки.</p>
-                </div>
-                <button id="webapp-reload" class="btn-secondary" type="button">Обновить</button>
+<section class="panel" id="panel-webapp">
+    <div class="card">
+        <div class="table-top">
+            <div>
+                <h3 style="margin:0;">WebApp кнопка</h3>
+                <p class="muted">Настройка действия красной кнопки WebApp.</p>
             </div>
-            <div class="status" id="status-webapp"></div>
-            <form id="webapp-form">
-                <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));">
-                    <div>
-                        <label>Тип
-                            <select name="type" id="webapp-type">
-                                <option value="product">product</option>
-                                <option value="course">course</option>
-                            </select>
-                        </label>
-                    </div>
-                    <div>
-                        <label>Scope
-                            <select name="scope" id="webapp-scope">
-                                <option value="global">global</option>
-                                <option value="category">category</option>
-                            </select>
-                        </label>
-                    </div>
-                    <div id="webapp-category-wrapper">
-                        <label>Категория
-                            <select name="category_id" id="webapp-category"></select>
-                        </label>
-                    </div>
-                    <div>
-                        <label>Label
-                            <input type="text" name="action_label" id="webapp-label" placeholder="Оформить" />
-                        </label>
-                    </div>
-                    <div>
-                        <label>Минимум выбранных
-                            <input type="number" name="min_selected" id="webapp-min-selected" min="0" value="1" />
-                        </label>
-                    </div>
-                    <div style="display:flex; align-items:center; gap:8px; margin-top:26px;">
-                        <input type="checkbox" id="webapp-enabled" />
-                        <label for="webapp-enabled" class="muted">action_enabled</label>
-                    </div>
-                </div>
-                <div class="actions" style="margin-top:18px;">
-                    <button class="btn-primary" type="submit">Сохранить</button>
-                </div>
-            </form>
+            <div class="badge-list">
+                <span class="tag">button_text</span>
+                <span class="tag">scope</span>
+                <span class="tag">action</span>
+            </div>
         </div>
-    </section>
-</main>
-<script type="module" src="/static/adminsite/constructor.js"></script>
-</body>
-</html>
+        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:14px;">
+            <div class="card" style="padding:14px;">
+                <form id="webapp-form">
+                    <label>Текст кнопки
+                        <input type="text" name="button_text" id="webapp-button-text" required />
+                    </label>
+                    <label>Описание действия
+                        <textarea name="action_description" id="webapp-action-description"></textarea>
+                    </label>
+                    <label>Scope
+                        <select name="scope" id="webapp-scope">
+                            <option value="global">global</option>
+                            <option value="category">category</option>
+                        </select>
+                    </label>
+                    <div class="form-row">
+                        <label>Type
+                            <select name="type" id="webapp-type">
+                                <option value="open_catalog">open_catalog</option>
+                                <option value="open_category">open_category</option>
+                            </select>
+                        </label>
+                        <label>Category
+                            <input type="number" name="category_id" id="webapp-category-id" min="1" />
+                        </label>
+                    </div>
+                    <div class="form-row">
+                        <div>
+                            <label>Минимум выбранных
+                                <input type="number" name="min_selected" id="webapp-min-selected" min="0" value="1" />
+                            </label>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:8px; margin-top:26px;">
+                            <input type="checkbox" id="webapp-enabled" />
+                            <label for="webapp-enabled" class="muted">action_enabled</label>
+                        </div>
+                    </div>
+                    <div class="actions" style="margin-top:18px;">
+                        <button class="btn-primary" type="submit">Сохранить</button>
+                    </div>
+                </form>
+            </div>
+            <div class="card" style="padding:14px;">
+                <h4 style="margin-top:0;">Подсказки</h4>
+                <p class="muted">Тип действия и категория влияют на то, что откроется по кнопке. Если категория не указана, используется корневая страница витрины.</p>
+                <div class="divider"></div>
+                <p class="muted">Флаг <b>action_enabled</b> отключает кнопку без удаления настроек.</p>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+{% block scripts %}
+    <script type="module" src="{{ url_for('static', filename='adminsite/constructor.js') }}"></script>
+{% endblock %}
