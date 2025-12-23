@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}AdminSite{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='adminsite/base.css') }}">
+    {% block head_extra %}{% endblock %}
+</head>
+<body class="{{ body_class | default('') }}">
+<header class="site-header">
+    <div class="brand-area">
+        <div class="brand">AdminSite</div>
+        {% if user %}
+            <span class="pill">{{ user.username }}</span>
+        {% endif %}
+    </div>
+    <nav class="main-nav" aria-label="Главное меню">
+        <a href="/adminbot">AdminBot</a>
+        <a href="/adminsite">AdminSite</a>
+        <a href="/admin/users">Админы</a>
+        <a href="/admin/profile">Профиль</a>
+        <form method="post" action="/logout" class="logout-form">
+            <button class="btn-secondary" type="submit">Выйти</button>
+        </form>
+    </nav>
+</header>
+<main class="page-container">
+    {% block content %}{% endblock %}
+</main>
+{% block scripts %}{% endblock %}
+</body>
+</html>

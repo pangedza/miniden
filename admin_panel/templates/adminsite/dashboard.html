@@ -1,32 +1,61 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <title>AdminSite Dashboard</title>
-    <style>
-        body { font-family: Arial, sans-serif; background:#0f172a; color:#e5e7eb; margin:0; padding:0; }
-        header { background:#a855f7; color:#0b1220; padding:16px; display:flex; justify-content:space-between; align-items:center; }
-        main { padding:24px; }
-        a { color:#0b1220; text-decoration:none; font-weight:bold; }
-        .card { background:#111827; border:1px solid #1f2937; border-radius:12px; padding:20px; }
-    </style>
-</head>
-<body>
-<header>
-    <div>AdminSite Dashboard</div>
-    <div style="display:flex; gap:12px; align-items:center;">
-        <a href="/adminsite/constructor" style="color:#0b1220;">AdminSite Конструктор</a>
-        <a href="/admin/profile" style="color:#0b1220;">Профиль</a>
-        <form method="post" action="/logout" style="margin:0;">
-            <button type="submit" style="background:#0b1220; color:#a855f7; border:none; padding:8px 12px; border-radius:8px; cursor:pointer;">Выйти</button>
-        </form>
-    </div>
-</header>
-<main>
+{% extends "adminsite/base_adminsite.html" %}
+{% block title %}AdminSite Dashboard{% endblock %}
+{% block content %}
+<div class="hero">
     <div class="card">
-        <h2>Здравствуйте, {{ user.username }}!</h2>
-        <p>Здесь появятся инструменты управления сайтом. Доступ только после авторизации.</p>
+        <h1 style="margin-bottom:6px;">AdminSite</h1>
+        <p class="muted">Управляйте витриной, категориями и WebApp-кнопкой. Интерфейс повторяет подход AdminBot: единый хедер, меню и карточки.</p>
+        <div class="page-actions" style="margin-top:12px;">
+            <a class="btn-primary" href="/adminsite/constructor">Перейти в конструктор</a>
+            <a class="btn-secondary" href="/adminbot">К админке бота</a>
+        </div>
     </div>
-</main>
-</body>
-</html>
+    <div class="card">
+        <h2>Статус</h2>
+        <div class="badge-list" style="margin-bottom:12px;">
+            <span class="tag">Роль: {{ user.role }}</span>
+            <span class="tag">Логин: {{ user.username }}</span>
+        </div>
+        <p class="muted">Для доступа к разделам AdminSite достаточно роли <b>admin_site</b> или superadmin.</p>
+    </div>
+</div>
+
+<section style="margin-top:18px;">
+    <div class="card">
+        <div class="table-top">
+            <div>
+                <h2 style="margin:0;">Быстрые ссылки</h2>
+                <p class="muted">Частые действия и навигация по интерфейсу AdminSite.</p>
+            </div>
+        </div>
+        <div class="table-wrapper" style="margin-top:8px;">
+            <table>
+                <thead>
+                <tr>
+                    <th>Раздел</th>
+                    <th>Описание</th>
+                    <th>Ссылка</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr>
+                    <td>Конструктор</td>
+                    <td>Категории, товары/мастер-классы и WebApp кнопка.</td>
+                    <td><a class="btn-primary" href="/adminsite/constructor">Открыть</a></td>
+                </tr>
+                <tr>
+                    <td>Админы</td>
+                    <td>Управление администраторами (совместно с AdminBot).</td>
+                    <td><a class="btn-secondary" href="/admin/users">Перейти</a></td>
+                </tr>
+                <tr>
+                    <td>Профиль</td>
+                    <td>Смена пароля и просмотр ролей текущего пользователя.</td>
+                    <td><a class="btn-secondary" href="/admin/profile">Открыть</a></td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+{% endblock %}

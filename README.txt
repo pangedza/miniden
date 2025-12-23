@@ -101,6 +101,13 @@ Production деплой одной командой
 - /adminbot/login
 - /adminsite/login
 
+AdminSite UI / шаблоны
+----------------------
+- Базовый макет и меню AdminSite: `admin_panel/templates/adminsite/base_adminsite.html` (подключает `adminsite/base.css`, навигация AdminBot | AdminSite | Админы | Профиль | Выход).
+- Страницы AdminSite используют собственные шаблоны и стили: `dashboard.html`, `constructor.html`, `login.html` в каталоге `admin_panel/templates/adminsite/`.
+- Общий UI-kit (карточки, таблицы, кнопки, адаптивность): `admin_panel/adminsite/static/adminsite/base.css`; страница конструктора дополняет его стилями `constructor.css` и логикой `constructor.js`.
+- Статика AdminSite доступна по пути `/static/adminsite/...`; подключайте файлы через `url_for('static', filename='adminsite/<имя>')`, чтобы избежать 404.
+
 Логи AdminBot
 -------------
 - Каталог логов: `/opt/miniden/logs` (создаётся автоматически при старте приложений).

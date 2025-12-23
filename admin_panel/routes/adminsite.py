@@ -1,13 +1,20 @@
 """Маршруты AdminSite."""
 
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from admin_panel import TEMPLATES
-from admin_panel.dependencies import get_db_session, require_admin
+from admin_panel.dependencies import (
+    SESSION_COOKIE_NAME,
+    get_db_session,
+    require_admin,
+)
 from admin_panel.routes import auth as auth_routes
 from models.admin_user import AdminRole
+from services import auth as auth_service
 
 router = APIRouter(prefix="/adminsite", tags=["AdminSite"])
 
@@ -16,12 +23,19 @@ ALLOWED_ROLES = (AdminRole.superadmin, AdminRole.admin_site)
 
 
 def _login_redirect() -> RedirectResponse:
-    return RedirectResponse(url="/login?next=/adminsite", status_code=303)
+    return RedirectResponse(url="/adminsite/login?next=/adminsite", status_code=303)
 
 
 @router.get("/login")
 async def login_form(request: Request):
-    return await auth_routes.login_form(request, next="/adminsite")
+    return TEMPLATES.TemplateResponse(
+        "adminsite/login.html",
+        {
+            "request": request,
+            "error": None,
+            "next": auth_routes._normalize_next_url("/adminsite"),
+        },
+    )
 
 
 @router.post("/login")
@@ -31,9 +45,37 @@ async def login(
     password: str = Form(...),
     db: Session = Depends(get_db_session),
 ):
-    return await auth_routes.login(
-        request, username=username, password=password, next="/adminsite", db=db
+    form = await request.form()
+
+    normalized_next = auth_routes._normalize_next_url(
+        form.get("next") or "/adminsite"
     )
+
+    user = auth_service.authenticate_admin(db, username or "", password or "")
+    if not user:
+        return TEMPLATES.TemplateResponse(
+            "adminsite/login.html",
+            {
+                "request": request,
+                "error": "Неверный логин или пароль",
+                "next": normalized_next,
+            },
+            status_code=400,
+        )
+
+    session = auth_service.create_session(db, user)
+    max_age = int((session.expires_at - datetime.utcnow()).total_seconds())
+    response = RedirectResponse(url=normalized_next, status_code=303)
+    response.set_cookie(
+        SESSION_COOKIE_NAME,
+        session.token,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        max_age=max_age,
+        path="/",
+    )
+    return response
 
 
 @router.get("/")
