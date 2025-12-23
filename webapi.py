@@ -222,7 +222,8 @@ app.mount("/media", StaticFiles(directory=MEDIA_ROOT), name="media")
 if ensure_adminsite_static_dir():
     app.mount(
         "/static",
-        StaticFiles(directory=ADMINSITE_STATIC_PATH),
+        # AdminSite templates rely on url_for('static', path='adminsite/...').
+        StaticFiles(directory=str(ADMINSITE_STATIC_PATH)),
         name="static",
     )
 else:  # pragma: no cover - defensive
