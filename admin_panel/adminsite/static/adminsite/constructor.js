@@ -11,6 +11,8 @@ const diagnosticState = {
     apiMessage: 'Проверка API...',
 };
 
+const ALLOWED_TYPES = new Set(['product', 'course']);
+
 const statusBanner = document.getElementById('constructor-status-bar') || (() => {
     const banner = document.createElement('div');
     banner.id = 'constructor-status-bar';
@@ -214,6 +216,20 @@ function setStatus(targetId, message, isError = false) {
     if (message) {
         el.classList.add(isError ? 'error' : 'success');
     }
+}
+
+function normalizeWebappType(value, { statusTarget } = {}) {
+    if (ALLOWED_TYPES.has(value)) {
+        return value;
+    }
+    const fallback = 'product';
+    console.warn(
+        `[AdminSite constructor] Некорректный type для WebApp настроек: ${value}, используем ${fallback}`,
+    );
+    if (statusTarget) {
+        setStatus(statusTarget, 'Некорректный тип, переключено на product', true);
+    }
+    return fallback;
 }
 
 async function callApi(path, options) {
@@ -425,10 +441,17 @@ async function loadWebappSettings() {
         return;
     }
 
-    const type = typeSelect.value;
+    const type = normalizeWebappType(typeSelect.value, { statusTarget: 'status-webapp' });
+    if (typeSelect.value !== type) {
+        typeSelect.value = type;
+    }
     const scope = scopeSelect.value;
     const params = new URLSearchParams({ type });
-    if (scope === 'category' && categorySelect.value) {
+    if (scope === 'category') {
+        if (!categorySelect.value) {
+            setStatus('status-webapp', 'Выберите категорию для загрузки настроек', true);
+            return;
+        }
         params.append('category_id', categorySelect.value);
     }
     try {
@@ -469,8 +492,16 @@ async function saveWebappSettings(event) {
         return;
     }
 
-    const type = typeSelect.value;
+    const type = normalizeWebappType(typeSelect.value, { statusTarget: 'status-webapp' });
+    if (typeSelect.value !== type) {
+        typeSelect.value = type;
+    }
     const scope = scopeSelect.value;
+    if (scope === 'category' && !categorySelect.value) {
+        setStatus('status-webapp', 'Выберите категорию перед сохранением', true);
+        if (button) button.disabled = false;
+        return;
+    }
     const payload = {
         scope,
         type,
@@ -495,10 +526,14 @@ async function saveWebappSettings(event) {
 function toggleWebappCategory() {
     const scopeSelect = getElementOrWarn('webapp-scope');
     const wrapper = getElementOrWarn('webapp-category-wrapper');
+    const categorySelect = getElementOrWarn('webapp-category');
     if (!scopeSelect || !wrapper) return;
 
     const scope = scopeSelect.value;
     wrapper.style.display = scope === 'category' ? 'block' : 'none';
+    if (categorySelect) {
+        categorySelect.toggleAttribute('disabled', scope !== 'category');
+    }
 }
 
 function setupTabs() {
