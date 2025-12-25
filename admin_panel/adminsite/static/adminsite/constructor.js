@@ -113,6 +113,43 @@ const state = {
     },
 };
 
+const modalHistory = [];
+
+function registerModal(modal) {
+    modal.onClose(() => {
+        const idx = modalHistory.lastIndexOf(modal);
+        if (idx !== -1) {
+            modalHistory.splice(idx, 1);
+        }
+    });
+}
+
+function openTrackedModal(modal, stateId) {
+    if (!modal?.backdrop?.hidden) return;
+    modalHistory.push(modal);
+    window.history.pushState({ adminsiteModal: stateId }, '', window.location.pathname + window.location.search);
+    modal.open();
+}
+
+function closeTopModal() {
+    const modal = modalHistory.pop();
+    if (modal) {
+        modal.close();
+        return true;
+    }
+    return false;
+}
+
+window.addEventListener('popstate', () => {
+    closeTopModal();
+});
+
+document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+        closeTopModal();
+    }
+});
+
 const toastContainer = document.createElement('div');
 toastContainer.className = 'toast-container';
 document.body.appendChild(toastContainer);
@@ -443,14 +480,17 @@ const itemModals = {
     }),
 };
 
+Object.values(categoryModals).forEach(registerModal);
+Object.values(itemModals).forEach(registerModal);
+
 function openCategoryModal(type, category = null) {
     categoryModals[type].setData(category);
-    categoryModals[type].open();
+    openTrackedModal(categoryModals[type], `category-${type}-${category?.id || 'new'}`);
 }
 
 function openItemModal(type, item = null) {
     itemModals[type].setData(item, type);
-    itemModals[type].open();
+    openTrackedModal(itemModals[type], `item-${type}-${item?.id || 'new'}`);
 }
 
 function setupButtons() {

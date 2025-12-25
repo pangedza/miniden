@@ -10,6 +10,7 @@ class BaseModal {
         this.modal = createElement('<div class="modal"></div>');
         this.title = title;
         this.status = createElement('<div class="status"></div>');
+        this.onCloseHandlers = [];
         const header = createElement('<header><h3></h3></header>');
         header.querySelector('h3').textContent = title;
         this.modal.appendChild(header);
@@ -31,6 +32,19 @@ class BaseModal {
     close() {
         this.backdrop.hidden = true;
         this.showMessage('');
+        this.onCloseHandlers.forEach((handler) => {
+            try {
+                handler();
+            } catch (error) {
+                console.error('[AdminSite] modal onClose handler failed', error);
+            }
+        });
+    }
+
+    onClose(handler) {
+        if (typeof handler === 'function') {
+            this.onCloseHandlers.push(handler);
+        }
     }
 }
 
