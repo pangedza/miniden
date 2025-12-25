@@ -113,6 +113,21 @@ const state = {
     },
 };
 
+function getElementOrWarn(id) {
+    const el = document.getElementById(id);
+    if (!el) {
+        console.warn(`[AdminSite constructor] Элемент #${id} не найден, часть UI может не работать корректно.`);
+    }
+    return el;
+}
+
+function bindElement(id, event, handler) {
+    const el = getElementOrWarn(id);
+    if (!el) return null;
+    el.addEventListener(event, handler);
+    return el;
+}
+
 const modalHistory = [];
 
 function registerModal(modal) {
@@ -255,16 +270,23 @@ function renderCategoryTable(type) {
 }
 
 function renderCategorySelects(type) {
-    const filter = document.getElementById(`items-filter-${type}`);
-    const selects = [filter];
-    const webappSelect = document.getElementById('webapp-category');
-    const webappType = document.getElementById('webapp-type');
-    if (webappSelect && webappType.value === type) {
+    if (!type || !state.categories[type]) {
+        console.warn(`[AdminSite constructor] Неизвестный тип для категорий: ${type}`);
+        return;
+    }
+
+    const filter = getElementOrWarn(`items-filter-${type}`);
+    const selects = [];
+    if (filter) {
+        selects.push(filter);
+    }
+    const webappSelect = getElementOrWarn('webapp-category');
+    const webappType = getElementOrWarn('webapp-type');
+    if (webappSelect && webappType && webappType.value === type) {
         selects.push(webappSelect);
     }
 
     selects.forEach((select) => {
-        if (!select) return;
         select.innerHTML = '';
         if (select === filter) {
             const allOption = document.createElement('option');
@@ -394,23 +416,37 @@ async function upsertItem(type, payload) {
 }
 
 async function loadWebappSettings() {
-    const type = document.getElementById('webapp-type').value;
-    const scope = document.getElementById('webapp-scope').value;
-    const categorySelect = document.getElementById('webapp-category');
+    const typeSelect = getElementOrWarn('webapp-type');
+    const scopeSelect = getElementOrWarn('webapp-scope');
+    const categorySelect = getElementOrWarn('webapp-category');
+
+    if (!typeSelect || !scopeSelect || !categorySelect) {
+        console.warn('[AdminSite constructor] WebApp форма не найдена, пропускаем загрузку настроек.');
+        return;
+    }
+
+    const type = typeSelect.value;
+    const scope = scopeSelect.value;
     const params = new URLSearchParams({ type });
     if (scope === 'category' && categorySelect.value) {
         params.append('category_id', categorySelect.value);
     }
     try {
         const data = await callApi(`/webapp-settings?${params.toString()}`);
-        document.getElementById('webapp-enabled').checked = data.action_enabled;
-        document.getElementById('webapp-label').value = data.action_label || '';
-        document.getElementById('webapp-min-selected').value = data.min_selected ?? 0;
+        const enabled = getElementOrWarn('webapp-enabled');
+        const label = getElementOrWarn('webapp-label');
+        const minSelected = getElementOrWarn('webapp-min-selected');
+        if (enabled) enabled.checked = data.action_enabled;
+        if (label) label.value = data.action_label || '';
+        if (minSelected) minSelected.value = data.min_selected ?? 0;
         setStatus('status-webapp', 'Настройки загружены');
     } catch (error) {
-        document.getElementById('webapp-enabled').checked = false;
-        document.getElementById('webapp-label').value = '';
-        document.getElementById('webapp-min-selected').value = 0;
+        const enabled = getElementOrWarn('webapp-enabled');
+        const label = getElementOrWarn('webapp-label');
+        const minSelected = getElementOrWarn('webapp-min-selected');
+        if (enabled) enabled.checked = false;
+        if (label) label.value = '';
+        if (minSelected) minSelected.value = 0;
         setStatus('status-webapp', error.message, true);
         showToast(error.message, 'error');
     }
@@ -420,16 +456,28 @@ async function saveWebappSettings(event) {
     event.preventDefault();
     const button = event.submitter || event.target.querySelector('button[type="submit"]');
     if (button) button.disabled = true;
-    const type = document.getElementById('webapp-type').value;
-    const scope = document.getElementById('webapp-scope').value;
-    const categorySelect = document.getElementById('webapp-category');
+    const typeSelect = getElementOrWarn('webapp-type');
+    const scopeSelect = getElementOrWarn('webapp-scope');
+    const categorySelect = getElementOrWarn('webapp-category');
+    const enabled = getElementOrWarn('webapp-enabled');
+    const label = getElementOrWarn('webapp-label');
+    const minSelected = getElementOrWarn('webapp-min-selected');
+
+    if (!typeSelect || !scopeSelect || !categorySelect || !enabled || !label || !minSelected) {
+        console.warn('[AdminSite constructor] WebApp форма неполная, сохранять нечего.');
+        if (button) button.disabled = false;
+        return;
+    }
+
+    const type = typeSelect.value;
+    const scope = scopeSelect.value;
     const payload = {
         scope,
         type,
         category_id: scope === 'category' ? Number(categorySelect.value) : null,
-        action_enabled: document.getElementById('webapp-enabled').checked,
-        action_label: document.getElementById('webapp-label').value || null,
-        min_selected: Number(document.getElementById('webapp-min-selected').value) || 0,
+        action_enabled: enabled.checked,
+        action_label: label.value || null,
+        min_selected: Number(minSelected.value) || 0,
     };
     try {
         await callApi('/webapp-settings', { method: 'PUT', body: payload });
@@ -445,8 +493,12 @@ async function saveWebappSettings(event) {
 }
 
 function toggleWebappCategory() {
-    const scope = document.getElementById('webapp-scope').value;
-    document.getElementById('webapp-category-wrapper').style.display = scope === 'category' ? 'block' : 'none';
+    const scopeSelect = getElementOrWarn('webapp-scope');
+    const wrapper = getElementOrWarn('webapp-category-wrapper');
+    if (!scopeSelect || !wrapper) return;
+
+    const scope = scopeSelect.value;
+    wrapper.style.display = scope === 'category' ? 'block' : 'none';
 }
 
 function setupTabs() {
@@ -495,30 +547,30 @@ function openItemModal(type, item = null) {
 
 function setupButtons() {
     ['product', 'course'].forEach((type) => {
-        document.getElementById(`category-create-${type}`).addEventListener('click', () => openCategoryModal(type));
-        document.getElementById(`item-create-${type}`).addEventListener('click', () => openItemModal(type));
-        document.getElementById(`items-filter-${type}`).addEventListener('change', (event) => {
+        bindElement(`category-create-${type}`, 'click', () => openCategoryModal(type));
+        bindElement(`item-create-${type}`, 'click', () => openItemModal(type));
+        bindElement(`items-filter-${type}`, 'change', (event) => {
             state.filters[type].categoryId = event.target.value;
             loadItems(type);
         });
-        document.getElementById(`items-search-${type}`).addEventListener('input', (event) => {
+        bindElement(`items-search-${type}`, 'input', (event) => {
             state.filters[type].search = event.target.value;
             renderItemsTable(type);
         });
     });
 
-    document.getElementById('webapp-type').addEventListener('change', async () => {
-        renderCategorySelects(document.getElementById('webapp-type').value);
+    const webappType = bindElement('webapp-type', 'change', async () => {
+        renderCategorySelects(webappType?.value);
         toggleWebappCategory();
         await loadWebappSettings();
     });
-    document.getElementById('webapp-scope').addEventListener('change', async () => {
+    bindElement('webapp-scope', 'change', async () => {
         toggleWebappCategory();
         await loadWebappSettings();
     });
-    document.getElementById('webapp-category').addEventListener('change', loadWebappSettings);
-    document.getElementById('webapp-form').addEventListener('submit', saveWebappSettings);
-    document.getElementById('webapp-reload').addEventListener('click', (e) => {
+    bindElement('webapp-category', 'change', loadWebappSettings);
+    bindElement('webapp-form', 'submit', saveWebappSettings);
+    bindElement('webapp-reload', 'click', (e) => {
         e.preventDefault();
         loadWebappSettings();
     });

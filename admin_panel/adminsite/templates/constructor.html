@@ -163,19 +163,17 @@
                 <p class="muted">Настройка действия красной кнопки WebApp.</p>
             </div>
             <div class="badge-list">
-                <span class="tag">button_text</span>
+                <span class="tag">action_label</span>
                 <span class="tag">scope</span>
-                <span class="tag">action</span>
+                <span class="tag">type</span>
             </div>
         </div>
+        <div class="status" id="status-webapp"></div>
         <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:14px;">
             <div class="card" style="padding:14px;">
                 <form id="webapp-form">
                     <label>Текст кнопки
-                        <input type="text" name="button_text" id="webapp-button-text" required />
-                    </label>
-                    <label>Описание действия
-                        <textarea name="action_description" id="webapp-action-description"></textarea>
+                        <input type="text" name="action_label" id="webapp-label" placeholder="Например, Открыть витрину" required />
                     </label>
                     <label>Scope
                         <select name="scope" id="webapp-scope">
@@ -190,8 +188,8 @@
                                 <option value="open_category">open_category</option>
                             </select>
                         </label>
-                        <label>Category
-                            <input type="number" name="category_id" id="webapp-category-id" min="1" />
+                        <label id="webapp-category-wrapper">Category
+                            <select name="category_id" id="webapp-category"></select>
                         </label>
                     </div>
                     <div class="form-row">
@@ -205,7 +203,8 @@
                             <label for="webapp-enabled" class="muted">action_enabled</label>
                         </div>
                     </div>
-                    <div class="actions" style="margin-top:18px;">
+                    <div class="actions" style="margin-top:18px; gap:8px;">
+                        <button class="btn-secondary" id="webapp-reload" type="button">Обновить</button>
                         <button class="btn-primary" type="submit">Сохранить</button>
                     </div>
                 </form>
