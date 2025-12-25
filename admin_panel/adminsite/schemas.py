@@ -6,8 +6,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
-
-TypeLiteral = Literal["product", "course"]
+TypeLiteral = str
 ScopeLiteral = Literal["global", "category"]
 SlugPattern = r"^[a-z0-9]+(?:-[a-z0-9]+)*$"
 
