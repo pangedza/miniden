@@ -9,10 +9,12 @@ SERVICE_USER="miniden"
 SERVICE_GROUP="miniden"
 LOG_DIR="$PROJECT_DIR/logs"
 LOG_FILE="$LOG_DIR/deploy.log"
+BACKUP_DIR="$PROJECT_DIR/backups"
 NGINX_SRC="$PROJECT_DIR/deploy/nginx/miniden.conf"
 NGINX_DST="/etc/nginx/sites-available/miniden.conf"
 NGINX_ENABLED_DST="/etc/nginx/sites-enabled/miniden.conf"
 SYSTEMD_SRC_DIR="$PROJECT_DIR/deploy/systemd"
+SYSTEMD_DST_DIR="/etc/systemd/system"
 BACKEND_HEALTH="http://127.0.0.1:8000/api/health"
 
 log() {
@@ -21,6 +23,23 @@ log() {
 
 warn() {
   echo "[deploy][WARN] $*" >&2
+}
+
+ts() {
+  date +%F_%H%M%S
+}
+
+backup_file() {
+  local src="$1"
+  local name="$2"
+  if [ ! -f "$src" ]; then
+    return
+  fi
+
+  local target="$BACKUP_DIR/${name}.$(ts)"
+  sudo mkdir -p "$(dirname "$target")"
+  sudo cp -a "$src" "$target"
+  log "-> Backup saved: $src -> $target"
 }
 
 fail_with_logs() {
@@ -41,6 +60,7 @@ setup_logging() {
   chmod 755 "$LOG_DIR"
   touch "$LOG_FILE"
   chmod 664 "$LOG_FILE"
+  mkdir -p "$BACKUP_DIR/nginx" "$BACKUP_DIR/systemd"
   exec > >(tee -a "$LOG_FILE") 2>&1
 }
 
@@ -71,23 +91,35 @@ ensure_js_content_type() {
 }
 
 ensure_system_user() {
+  if ! getent group "$SERVICE_GROUP" >/dev/null 2>&1; then
+    log "-> Creating system group $SERVICE_GROUP"
+    sudo groupadd --system "$SERVICE_GROUP"
+  fi
+
   if ! id -u "$SERVICE_USER" >/dev/null 2>&1; then
     log "-> Creating system user $SERVICE_USER"
-    sudo useradd --system --home-dir "$PROJECT_DIR" --shell /usr/sbin/nologin --user-group "$SERVICE_USER"
+    sudo useradd --system --home-dir "$PROJECT_DIR" --shell /usr/sbin/nologin --gid "$SERVICE_GROUP" "$SERVICE_USER"
   fi
+
+  sudo usermod -g "$SERVICE_GROUP" "$SERVICE_USER"
 }
 
 ensure_permissions() {
+  sudo chown -R "$SERVICE_USER:$SERVICE_GROUP" "$PROJECT_DIR"
+
   for path in "$PROJECT_DIR/logs" "$PROJECT_DIR/media" "$PROJECT_DIR/uploads"; do
     sudo mkdir -p "$path"
     sudo chown -R "$SERVICE_USER:$SERVICE_GROUP" "$path"
-    sudo find "$path" -type d -exec chmod 755 {} +
-    sudo find "$path" -type f -exec chmod 644 {} +
+    sudo find "$path" -type d -exec chmod 775 {} +
+    sudo find "$path" -type f -exec chmod 664 {} +
   done
 
   sudo touch "$PROJECT_DIR/logs/bot.log"
+  sudo touch "$PROJECT_DIR/logs/api.log"
   sudo chown "$SERVICE_USER:$SERVICE_GROUP" "$PROJECT_DIR/logs/bot.log"
+  sudo chown "$SERVICE_USER:$SERVICE_GROUP" "$PROJECT_DIR/logs/api.log"
   sudo chmod 664 "$PROJECT_DIR/logs/bot.log"
+  sudo chmod 664 "$PROJECT_DIR/logs/api.log"
 }
 
 install_nginx_config() {
@@ -99,11 +131,9 @@ install_nginx_config() {
   local current_target
   current_target=$(sudo readlink -f "$NGINX_ENABLED_DST" || true)
   local tmp_dst
-  tmp_dst="${NGINX_DST}.tmp.$(date +%s)"
+  tmp_dst="${NGINX_DST}.tmp.$(ts)"
 
-  if [ -f "$NGINX_DST" ]; then
-    sudo cp -a "$NGINX_DST" "$NGINX_DST.bak.$(date +%F_%H%M%S)" || true
-  fi
+  backup_file "$NGINX_DST" "nginx/miniden.conf"
 
   sudo install -m 0644 "$NGINX_SRC" "$tmp_dst"
   sudo ln -sfn "$tmp_dst" "$NGINX_ENABLED_DST"
@@ -133,7 +163,9 @@ sync_systemd_units() {
   if [ -d "$SYSTEMD_SRC_DIR" ]; then
     for unit in "$SYSTEMD_SRC_DIR"/*.service; do
       [ -f "$unit" ] || continue
-      sudo install -m 0644 "$unit" "/etc/systemd/system/$(basename "$unit")"
+      local target="$SYSTEMD_DST_DIR/$(basename "$unit")"
+      backup_file "$target" "systemd/$(basename "$unit")"
+      sudo install -m 0644 "$unit" "$target"
     done
     sudo systemctl daemon-reload
   else
@@ -146,7 +178,10 @@ restart_services() {
     log "-> Restarting $service_name"
     sudo systemctl reset-failed "$service_name" || true
     if ! sudo systemctl restart "$service_name"; then
-      warn "Failed to restart $service_name"
+      fail_with_logs "Failed to restart $service_name"
+    fi
+    if ! sudo systemctl is-active --quiet "$service_name"; then
+      fail_with_logs "$service_name is not active after restart"
     fi
     sudo systemctl status "$service_name" --no-pager || warn "status check failed for $service_name"
   done
@@ -171,6 +206,8 @@ log "-> Updating repository"
 current_branch=$(git -C "$PROJECT_DIR" rev-parse --abbrev-ref HEAD)
 git -C "$PROJECT_DIR" fetch --all
 git -C "$PROJECT_DIR" reset --hard "origin/${current_branch}"
+log "-> Cleaning working tree (preserving .env, logs, media, uploads, backups)"
+git -C "$PROJECT_DIR" clean -fd -e .env -e logs -e media -e uploads -e backups || warn "git clean reported issues"
 
 if [ -x "$PIP_BIN" ]; then
   log "-> Installing Python dependencies"
