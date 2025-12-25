@@ -6,11 +6,12 @@ After=network.target
 Type=simple
 WorkingDirectory=/opt/miniden
 EnvironmentFile=/opt/miniden/.env
+Environment=PYTHONUNBUFFERED=1
 ExecStart=/opt/miniden/venv/bin/python bot.py
-Restart=on-failure
-RestartSec=5s
 User=miniden
 Group=miniden
+Restart=on-failure
+RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
