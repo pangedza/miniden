@@ -37,6 +37,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
+from starlette.routing import NoMatchFound
 from pydantic import Field
 from sqlalchemy.orm import Session
 
@@ -211,6 +212,21 @@ def ensure_admin_static_dirs() -> bool:
     return True
 
 
+def log_static_mount() -> None:
+    """Validate that url_for('static') is available for AdminSite assets."""
+
+    try:
+        url_path = app.url_path_for("static", path="adminsite/base.css")
+    except NoMatchFound:
+        logger.exception("Static route named 'static' is missing; AdminSite will fail")
+        raise
+    except Exception:  # pragma: no cover - defensive
+        logger.exception("Failed to validate static mount")
+        raise
+    else:
+        logger.info("AdminSite static mounted at %s", url_path)
+
+
 def ensure_adminsite_static_dir() -> None:
     """Ensure AdminSite static directory exists before mounting."""
 
@@ -231,6 +247,7 @@ app.mount(
     LoggingStaticFiles(directory=str(ADMINSITE_STATIC_PATH), check_dir=False),
     name="static",
 )
+log_static_mount()
 app.mount("/css", StaticFiles(directory=WEBAPP_DIR / "css"), name="css")
 app.mount("/js", StaticFiles(directory=WEBAPP_DIR / "js"), name="js")
 if ensure_admin_static_dirs():

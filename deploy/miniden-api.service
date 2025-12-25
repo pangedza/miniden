@@ -1,5 +1,5 @@
 [Unit]
-Description=MiniDeN FastAPI backend
+Description=MiniDeN FastAPI backend (legacy location)
 After=network.target
 
 [Service]
@@ -8,9 +8,10 @@ WorkingDirectory=/opt/miniden
 EnvironmentFile=/opt/miniden/.env
 Environment=PYTHONUNBUFFERED=1
 ExecStart=/opt/miniden/venv/bin/uvicorn webapi:app --host 127.0.0.1 --port 8000
-Restart=always
-RestartSec=2
-User=root
+User=miniden
+Group=miniden
+Restart=on-failure
+RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
