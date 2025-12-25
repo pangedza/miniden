@@ -115,6 +115,12 @@ const state = {
     },
 };
 
+const defaultWebappSettings = {
+    action_enabled: true,
+    action_label: 'Оформить',
+    min_selected: 1,
+};
+
 function getElementOrWarn(id) {
     const el = document.getElementById(id);
     if (!el) {
@@ -131,6 +137,14 @@ function bindElement(id, event, handler) {
 }
 
 const modalHistory = [];
+
+if (!window.history.state || !window.history.state.adminsiteRoot) {
+    window.history.replaceState(
+        { ...(window.history.state || {}), adminsiteRoot: true },
+        '',
+        window.location.pathname + window.location.search,
+    );
+}
 
 function registerModal(modal) {
     modal.onClose(() => {
@@ -158,7 +172,14 @@ function closeTopModal() {
 }
 
 window.addEventListener('popstate', () => {
-    closeTopModal();
+    if (closeTopModal()) return;
+    if (!window.history.state?.adminsiteRoot) return;
+    // Ensure there is always at least one state entry to prevent empty history stack
+    window.history.replaceState(
+        { ...(window.history.state || {}), adminsiteRoot: true },
+        '',
+        window.location.pathname + window.location.search,
+    );
 });
 
 document.addEventListener('keydown', (event) => {
@@ -459,19 +480,26 @@ async function loadWebappSettings() {
         const enabled = getElementOrWarn('webapp-enabled');
         const label = getElementOrWarn('webapp-label');
         const minSelected = getElementOrWarn('webapp-min-selected');
-        if (enabled) enabled.checked = data.action_enabled;
-        if (label) label.value = data.action_label || '';
-        if (minSelected) minSelected.value = data.min_selected ?? 0;
+        if (enabled) enabled.checked = data?.action_enabled ?? defaultWebappSettings.action_enabled;
+        if (label) label.value = data?.action_label ?? defaultWebappSettings.action_label;
+        if (minSelected) minSelected.value = data?.min_selected ?? defaultWebappSettings.min_selected;
         setStatus('status-webapp', 'Настройки загружены');
     } catch (error) {
         const enabled = getElementOrWarn('webapp-enabled');
         const label = getElementOrWarn('webapp-label');
         const minSelected = getElementOrWarn('webapp-min-selected');
-        if (enabled) enabled.checked = false;
-        if (label) label.value = '';
-        if (minSelected) minSelected.value = 0;
-        setStatus('status-webapp', error.message, true);
-        showToast(error.message, 'error');
+        if (enabled) enabled.checked = defaultWebappSettings.action_enabled;
+        if (label) label.value = defaultWebappSettings.action_label;
+        if (minSelected) minSelected.value = defaultWebappSettings.min_selected;
+        const message = error.status === 404
+            ? 'Настройки не найдены, применены значения по умолчанию'
+            : error.message;
+        setStatus('status-webapp', message, error.status !== 404);
+        if (error.status !== 404) {
+            showToast(error.message, 'error');
+        } else {
+            setApiStatus('ok', message);
+        }
     }
 }
 

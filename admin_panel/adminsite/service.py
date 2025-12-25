@@ -329,7 +329,17 @@ def get_webapp_settings(
         )
 
     if settings is None:
-        raise HTTPException(status_code=404, detail="Settings not found")
+        settings = AdminSiteWebAppSettings(
+            scope="global",
+            type=type_value,
+            category_id=None,
+            action_enabled=True,
+            action_label="Оформить",
+            min_selected=1,
+        )
+        db.add(settings)
+        db.commit()
+        db.refresh(settings)
 
     return settings
 
