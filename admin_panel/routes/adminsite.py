@@ -5,7 +5,6 @@ import logging
 import traceback
 
 from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from admin_panel.dependencies import (
@@ -30,8 +29,21 @@ logger = logging.getLogger(__name__)
 ALLOWED_ROLES = (AdminRole.superadmin, AdminRole.admin_site)
 
 
-def _login_redirect() -> RedirectResponse:
-    return RedirectResponse(url="/adminsite/login?next=/adminsite", status_code=303)
+def _render_login_page(request: Request):
+    next_path = request.url.path
+    if request.url.query:
+        next_path = f"{next_path}?{request.url.query}"
+
+    normalized_next = auth_routes._normalize_next_url(next_path or "/adminsite")
+
+    return TEMPLATES.TemplateResponse(
+        "login.html",
+        {
+            "request": request,
+            "error": None,
+            "next": normalized_next,
+        },
+    )
 
 
 @router.get("/_debug_static")
@@ -104,7 +116,7 @@ async def dashboard(
     try:
         user = require_admin(request, db, roles=ALLOWED_ROLES)
         if not user:
-            return _login_redirect()
+            return _render_login_page(request)
 
         return TEMPLATES.TemplateResponse(
             "dashboard.html", {"request": request, "user": user}
@@ -126,7 +138,7 @@ async def constructor(
 ):
     user = require_admin(request, db, roles=ALLOWED_ROLES)
     if not user:
-        return _login_redirect()
+        return _render_login_page(request)
 
     return TEMPLATES.TemplateResponse(
         "constructor.html", {"request": request, "user": user}
