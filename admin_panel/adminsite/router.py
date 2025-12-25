@@ -18,7 +18,7 @@ from .schemas import (
     WebAppSettingsResponse,
 )
 
-TypeQuery = Annotated[str, Query(pattern="^(product|course)$")]
+TypeQuery = Annotated[str, Query(min_length=1)]
 
 router = APIRouter(prefix="/api/adminsite", tags=["AdminSite"])
 
@@ -36,6 +36,12 @@ def debug_env(request: Request, db: Session = Depends(get_db_session)) -> dict[s
         "request_host": request.headers.get("host", ""),
         "auth_required": user is None,
     }
+
+
+@router.get("/types", response_model=list[str])
+def list_types(request: Request, db: Session = Depends(get_db_session)) -> list[str]:
+    service.ensure_admin(request, db)
+    return sorted(service.get_allowed_types(db))
 
 
 @router.get("/categories", response_model=list[CategoryResponse])

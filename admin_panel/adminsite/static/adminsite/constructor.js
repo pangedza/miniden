@@ -11,7 +11,7 @@ const diagnosticState = {
     apiMessage: 'Проверка API...',
 };
 
-const ALLOWED_TYPES = new Set(['product', 'course']);
+const DEFAULT_TYPES = ['product', 'course'];
 
 const statusBanner = document.getElementById('constructor-status-bar') || (() => {
     const banner = document.createElement('div');
@@ -107,12 +107,16 @@ renderDiagnostics();
 checkApiHealth();
 
 const state = {
-    categories: { product: [], course: [] },
-    items: { product: [], course: [] },
-    filters: {
-        product: { categoryId: '', search: '' },
-        course: { categoryId: '', search: '' },
+    types: [],
+    categories: {},
+    items: {},
+    filters: {},
+    ui: {
+        tabsContainer: null,
+        panelsContainer: null,
+        webappTab: null,
     },
+    activeTab: null,
 };
 
 const defaultWebappSettings = {
@@ -173,6 +177,10 @@ function closeTopModal() {
 
 window.addEventListener('popstate', () => {
     if (closeTopModal()) return;
+    if (window.history.state?.adminsiteTab) {
+        setActiveTab(window.history.state.adminsiteTab, { pushHistory: false });
+        return;
+    }
     if (!window.history.state?.adminsiteRoot) return;
     // Ensure there is always at least one state entry to prevent empty history stack
     window.history.replaceState(
@@ -229,6 +237,21 @@ function slugify(value) {
         .replace(/-{2,}/g, '-');
 }
 
+function ensureTypeState(type) {
+    if (!state.types.includes(type)) {
+        state.types.push(type);
+    }
+    if (!state.categories[type]) {
+        state.categories[type] = [];
+    }
+    if (!state.items[type]) {
+        state.items[type] = [];
+    }
+    if (!state.filters[type]) {
+        state.filters[type] = { categoryId: '', search: '' };
+    }
+}
+
 function setStatus(targetId, message, isError = false) {
     const el = document.getElementById(targetId);
     if (!el) return;
@@ -240,15 +263,16 @@ function setStatus(targetId, message, isError = false) {
 }
 
 function normalizeWebappType(value, { statusTarget } = {}) {
-    if (ALLOWED_TYPES.has(value)) {
+    const available = state.types.length ? state.types : DEFAULT_TYPES;
+    if (available.includes(value)) {
         return value;
     }
-    const fallback = 'product';
+    const fallback = available[0];
     console.warn(
         `[AdminSite constructor] Некорректный type для WebApp настроек: ${value}, используем ${fallback}`,
     );
     if (statusTarget) {
-        setStatus(statusTarget, 'Некорректный тип, переключено на product', true);
+        setStatus(statusTarget, `Некорректный тип, переключено на ${fallback}`, true);
     }
     return fallback;
 }
@@ -267,6 +291,7 @@ function categoryOptions(type) {
 }
 
 async function loadCategories(type) {
+    ensureTypeState(type);
     const target = `status-categories-${type}`;
     setStatus(target, 'Загрузка...');
     try {
@@ -307,6 +332,7 @@ function renderCategoryTable(type) {
 }
 
 function renderCategorySelects(type) {
+    ensureTypeState(type);
     if (!type || !state.categories[type]) {
         console.warn(`[AdminSite constructor] Неизвестный тип для категорий: ${type}`);
         return;
@@ -368,6 +394,7 @@ async function upsertCategory(type, payload) {
 }
 
 async function loadItems(type) {
+    ensureTypeState(type);
     const filter = state.filters[type];
     const params = new URLSearchParams({ type });
     if (filter.categoryId) {
@@ -564,64 +591,223 @@ function toggleWebappCategory() {
     }
 }
 
-function setupTabs() {
-    document.querySelectorAll('.tab').forEach((tab) => {
-        tab.addEventListener('click', () => {
-            const target = tab.dataset.tab;
-            document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
-            document.querySelectorAll('.panel').forEach((panel) => {
-                panel.classList.toggle('active', panel.id === `panel-${target}`);
-            });
-            tab.classList.add('active');
-        });
-    });
+function humanizeType(type) {
+    if (!type) return 'Раздел';
+    return type.charAt(0).toUpperCase() + type.slice(1);
 }
 
-const categoryModals = {
-    product: new CategoryModal({ title: 'Категория товара', onSubmit: (payload) => upsertCategory('product', payload) }),
-    course: new CategoryModal({ title: 'Категория мастер-классов', onSubmit: (payload) => upsertCategory('course', payload) }),
-};
+function createTypeTab(type) {
+    const tab = document.createElement('button');
+    tab.className = 'tab';
+    tab.dataset.target = `panel-${type}`;
+    tab.textContent = humanizeType(type);
+    tab.addEventListener('click', () => setActiveTab(tab.dataset.target));
+    return tab;
+}
 
-const itemModals = {
-    product: new ItemModal({
-        title: 'Товар',
-        categoriesProvider: (type) => categoryOptions(type),
-        onSubmit: (payload) => upsertItem('product', payload),
-    }),
-    course: new ItemModal({
-        title: 'Мастер-класс',
-        categoriesProvider: (type) => categoryOptions(type),
-        onSubmit: (payload) => upsertItem('course', payload),
-    }),
-};
+function createTypePanel(type) {
+    const panel = document.createElement('section');
+    panel.className = 'panel';
+    panel.id = `panel-${type}`;
+    const label = humanizeType(type);
+    panel.innerHTML = `
+        <div class="card">
+            <div class="table-top">
+                <div>
+                    <h3 style="margin:0;">Категории (${label})</h3>
+                    <p class="muted">Slug можно оставить пустым — сервер сгенерирует его.</p>
+                </div>
+                <button id="category-create-${type}" class="btn-primary" type="button">Создать</button>
+            </div>
+            <div class="status" id="status-categories-${type}"></div>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Title</th>
+                            <th>Slug</th>
+                            <th>Active</th>
+                            <th>Sort</th>
+                            <th>Created</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody id="categories-list-${type}"></tbody>
+                </table>
+            </div>
+        </div>
+        <div class="card">
+            <div class="table-top">
+                <div>
+                    <h3 style="margin:0;">Элементы (${label})</h3>
+                    <p class="muted">CRUD для элементов типа ${type}.</p>
+                </div>
+                <div class="action-links">
+                    <input type="search" id="items-search-${type}" class="search-input" placeholder="Поиск по названию">
+                    <select id="items-filter-${type}"></select>
+                    <button id="item-create-${type}" class="btn-primary" type="button">Создать</button>
+                </div>
+            </div>
+            <div class="status" id="status-items-${type}"></div>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Title</th>
+                            <th>Category</th>
+                            <th>Price</th>
+                            <th>Active</th>
+                            <th>Sort</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody id="items-list-${type}"></tbody>
+                </table>
+            </div>
+        </div>
+    `;
+    return panel;
+}
 
-Object.values(categoryModals).forEach(registerModal);
-Object.values(itemModals).forEach(registerModal);
+function setActiveTab(panelId, { pushHistory = true } = {}) {
+    if (!panelId) return;
+    const panel = document.getElementById(panelId);
+    if (!panel) return;
+    state.activeTab = panelId;
+    document.querySelectorAll('.tab').forEach((tab) => {
+        tab.classList.toggle('active', tab.dataset.target === panelId);
+    });
+    document.querySelectorAll('.panel').forEach((el) => {
+        el.classList.toggle('active', el.id === panelId);
+    });
+
+    if (pushHistory) {
+        const url = new URL(window.location.href);
+        url.searchParams.set('tab', panelId);
+        window.history.pushState(
+            { ...(window.history.state || {}), adminsiteTab: panelId, adminsiteRoot: true },
+            '',
+            url.toString(),
+        );
+    }
+}
+
+function getInitialTab() {
+    const url = new URL(window.location.href);
+    const requested = url.searchParams.get('tab');
+    if (requested && document.getElementById(requested)) {
+        return requested;
+    }
+    if (state.types[0]) {
+        return `panel-${state.types[0]}`;
+    }
+    return document.getElementById('panel-webapp') ? 'panel-webapp' : null;
+}
+
+function renderTypeTabs() {
+    const tabs = state.ui.tabsContainer;
+    const panels = state.ui.panelsContainer;
+    if (!tabs || !panels) return;
+
+    tabs.innerHTML = '';
+    panels.innerHTML = '';
+
+    state.types.forEach((type) => {
+        ensureTypeState(type);
+        tabs.appendChild(createTypeTab(type));
+        panels.appendChild(createTypePanel(type));
+        bindTypeButtons(type);
+    });
+
+    const webappPanel = document.getElementById('panel-webapp');
+    if (webappPanel) {
+        webappPanel.classList.remove('active');
+        panels.appendChild(webappPanel);
+        const webappTab = document.createElement('button');
+        webappTab.className = 'tab';
+        webappTab.dataset.target = 'panel-webapp';
+        webappTab.textContent = 'WebApp';
+        webappTab.addEventListener('click', () => setActiveTab('panel-webapp'));
+        tabs.appendChild(webappTab);
+        state.ui.webappTab = webappTab;
+    }
+
+    const initialTab = getInitialTab();
+    setActiveTab(initialTab, { pushHistory: false });
+}
+
+const categoryModals = {};
+const itemModals = {};
+
+function ensureCategoryModal(type) {
+    if (!categoryModals[type]) {
+        categoryModals[type] = new CategoryModal({
+            title: `Категория (${humanizeType(type)})`,
+            onSubmit: (payload) => upsertCategory(type, payload),
+        });
+        registerModal(categoryModals[type]);
+    }
+    return categoryModals[type];
+}
+
+function ensureItemModal(type) {
+    if (!itemModals[type]) {
+        itemModals[type] = new ItemModal({
+            title: humanizeType(type),
+            categoriesProvider: (t) => categoryOptions(t),
+            onSubmit: (payload) => upsertItem(type, payload),
+        });
+        registerModal(itemModals[type]);
+    }
+    return itemModals[type];
+}
 
 function openCategoryModal(type, category = null) {
-    categoryModals[type].setData(category);
-    openTrackedModal(categoryModals[type], `category-${type}-${category?.id || 'new'}`);
+    const modal = ensureCategoryModal(type);
+    modal.setData(category);
+    openTrackedModal(modal, `category-${type}-${category?.id || 'new'}`);
 }
 
 function openItemModal(type, item = null) {
-    itemModals[type].setData(item, type);
-    openTrackedModal(itemModals[type], `item-${type}-${item?.id || 'new'}`);
+    const modal = ensureItemModal(type);
+    modal.setData(item, type);
+    openTrackedModal(modal, `item-${type}-${item?.id || 'new'}`);
 }
 
-function setupButtons() {
-    ['product', 'course'].forEach((type) => {
-        bindElement(`category-create-${type}`, 'click', () => openCategoryModal(type));
-        bindElement(`item-create-${type}`, 'click', () => openItemModal(type));
-        bindElement(`items-filter-${type}`, 'change', (event) => {
-            state.filters[type].categoryId = event.target.value;
-            loadItems(type);
-        });
-        bindElement(`items-search-${type}`, 'input', (event) => {
-            state.filters[type].search = event.target.value;
-            renderItemsTable(type);
-        });
+function bindTypeButtons(type) {
+    ensureTypeState(type);
+    bindElement(`category-create-${type}`, 'click', () => openCategoryModal(type));
+    bindElement(`item-create-${type}`, 'click', () => openItemModal(type));
+    bindElement(`items-filter-${type}`, 'change', (event) => {
+        state.filters[type].categoryId = event.target.value;
+        loadItems(type);
     });
+    bindElement(`items-search-${type}`, 'input', (event) => {
+        state.filters[type].search = event.target.value;
+        renderItemsTable(type);
+    });
+}
 
+function renderWebappTypeOptions() {
+    const select = getElementOrWarn('webapp-type');
+    if (!select) return;
+    const types = state.types.length ? state.types : DEFAULT_TYPES;
+    const current = select.value;
+    select.innerHTML = '';
+    types.forEach((type) => {
+        const option = document.createElement('option');
+        option.value = type;
+        option.textContent = `${type} — витрина`;
+        select.appendChild(option);
+    });
+    if (current && types.includes(current)) {
+        select.value = current;
+    }
+}
+
+function setupWebappListeners() {
     const webappType = bindElement('webapp-type', 'change', async () => {
         renderCategorySelects(webappType?.value);
         toggleWebappCategory();
@@ -639,15 +825,32 @@ function setupButtons() {
     });
 }
 
+async function loadTypesFromApi() {
+    setStatus('global-status', 'Загрузка разделов...');
+    try {
+        const types = await callApi('/types');
+        const normalized = Array.isArray(types) && types.length ? types : DEFAULT_TYPES;
+        normalized.forEach((type) => ensureTypeState(type));
+    } catch (error) {
+        DEFAULT_TYPES.forEach((type) => ensureTypeState(type));
+        setStatus('global-status', error.message || 'Не удалось загрузить типы', true);
+        showToast(error.message || 'Не удалось загрузить список разделов', 'error');
+    }
+}
+
 async function bootstrap() {
-    setupTabs();
-    setupButtons();
+    state.ui.tabsContainer = getElementOrWarn('constructor-tabs');
+    state.ui.panelsContainer = getElementOrWarn('constructor-panels');
+    setupWebappListeners();
     toggleWebappCategory();
     try {
-        await loadCategories('product');
-        await loadCategories('course');
-        await loadItems('product');
-        await loadItems('course');
+        await loadTypesFromApi();
+        renderWebappTypeOptions();
+        renderTypeTabs();
+        for (const type of state.types) {
+            await loadCategories(type);
+            await loadItems(type);
+        }
         await loadWebappSettings();
         setStatus('global-status', 'Данные загружены');
     } catch (error) {

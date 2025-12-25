@@ -18,7 +18,7 @@ from .schemas import (
     WebAppSettingsPayload,
 )
 
-ALLOWED_TYPES = {"product", "course"}
+DEFAULT_TYPES: set[str] = {"product", "course"}
 ALLOWED_ROLES: Iterable[AdminRole] = (AdminRole.superadmin, AdminRole.admin_site)
 
 
@@ -28,8 +28,33 @@ def ensure_admin(request: Request, db: Session) -> None:
         raise HTTPException(status_code=401, detail="Admin authentication required")
 
 
-def validate_type(value: str) -> None:
-    if value not in ALLOWED_TYPES:
+def _distinct_column(db: Session, column) -> set[str]:
+    values = (
+        db.query(column)
+        .filter(column.isnot(None))
+        .distinct()
+        .all()
+    )
+    return {value for value, in values}
+
+
+def get_allowed_types(db: Session) -> set[str]:
+    """Return all known AdminSite types.
+
+    The list is built from existing records to avoid hardcoded values and to
+    surface any legacy data that was previously saved.
+    """
+
+    db_types = {
+        *_distinct_column(db, AdminSiteCategory.type),
+        *_distinct_column(db, AdminSiteItem.type),
+        *_distinct_column(db, AdminSiteWebAppSettings.type),
+    }
+    return DEFAULT_TYPES | {value for value in db_types if value}
+
+
+def validate_type(value: str, db: Session) -> None:
+    if value not in get_allowed_types(db):
         raise HTTPException(status_code=400, detail="Unsupported type value")
 
 
@@ -76,7 +101,7 @@ def get_category(db: Session, category_id: int) -> AdminSiteCategory:
 
 
 def list_categories(db: Session, type_value: str) -> list[AdminSiteCategory]:
-    validate_type(type_value)
+    validate_type(type_value, db)
     categories = (
         db.query(AdminSiteCategory)
         .filter(AdminSiteCategory.type == type_value)
@@ -87,7 +112,7 @@ def list_categories(db: Session, type_value: str) -> list[AdminSiteCategory]:
 
 
 def create_category(db: Session, payload: CategoryPayload) -> AdminSiteCategory:
-    validate_type(payload.type)
+    validate_type(payload.type, db)
     if payload.parent_id is not None:
         parent = get_category(db, payload.parent_id)
         if parent.type != payload.type:
@@ -124,7 +149,7 @@ def update_category(
     category = get_category(db, category_id)
 
     new_type = payload.type or category.type
-    validate_type(new_type)
+    validate_type(new_type, db)
 
     if payload.parent_id is not None:
         parent = get_category(db, payload.parent_id)
@@ -187,7 +212,7 @@ def delete_category(db: Session, category_id: int) -> dict[str, str]:
 def list_items(
     db: Session, type_value: str, category_id: int | None
 ) -> list[AdminSiteItem]:
-    validate_type(type_value)
+    validate_type(type_value, db)
     query = db.query(AdminSiteItem).filter(AdminSiteItem.type == type_value)
     if category_id is not None:
         query = query.filter(AdminSiteItem.category_id == category_id)
@@ -196,7 +221,7 @@ def list_items(
 
 
 def create_item(db: Session, payload: ItemPayload) -> AdminSiteItem:
-    validate_type(payload.type)
+    validate_type(payload.type, db)
     category = get_category(db, payload.category_id)
     if category.type != payload.type:
         raise HTTPException(
@@ -239,7 +264,7 @@ def update_item(db: Session, item_id: int, payload: ItemUpdatePayload) -> AdminS
         raise HTTPException(status_code=404, detail="Item not found")
 
     new_type = payload.type or item.type
-    validate_type(new_type)
+    validate_type(new_type, db)
 
     new_category_id = payload.category_id if payload.category_id is not None else item.category_id
     category = get_category(db, new_category_id)
@@ -303,7 +328,7 @@ def delete_item(db: Session, item_id: int) -> dict[str, str]:
 def get_webapp_settings(
     db: Session, type_value: str, category_id: int | None
 ) -> AdminSiteWebAppSettings:
-    validate_type(type_value)
+    validate_type(type_value, db)
 
     settings: AdminSiteWebAppSettings | None = None
     if category_id is not None:
@@ -347,7 +372,7 @@ def get_webapp_settings(
 def upsert_webapp_settings(
     db: Session, payload: WebAppSettingsPayload
 ) -> AdminSiteWebAppSettings:
-    validate_type(payload.type)
+    validate_type(payload.type, db)
 
     category_id = payload.category_id
     if payload.scope == "category":
