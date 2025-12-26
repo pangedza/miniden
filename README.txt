@@ -784,3 +784,30 @@ session_id теперь передаётся как query-параметр, ка
 - Проверены и стабилизированы формы создания/редактирования узлов типов MESSAGE/INPUT/CONDITION/ACTION, сохранение кнопок url/webapp/callback, триггеры и переходы.
 - Добавлены пользовательские сообщения об ошибках валидации, защита от пустых числовых полей и безопасная обработка отсутствующих переходов.
 - Рекомендованный ручной тест: применить шаблон «Проверка подписки + меню», создать узел MESSAGE с загрузкой картинки, настроить кнопки и триггер на текст, затем удалить тестовый узел и убедиться, что ссылки очищены и бот не падает.
+
+## Unified project structure
+- Backend API: `webapi.py` (FastAPI), routers under `api/routers/*`, admin routes under `admin_panel/routes/*`, AdminSite API in `admin_panel/adminsite/router.py`.
+- Frontend (customer site): static HTML/JS/CSS in `webapp/` served via `/css`, `/js`, `/media`.
+- AdminSite UI: templates in `admin_panel/adminsite/templates`, constructor assets in `admin_panel/adminsite/static/adminsite` (served at `/static/adminsite/*`).
+- AdminBot UI: templates in `admin_panel/templates/adminbot*`, routes under `admin_panel/routes/*`.
+- Automation: `deploy.sh`, configs in `deploy/nginx/` and `deploy/systemd/`, diagnostics in `deploy/DEPLOY_CONTRACT.md`.
+- Support files: `docs/legacy-data/` (archived seeds), `data/*.json` demo payloads, `scripts/` maintenance helpers.
+
+## How to run (bot/api/front/adminsite)
+- Install dependencies: `python -m venv venv && source venv/bin/activate && pip install -r requirements.txt`.
+- API: `uvicorn webapi:app --host 0.0.0.0 --port 8000` (requires PostgreSQL and `.env` variables for DB/auth).
+- Bot: `python bot.py` (runs against the same `.env` settings and database as the API).
+- AdminSite/AdminBot: open `https://<host>/adminsite/` or `/adminbot/` after authenticating via `/login`; constructor scripts load from `/static/adminsite/constructor.js`.
+- Web front: serve `webapp/` via nginx or any static server (`/css`, `/js`, `/media` mounts needed for uploads/JS/CSS).
+
+## Deploy notes
+- Single entrypoint: run `sudo /opt/miniden/deploy.sh` on the server to sync code, dependencies, nginx config and systemd units.
+- Nginx copies from `deploy/nginx/miniden.conf` (ensures `/static/adminsite/*` is served as JavaScript/CSS, webapp fallback is `/index.html`).
+- Systemd units: `deploy/systemd/miniden-api.service` and `miniden-bot.service` are installed/reloaded by the script, then restarted sequentially.
+- Protected paths: deploy script keeps existing `.env`, `media/`, `data/`, and runtime `logs/` untouched while updating code.
+
+## Maintenance log
+- Audited repository layout and deployment entrypoints (see `docs/audit_report.md`).
+- Fixed AdminSite constructor history sync so browser Back closes modals cleanly and does not trap navigation.
+- Removed unused placeholder `admin_panel/static/.keep` to avoid duplicate sentinel files.
+- Documented unified structure, run commands, and deploy expectations.

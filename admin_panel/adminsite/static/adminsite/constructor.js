@@ -141,6 +141,7 @@ function bindElement(id, event, handler) {
 }
 
 const modalHistory = [];
+let handlingPopState = false;
 
 if (!window.history.state || !window.history.state.adminsiteRoot) {
     window.history.replaceState(
@@ -157,10 +158,17 @@ function registerModal(modal) {
             modalHistory.splice(idx, 1);
         }
     });
+    modal.onClose(() => {
+        if (handlingPopState) return;
+        if (window.history.state?.adminsiteModal === modal.__adminsiteStateId) {
+            window.history.back();
+        }
+    });
 }
 
 function openTrackedModal(modal, stateId) {
     if (!modal?.backdrop?.hidden) return;
+    modal.__adminsiteStateId = stateId;
     modalHistory.push(modal);
     window.history.pushState({ adminsiteModal: stateId }, '', window.location.pathname + window.location.search);
     modal.open();
@@ -176,18 +184,23 @@ function closeTopModal() {
 }
 
 window.addEventListener('popstate', () => {
-    if (closeTopModal()) return;
-    if (window.history.state?.adminsiteTab) {
-        setActiveTab(window.history.state.adminsiteTab, { pushHistory: false });
-        return;
+    handlingPopState = true;
+    try {
+        if (closeTopModal()) return;
+        if (window.history.state?.adminsiteTab) {
+            setActiveTab(window.history.state.adminsiteTab, { pushHistory: false });
+            return;
+        }
+        if (!window.history.state?.adminsiteRoot) return;
+        // Ensure there is always at least one state entry to prevent empty history stack
+        window.history.replaceState(
+            { ...(window.history.state || {}), adminsiteRoot: true },
+            '',
+            window.location.pathname + window.location.search,
+        );
+    } finally {
+        handlingPopState = false;
     }
-    if (!window.history.state?.adminsiteRoot) return;
-    // Ensure there is always at least one state entry to prevent empty history stack
-    window.history.replaceState(
-        { ...(window.history.state || {}), adminsiteRoot: true },
-        '',
-        window.location.pathname + window.location.search,
-    );
 });
 
 document.addEventListener('keydown', (event) => {
