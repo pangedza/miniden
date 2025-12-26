@@ -96,7 +96,7 @@
         <div class="table-top">
             <div>
                 <h3 style="margin:0;">Главная страница</h3>
-                <p class="muted">Шаблоны оформления и блоки для витрины AdminSite. Контент остаётся неизменным при смене шаблона.</p>
+                <p class="muted">Визуальный редактор блоков для витрины AdminSite. Контент остаётся неизменным при смене шаблона.</p>
             </div>
             <div class="badge-list">
                 <span class="tag">HeroBlock</span>
@@ -106,28 +106,114 @@
             </div>
         </div>
         <div class="status" id="status-homepage"></div>
-        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:14px;">
-            <div class="card" style="padding:14px;">
-                <h4 style="margin-top:0;">Шаблон</h4>
-                <label>Выберите пресет оформления
-                    <select id="homepage-template">
-                        <option value="baskets">Baskets</option>
-                        <option value="electronics">Electronics</option>
-                        <option value="services">Services (дефолт)</option>
-                    </select>
-                </label>
-                <p class="muted" style="margin-top:6px;">Смена шаблона влияет только на цвета, радиусы и тени. Контент блоков не меняется.</p>
-                <div class="divider"></div>
-                <p class="muted">Шаблоны описаны в registry и применяются на фронте через CSS variables.</p>
-            </div>
-            <div class="card" style="padding:14px;">
-                <h4 style="margin-top:0;">Блоки</h4>
-                <p class="muted" style="margin-top:-4px;">Редактируйте конфигурацию блоков в формате JSON. Поддерживаются hero, cards, text, social.</p>
-                <textarea id="homepage-blocks" rows="18" style="width:100%; resize:vertical; font-family: monospace;"></textarea>
-                <div class="actions" style="margin-top:12px; gap:8px;">
-                    <button class="btn-secondary" type="button" id="homepage-reset">Сбросить</button>
-                    <button class="btn-primary" type="button" id="homepage-save">Сохранить</button>
+        <div class="homepage-top">
+            <div class="template-picker" id="homepage-template">
+                <div class="template-card" data-template="baskets">
+                    <div class="template-preview baskets"></div>
+                    <div>
+                        <div class="template-title">Baskets</div>
+                        <p class="muted">Тёплая палитра и плавные карточки.</p>
+                    </div>
                 </div>
+                <div class="template-card" data-template="electronics">
+                    <div class="template-preview electronics"></div>
+                    <div>
+                        <div class="template-title">Electronics</div>
+                        <p class="muted">Контрастная тема и чёткие края.</p>
+                    </div>
+                </div>
+                <div class="template-card" data-template="services">
+                    <div class="template-preview services"></div>
+                    <div>
+                        <div class="template-title">Services</div>
+                        <p class="muted">Нейтральная тема по умолчанию.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="homepage-actions">
+                <a class="btn-secondary" href="/" target="_blank" rel="noopener">Предпросмотр</a>
+                <button class="btn-primary" type="button" id="homepage-save">Сохранить</button>
+            </div>
+        </div>
+
+        <div class="homepage-layout">
+            <div class="card block-list-card">
+                <div class="card-header">
+                    <h4 style="margin:0;">Блоки страницы</h4>
+                    <div class="actions" style="margin:0;">
+                        <button class="btn-secondary" type="button" id="homepage-add-block">+ Добавить блок</button>
+                        <button class="btn-ghost" type="button" id="homepage-reset">Сбросить</button>
+                    </div>
+                </div>
+                <p class="muted" style="margin-top:4px;">Перетащите блоки вверх/вниз или редактируйте содержимое справа.</p>
+                <div id="homepage-blocks-list" class="block-list"></div>
+                <div class="developer-toggle">
+                    <label class="switch">
+                        <input type="checkbox" id="homepage-dev-toggle" />
+                        <span class="slider"></span>
+                    </label>
+                    <div>
+                        <div class="template-title">Режим разработчика</div>
+                        <p class="muted" style="margin:0;">Показать/скрыть JSON конфигурацию.</p>
+                    </div>
+                </div>
+                <div id="homepage-devtools" class="devtools" hidden>
+                    <p class="muted" style="margin:0 0 8px;">Измените JSON вручную или вставьте существующую конфигурацию. Сохранение поднимает валидные данные в визуальный редактор.</p>
+                    <textarea id="homepage-blocks" rows="14" style="width:100%; resize:vertical; font-family: monospace;"></textarea>
+                    <div class="actions" style="margin-top:12px; gap:8px;">
+                        <button class="btn-secondary" type="button" id="homepage-dev-apply">Применить JSON</button>
+                        <button class="btn-ghost" type="button" id="homepage-dev-hide">Скрыть</button>
+                    </div>
+                    <div class="status" id="homepage-dev-status"></div>
+                </div>
+            </div>
+            <div class="card block-editor-card">
+                <div class="card-header" style="align-items:center;">
+                    <div>
+                        <h4 style="margin:0;" id="homepage-editor-title">Редактор блока</h4>
+                        <p class="muted" id="homepage-editor-subtitle" style="margin:4px 0 0;">Выберите блок слева, чтобы отредактировать.</p>
+                    </div>
+                    <div class="badge-list" id="homepage-block-meta"></div>
+                </div>
+                <div id="homepage-block-editor" class="block-editor"></div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="panel" id="panel-media">
+    <div class="card">
+        <div class="table-top">
+            <div>
+                <h3 style="margin:0;">Медиа-библиотека</h3>
+                <p class="muted">Загружайте изображения и копируйте URL. Подключено к тем же файлам, что использует AdminBot.</p>
+            </div>
+            <div class="badge-list">
+                <span class="tag">upload</span>
+                <span class="tag">preview</span>
+                <span class="tag">copy URL</span>
+            </div>
+        </div>
+        <div class="status" id="status-media"></div>
+        <div class="media-grid">
+            <div class="card upload-card">
+                <h4 style="margin-top:0;">Загрузка файла</h4>
+                <p class="muted" style="margin-top:-4px;">jpg, png или webp до 5 МБ</p>
+                <label class="file-input">Выберите файл
+                    <input type="file" id="media-upload-input" accept="image/jpeg,image/png,image/webp" />
+                </label>
+                <div class="actions" style="margin-top:12px;">
+                    <button class="btn-primary" type="button" id="media-upload-btn">Загрузить</button>
+                    <button class="btn-ghost" type="button" id="media-refresh">Обновить</button>
+                </div>
+                <div class="status" id="media-upload-status"></div>
+            </div>
+            <div class="card list-card">
+                <div class="card-header" style="gap:12px;">
+                    <h4 style="margin:0;">Файлы</h4>
+                    <input type="search" id="media-search" placeholder="Поиск по имени" />
+                </div>
+                <div id="media-list" class="media-list"></div>
             </div>
         </div>
     </div>

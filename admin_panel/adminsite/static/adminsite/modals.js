@@ -4,7 +4,7 @@ function createElement(html) {
     return tpl.content.firstElementChild;
 }
 
-class BaseModal {
+export class BaseModal {
     constructor(title) {
         this.backdrop = createElement('<div class="modal-backdrop" hidden></div>');
         this.modal = createElement('<div class="modal"></div>');

@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
 from sqlalchemy.orm import Session
 
 from admin_panel.dependencies import get_current_admin, get_db_session
 from schemas.adminsite_page import PageConfig
-from . import service
+from . import media as media_service, service
 from services import adminsite_pages
 from .schemas import (
     CategoryPayload,
@@ -52,6 +52,30 @@ def adminsite_update_home_page(
 ):
     service.ensure_admin(request, db)
     return adminsite_pages.update_page(payload.model_dump(by_alias=True))
+
+
+@router.get("/media", response_model=list[dict])
+def list_media(request: Request, q: str | None = Query(None), db: Session = Depends(get_db_session)):
+    service.ensure_admin(request, db)
+    return media_service.list_media(q)
+
+
+@router.post("/media/upload", response_model=dict)
+async def upload_media(
+    request: Request,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db_session),
+):
+    service.ensure_admin(request, db)
+    return await media_service.save_upload(file)
+
+
+@router.delete("/media/{filename}", response_model=dict)
+def delete_media(
+    filename: str, request: Request, db: Session = Depends(get_db_session)
+):
+    service.ensure_admin(request, db)
+    return media_service.delete_media(filename)
 
 
 @router.get("/types", response_model=list[str])
