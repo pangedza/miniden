@@ -434,11 +434,29 @@
         });
     }
 
+    function isFieldVisible(field) {
+        if (!field) return false;
+        if (field.disabled) return false;
+        const style = getComputedStyle(field);
+        if (style.display === 'none' || style.visibility === 'hidden') {
+            return false;
+        }
+        return !!(field.offsetParent || field.getClientRects().length);
+    }
+
     function markRequired(names = []) {
         names.forEach((name) => {
             const field = form.elements[name];
-            if (field && !field.disabled) {
+            if (field && isFieldVisible(field)) {
                 field.required = true;
+            }
+        });
+    }
+
+    function clearHiddenRequired() {
+        form.querySelectorAll('[required]').forEach((el) => {
+            if (el.disabled || !isFieldVisible(el)) {
+                el.required = false;
             }
         });
     }
@@ -487,6 +505,7 @@
 
         syncConditionValueRequirement(type);
         ensureDefaultNumbers(type);
+        clearHiddenRequired();
     }
 
     function showClientErrors(errors) {
@@ -809,6 +828,7 @@
                 return;
             }
             cleanEmptyNumbers(form, activeType);
+            clearHiddenRequired();
         });
     }
 
