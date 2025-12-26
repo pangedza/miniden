@@ -826,3 +826,4 @@ session_id теперь передаётся как query-параметр, ка
 - Fixed AdminSite constructor history sync so browser Back closes modals cleanly and does not trap navigation.
 - Removed unused placeholder `admin_panel/static/.keep` to avoid duplicate sentinel files.
 - Documented unified structure, run commands, and deploy expectations.
+- Fixed AdminSite constructor modals so category/product dialogs close on Отмена, Esc, and backdrop clicks without page reloads; touched `admin_panel/adminsite/static/adminsite/modals.js`, verify with the constructor smoke steps.
