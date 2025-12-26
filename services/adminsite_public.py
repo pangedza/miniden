@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from database import get_session
@@ -111,12 +111,12 @@ def list_categories(type_value: str | None = None) -> list[dict[str, Any]]:
 def _load_category(
     session: Session, slug: str, *, type_value: str | None
 ) -> AdminSiteCategory | None:
-    normalized_slug = (slug or "").strip()
+    normalized_slug = (slug or "").strip().lower()
     if not normalized_slug:
         return None
 
     query = _category_query(session, type_value).where(
-        AdminSiteCategory.slug == normalized_slug
+        func.lower(AdminSiteCategory.slug) == normalized_slug
     )
     categories = session.execute(query).scalars().all()
 
@@ -150,6 +150,23 @@ def get_category_with_items(
         serialized_items.append(_serialize_item(item, category=linked_category))
 
     return {"category": _serialize_category(category), "items": serialized_items}
+
+
+def list_items(
+    *, type_value: str | None = None, category_id: int | None = None
+) -> list[dict[str, Any]]:
+    normalized_type = normalize_type(type_value)
+    with get_session() as session:
+        rows = (
+            session.execute(
+                _item_query(
+                    session, type_value=normalized_type, category_id=category_id
+                )
+            )
+            .all()
+        )
+
+    return [_serialize_item(item, category=category) for item, category in rows]
 
 
 def get_item_by_slug(slug: str, *, type_value: str) -> dict[str, Any] | None:

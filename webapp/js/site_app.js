@@ -4,6 +4,7 @@ import {
   fetchMasterclass,
   fetchMenu,
   fetchProduct,
+  fetchItems,
 } from './site_api.js';
 
 const views = {
@@ -273,7 +274,19 @@ async function handleRoute() {
 
     if (route.view === 'category' && route.slug) {
       const category = await fetchCategory(route.slug);
-      renderCategory(category);
+      let items = category?.items || [];
+      if (category?.category?.id) {
+        try {
+          const response = await fetchItems({
+            type: category?.category?.type,
+            category_id: category.category.id,
+          });
+          items = response?.items || items;
+        } catch (error) {
+          console.error('Failed to load category items', error);
+        }
+      }
+      renderCategory({ ...category, items });
       showView('category');
       return;
     }

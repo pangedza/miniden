@@ -7,6 +7,23 @@ Changelog / История изменений
 - 2025-12-01: Fix AdminSite static + unify nginx deploy config. Исправлено монтирование `/static` в FastAPI (ошибка `url_for('static', ...)` больше не возникает), шаблоны AdminSite теперь ссылаются на конструктор через `url_for`, а единственным источником nginx-конфига остаётся `deploy/nginx/miniden.conf`, который копируется из `deploy.sh` в `/etc/nginx/sites-available/miniden.conf` и линкуется в `sites-enabled`. Проверка: `curl -I http://127.0.0.1:8000/static/adminsite/base.css`, `curl -I http://127.0.0.1:8000/static/adminsite/constructor.js`, открытие https://miniden.ru/adminsite/ и https://miniden.ru/adminsite/constructor/ (CSS/JS должны быть 200 и с корректным Content-Type).
 - Hotfix: Pydantic v2 compatibility (pattern вместо regex и др.) — backend падал при старте (502 Bad Gateway) из-за использования синтаксиса Pydantic v1 в AdminSite моделях.
 
+Maintenance log (2025-12-26)
+- Маршрут витрины `/c/:slug` ищет категорию по slug в нижнем регистре и, если найдена, подгружает элементы витрины по `category_id`.
+- Страница категории показывает товары выбранной категории через новый `GET /api/site/items?type=...&category_id=...`.
+- Модалка создания/редактирования товара/курса корректно парсит цену/категорию (значения не залипают при вводе) и закрывается по Cancel/Backdrop/Esc.
+- Диагностика данных (in-memory прогон): категория «Корзинки» получила `id=1`, товар «Корзинка вязаная» — `category_id=1`.
+
+Пример API JSON (короткий):
+- `GET /api/site/categories/korzinki` → `{"category": {"id": 1, "slug": "korzinki"}, "items": [{"title": "Корзинка вязаная", "category_id": 1}]}`.
+
+Smoke test
+1. Создать в конструкторе категорию «Корзинки» (type=product, slug=korzinki, активна).
+2. Создать товар «Корзинка вязаная», выбрать категорию «Корзинки», ввести цену (например, 750) и сохранить.
+3. Открыть `/c/korzinki` из колонки «Страница» в конструкторе.
+4. Убедиться, что товар отображается в списке категории (если категорий пусто — выводится «В этой категории пока нет товаров»).
+
+Правило: legacy `webapp/admin.html` не редактируем; для каталога/витрины используем AdminSite (constructor + /c/:slug).
+
 Архитектура проекта
 -------------------
 - Telegram-бот (`bot.py`): точка входа, проверка подписки, стартовый экран и главное меню с WebApp-кнопками, мини-CRM для админов.

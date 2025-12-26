@@ -1725,6 +1725,19 @@ def site_masterclass(slug: str):
     return masterclass
 
 
+@app.get("/api/site/items")
+def site_items(type: str | None = None, category_id: int | None = None):
+    normalized_type = _normalize_adminsite_type(type)
+    try:
+        return {
+            "items": adminsite_public.list_items(
+                type_value=normalized_type, category_id=category_id
+            )
+        }
+    except ValueError as exc:  # pragma: no cover - defensive
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
 @app.get("/api/site/home")
 def site_home(limit: int = 6):
     return adminsite_public.get_home_summary(limit=limit)
