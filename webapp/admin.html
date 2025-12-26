@@ -178,6 +178,13 @@
               <div class="image-preview" id="product-category-image-preview" style="display:none;">
                 <img alt="Превью категории" />
               </div>
+              <div class="muted" id="product-category-page-info">Страница создаётся автоматически при сохранении категории.</div>
+              <div class="quick-actions" id="product-category-page-actions" style="display:flex; gap:6px; flex-wrap:wrap;">
+                <a class="btn secondary" id="product-category-open-page" target="_blank" href="/adminsite/constructor">Открыть страницу</a>
+                <a class="btn secondary" id="product-category-open-products" href="#">Товары</a>
+                <a class="btn secondary" id="product-category-open-courses" href="#">Мастер-классы</a>
+                <button class="btn secondary" type="button" id="product-category-create-page">Создать страницу</button>
+              </div>
               <label>Порядок сортировки</label>
               <input type="number" name="sort_order" min="0" value="0" />
               <label style="display:flex; gap:8px; align-items:center; margin-top:8px;">
@@ -239,6 +246,13 @@
               <input type="file" name="image_file" id="course-category-image-file" accept="image/*" />
               <div class="image-preview" id="course-category-image-preview" style="display:none;">
                 <img alt="Превью категории" />
+              </div>
+              <div class="muted" id="course-category-page-info">Страница создаётся автоматически при сохранении категории.</div>
+              <div class="quick-actions" id="course-category-page-actions" style="display:flex; gap:6px; flex-wrap:wrap;">
+                <a class="btn secondary" id="course-category-open-page" target="_blank" href="/adminsite/constructor">Открыть страницу</a>
+                <a class="btn secondary" id="course-category-open-products" href="#">Товары</a>
+                <a class="btn secondary" id="course-category-open-courses" href="#">Мастер-классы</a>
+                <button class="btn secondary" type="button" id="course-category-create-page">Создать страницу</button>
               </div>
               <label>Порядок сортировки</label>
               <input type="number" name="sort_order" min="0" value="0" />
@@ -1046,6 +1060,16 @@
     const courseCategoryImageFile = document.getElementById('course-category-image-file');
     const productCategoryImagePreview = document.getElementById('product-category-image-preview');
     const courseCategoryImagePreview = document.getElementById('course-category-image-preview');
+    const productCategoryPageInfo = document.getElementById('product-category-page-info');
+    const courseCategoryPageInfo = document.getElementById('course-category-page-info');
+    const productCategoryOpenPage = document.getElementById('product-category-open-page');
+    const courseCategoryOpenPage = document.getElementById('course-category-open-page');
+    const productCategoryOpenProducts = document.getElementById('product-category-open-products');
+    const courseCategoryOpenProducts = document.getElementById('course-category-open-products');
+    const productCategoryOpenCourses = document.getElementById('product-category-open-courses');
+    const courseCategoryOpenCourses = document.getElementById('course-category-open-courses');
+    const productCategoryCreatePage = document.getElementById('product-category-create-page');
+    const courseCategoryCreatePage = document.getElementById('course-category-create-page');
 
     const brandingSiteTitleInput = document.getElementById('branding-site-title');
     const brandingAssetsVersion = document.getElementById('branding-assets-version');
@@ -1068,6 +1092,10 @@
       basket: new Map(),
       course: new Map(),
     };
+    const initialParams = new URLSearchParams(window.location.search);
+    const initialViewParam = initialParams.get('view') || 'orders';
+    const initialCategoryParam = initialParams.get('category_id');
+    const initialTypeParam = initialParams.get('type');
 
     if (statusFilter) {
       statusFilter.value = DEFAULT_ORDER_STATUS;
@@ -1386,6 +1414,45 @@
         img.removeAttribute('src');
         img.style.display = 'none';
         previewEl.style.display = 'none';
+      }
+    }
+
+    function updateCategoryPageSection(scope = 'basket', category = null) {
+      const isBasket = scope === 'basket';
+      const pageInfoEl = isBasket ? productCategoryPageInfo : courseCategoryPageInfo;
+      const openPageLink = isBasket ? productCategoryOpenPage : courseCategoryOpenPage;
+      const openProductsLink = isBasket ? productCategoryOpenProducts : courseCategoryOpenProducts;
+      const openCoursesLink = isBasket ? productCategoryOpenCourses : courseCategoryOpenCourses;
+      const createPageBtn = isBasket ? productCategoryCreatePage : courseCategoryCreatePage;
+
+      const pageId = category?.page_id;
+      const pageSlug = category?.page_slug || category?.slug || '';
+      const pageType = category?.type === 'course' ? 'course' : 'product';
+      const categoryId = category?.id;
+
+      if (pageInfoEl) {
+        pageInfoEl.textContent = pageId
+          ? `Страница #${pageId}${pageSlug ? ` (${pageSlug})` : ''}`
+          : 'Страница появится автоматически. Создайте её вручную, если связка потерялась.';
+      }
+
+      if (openPageLink) {
+        openPageLink.href = pageId ? `/adminsite/constructor?type=${pageType}&category_id=${pageId}` : '/adminsite/constructor';
+        openPageLink.style.opacity = pageId ? '' : '0.6';
+        openPageLink.tabIndex = pageId ? 0 : -1;
+      }
+
+      if (openProductsLink) {
+        const typeParam = pageType === 'course' ? 'course' : 'basket';
+        openProductsLink.href = `/admin.html?view=product-list&type=${typeParam}${categoryId ? `&category_id=${categoryId}` : ''}`;
+      }
+
+      if (openCoursesLink) {
+        openCoursesLink.href = `/admin.html?view=course-list&type=course${categoryId ? `&category_id=${categoryId}` : ''}`;
+      }
+
+      if (createPageBtn) {
+        createPageBtn.disabled = !categoryId;
       }
     }
 
@@ -2536,6 +2603,10 @@
         row.dataset.id = cat.id;
         row.classList.toggle('selected', String(cat.id) === String(selectedId));
         const updated = formatDate(cat.updated_at);
+        const pageType = cat.type === 'course' ? 'course' : 'product';
+        const pageLink = cat.page_id ? `/adminsite/constructor?type=${pageType}&category_id=${cat.page_id}` : '/adminsite/constructor';
+        const productsLink = `/admin.html?view=product-list&category_id=${cat.id}&type=${pageType === 'course' ? 'course' : 'basket'}`;
+        const masterclassesLink = `/admin.html?view=course-list&category_id=${cat.id}&type=course`;
         row.innerHTML = `
           <td>#${cat.id}</td>
           <td>${cat.name}</td>
@@ -2546,13 +2617,16 @@
           <td>${updated}</td>
           <td>
             <div style="display:flex; gap:6px; flex-wrap:wrap;">
+              <a class="btn secondary" href="${pageLink}" target="_blank" ${cat.page_id ? '' : 'aria-disabled="true" style="opacity:0.6;"'}>Страница</a>
+              <a class="btn secondary" href="${productsLink}">Товары</a>
+              <a class="btn secondary" href="${masterclassesLink}">Мастер-классы</a>
               <button class="btn secondary" type="button" data-edit="${cat.id}">Редактировать</button>
               <button class="btn secondary danger" type="button" data-delete="${cat.id}">Удалить</button>
             </div>
           </td>
         `;
         row.addEventListener('click', (event) => {
-          if (event.target.closest('button')) return;
+          if (event.target.closest('button') || event.target.closest('a')) return;
           onEdit?.(cat);
         });
         const editBtn = row.querySelector('button[data-edit]');
@@ -2620,6 +2694,7 @@
       }
       setCategoryPreview(previewEl, category.image_url, category.image_version || category.updated_at);
       clearFileInput(form.elements.image_file);
+      updateCategoryPageSection(defaultType === 'basket' ? 'basket' : 'course', category);
     }
 
     function resetCategoryForm(form, titleEl, defaultTitle, defaultType = 'basket', previewEl = null, deleteBtn = null) {
@@ -2630,6 +2705,7 @@
       if (deleteBtn) deleteBtn.style.display = 'none';
       setCategoryPreview(previewEl, '', null);
       clearFileInput(form?.elements?.image_file);
+      updateCategoryPageSection(defaultType === 'basket' ? 'basket' : 'course', { id: null, type: defaultType });
     }
 
     async function renderProductTable(items, targetTable, type) {
@@ -2801,6 +2877,43 @@
         }
       } catch (e) {
         handleError(e, 'Не удалось удалить категорию');
+      }
+    }
+
+    async function ensureCategoryPage(scope = 'basket') {
+      if (!currentUser) return;
+      const isBasket = scope === 'basket';
+      const categoryId = isBasket ? editingProductCategoryId : editingCourseCategoryId;
+      if (!categoryId) {
+        showToast('Сначала сохраните категорию');
+        return;
+      }
+
+      try {
+        await apiPost(`/admin/product-categories/${categoryId}/page`, {
+          user_id: currentUser.telegram_id,
+          force: true,
+        });
+        setStatus('Страница категории обновлена');
+        if (isBasket) {
+          await Promise.all([
+            loadProductCategories(categoryId),
+            loadCategories(productCategorySelect, 'basket'),
+            loadCategories(productCategoryFilter, 'basket', { includeAllOption: true }),
+          ]);
+          const refreshed = productCategoryItems.find((cat) => String(cat.id) === String(categoryId));
+          if (refreshed) startCategoryEdit(refreshed, 'basket');
+        } else {
+          await Promise.all([
+            loadCourseCategories(categoryId),
+            loadCategories(courseCategorySelect, 'course'),
+            loadCategories(courseCategoryFilter, 'course', { includeAllOption: true }),
+          ]);
+          const refreshed = courseCategoryItems.find((cat) => String(cat.id) === String(categoryId));
+          if (refreshed) startCategoryEdit(refreshed, 'course');
+        }
+      } catch (e) {
+        handleError(e, 'Не удалось создать страницу категории');
       }
     }
 
@@ -3671,6 +3784,8 @@
       const category = courseCategoryItems.find((cat) => String(cat.id) === String(editingCourseCategoryId));
       handleCategoryDelete(category || { id: editingCourseCategoryId }, 'course');
     });
+    productCategoryCreatePage?.addEventListener('click', () => ensureCategoryPage('basket'));
+    courseCategoryCreatePage?.addEventListener('click', () => ensureCategoryPage('course'));
     homeBlockReset?.addEventListener('click', resetHomeBlockForm);
     homePostReset?.addEventListener('click', resetHomePostForm);
 
@@ -3769,6 +3884,14 @@
           loadCategories(courseCategorySelect, 'course'),
         ]);
 
+        if (initialCategoryParam) {
+          if (initialTypeParam === 'course') {
+            if (courseCategoryFilter) courseCategoryFilter.value = initialCategoryParam;
+          } else if (productCategoryFilter) {
+            productCategoryFilter.value = initialCategoryParam;
+          }
+        }
+
         await Promise.all([loadProductCategories(), loadCourseCategories()]);
 
         resetPromoCreateForm();
@@ -3780,7 +3903,7 @@
         await loadReviews();
         await Promise.all([loadHomeBlocks(), loadHomePosts()]);
         await loadBrandingSettings();
-        showSection('orders');
+        handleViewNavigation(initialViewParam || 'orders');
         console.log('[admin] initApp done');
       } catch (e) {
         handleError(e, 'Ошибка загрузки админки');

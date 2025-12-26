@@ -261,8 +261,11 @@ class ProductCategory(Base):
     sort_order = Column(Integer, nullable=False, default=0)
     is_active = Column(Boolean, default=True, nullable=False)
     type = Column(String, nullable=False, default="basket")
+    page_id = Column(Integer, ForeignKey("adminsite_categories.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=func.now(), nullable=False)
+
+    page = relationship("AdminSiteCategory")
 
 
 class User(Base):

@@ -1426,6 +1426,11 @@ class AdminProductCategoryUpdatePayload(BaseModel):
     type: str | None = None
 
 
+class AdminCategoryPagePayload(BaseModel):
+    user_id: int
+    force: bool | None = False
+
+
 class AdminTogglePayload(BaseModel):
     user_id: int
     type: str
@@ -2645,7 +2650,13 @@ async def admin_create_product_category(request: Request, image_file: UploadFile
         is_active=payload.get("is_active") if payload.get("is_active") is not None else True,
         product_type=product_type,
     )
-    return {"id": new_id, "image_url": image_url}
+    created_category = products_service.get_product_category_by_id(new_id)
+    return {
+        "id": new_id,
+        "image_url": image_url,
+        "page_id": created_category.get("page_id") if created_category else None,
+        "page_slug": created_category.get("page_slug") if created_category else None,
+    }
 
 
 @app.put("/api/admin/product-categories/{category_id}")
@@ -2676,7 +2687,22 @@ async def admin_update_product_category(
     )
     if not updated:
         raise HTTPException(status_code=404, detail="Category not found")
-    return {"ok": True, "image_url": image_url}
+    updated_category = products_service.get_product_category_by_id(category_id)
+    return {
+        "ok": True,
+        "image_url": image_url,
+        "page_id": updated_category.get("page_id") if updated_category else None,
+        "page_slug": updated_category.get("page_slug") if updated_category else None,
+    }
+
+
+@app.post("/api/admin/product-categories/{category_id}/page")
+def admin_ensure_category_page(category_id: int, payload: AdminCategoryPagePayload):
+    _ensure_admin(payload.user_id)
+    page = products_service.ensure_category_page(category_id, force_create=bool(payload.force))
+    if not page:
+        raise HTTPException(status_code=404, detail="Category not found")
+    return {"page_id": page.get("id"), "page_slug": page.get("slug")}
 
 
 @app.delete("/api/admin/product-categories/{category_id}")

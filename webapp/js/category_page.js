@@ -217,6 +217,9 @@
   function renderCategory(category) {
     if (heroTitle) heroTitle.textContent = category.name || 'Категория';
     if (heroDescription) heroDescription.textContent = category.description || 'Описание появится позже.';
+    if (category?.name) {
+      document.title = `MiniDeN — ${category.name}`;
+    }
     if (heroImage) {
       const heroUrl = versionedImageUrl(category);
       if (heroUrl) {
@@ -257,6 +260,9 @@
       renderCategory(category);
       renderList(productsSection, products, 'Товары этой категории', buildProductCard);
       renderList(masterclassesSection, masterclasses, 'Мастер-классы', buildMasterclassCard);
+      if (noteEl) {
+        noteEl.textContent = products.length || masterclasses.length ? '' : 'Категория создана, товары появятся позже.';
+      }
     } catch (error) {
       console.error('Failed to load category', error);
       if (noteEl) noteEl.textContent = 'Категория не найдена или выключена.';

@@ -78,6 +78,7 @@ def init_db() -> None:
             "ALTER TABLE products_courses ADD COLUMN IF NOT EXISTS masterclass_url TEXT",
             "ALTER TABLE product_reviews ADD COLUMN IF NOT EXISTS masterclass_id INTEGER",
             "ALTER TABLE product_reviews ALTER COLUMN product_id DROP NOT NULL",
+            "ALTER TABLE product_categories ADD COLUMN IF NOT EXISTS page_id INTEGER",
             "ALTER TABLE webchat_sessions ADD COLUMN IF NOT EXISTS session_key VARCHAR(64)",
             "ALTER TABLE webchat_sessions ADD COLUMN IF NOT EXISTS user_identifier TEXT",
             "ALTER TABLE webchat_sessions ADD COLUMN IF NOT EXISTS user_agent TEXT",
