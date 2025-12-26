@@ -1,9 +1,41 @@
 const defaultHeaders = { 'Content-Type': 'application/json' };
 
+function parseValidationErrors(detail) {
+    if (!Array.isArray(detail)) return null;
+
+    const messages = [];
+    detail.forEach((item) => {
+        const field = Array.isArray(item?.loc) ? item.loc[item.loc.length - 1] : null;
+        const message = item?.msg || item?.message;
+
+        if (item?.type === 'string_pattern_mismatch' && field === 'slug') {
+            messages.push('Slug может содержать только латиницу, цифры и дефисы.');
+            return;
+        }
+
+        if (message && field) {
+            messages.push(`${field}: ${message}`);
+        } else if (message) {
+            messages.push(message);
+        }
+    });
+
+    if (!messages.length) return null;
+    return messages.join('; ');
+}
+
 function parseErrorDetail(detail) {
     if (!detail) return 'Ошибка запроса';
     if (typeof detail === 'string') return detail;
-    if (detail.detail) return parseErrorDetail(detail.detail);
+
+    if (detail.detail) {
+        const validation = parseValidationErrors(detail.detail);
+        return validation || parseErrorDetail(detail.detail);
+    }
+
+    const validation = parseValidationErrors(detail);
+    if (validation) return validation;
+
     return JSON.stringify(detail);
 }
 

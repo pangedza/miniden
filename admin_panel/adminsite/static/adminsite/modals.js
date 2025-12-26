@@ -11,6 +11,7 @@ class BaseModal {
         this.title = title;
         this.status = createElement('<div class="status"></div>');
         this.onCloseHandlers = [];
+        this.requestClose = (reason = 'manual') => this.close(reason);
         const header = createElement(
             '<header><h3></h3><button class="modal-close" type="button" aria-label="Закрыть">×</button></header>',
         );
@@ -22,13 +23,13 @@ class BaseModal {
         document.body.appendChild(this.backdrop);
 
         this.modal.addEventListener('click', (event) => event.stopPropagation());
-        this.backdrop.addEventListener('click', () => this.close('backdrop'));
-        this.closeButton.addEventListener('click', () => this.close('button'));
+        this.backdrop.addEventListener('click', () => this.requestClose('backdrop'));
+        this.closeButton.addEventListener('click', () => this.requestClose('button'));
 
         this.handleEscape = (event) => {
             if (event.key === 'Escape') {
                 event.preventDefault();
-                this.close('escape');
+                this.requestClose('escape');
             }
         };
     }
@@ -58,6 +59,14 @@ class BaseModal {
                 console.error('[AdminSite] modal onClose handler failed', error);
             }
         });
+    }
+
+    setCloseHandler(handler) {
+        if (typeof handler === 'function') {
+            this.requestClose = handler;
+        } else {
+            this.requestClose = (reason = 'manual') => this.close(reason);
+        }
     }
 
     onClose(handler) {
@@ -95,7 +104,7 @@ export class CategoryModal extends BaseModal {
         this.modal.appendChild(this.form);
         this.modal.appendChild(actions);
         this.saveButton.addEventListener('click', () => this.submit());
-        this.cancelButton.addEventListener('click', () => this.close());
+        this.cancelButton.addEventListener('click', () => this.requestClose('cancel'));
     }
 
     setData(category) {
@@ -181,7 +190,7 @@ export class ItemModal extends BaseModal {
         actions.append(this.saveButton, this.cancelButton);
         this.modal.append(this.form, actions);
         this.saveButton.addEventListener('click', () => this.submit());
-        this.cancelButton.addEventListener('click', () => this.close());
+        this.cancelButton.addEventListener('click', () => this.requestClose('cancel'));
     }
 
     refreshCategories(type) {

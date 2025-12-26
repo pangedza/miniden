@@ -211,6 +211,15 @@ function renderCategory(category) {
   }
 }
 
+function mergeItems(primary = [], secondary = []) {
+  const map = new Map();
+  [...secondary, ...primary].forEach((item) => {
+    if (!item || item.id === undefined || item.id === null) return;
+    map.set(item.id, item);
+  });
+  return Array.from(map.values());
+}
+
 function renderProduct(item, targetPrefix = 'product') {
   const breadcrumbs = document.getElementById(`${targetPrefix}-breadcrumbs`);
   const image = document.getElementById(`${targetPrefix}-image`);
@@ -281,7 +290,7 @@ async function handleRoute() {
             type: category?.category?.type,
             category_id: category.category.id,
           });
-          items = response?.items || items;
+          items = mergeItems(response?.items || [], items);
         } catch (error) {
           console.error('Failed to load category items', error);
         }
