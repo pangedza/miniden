@@ -12,6 +12,7 @@ from sqlalchemy.dialects.postgresql import insert
 
 from database import get_session
 from models import (
+    AdminSiteCategory,
     MasterclassImage,
     ProductBasket,
     ProductCategory,
@@ -52,6 +53,37 @@ def _unique_category_slug(session, slug: str, product_type: str, *, current_id: 
         )
         if current_id is not None:
             query = query.where(ProductCategory.id != current_id)
+
+        exists = session.execute(query.limit(1)).scalar()
+        if not exists:
+            return candidate
+
+        candidate = f"{base}-{suffix}"
+        suffix += 1
+
+
+def _map_category_type_to_adminsite(product_type: str) -> str:
+    return "course" if product_type == "course" else "product"
+
+
+def _unique_adminsite_slug(
+    session,
+    slug: str,
+    page_type: str,
+    *,
+    current_id: int | None = None,
+) -> str:
+    base = slug or "category"
+    candidate = base
+    suffix = 2
+
+    while True:
+        query = select(AdminSiteCategory.id).where(
+            AdminSiteCategory.slug == candidate,
+            AdminSiteCategory.type == page_type,
+        )
+        if current_id is not None:
+            query = query.where(AdminSiteCategory.id != current_id)
 
         exists = session.execute(query.limit(1)).scalar()
         if not exists:
@@ -130,6 +162,56 @@ def _serialize_product(
         "masterclass_url": getattr(product, "masterclass_url", None),
         "created_at": product.created_at.isoformat() if getattr(product, "created_at", None) else None,
     }
+
+
+def _ensure_category_page(
+    session,
+    category: ProductCategory,
+    *,
+    force_create: bool = False,
+) -> AdminSiteCategory:
+    page_type = _map_category_type_to_adminsite(category.type)
+    slug_base = _slugify(category.slug or category.name or f"category-{category.id}") or f"category-{category.id}"
+    safe_slug = _unique_adminsite_slug(
+        session,
+        slug_base,
+        page_type,
+        current_id=int(category.page_id) if category.page_id else None,
+    )
+
+    page: AdminSiteCategory | None = None
+    if category.page_id:
+        page = session.get(AdminSiteCategory, category.page_id)
+
+    if page is None and not force_create:
+        page = (
+            session.execute(
+                select(AdminSiteCategory)
+                .where(AdminSiteCategory.slug == safe_slug)
+                .where(AdminSiteCategory.type == page_type)
+            )
+            .scalars()
+            .first()
+        )
+
+    if page is None:
+        page = AdminSiteCategory(type=page_type, title=category.name, slug=safe_slug)
+        session.add(page)
+        session.flush()
+
+    if page.title != category.name:
+        page.title = category.name
+    if page.slug != safe_slug:
+        page.slug = safe_slug
+    page.is_active = bool(category.is_active)
+    page.sort = int(category.sort_order or 0)
+
+    if category.page_id != page.id:
+        category.page_id = page.id
+
+    session.add(page)
+    session.add(category)
+    return page
 
 
 BASKET_CATEGORY_PRESETS: list[dict[str, Any]] = [
@@ -232,6 +314,8 @@ def _category_meta(row: ProductCategory) -> dict[str, Any]:
         "type": row.type,
         "sort_order": int(row.sort_order or 0),
         "is_active": bool(row.is_active),
+        "page_id": getattr(row, "page_id", None),
+        "page_slug": getattr(row, "slug", None),
         "created_at": row.created_at,
         "updated_at": updated_at,
     }
@@ -257,6 +341,9 @@ def _load_category_maps(product_type: str, *, include_mixed: bool = False):
             )
             .scalars()
             .all()
+        for row in rows:
+            if getattr(row, "page_id", None) is None:
+                _ensure_category_page(session, row)
         )
 
     for row in rows:
@@ -493,6 +580,8 @@ def list_product_categories_admin(product_type: str = "basket") -> list[dict[str
             "sort_order": meta.get("sort_order", 0),
             "is_active": meta.get("is_active", True),
             "type": meta.get("type"),
+            "page_id": meta.get("page_id"),
+            "page_slug": meta.get("page_slug"),
             "created_at": meta.get("created_at"),
             "updated_at": meta.get("updated_at"),
         }
@@ -525,6 +614,7 @@ def create_product_category(
         )
         session.add(category)
         session.flush()
+        _ensure_category_page(session, category)
         return int(category.id)
 
 
@@ -561,6 +651,7 @@ def update_product_category(
             category.is_active = is_active
         if product_type is not None:
             category.type = product_type
+        _ensure_category_page(session, category)
         return True
 
 
@@ -579,9 +670,21 @@ def get_product_category_by_id(category_id: int) -> dict[str, Any] | None:
             "sort_order": int(category.sort_order or 0),
             "is_active": bool(category.is_active),
             "type": category.type,
+            "page_id": category.page_id,
+            "page_slug": category.page.slug if getattr(category, "page", None) else None,
             "created_at": category.created_at,
             "updated_at": getattr(category, "updated_at", None),
         }
+
+
+def ensure_category_page(category_id: int, *, force_create: bool = False) -> dict[str, Any] | None:
+    with get_session() as session:
+        category = session.get(ProductCategory, category_id)
+        if not category:
+            return None
+
+        page = _ensure_category_page(session, category, force_create=force_create)
+        return {"id": int(page.id), "slug": page.slug, "type": page.type}
 
 
 def delete_product_category(category_id: int) -> str | None:
@@ -634,6 +737,8 @@ def get_category_with_items(slug: str) -> dict[str, Any] | None:
             "type": category.get("type"),
             "sort_order": category.get("sort_order"),
             "is_active": category.get("is_active"),
+            "page_id": category.get("page_id"),
+            "page_slug": category.get("page_slug"),
             "created_at": category.get("created_at"),
             "updated_at": category.get("updated_at"),
         },

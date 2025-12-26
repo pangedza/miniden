@@ -806,6 +806,21 @@ session_id теперь передаётся как query-параметр, ка
 - Systemd units: `deploy/systemd/miniden-api.service` and `miniden-bot.service` are installed/reloaded by the script, then restarted sequentially.
 - Protected paths: deploy script keeps existing `.env`, `media/`, `data/`, and runtime `logs/` untouched while updating code.
 
+## AdminSite/Constructor: Категории → Страницы
+- При создании/обновлении категории товаров или мастер-классов автоматически создаётся страница конструктора (таблица `adminsite_categories`) и `page_id` сохраняется в `product_categories.page_id`.
+- Slug и название синхронизируются с категорией; при запросах к API категории заполняется связка `page_id/page_slug`, а существующие категории без связки получают страницу автоматически при загрузке списков.
+- Отдельный эндпоинт `/api/admin/product-categories/{id}/page` позволяет принудительно создать/привязать страницу, если она потерялась.
+
+## Быстрые переходы в админке
+- В списке категорий добавлены ссылки: «Страница» (открывает `/adminsite/constructor` с нужной категорией), «Товары» и «Мастер-классы» (открывают списки с фильтром `category_id`/`type`).
+- В формах категорий отображается read-only блок с `page_id/page_slug`, кнопки для открытия конструктора и списков, а также кнопка «Создать страницу», вызывающая `/api/admin/product-categories/{id}/page`.
+- Ссылки используют query-параметры `view`, `type`, `category_id`, поэтому переход из списка категорий сразу включает нужный фильтр в админке.
+
+## Проверка (smoke test)
+1. Создать категорию в админке (вкладка «Категории товаров/мастер-классов») — после сохранения у записи появляется `page_id`, а в конструкторе видна страница.
+2. Создать товар и указать созданную категорию.
+3. Открыть публичную страницу категории (`/category/<slug>` или кнопка «Страница») и убедиться, что новый товар отображается без ручного редактирования страницы; при необходимости из формы категории можно нажать «Создать страницу» для восстановления привязки.
+
 ## Maintenance log
 - Audited repository layout and deployment entrypoints (see `docs/audit_report.md`).
 - Fixed AdminSite constructor history sync so browser Back closes modals cleanly and does not trap navigation.
