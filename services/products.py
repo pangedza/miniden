@@ -341,10 +341,11 @@ def _load_category_maps(product_type: str, *, include_mixed: bool = False):
             )
             .scalars()
             .all()
+        )
+
         for row in rows:
             if getattr(row, "page_id", None) is None:
                 _ensure_category_page(session, row)
-        )
 
     for row in rows:
         meta = _category_meta(row)
