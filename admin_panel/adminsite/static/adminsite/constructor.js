@@ -1,5 +1,5 @@
 import { apiRequest } from './apiClient.js';
-import { CategoryModal, ItemModal } from './modals.js';
+import { BaseModal, CategoryModal, ItemModal } from './modals.js';
 
 console.log('[AdminSite] constructor.js loaded');
 document.documentElement.setAttribute('data-adminsite-js', 'loaded');
@@ -125,12 +125,143 @@ const defaultWebappSettings = {
     min_selected: 1,
 };
 
+function buildDefaultBlocks() {
+    return [
+        {
+            type: 'hero',
+            title: 'Витрина AdminSite',
+            subtitle: 'Настройте оформление и блоки под свои задачи.',
+            imageUrl: '/static/img/home-placeholder.svg',
+            background: {
+                type: 'gradient',
+                value: 'linear-gradient(135deg, rgba(255,255,255,0.12), rgba(0,0,0,0.04))',
+            },
+        },
+        {
+            type: 'cards',
+            title: 'Подборка',
+            subtitle: 'Карточки можно использовать для товаров, услуг или ссылок.',
+            layout: { columns: 2 },
+            items: [],
+        },
+        {
+            type: 'text',
+            title: 'Описание',
+            text: 'Добавьте короткое описание компании или продукта.',
+        },
+        { type: 'social', items: [] },
+    ];
+}
+
 const homepageDefaults = {
     templateId: 'services',
-    blocks: [],
+    blocks: buildDefaultBlocks(),
 };
 
 let homepageConfig = homepageDefaults;
+let homepageSelectedIndex = 0;
+let developerMode = false;
+
+function copyToClipboard(value, fallbackMessage = 'Скопировано') {
+    if (!value) return;
+    if (navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(value).then(
+            () => showToast(fallbackMessage),
+            () => {
+                showToast('Не удалось скопировать', 'error');
+            },
+        );
+        return;
+    }
+
+    const input = document.createElement('input');
+    input.value = value;
+    document.body.appendChild(input);
+    input.select();
+    document.execCommand('copy');
+    document.body.removeChild(input);
+    showToast(fallbackMessage);
+}
+
+function normalizeBackground(background = {}) {
+    const type = ['color', 'gradient', 'image'].includes(background?.type) ? background.type : 'color';
+    return {
+        type,
+        value: background?.value || null,
+    };
+}
+
+function normalizeLayout(layout = {}) {
+    const columns = Number(layout?.columns) || 2;
+    const safeColumns = Math.min(3, Math.max(1, columns));
+    return { columns: safeColumns };
+}
+
+function normalizeCardItem(item = {}) {
+    return {
+        title: item?.title || 'Карточка',
+        imageUrl: item?.imageUrl || item?.image_url || null,
+        href: item?.href || '',
+        icon: item?.icon || null,
+    };
+}
+
+function normalizeSocialItem(item = {}) {
+    const allowed = ['telegram', 'whatsapp', 'vk', 'instagram', 'website', 'phone', 'email'];
+    const type = allowed.includes(item?.type) ? item.type : 'telegram';
+    return {
+        type,
+        label: item?.label || 'Связаться',
+        href: item?.href || '',
+        icon: item?.icon || null,
+    };
+}
+
+function normalizeBlock(block = {}) {
+    if (!block?.type) return null;
+    if (block.type === 'hero') {
+        return {
+            type: 'hero',
+            title: block.title || 'Витрина AdminSite',
+            subtitle: block.subtitle || '',
+            imageUrl: block.imageUrl || block.image_url || '',
+            background: normalizeBackground(block.background),
+        };
+    }
+    if (block.type === 'cards') {
+        const items = Array.isArray(block.items) ? block.items.map(normalizeCardItem) : [];
+        return {
+            type: 'cards',
+            title: block.title || '',
+            subtitle: block.subtitle || '',
+            items,
+            layout: normalizeLayout(block.layout),
+        };
+    }
+    if (block.type === 'text') {
+        return {
+            type: 'text',
+            title: block.title || '',
+            text: block.text || '',
+        };
+    }
+    if (block.type === 'social') {
+        const items = Array.isArray(block.items) ? block.items.map(normalizeSocialItem) : [];
+        return {
+            type: 'social',
+            items,
+        };
+    }
+    return null;
+}
+
+function normalizeHomepageConfig(data = homepageDefaults) {
+    const templateId = data?.templateId || data?.template_id || 'services';
+    const blocksRaw = Array.isArray(data?.blocks) ? data.blocks : [];
+    const normalizedBlocks = blocksRaw.map(normalizeBlock).filter(Boolean);
+    const safeBlocks = normalizedBlocks.length ? normalizedBlocks : buildDefaultBlocks();
+    return { templateId, blocks: safeBlocks };
+}
 
 function getElementOrWarn(id) {
     const el = document.getElementById(id);
@@ -829,6 +960,9 @@ function getInitialTab() {
     if (document.getElementById('panel-homepage')) {
         return 'panel-homepage';
     }
+    if (document.getElementById('panel-media')) {
+        return 'panel-media';
+    }
     return document.getElementById('panel-webapp') ? 'panel-webapp' : null;
 }
 
@@ -870,6 +1004,18 @@ function renderTypeTabs() {
         homepageTab.textContent = 'Главная';
         homepageTab.addEventListener('click', () => setActiveTab('panel-homepage'));
         tabs.appendChild(homepageTab);
+    }
+
+    const mediaPanel = document.getElementById('panel-media');
+    if (mediaPanel) {
+        mediaPanel.classList.remove('active');
+        panels.appendChild(mediaPanel);
+        const mediaTab = document.createElement('button');
+        mediaTab.className = 'tab';
+        mediaTab.dataset.target = 'panel-media';
+        mediaTab.textContent = 'Медиа';
+        mediaTab.addEventListener('click', () => setActiveTab('panel-media'));
+        tabs.appendChild(mediaTab);
     }
 
     const initialTab = getInitialTab();
@@ -965,11 +1111,25 @@ function setupWebappListeners() {
     });
 }
 
-const homepageTemplateSelect = getElementOrWarn('homepage-template');
+const homepageTemplateCards = Array.from(document.querySelectorAll('#homepage-template .template-card'));
 const homepageBlocksField = getElementOrWarn('homepage-blocks');
 const homepageSaveButton = getElementOrWarn('homepage-save');
 const homepageResetButton = getElementOrWarn('homepage-reset');
 const homepageStatus = getElementOrWarn('status-homepage');
+const homepageBlocksList = getElementOrWarn('homepage-blocks-list');
+const homepageBlockEditor = getElementOrWarn('homepage-block-editor');
+const homepageEditorTitle = getElementOrWarn('homepage-editor-title');
+const homepageEditorSubtitle = getElementOrWarn('homepage-editor-subtitle');
+const homepageBlockMeta = getElementOrWarn('homepage-block-meta');
+const homepageDevToggle = getElementOrWarn('homepage-dev-toggle');
+const homepageDevTools = getElementOrWarn('homepage-devtools');
+const homepageDevStatus = getElementOrWarn('homepage-dev-status');
+const homepageDevApply = getElementOrWarn('homepage-dev-apply');
+const homepageDevHide = getElementOrWarn('homepage-dev-hide');
+const homepageAddBlockButton = getElementOrWarn('homepage-add-block');
+
+let homepageLoadedConfig = normalizeHomepageConfig(homepageDefaults);
+let blockPickerModal = null;
 
 function setHomepageStatus(message, isError = false) {
     if (!homepageStatus) return;
@@ -984,29 +1144,539 @@ function setHomepageStatus(message, isError = false) {
     homepageStatus.style.display = 'block';
 }
 
-function renderHomepageForm(data = homepageDefaults) {
-    const payload = { ...homepageDefaults, ...(data || {}) };
-    homepageConfig = payload;
-    if (homepageTemplateSelect) {
-        homepageTemplateSelect.value = payload.templateId || 'services';
-    }
+function setDevStatus(message, isError = false) {
+    if (!homepageDevStatus) return;
+    homepageDevStatus.textContent = message || '';
+    homepageDevStatus.classList.toggle('error', Boolean(message && isError));
+    homepageDevStatus.style.display = message ? 'block' : 'none';
+}
+
+function syncDevTextarea() {
     if (homepageBlocksField) {
-        const blocksValue = Array.isArray(payload.blocks) ? payload.blocks : [];
-        homepageBlocksField.value = JSON.stringify(blocksValue, null, 2);
+        homepageBlocksField.value = JSON.stringify(homepageConfig.blocks || [], null, 2);
     }
 }
 
+function setTemplateActive(templateId) {
+    homepageTemplateCards.forEach((card) => {
+        card.classList.toggle('active', card.dataset.template === templateId);
+    });
+}
+
+function setTemplate(templateId) {
+    homepageConfig = { ...homepageConfig, templateId: templateId || 'services' };
+    setTemplateActive(homepageConfig.templateId);
+}
+
+function createBlockOfType(type) {
+    if (type === 'cards') {
+        return normalizeBlock({ type: 'cards', title: 'Подборка', subtitle: '', items: [], layout: { columns: 2 } });
+    }
+    if (type === 'text') {
+        return normalizeBlock({ type: 'text', title: 'Текстовый блок', text: '' });
+    }
+    if (type === 'social') {
+        return normalizeBlock({ type: 'social', items: [] });
+    }
+    return normalizeBlock({
+        type: 'hero',
+        title: 'Витрина AdminSite',
+        subtitle: 'Добавьте описание и картинку',
+        imageUrl: '/static/img/home-placeholder.svg',
+        background: { type: 'gradient', value: 'linear-gradient(135deg, rgba(255,255,255,0.12), rgba(0,0,0,0.04))' },
+    });
+}
+
+function ensureBlocksPresent() {
+    if (!Array.isArray(homepageConfig.blocks) || !homepageConfig.blocks.length) {
+        homepageConfig.blocks = buildDefaultBlocks();
+        homepageSelectedIndex = 0;
+    }
+}
+
+function selectBlock(index = 0) {
+    ensureBlocksPresent();
+    const safeIndex = Math.min(Math.max(0, index), homepageConfig.blocks.length - 1);
+    homepageSelectedIndex = safeIndex;
+    renderBlocksList();
+    renderBlockEditor();
+}
+
+function moveBlock(index, delta) {
+    const targetIndex = index + delta;
+    if (targetIndex < 0 || targetIndex >= homepageConfig.blocks.length) return;
+    const [item] = homepageConfig.blocks.splice(index, 1);
+    homepageConfig.blocks.splice(targetIndex, 0, item);
+    selectBlock(targetIndex);
+    syncDevTextarea();
+}
+
+function deleteBlock(index) {
+    if (!homepageConfig.blocks[index]) return;
+    homepageConfig.blocks.splice(index, 1);
+    if (!homepageConfig.blocks.length) {
+        homepageConfig.blocks = buildDefaultBlocks();
+    }
+    selectBlock(Math.max(0, index - 1));
+    syncDevTextarea();
+}
+
+function addBlock(type) {
+    const block = createBlockOfType(type);
+    if (!block) return;
+    homepageConfig.blocks.push(block);
+    selectBlock(homepageConfig.blocks.length - 1);
+    syncDevTextarea();
+    showToast('Блок добавлен');
+}
+
+function ensureBlockPicker() {
+    if (blockPickerModal) return blockPickerModal;
+    blockPickerModal = new BaseModal('Добавить блок');
+    const wrapper = document.createElement('div');
+    wrapper.className = 'block-list';
+    [
+        { type: 'hero', title: 'Hero', text: 'Крупный блок с заголовком и картинкой' },
+        { type: 'cards', title: 'Карточки', text: 'Сетка карточек с картинками' },
+        { type: 'text', title: 'Текст', text: 'Абзац текста и заголовок' },
+        { type: 'social', title: 'Социальные ссылки', text: 'Ссылки и контакты' },
+    ].forEach((item) => {
+        const row = document.createElement('div');
+        row.className = 'block-row';
+        const info = document.createElement('div');
+        const title = document.createElement('div');
+        title.textContent = item.title;
+        const meta = document.createElement('div');
+        meta.className = 'meta';
+        meta.textContent = item.text;
+        info.append(title, meta);
+        const btn = document.createElement('button');
+        btn.className = 'btn-primary';
+        btn.type = 'button';
+        btn.textContent = 'Добавить';
+        btn.addEventListener('click', () => {
+            addBlock(item.type);
+            closeTrackedModal(blockPickerModal, 'block-added');
+        });
+        row.append(info, btn);
+        wrapper.appendChild(row);
+    });
+    blockPickerModal.modal.appendChild(wrapper);
+    registerModal(blockPickerModal);
+    return blockPickerModal;
+}
+
+function openBlockPicker() {
+    const modal = ensureBlockPicker();
+    openTrackedModal(modal, 'block-picker');
+}
+
+function renderBlocksList() {
+    if (!homepageBlocksList) return;
+    homepageBlocksList.innerHTML = '';
+    ensureBlocksPresent();
+
+    homepageConfig.blocks.forEach((block, index) => {
+        const row = document.createElement('div');
+        row.className = 'block-row';
+        if (index === homepageSelectedIndex) {
+            row.classList.add('active');
+        }
+        row.addEventListener('click', () => selectBlock(index));
+
+        const info = document.createElement('div');
+        const title = document.createElement('div');
+        title.textContent = block.title || block.type;
+        const meta = document.createElement('div');
+        meta.className = 'meta';
+        meta.textContent = block.type;
+        info.append(title, meta);
+
+        const actions = document.createElement('div');
+        actions.className = 'actions';
+
+        const up = document.createElement('button');
+        up.className = 'btn-ghost';
+        up.type = 'button';
+        up.textContent = '↑';
+        up.title = 'Вверх';
+        up.addEventListener('click', (event) => {
+            event.stopPropagation();
+            moveBlock(index, -1);
+        });
+
+        const down = document.createElement('button');
+        down.className = 'btn-ghost';
+        down.type = 'button';
+        down.textContent = '↓';
+        down.title = 'Вниз';
+        down.addEventListener('click', (event) => {
+            event.stopPropagation();
+            moveBlock(index, 1);
+        });
+
+        const remove = document.createElement('button');
+        remove.className = 'btn-danger';
+        remove.type = 'button';
+        remove.textContent = 'Удалить';
+        remove.addEventListener('click', (event) => {
+            event.stopPropagation();
+            deleteBlock(index);
+        });
+
+        actions.append(up, down, remove);
+        row.append(info, actions);
+        homepageBlocksList.appendChild(row);
+    });
+}
+
+function createInput(labelText, value, onChange, { type = 'text', placeholder = '', textarea = false } = {}) {
+    const label = document.createElement('label');
+    label.textContent = labelText;
+    const input = textarea ? document.createElement('textarea') : document.createElement('input');
+    if (!textarea) {
+        input.type = type;
+    }
+    input.placeholder = placeholder;
+    if (value !== undefined && value !== null) input.value = value;
+    input.addEventListener('input', (event) => {
+        onChange(event.target.value);
+    });
+    label.appendChild(input);
+    return { label, input };
+}
+
+function renderHeroEditor(block, index) {
+    const container = document.createElement('div');
+    const titleField = createInput('Заголовок', block.title, (val) => updateBlock(index, { ...block, title: val || 'Hero' }));
+    const subtitleField = createInput('Подзаголовок', block.subtitle || '', (val) => updateBlock(index, { ...block, subtitle: val }));
+    const imageField = createInput('Картинка (URL)', block.imageUrl || '', (val) => updateBlock(index, { ...block, imageUrl: val }));
+    const imageActions = document.createElement('div');
+    imageActions.className = 'inline-actions';
+    const pickBtn = document.createElement('button');
+    pickBtn.className = 'btn-secondary';
+    pickBtn.type = 'button';
+    pickBtn.textContent = 'Выбрать из медиа';
+    pickBtn.addEventListener('click', async (event) => {
+        event.preventDefault();
+        await openMediaPicker((url) => {
+            imageField.input.value = url;
+            updateBlock(index, { ...block, imageUrl: url });
+        });
+    });
+    imageActions.appendChild(pickBtn);
+
+    const bgTypeWrapper = document.createElement('div');
+    bgTypeWrapper.className = 'field-row';
+    const bgTypeLabel = document.createElement('label');
+    bgTypeLabel.textContent = 'Фон';
+    const bgTypeSelect = document.createElement('select');
+    ['gradient', 'color', 'image'].forEach((option) => {
+        const opt = document.createElement('option');
+        opt.value = option;
+        opt.textContent = option;
+        bgTypeSelect.appendChild(opt);
+    });
+    bgTypeSelect.value = block.background?.type || 'gradient';
+
+    const bgValueField = createInput('Значение фона', block.background?.value || '', (val) => {
+        updateBlock(index, { ...block, background: { type: bgTypeSelect.value, value: val } });
+    });
+
+    bgTypeSelect.addEventListener('change', (event) => {
+        const nextType = event.target.value;
+        updateBlock(index, { ...block, background: { type: nextType, value: bgValueField.input.value } });
+    });
+    bgTypeLabel.appendChild(bgTypeSelect);
+    bgTypeWrapper.append(bgTypeLabel, bgValueField.label);
+
+    container.append(titleField.label, subtitleField.label, imageField.label, imageActions, bgTypeWrapper);
+    return container;
+}
+
+function renderCardItems(block, index) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'block-list';
+
+    const addBtn = document.createElement('button');
+    addBtn.className = 'btn-secondary';
+    addBtn.type = 'button';
+    addBtn.textContent = '+ Добавить карточку';
+    addBtn.addEventListener('click', () => {
+        const nextItems = [...(block.items || []), normalizeCardItem({ title: 'Карточка', href: '' })];
+        updateBlock(index, { ...block, items: nextItems });
+    });
+
+    (block.items || []).forEach((item, itemIndex) => {
+        const row = document.createElement('div');
+        row.className = 'list-item';
+
+        const body = document.createElement('div');
+        const titleField = createInput('Заголовок', item.title, (val) => {
+            const next = [...block.items];
+            next[itemIndex] = { ...item, title: val };
+            updateBlock(index, { ...block, items: next });
+        });
+        const hrefField = createInput('Ссылка', item.href || '', (val) => {
+            const next = [...block.items];
+            next[itemIndex] = { ...item, href: val };
+            updateBlock(index, { ...block, items: next });
+        });
+        const imageField = createInput('Картинка', item.imageUrl || '', (val) => {
+            const next = [...block.items];
+            next[itemIndex] = { ...item, imageUrl: val };
+            updateBlock(index, { ...block, items: next });
+        });
+        const mediaBtn = document.createElement('button');
+        mediaBtn.className = 'btn-secondary';
+        mediaBtn.type = 'button';
+        mediaBtn.textContent = 'Медиа';
+        mediaBtn.addEventListener('click', async () => {
+            await openMediaPicker((url) => {
+                imageField.input.value = url;
+                const next = [...block.items];
+                next[itemIndex] = { ...item, imageUrl: url };
+                updateBlock(index, { ...block, items: next });
+            });
+        });
+
+        body.append(titleField.label, hrefField.label, imageField.label, mediaBtn);
+
+        const actions = document.createElement('div');
+        actions.className = 'actions';
+        const up = document.createElement('button');
+        up.className = 'btn-ghost';
+        up.type = 'button';
+        up.textContent = '↑';
+        up.addEventListener('click', () => {
+            if (itemIndex === 0) return;
+            const next = [...block.items];
+            next.splice(itemIndex, 1);
+            next.splice(itemIndex - 1, 0, item);
+            updateBlock(index, { ...block, items: next });
+        });
+        const down = document.createElement('button');
+        down.className = 'btn-ghost';
+        down.type = 'button';
+        down.textContent = '↓';
+        down.addEventListener('click', () => {
+            const next = [...block.items];
+            if (itemIndex >= next.length - 1) return;
+            next.splice(itemIndex, 1);
+            next.splice(itemIndex + 1, 0, item);
+            updateBlock(index, { ...block, items: next });
+        });
+        const remove = document.createElement('button');
+        remove.className = 'btn-danger';
+        remove.type = 'button';
+        remove.textContent = 'Удалить';
+        remove.addEventListener('click', () => {
+            const next = [...block.items];
+            next.splice(itemIndex, 1);
+            updateBlock(index, { ...block, items: next });
+        });
+        actions.append(up, down, remove);
+
+        row.append(body, actions);
+        wrapper.appendChild(row);
+    });
+
+    wrapper.appendChild(addBtn);
+    return wrapper;
+}
+
+function renderSocialItems(block, index) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'block-list';
+
+    const addBtn = document.createElement('button');
+    addBtn.className = 'btn-secondary';
+    addBtn.type = 'button';
+    addBtn.textContent = '+ Добавить ссылку';
+    addBtn.addEventListener('click', () => {
+        const nextItems = [...(block.items || []), normalizeSocialItem({ href: '' })];
+        updateBlock(index, { ...block, items: nextItems });
+    });
+
+    (block.items || []).forEach((item, itemIndex) => {
+        const row = document.createElement('div');
+        row.className = 'list-item';
+        const body = document.createElement('div');
+
+        const typeLabel = document.createElement('label');
+        typeLabel.textContent = 'Тип';
+        const typeSelect = document.createElement('select');
+        ['telegram', 'whatsapp', 'vk', 'instagram', 'website', 'phone', 'email'].forEach((value) => {
+            const opt = document.createElement('option');
+            opt.value = value;
+            opt.textContent = value;
+            typeSelect.appendChild(opt);
+        });
+        typeSelect.value = item.type;
+        typeSelect.addEventListener('change', (event) => {
+            const next = [...block.items];
+            next[itemIndex] = { ...item, type: event.target.value };
+            updateBlock(index, { ...block, items: next });
+        });
+        typeLabel.appendChild(typeSelect);
+
+        const labelField = createInput('Текст', item.label || '', (val) => {
+            const next = [...block.items];
+            next[itemIndex] = { ...item, label: val };
+            updateBlock(index, { ...block, items: next });
+        });
+        const hrefField = createInput('Ссылка', item.href || '', (val) => {
+            const next = [...block.items];
+            next[itemIndex] = { ...item, href: val };
+            updateBlock(index, { ...block, items: next });
+        });
+
+        body.append(typeLabel, labelField.label, hrefField.label);
+
+        const actions = document.createElement('div');
+        actions.className = 'actions';
+        const remove = document.createElement('button');
+        remove.className = 'btn-danger';
+        remove.type = 'button';
+        remove.textContent = 'Удалить';
+        remove.addEventListener('click', () => {
+            const next = [...block.items];
+            next.splice(itemIndex, 1);
+            updateBlock(index, { ...block, items: next });
+        });
+        actions.appendChild(remove);
+
+        row.append(body, actions);
+        wrapper.appendChild(row);
+    });
+
+    wrapper.appendChild(addBtn);
+    return wrapper;
+}
+
+function updateBlock(index, nextValue) {
+    const current = homepageConfig.blocks[index];
+    if (!current) return;
+    const updated = normalizeBlock(typeof nextValue === 'function' ? nextValue(current) : nextValue) || current;
+    homepageConfig.blocks[index] = updated;
+    renderBlocksList();
+    renderBlockEditor();
+    syncDevTextarea();
+}
+
+function renderBlockEditor() {
+    if (!homepageBlockEditor) return;
+    ensureBlocksPresent();
+    const block = homepageConfig.blocks[homepageSelectedIndex];
+    homepageBlockEditor.innerHTML = '';
+
+    if (!block) {
+        homepageBlockEditor.innerHTML = '<p class="muted">Добавьте блок, чтобы начать редактирование.</p>';
+        return;
+    }
+
+    homepageEditorTitle.textContent = block.title || 'Блок';
+    homepageEditorSubtitle.textContent = block.type === 'hero' ? 'Крупный блок с картинкой' : block.type;
+    if (homepageBlockMeta) {
+        homepageBlockMeta.innerHTML = '';
+        const pill = document.createElement('span');
+        pill.className = 'pill';
+        pill.textContent = block.type;
+        homepageBlockMeta.appendChild(pill);
+    }
+
+    let editorContent = document.createElement('div');
+    if (block.type === 'hero') {
+        editorContent = renderHeroEditor(block, homepageSelectedIndex);
+    } else if (block.type === 'cards') {
+        const header = new DocumentFragment();
+        const titleField = createInput('Заголовок', block.title || '', (val) => updateBlock(homepageSelectedIndex, { ...block, title: val }));
+        const subtitleField = createInput('Подзаголовок', block.subtitle || '', (val) => updateBlock(homepageSelectedIndex, { ...block, subtitle: val }));
+
+        const columnsLabel = document.createElement('label');
+        columnsLabel.textContent = 'Колонки';
+        const columns = document.createElement('select');
+        [1, 2, 3].forEach((col) => {
+            const opt = document.createElement('option');
+            opt.value = col;
+            opt.textContent = `${col}`;
+            columns.appendChild(opt);
+        });
+        columns.value = block.layout?.columns || 2;
+        columns.addEventListener('change', (event) => {
+            const nextColumns = Number(event.target.value) || 2;
+            updateBlock(homepageSelectedIndex, { ...block, layout: { columns: nextColumns } });
+        });
+        columnsLabel.appendChild(columns);
+
+        editorContent.append(titleField.label, subtitleField.label, columnsLabel, renderCardItems(block, homepageSelectedIndex));
+    } else if (block.type === 'text') {
+        const titleField = createInput('Заголовок', block.title || '', (val) => updateBlock(homepageSelectedIndex, { ...block, title: val }));
+        const textField = createInput('Текст', block.text || '', (val) => updateBlock(homepageSelectedIndex, { ...block, text: val }), { textarea: true });
+        editorContent.append(titleField.label, textField.label);
+    } else if (block.type === 'social') {
+        editorContent.appendChild(renderSocialItems(block, homepageSelectedIndex));
+    }
+
+    homepageBlockEditor.appendChild(editorContent);
+}
+
+function toggleDeveloperMode(enabled) {
+    developerMode = enabled;
+    if (homepageDevToggle) homepageDevToggle.checked = enabled;
+    if (homepageDevTools) homepageDevTools.hidden = !enabled;
+    if (enabled) {
+        syncDevTextarea();
+    } else {
+        setDevStatus('');
+    }
+}
+
+function applyDevJson({ silent = false } = {}) {
+    if (!homepageBlocksField) return true;
+    try {
+        const raw = homepageBlocksField.value || '[]';
+        const parsed = JSON.parse(raw);
+        const normalized = Array.isArray(parsed) ? parsed.map(normalizeBlock).filter(Boolean) : [];
+        if (!normalized.length) {
+            throw new Error('JSON не содержит валидных блоков');
+        }
+        homepageConfig.blocks = normalized;
+        homepageSelectedIndex = 0;
+        renderBlocksList();
+        renderBlockEditor();
+        setDevStatus('JSON применён');
+        return true;
+    } catch (error) {
+        setDevStatus(error.message || 'Ошибка JSON', true);
+        if (!silent) setHomepageStatus('Исправьте JSON', true);
+        return false;
+    }
+}
+
+function renderHomepageForm(data = homepageDefaults) {
+    const payload = normalizeHomepageConfig(data);
+    homepageConfig = JSON.parse(JSON.stringify(payload));
+    homepageSelectedIndex = 0;
+    setTemplateActive(homepageConfig.templateId);
+    syncDevTextarea();
+    toggleDeveloperMode(false);
+    renderBlocksList();
+    renderBlockEditor();
+}
+
 function resetHomepageForm() {
-    renderHomepageForm(homepageConfig);
+    renderHomepageForm(homepageLoadedConfig);
     setHomepageStatus('');
+    setDevStatus('');
 }
 
 async function loadHomepageConfig() {
     try {
         setHomepageStatus('Загрузка страницы...');
         const data = await apiRequest(`${API_BASE}/pages/home`, { credentials: 'include' });
-        homepageConfig = data || homepageDefaults;
-        renderHomepageForm(homepageConfig);
+        homepageLoadedConfig = normalizeHomepageConfig(data || homepageDefaults);
+        renderHomepageForm(homepageLoadedConfig);
         setHomepageStatus('Страница загружена');
     } catch (error) {
         setHomepageStatus(error.message || 'Не удалось загрузить страницу', true);
@@ -1014,22 +1684,22 @@ async function loadHomepageConfig() {
 }
 
 async function saveHomepageConfig() {
-    if (!homepageBlocksField) return;
+    if (developerMode && !applyDevJson({ silent: true })) {
+        return;
+    }
     try {
-        const raw = homepageBlocksField.value || '[]';
-        const blocks = JSON.parse(raw);
-        const payload = {
-            templateId: homepageTemplateSelect?.value || 'services',
-            blocks,
-        };
         setHomepageStatus('Сохранение...');
+        const payload = {
+            templateId: homepageConfig.templateId || 'services',
+            blocks: homepageConfig.blocks || [],
+        };
         const data = await apiRequest(`${API_BASE}/pages/home`, {
             method: 'PUT',
             body: payload,
             credentials: 'include',
         });
-        homepageConfig = data || payload;
-        renderHomepageForm(homepageConfig);
+        homepageLoadedConfig = normalizeHomepageConfig(data || payload);
+        renderHomepageForm(homepageLoadedConfig);
         setHomepageStatus('Сохранено');
         showToast('Страница обновлена');
     } catch (error) {
@@ -1041,6 +1711,213 @@ async function saveHomepageConfig() {
 function setupHomepageListeners() {
     homepageSaveButton?.addEventListener('click', saveHomepageConfig);
     homepageResetButton?.addEventListener('click', resetHomepageForm);
+    homepageAddBlockButton?.addEventListener('click', openBlockPicker);
+    homepageTemplateCards.forEach((card) => {
+        card.addEventListener('click', () => setTemplate(card.dataset.template));
+    });
+    homepageDevToggle?.addEventListener('change', (event) => toggleDeveloperMode(event.target.checked));
+    homepageDevHide?.addEventListener('click', () => toggleDeveloperMode(false));
+    homepageDevApply?.addEventListener('click', () => applyDevJson());
+}
+
+const mediaStatus = getElementOrWarn('status-media');
+const mediaUploadStatus = getElementOrWarn('media-upload-status');
+const mediaUploadInput = getElementOrWarn('media-upload-input');
+const mediaUploadButton = getElementOrWarn('media-upload-btn');
+const mediaRefreshButton = getElementOrWarn('media-refresh');
+const mediaList = getElementOrWarn('media-list');
+const mediaSearch = getElementOrWarn('media-search');
+
+const mediaState = {
+    items: [],
+    filter: '',
+};
+
+let mediaPickerModal = null;
+
+function setMediaStatus(message, isError = false) {
+    if (!mediaStatus) return;
+    mediaStatus.textContent = message || '';
+    mediaStatus.classList.toggle('error', Boolean(message && isError));
+    mediaStatus.style.display = message ? 'block' : 'none';
+}
+
+function setMediaUploadStatus(message, isError = false) {
+    if (!mediaUploadStatus) return;
+    mediaUploadStatus.textContent = message || '';
+    mediaUploadStatus.classList.toggle('error', Boolean(message && isError));
+    mediaUploadStatus.style.display = message ? 'block' : 'none';
+}
+
+function formatFileSize(bytes = 0) {
+    if (!bytes) return '0 Б';
+    const kb = bytes / 1024;
+    if (kb < 1024) return `${kb.toFixed(1)} КБ`;
+    return `${(kb / 1024).toFixed(1)} МБ`;
+}
+
+function buildMediaCard(item, { selectable = false, onSelect } = {}) {
+    const card = document.createElement('div');
+    card.className = 'media-card';
+
+    const preview = document.createElement('div');
+    const img = document.createElement('img');
+    img.src = item.url;
+    img.alt = item.name;
+    preview.appendChild(img);
+
+    const body = document.createElement('div');
+    const title = document.createElement('h4');
+    title.style.margin = '0 0 6px';
+    title.textContent = item.name;
+    const meta = document.createElement('div');
+    meta.className = 'muted';
+    const updated = item.modified ? new Date(item.modified * 1000).toLocaleString('ru-RU') : '';
+    meta.textContent = `${formatFileSize(item.size)}${updated ? ` · ${updated}` : ''}`;
+
+    const urlInput = document.createElement('input');
+    urlInput.value = item.url;
+    urlInput.readOnly = true;
+    urlInput.addEventListener('focus', (event) => event.target.select());
+
+    const actions = document.createElement('div');
+    actions.className = 'actions';
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'btn-secondary';
+    copyBtn.type = 'button';
+    copyBtn.textContent = 'Копировать';
+    copyBtn.addEventListener('click', () => copyToClipboard(item.url));
+    actions.appendChild(copyBtn);
+
+    if (selectable && typeof onSelect === 'function') {
+        const selectBtn = document.createElement('button');
+        selectBtn.className = 'btn-primary';
+        selectBtn.type = 'button';
+        selectBtn.textContent = 'Выбрать';
+        selectBtn.addEventListener('click', () => {
+            onSelect(item.url);
+            closeTrackedModal(mediaPickerModal, 'media-select');
+        });
+        actions.appendChild(selectBtn);
+    }
+
+    if (!selectable) {
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'btn-danger';
+        deleteBtn.type = 'button';
+        deleteBtn.textContent = 'Удалить';
+        deleteBtn.addEventListener('click', async () => {
+            if (!confirm('Удалить файл?')) return;
+            await deleteMediaFile(item.name);
+        });
+        actions.appendChild(deleteBtn);
+    }
+
+    body.append(title, meta, urlInput, actions);
+    card.append(preview, body);
+    return card;
+}
+
+function renderMediaList() {
+    if (!mediaList) return;
+    mediaList.innerHTML = '';
+    const filtered = mediaState.items.filter((item) =>
+        !mediaState.filter || item.name.toLowerCase().includes(mediaState.filter.toLowerCase()),
+    );
+    if (!filtered.length) {
+        const empty = document.createElement('div');
+        empty.className = 'muted';
+        empty.textContent = 'Файлы ещё не загружены.';
+        mediaList.appendChild(empty);
+        return;
+    }
+    filtered.forEach((item) => mediaList.appendChild(buildMediaCard(item)));
+}
+
+function ensureMediaPickerModal() {
+    if (mediaPickerModal) return mediaPickerModal;
+    mediaPickerModal = new BaseModal('Выбрать из медиа');
+    mediaPickerModal.listContainer = document.createElement('div');
+    mediaPickerModal.listContainer.className = 'media-list';
+    mediaPickerModal.modal.appendChild(mediaPickerModal.listContainer);
+    mediaPickerModal.onClose(() => {
+        if (mediaPickerModal?.listContainer) mediaPickerModal.listContainer.innerHTML = '';
+    });
+    registerModal(mediaPickerModal);
+    return mediaPickerModal;
+}
+
+async function openMediaPicker(onSelect) {
+    const modal = ensureMediaPickerModal();
+    await loadMediaLibrary({ silent: true });
+    if (modal.listContainer) {
+        modal.listContainer.innerHTML = '';
+        mediaState.items.forEach((item) => {
+            modal.listContainer.appendChild(buildMediaCard(item, { selectable: true, onSelect }));
+        });
+    }
+    openTrackedModal(modal, 'media-picker');
+}
+
+async function loadMediaLibrary({ silent = false } = {}) {
+    try {
+        if (!silent) setMediaStatus('Загрузка медиа...');
+        const query = mediaState.filter ? `?q=${encodeURIComponent(mediaState.filter)}` : '';
+        const items = await apiRequest(`${API_BASE}/media${query}`, { credentials: 'include' });
+        mediaState.items = Array.isArray(items) ? items : [];
+        renderMediaList();
+        if (!silent) setMediaStatus('Готово');
+    } catch (error) {
+        setMediaStatus(error.message || 'Не удалось загрузить медиа', true);
+    }
+}
+
+async function uploadMediaFile() {
+    const file = mediaUploadInput?.files?.[0];
+    if (!file) {
+        setMediaUploadStatus('Выберите файл', true);
+        return;
+    }
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+        setMediaUploadStatus('Загружаем...');
+        const result = await apiRequest(`${API_BASE}/media/upload`, {
+            method: 'POST',
+            body: formData,
+            credentials: 'include',
+        });
+        setMediaUploadStatus('Готово');
+        showToast('Файл загружен');
+        copyToClipboard(result?.url);
+        if (mediaUploadInput) mediaUploadInput.value = '';
+        await loadMediaLibrary();
+    } catch (error) {
+        setMediaUploadStatus(error.message || 'Не удалось загрузить файл', true);
+    }
+}
+
+async function deleteMediaFile(filename) {
+    try {
+        setMediaStatus('Удаляем...');
+        await apiRequest(`${API_BASE}/media/${encodeURIComponent(filename)}`, {
+            method: 'DELETE',
+            credentials: 'include',
+        });
+        await loadMediaLibrary({ silent: true });
+        setMediaStatus('Файл удалён');
+    } catch (error) {
+        setMediaStatus(error.message || 'Не удалось удалить', true);
+    }
+}
+
+function setupMediaListeners() {
+    mediaUploadButton?.addEventListener('click', uploadMediaFile);
+    mediaRefreshButton?.addEventListener('click', () => loadMediaLibrary());
+    mediaSearch?.addEventListener('input', (event) => {
+        mediaState.filter = event.target.value || '';
+        renderMediaList();
+    });
 }
 
 async function loadTypesFromApi() {
@@ -1061,6 +1938,7 @@ async function bootstrap() {
     state.ui.panelsContainer = getElementOrWarn('constructor-panels');
     setupWebappListeners();
     setupHomepageListeners();
+    setupMediaListeners();
     toggleWebappCategory();
     try {
         await loadTypesFromApi();
@@ -1072,6 +1950,7 @@ async function bootstrap() {
         }
         await loadWebappSettings();
         await loadHomepageConfig();
+        await loadMediaLibrary({ silent: true });
         setStatus('global-status', 'Данные загружены');
     } catch (error) {
         setStatus('global-status', error.message, true);
