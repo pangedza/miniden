@@ -11,12 +11,26 @@ class BaseModal {
         this.title = title;
         this.status = createElement('<div class="status"></div>');
         this.onCloseHandlers = [];
-        const header = createElement('<header><h3></h3></header>');
+        const header = createElement(
+            '<header><h3></h3><button class="modal-close" type="button" aria-label="Закрыть">×</button></header>',
+        );
         header.querySelector('h3').textContent = title;
+        this.closeButton = header.querySelector('.modal-close');
         this.modal.appendChild(header);
         this.modal.appendChild(this.status);
         this.backdrop.appendChild(this.modal);
         document.body.appendChild(this.backdrop);
+
+        this.modal.addEventListener('click', (event) => event.stopPropagation());
+        this.backdrop.addEventListener('click', () => this.close('backdrop'));
+        this.closeButton.addEventListener('click', () => this.close('button'));
+
+        this.handleEscape = (event) => {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                this.close('escape');
+            }
+        };
     }
 
     showMessage(text, isError = false) {
@@ -27,14 +41,19 @@ class BaseModal {
 
     open() {
         this.backdrop.hidden = false;
+        document.addEventListener('keydown', this.handleEscape);
     }
 
-    close() {
+    close(reason = 'manual') {
         this.backdrop.hidden = true;
         this.showMessage('');
+        document.removeEventListener('keydown', this.handleEscape);
+        if (typeof this.reset === 'function') {
+            this.reset();
+        }
         this.onCloseHandlers.forEach((handler) => {
             try {
-                handler();
+                handler(reason);
             } catch (error) {
                 console.error('[AdminSite] modal onClose handler failed', error);
             }
@@ -85,6 +104,15 @@ export class CategoryModal extends BaseModal {
         this.form.querySelector('input[name="slug"]').value = category?.slug || '';
         this.form.querySelector('input[name="sort"]').value = category?.sort ?? 0;
         this.form.querySelector('input[name="is_active"]').checked = category?.is_active ?? true;
+    }
+
+    reset() {
+        this.form.reset();
+        this.form.querySelector('input[name="id"]').value = '';
+        this.form.querySelector('input[name="sort"]').value = 0;
+        this.form.querySelector('input[name="is_active"]').checked = true;
+        this.showMessage('');
+        this.saveButton.disabled = false;
     }
 
     async submit() {
@@ -180,6 +208,22 @@ export class ItemModal extends BaseModal {
         this.form.querySelector('textarea[name="short_text"]').value = item?.short_text || '';
         this.form.querySelector('textarea[name="description"]').value = item?.description || '';
         this.form.querySelector('input[name="is_active"]').checked = item?.is_active ?? true;
+    }
+
+    reset() {
+        this.form.dataset.type = '';
+        this.form.querySelector('input[name="id"]').value = '';
+        this.form.querySelector('select[name="category_id"]').innerHTML = '';
+        this.form.querySelector('input[name="title"]').value = '';
+        this.form.querySelector('input[name="slug"]').value = '';
+        this.form.querySelector('input[name="price"]').value = 0;
+        this.form.querySelector('input[name="sort"]').value = 0;
+        this.form.querySelector('input[name="image_url"]').value = '';
+        this.form.querySelector('textarea[name="short_text"]').value = '';
+        this.form.querySelector('textarea[name="description"]').value = '';
+        this.form.querySelector('input[name="is_active"]').checked = true;
+        this.showMessage('');
+        this.saveButton.disabled = false;
     }
 
     async submit() {
