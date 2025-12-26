@@ -3,6 +3,7 @@ MiniDeN — Telegram-бот и веб-магазин
 
 Changelog / История изменений
 -----------------------------
+- 2025-12-07: Исправлен SyntaxError в `services/products.py` (незакрытые скобки вокруг запроса категорий), из-за которого падал запуск `miniden-api`. Проверка: `python -m py_compile services/products.py`.
 - 2025-12-01: Fix AdminSite static + unify nginx deploy config. Исправлено монтирование `/static` в FastAPI (ошибка `url_for('static', ...)` больше не возникает), шаблоны AdminSite теперь ссылаются на конструктор через `url_for`, а единственным источником nginx-конфига остаётся `deploy/nginx/miniden.conf`, который копируется из `deploy.sh` в `/etc/nginx/sites-available/miniden.conf` и линкуется в `sites-enabled`. Проверка: `curl -I http://127.0.0.1:8000/static/adminsite/base.css`, `curl -I http://127.0.0.1:8000/static/adminsite/constructor.js`, открытие https://miniden.ru/adminsite/ и https://miniden.ru/adminsite/constructor/ (CSS/JS должны быть 200 и с корректным Content-Type).
 - Hotfix: Pydantic v2 compatibility (pattern вместо regex и др.) — backend падал при старте (502 Bad Gateway) из-за использования синтаксиса Pydantic v1 в AdminSite моделях.
 
