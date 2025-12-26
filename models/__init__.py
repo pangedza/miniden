@@ -687,6 +687,16 @@ class AdminSiteWebAppSettings(Base):
     )
 
 
+class AdminSitePage(Base):
+    __tablename__ = "adminsite_pages"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    slug = Column(String(64), nullable=False, unique=True)
+    template_id = Column(String(64), nullable=False, default="services", server_default="services")
+    blocks = Column(JSONB, nullable=False, default=list, server_default="[]")
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
 __all__ = [
     "BotNode",
     "BotButton",
@@ -720,4 +730,5 @@ __all__ = [
     "AdminSiteCategory",
     "AdminSiteItem",
     "AdminSiteWebAppSettings",
+    "AdminSitePage",
 ]

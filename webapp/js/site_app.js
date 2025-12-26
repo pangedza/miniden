@@ -6,6 +6,7 @@ import {
   fetchProduct,
   fetchItems,
 } from './site_api.js';
+import { getTemplateById, templatesRegistry } from './templates_registry.js';
 
 const views = {
   home: document.getElementById('view-home'),
@@ -18,7 +19,8 @@ const views = {
 const navMenu = document.getElementById('nav-menu');
 const navLinks = document.getElementById('nav-links');
 const sidebarOverlay = document.querySelector('.app-sidebar-overlay');
-const themeSelect = document.getElementById('theme-select');
+const templateName = document.getElementById('template-name');
+const homeBlocksContainer = document.getElementById('home-blocks');
 
 function hideAllViews() {
   Object.values(views).forEach((view) => {
@@ -135,30 +137,264 @@ function renderMenu(menu) {
   });
 }
 
-function renderHome(data) {
-  const categoryGrid = document.getElementById('home-category-grid');
-  const categoryEmpty = document.getElementById('home-category-empty');
-  const featuredGrid = document.getElementById('home-featured-grid');
-  const featuredEmpty = document.getElementById('home-featured-empty');
+function applyTemplate(templateId) {
+  const template = getTemplateById(templateId) || getTemplateById('services') || templatesRegistry[0];
+  const vars = template?.cssVars || {};
+  const root = document.documentElement;
 
-  categoryGrid.innerHTML = '';
-  featuredGrid.innerHTML = '';
+  const defaults = {
+    bg: '#f5f6fb',
+    text: '#1f2937',
+    muted: '#6b7280',
+    'card-bg': '#ffffff',
+    accent: '#2563eb',
+    radius: '16px',
+    shadow: '0 10px 30px rgba(15, 23, 42, 0.08)',
+    font: '"Inter", system-ui, sans-serif',
+  };
 
-  const categories = [...(data?.product_categories || []), ...(data?.course_categories || [])];
-  if (!categories.length) {
-    categoryEmpty?.removeAttribute('style');
-  } else {
-    categoryEmpty?.setAttribute('style', 'display:none;');
-    categories.forEach((category) => categoryGrid.appendChild(buildCategoryCard(category)));
+  Object.entries({ ...defaults, ...vars }).forEach(([key, value]) => {
+    if (typeof value === 'string') {
+      root.style.setProperty(`--${key}`, value);
+    }
+  });
+
+  root.style.setProperty(
+    '--card-border-color',
+    template?.stylePreset?.cardBorder ? 'rgba(0,0,0,0.08)' : 'transparent',
+  );
+  root.dataset.template = template?.id || 'services';
+  if (templateName) templateName.textContent = template?.name || templateId || 'Services';
+}
+
+function buildHeroSection(block) {
+  const section = document.createElement('section');
+  section.className = 'page-hero reveal';
+
+  if (block?.background?.value) {
+    const bgValue =
+      block?.background?.type === 'image'
+        ? `url(${block.background.value}) center/cover no-repeat`
+        : block.background.value;
+    section.style.background = bgValue;
   }
+
+  const content = document.createElement('div');
+  content.className = 'page-hero__content';
+
+  const eyebrow = document.createElement('span');
+  eyebrow.className = 'hero-eyebrow muted';
+  eyebrow.textContent = 'AdminSite';
+  content.appendChild(eyebrow);
+
+  const title = document.createElement('h1');
+  title.className = 'hero-title';
+  title.textContent = block?.title || 'Витрина';
+  content.appendChild(title);
+
+  if (block?.subtitle) {
+    const subtitle = document.createElement('p');
+    subtitle.className = 'hero-subtitle';
+    subtitle.textContent = block.subtitle;
+    content.appendChild(subtitle);
+  }
+
+  const visual = document.createElement('div');
+  visual.className = 'page-hero__visual';
+  const img = document.createElement('img');
+  img.alt = block?.title || 'Hero';
+  img.src = block?.imageUrl || '/static/img/home-placeholder.svg';
+  visual.appendChild(img);
+
+  section.append(content, visual);
+  return section;
+}
+
+function buildFallbackCards(data) {
+  const cards = [];
+  const categories = [...(data?.product_categories || []), ...(data?.course_categories || [])];
+  categories.slice(0, 3).forEach((category) => {
+    cards.push({
+      title: category?.title || 'Категория',
+      href: category?.url || `/c/${category?.slug || ''}`,
+      icon: 'folder',
+      imageUrl: category?.image_url,
+      description: category?.type === 'course' ? 'Мастер-классы' : 'Каталог',
+    });
+  });
 
   const featured = [...(data?.featured_products || []), ...(data?.featured_masterclasses || [])];
-  if (!featured.length) {
-    featuredEmpty?.removeAttribute('style');
-  } else {
-    featuredEmpty?.setAttribute('style', 'display:none;');
-    featured.forEach((item) => featuredGrid.appendChild(buildItemCard(item)));
+  featured.slice(0, 3).forEach((item) => {
+    cards.push({
+      title: item?.title || 'Элемент',
+      href: item?.url || '#',
+      imageUrl: item?.image_url,
+      description: item?.short_text,
+    });
+  });
+
+  return cards;
+}
+
+function buildCard(item) {
+  const card = document.createElement('article');
+  card.className = 'page-card hover-lift';
+
+  if (item?.imageUrl) {
+    const img = document.createElement('img');
+    img.className = 'page-card__image';
+    img.src = item.imageUrl;
+    img.alt = item.title || 'Изображение';
+    card.appendChild(img);
   }
+
+  const body = document.createElement('div');
+  body.className = 'page-card__body';
+
+  const title = document.createElement('h3');
+  title.textContent = item?.title || 'Карточка';
+  body.appendChild(title);
+
+  if (item?.description) {
+    const desc = document.createElement('p');
+    desc.className = 'muted';
+    desc.textContent = item.description;
+    body.appendChild(desc);
+  }
+
+  if (item?.href) {
+    const link = document.createElement('a');
+    link.href = item.href;
+    link.textContent = 'Открыть';
+    link.className = 'btn secondary';
+    link.dataset.routerLink = '';
+    body.appendChild(link);
+  }
+
+  card.appendChild(body);
+  return card;
+}
+
+function buildCardsSection(block, data) {
+  const section = document.createElement('section');
+  section.className = 'page-section reveal';
+
+  if (block?.title || block?.subtitle) {
+    const header = document.createElement('div');
+    header.className = 'section__header';
+    if (block?.title) {
+      const title = document.createElement('h2');
+      title.textContent = block.title;
+      header.appendChild(title);
+    }
+    if (block?.subtitle) {
+      const subtitle = document.createElement('p');
+      subtitle.className = 'muted';
+      subtitle.textContent = block.subtitle;
+      header.appendChild(subtitle);
+    }
+    section.appendChild(header);
+  }
+
+  const grid = document.createElement('div');
+  grid.className = 'cards-grid';
+  grid.style.setProperty('--columns', block?.layout?.columns || 2);
+
+  const items = block?.items?.length ? block.items : buildFallbackCards(data);
+  if (!items.length) {
+    const empty = document.createElement('div');
+    empty.className = 'muted';
+    empty.textContent = 'Карточки будут показаны после заполнения конфигурации.';
+    section.appendChild(empty);
+  } else {
+    items.forEach((item) => grid.appendChild(buildCard(item)));
+    section.appendChild(grid);
+  }
+
+  return section;
+}
+
+function buildTextSection(block) {
+  const section = document.createElement('section');
+  section.className = 'page-section reveal';
+
+  if (block?.title) {
+    const title = document.createElement('h2');
+    title.textContent = block.title;
+    section.appendChild(title);
+  }
+
+  if (block?.text) {
+    const text = document.createElement('p');
+    text.className = 'muted';
+    text.textContent = block.text;
+    section.appendChild(text);
+  }
+
+  return section;
+}
+
+function buildSocialSection(block) {
+  const section = document.createElement('section');
+  section.className = 'page-section reveal';
+
+  const title = document.createElement('h2');
+  title.textContent = 'Связаться';
+  section.appendChild(title);
+
+  const list = document.createElement('div');
+  list.className = 'social-grid';
+  const items = block?.items || [];
+  if (!items.length) {
+    const muted = document.createElement('div');
+    muted.className = 'muted';
+    muted.textContent = 'Добавьте ссылки в админке AdminSite.';
+    section.appendChild(muted);
+  } else {
+    items.forEach((item) => {
+      const link = document.createElement('a');
+      link.href = item.href;
+      link.target = '_blank';
+      link.rel = 'noopener';
+      link.className = 'social-chip';
+      link.textContent = item.label || item.type;
+      list.appendChild(link);
+    });
+    section.appendChild(list);
+  }
+
+  return section;
+}
+
+function renderHomeBlocks(page, data) {
+  if (!homeBlocksContainer) return;
+  homeBlocksContainer.innerHTML = '';
+
+  const blocks = page?.blocks?.length ? page.blocks : [];
+  const hasBlocks = blocks.length > 0;
+
+  const list = hasBlocks ? blocks : [{ type: 'hero' }, { type: 'cards' }, { type: 'social' }];
+
+  list.forEach((block) => {
+    if (block?.type === 'hero') {
+      homeBlocksContainer.appendChild(buildHeroSection(block));
+    }
+    if (block?.type === 'cards') {
+      homeBlocksContainer.appendChild(buildCardsSection(block, data));
+    }
+    if (block?.type === 'text') {
+      homeBlocksContainer.appendChild(buildTextSection(block));
+    }
+    if (block?.type === 'social') {
+      homeBlocksContainer.appendChild(buildSocialSection(block));
+    }
+  });
+}
+
+function renderHome(data) {
+  const templateId = data?.page?.templateId || 'services';
+  applyTemplate(templateId);
+  renderHomeBlocks(data?.page, data);
 }
 
 function renderBreadcrumbs(target, parts) {
@@ -353,25 +589,8 @@ function setupMenuToggle() {
   sidebarOverlay?.addEventListener('click', closeSidebar);
 }
 
-function loadTheme() {
-  const saved = localStorage.getItem('site-theme');
-  if (saved) {
-    document.body.dataset.theme = saved;
-    if (themeSelect) themeSelect.value = saved;
-  }
-}
-
-function setupThemeSwitcher() {
-  loadTheme();
-  themeSelect?.addEventListener('change', (event) => {
-    const value = event.target.value;
-    document.body.dataset.theme = value;
-    localStorage.setItem('site-theme', value);
-  });
-}
-
 async function bootstrap() {
-  setupThemeSwitcher();
+  applyTemplate('services');
   setupMenuToggle();
   bindRouterLinks();
 

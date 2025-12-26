@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from database import get_session
 from models import AdminSiteCategory, AdminSiteItem
+from services import adminsite_pages
 
 ALLOWED_TYPES = {"product", "course"}
 
@@ -197,6 +198,7 @@ def _load_items(session: Session, *, type_value: str, limit: int = 6):
 
 
 def get_home_summary(limit: int = 6) -> dict[str, Any]:
+    page = adminsite_pages.get_page()
     with get_session() as session:
         categories_product = session.execute(
             _category_query(session, "product")
@@ -209,6 +211,7 @@ def get_home_summary(limit: int = 6) -> dict[str, Any]:
         masterclasses = _load_items(session, type_value="course", limit=limit)
 
     return {
+        "page": page,
         "product_categories": [_serialize_category(item) for item in categories_product],
         "course_categories": [_serialize_category(item) for item in categories_course],
         "featured_products": [_serialize_item(item, category=category) for item, category in products],

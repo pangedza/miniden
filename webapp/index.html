@@ -22,15 +22,9 @@
     </div>
   </div>
   <div class="header-actions">
-    <div class="theme-switcher">
-      <label for="theme-select">Тема</label>
-      <select id="theme-select">
-        <option value="lifestyle">Lifestyle</option>
-        <option value="purple">Фиолетовая</option>
-        <option value="dark">Тёмная</option>
-        <option value="light">Светлая</option>
-        <option value="cream">Сливочная</option>
-      </select>
+    <div class="template-switcher">
+      <span class="muted">Шаблон</span>
+      <div class="template-name" id="template-name">Services</div>
     </div>
     <button class="menu-toggle" aria-label="Открыть меню">☰</button>
   </div>
@@ -46,37 +40,7 @@
 
 <main class="site-main">
   <section id="view-home" class="site-view">
-    <section class="lifestyle-hero reveal">
-      <div class="hero-body">
-        <span class="hero-eyebrow">MiniDeN • витрина от конструктора</span>
-        <h1 class="hero-title">Тема сохранена, логика на данных AdminSite</h1>
-        <p class="hero-subtitle">Категории и карточки подтягиваются из конструктора. Тема остаётся неизменной и служит оболочкой для данных.</p>
-        <div class="hero-cta">
-          <a class="btn" href="#home-categories">Открыть категории</a>
-        </div>
-      </div>
-      <div class="hero-visual hover-lift">
-        <img src="/static/img/home-placeholder.svg" alt="Витрина MiniDeN" />
-      </div>
-    </section>
-
-    <section class="section reveal" id="home-categories">
-      <div class="section__header">
-        <h2>Категории</h2>
-        <p class="muted">Берём активные категории из конструктора AdminSite.</p>
-      </div>
-      <div id="home-category-grid" class="catalog-grid"></div>
-      <div id="home-category-empty" class="muted" style="display:none;">Категорий пока нет.</div>
-    </section>
-
-    <section class="section reveal" id="home-featured">
-      <div class="section__header">
-        <h2>Подборка</h2>
-        <p class="muted">Первые элементы каждой витрины.</p>
-      </div>
-      <div class="catalog-grid" id="home-featured-grid"></div>
-      <div id="home-featured-empty" class="muted" style="display:none;">Элементов пока нет.</div>
-    </section>
+    <div id="home-blocks" class="page-blocks"></div>
   </section>
 
   <section id="view-category" class="site-view" hidden>

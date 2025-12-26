@@ -125,6 +125,13 @@ const defaultWebappSettings = {
     min_selected: 1,
 };
 
+const homepageDefaults = {
+    templateId: 'services',
+    blocks: [],
+};
+
+let homepageConfig = homepageDefaults;
+
 function getElementOrWarn(id) {
     const el = document.getElementById(id);
     if (!el) {
@@ -819,6 +826,9 @@ function getInitialTab() {
     if (state.types[0]) {
         return `panel-${state.types[0]}`;
     }
+    if (document.getElementById('panel-homepage')) {
+        return 'panel-homepage';
+    }
     return document.getElementById('panel-webapp') ? 'panel-webapp' : null;
 }
 
@@ -848,6 +858,18 @@ function renderTypeTabs() {
         webappTab.addEventListener('click', () => setActiveTab('panel-webapp'));
         tabs.appendChild(webappTab);
         state.ui.webappTab = webappTab;
+    }
+
+    const homepagePanel = document.getElementById('panel-homepage');
+    if (homepagePanel) {
+        homepagePanel.classList.remove('active');
+        panels.appendChild(homepagePanel);
+        const homepageTab = document.createElement('button');
+        homepageTab.className = 'tab';
+        homepageTab.dataset.target = 'panel-homepage';
+        homepageTab.textContent = 'Главная';
+        homepageTab.addEventListener('click', () => setActiveTab('panel-homepage'));
+        tabs.appendChild(homepageTab);
     }
 
     const initialTab = getInitialTab();
@@ -943,6 +965,84 @@ function setupWebappListeners() {
     });
 }
 
+const homepageTemplateSelect = getElementOrWarn('homepage-template');
+const homepageBlocksField = getElementOrWarn('homepage-blocks');
+const homepageSaveButton = getElementOrWarn('homepage-save');
+const homepageResetButton = getElementOrWarn('homepage-reset');
+const homepageStatus = getElementOrWarn('status-homepage');
+
+function setHomepageStatus(message, isError = false) {
+    if (!homepageStatus) return;
+    if (!message) {
+        homepageStatus.textContent = '';
+        homepageStatus.classList.remove('error');
+        homepageStatus.style.display = 'none';
+        return;
+    }
+    homepageStatus.textContent = message;
+    homepageStatus.classList.toggle('error', isError);
+    homepageStatus.style.display = 'block';
+}
+
+function renderHomepageForm(data = homepageDefaults) {
+    const payload = { ...homepageDefaults, ...(data || {}) };
+    homepageConfig = payload;
+    if (homepageTemplateSelect) {
+        homepageTemplateSelect.value = payload.templateId || 'services';
+    }
+    if (homepageBlocksField) {
+        const blocksValue = Array.isArray(payload.blocks) ? payload.blocks : [];
+        homepageBlocksField.value = JSON.stringify(blocksValue, null, 2);
+    }
+}
+
+function resetHomepageForm() {
+    renderHomepageForm(homepageConfig);
+    setHomepageStatus('');
+}
+
+async function loadHomepageConfig() {
+    try {
+        setHomepageStatus('Загрузка страницы...');
+        const data = await apiRequest(`${API_BASE}/pages/home`, { credentials: 'include' });
+        homepageConfig = data || homepageDefaults;
+        renderHomepageForm(homepageConfig);
+        setHomepageStatus('Страница загружена');
+    } catch (error) {
+        setHomepageStatus(error.message || 'Не удалось загрузить страницу', true);
+    }
+}
+
+async function saveHomepageConfig() {
+    if (!homepageBlocksField) return;
+    try {
+        const raw = homepageBlocksField.value || '[]';
+        const blocks = JSON.parse(raw);
+        const payload = {
+            templateId: homepageTemplateSelect?.value || 'services',
+            blocks,
+        };
+        setHomepageStatus('Сохранение...');
+        const data = await apiRequest(`${API_BASE}/pages/home`, {
+            method: 'PUT',
+            body: payload,
+            credentials: 'include',
+        });
+        homepageConfig = data || payload;
+        renderHomepageForm(homepageConfig);
+        setHomepageStatus('Сохранено');
+        showToast('Страница обновлена');
+    } catch (error) {
+        console.error(error);
+        setHomepageStatus(error.message || 'Не удалось сохранить страницу', true);
+    }
+}
+
+function setupHomepageListeners() {
+    homepageSaveButton?.addEventListener('click', saveHomepageConfig);
+    homepageResetButton?.addEventListener('click', resetHomepageForm);
+}
+
 async function loadTypesFromApi() {
     setStatus('global-status', 'Загрузка разделов...');
     try {
@@ -960,6 +1060,7 @@ async function bootstrap() {
     state.ui.tabsContainer = getElementOrWarn('constructor-tabs');
     state.ui.panelsContainer = getElementOrWarn('constructor-panels');
     setupWebappListeners();
+    setupHomepageListeners();
     toggleWebappCategory();
     try {
         await loadTypesFromApi();
@@ -970,6 +1071,7 @@ async function bootstrap() {
             await loadItems(type);
         }
         await loadWebappSettings();
+        await loadHomepageConfig();
         setStatus('global-status', 'Данные загружены');
     } catch (error) {
         setStatus('global-status', error.message, true);
