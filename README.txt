@@ -777,6 +777,7 @@ session_id теперь передаётся как query-параметр, ка
 - Кнопка «Обновить бота» на странице Runtime увеличивает `config_version`; бот перезагружает кэш меню без рестарта.
  - /start в Telegram читает MAIN_MENU из БД (кнопки webapp/url/callback рендерятся из таблиц), старая логика остаётся как fallback.
  - Добавлен условный узел «Проверка подписки»: в редакторе узла выберите тип «Условие» → «Проверка подписки» и укажите каналы, кнопки и переходы при успехе/ошибке. Бот строит клавиатуру с кнопками «Подписаться» (URL) и «Проверить подписку» (callback) автоматически.
+ - Поддерживаются каналы в формате `@username`, `t.me/username`, `https://t.me/username` и числовой `chat_id` (`-100...`). Для корректной проверки бот должен быть добавлен в канал (лучше администратором).
  - Стартовый узел настраивается на странице AdminBot → Runtime. Чтобы включить подписочный гейт, задайте код стартового узла, например `SUBSCRIPTION_CHECK`; при успешной проверке переходите в `MAIN_MENU`, при провале оставляйтесь на узле проверки.
 
 Шаблоны AdminBot: быстрый старт
@@ -848,6 +849,7 @@ Front reset: theme-only + constructor-driven site
 3. Открыть публичную страницу категории (`/category/<slug>` или кнопка «Страница») и убедиться, что новый товар отображается без ручного редактирования страницы; при необходимости из формы категории можно нажать «Создать страницу» для восстановления привязки.
 
 ## Maintenance log
+- Fixed AdminBot subscription check: теперь используется реальный `getChatMember`, нормализуются ссылки на канал и логируется статус/ошибка Telegram.
 - Audited repository layout and deployment entrypoints (see `docs/audit_report.md`).
 - Fixed AdminSite constructor history sync so browser Back closes modals cleanly and does not trap navigation.
 - Removed unused placeholder `admin_panel/static/.keep` to avoid duplicate sentinel files.

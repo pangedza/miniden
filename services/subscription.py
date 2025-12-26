@@ -8,6 +8,35 @@ from config import ADMIN_IDS, get_settings
 from utils.texts import format_subscription_required_text
 
 
+def normalize_chat_ref(raw_chat: str) -> str | int | None:
+    """Приводит идентификатор канала к @username или числовому chat_id."""
+
+    if not raw_chat:
+        return None
+
+    chat = raw_chat.strip()
+
+    if chat.startswith("http://") or chat.startswith("https://"):
+        chat = chat.split("://", maxsplit=1)[1]
+
+    if chat.startswith("t.me/"):
+        chat = chat.split("t.me/", maxsplit=1)[1]
+
+    chat = chat.lstrip("@/")
+    chat = chat.split("?", maxsplit=1)[0]
+
+    if not chat:
+        return None
+
+    if chat.lstrip("-").isdigit():
+        try:
+            return int(chat)
+        except ValueError:
+            return None
+
+    return f"@{chat}"
+
+
 def _get_channel_identifier() -> Any:
     """Вернёт chat_id/username для проверки подписки."""
 
@@ -84,17 +113,39 @@ async def check_channels_subscription(
     if not normalized_channels:
         return True, None
 
-    for channel in normalized_channels:
+    for raw_channel in normalized_channels:
+        chat_ref = normalize_chat_ref(raw_channel)
+
+        if chat_ref is None:
+            logging.warning(
+                "Subscription check: канал не распознан (raw=%s, user_id=%s)",
+                raw_channel,
+                user_id,
+            )
+            return False, "invalid_channel"
+
         try:
-            member = await bot.get_chat_member(chat_id=channel, user_id=user_id)
+            member = await bot.get_chat_member(chat_id=chat_ref, user_id=user_id)
         except Exception as exc:  # noqa: BLE001
             logging.warning(
-                "Не удалось проверить подписку для chat_id=%s: %s", channel, exc
+                "Subscription check: ошибка Telegram (channel=%s raw=%s user_id=%s): %s",
+                chat_ref,
+                raw_channel,
+                user_id,
+                exc,
             )
-            return False, "error"
+            return False, str(exc)
 
         status = getattr(member, "status", None)
-        if status in {"left", "kicked"}:
+        logging.info(
+            "Subscription check: channel=%s raw=%s user_id=%s status=%s",
+            chat_ref,
+            raw_channel,
+            user_id,
+            status,
+        )
+
+        if status not in {"member", "administrator", "creator"}:
             return False, None
 
     return True, None
