@@ -786,6 +786,13 @@ session_id теперь передаётся как query-параметр, ка
 - Добавлены пользовательские сообщения об ошибках валидации, защита от пустых числовых полей и безопасная обработка отсутствующих переходов.
 - Рекомендованный ручной тест: применить шаблон «Проверка подписки + меню», создать узел MESSAGE с загрузкой картинки, настроить кнопки и триггер на текст, затем удалить тестовый узел и убедиться, что ссылки очищены и бот не падает.
 
+Front reset: theme-only + constructor-driven site
+-------------------------------------------------
+- Публичный сайт строится на данных конструктора AdminSite: категории и элементы берутся через публичные эндпоинты `/api/site/*`.
+- Маршруты витрины: `/` (дом), `/c/:slug` (страница категории), `/p/:slug` (товар), `/m/:slug` (мастер-класс). Backend отдаёт активные записи из таблиц `adminsite_*` с сортировкой по `sort` и `id`.
+- Легаси-страницы и JS, заточенные под старый фронт (`categories.html`, `category.html`, `products.html`, `masterclasses.html`, `product.html`, `masterclass.html`, `baskets.html`, `courses.html`, каталог `webapp/shop`, файлы `webapp/js/*_page.js` и `telegram_shop_page.js`) удалены.
+- Тема/стили остаются в `webapp/css/theme.css` (переключатель в шапке), новая логика витрины — в `webapp/js/site_app.js` и `webapp/js/site_api.js`.
+
 ## Unified project structure
 - Backend API: `webapi.py` (FastAPI), routers under `api/routers/*`, admin routes under `admin_panel/routes/*`, AdminSite API in `admin_panel/adminsite/router.py`.
 - Frontend (customer site): static HTML/JS/CSS in `webapp/` served via `/css`, `/js`, `/media`.

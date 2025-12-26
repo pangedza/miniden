@@ -63,6 +63,7 @@ from models.support import (
     WebChatMessagesResponse,
 )
 from services import admin_notes as admin_notes_service
+from services import adminsite_public
 from services import cart as cart_service
 from services import favorites as favorites_service
 from services import home as home_service
@@ -1675,6 +1676,58 @@ def archive_order(order_id: int, request: Request):
         raise HTTPException(status_code=403, detail="Forbidden")
 
     return {"ok": True}
+
+
+def _normalize_adminsite_type(type_value: str | None) -> str | None:
+    try:
+        return adminsite_public.normalize_type(type_value)
+    except ValueError as exc:  # pragma: no cover - defensive
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.get("/api/site/menu")
+def site_menu(type: str | None = "product"):
+    normalized_type = _normalize_adminsite_type(type) or "product"
+    return {"items": adminsite_public.list_menu(normalized_type)}
+
+
+@app.get("/api/site/categories")
+def site_categories(type: str | None = None):
+    normalized_type = _normalize_adminsite_type(type)
+    return {"items": adminsite_public.list_categories(normalized_type)}
+
+
+@app.get("/api/site/categories/{slug}")
+def site_category(slug: str, type: str | None = None):
+    normalized_type = _normalize_adminsite_type(type)
+    try:
+        category = adminsite_public.get_category_with_items(slug, type_value=normalized_type)
+    except ValueError as exc:  # pragma: no cover - defensive
+        raise HTTPException(status_code=400, detail=str(exc))
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+    return category
+
+
+@app.get("/api/site/products/{slug}")
+def site_product(slug: str):
+    product = adminsite_public.get_item_by_slug(slug, type_value="product")
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    return product
+
+
+@app.get("/api/site/masterclasses/{slug}")
+def site_masterclass(slug: str):
+    masterclass = adminsite_public.get_item_by_slug(slug, type_value="course")
+    if not masterclass:
+        raise HTTPException(status_code=404, detail="Masterclass not found")
+    return masterclass
+
+
+@app.get("/api/site/home")
+def site_home(limit: int = 6):
+    return adminsite_public.get_home_summary(limit=limit)
 
 
 @app.get("/api/categories")
