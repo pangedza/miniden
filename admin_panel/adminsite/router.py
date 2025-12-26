@@ -6,7 +6,9 @@ from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
 from admin_panel.dependencies import get_current_admin, get_db_session
+from schemas.adminsite_page import PageConfig
 from . import service
+from services import adminsite_pages
 from .schemas import (
     CategoryPayload,
     CategoryResponse,
@@ -36,6 +38,20 @@ def debug_env(request: Request, db: Session = Depends(get_db_session)) -> dict[s
         "request_host": request.headers.get("host", ""),
         "auth_required": user is None,
     }
+
+
+@router.get("/pages/home", response_model=dict)
+def adminsite_home_page(request: Request, db: Session = Depends(get_db_session)):
+    service.ensure_admin(request, db)
+    return adminsite_pages.get_page()
+
+
+@router.put("/pages/home", response_model=dict)
+def adminsite_update_home_page(
+    payload: PageConfig, request: Request, db: Session = Depends(get_db_session)
+):
+    service.ensure_admin(request, db)
+    return adminsite_pages.update_page(payload.model_dump(by_alias=True))
 
 
 @router.get("/types", response_model=list[str])

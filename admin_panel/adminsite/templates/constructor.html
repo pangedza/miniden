@@ -90,6 +90,48 @@
         </div>
     </div>
 </section>
+
+<section class="panel" id="panel-homepage">
+    <div class="card">
+        <div class="table-top">
+            <div>
+                <h3 style="margin:0;">Главная страница</h3>
+                <p class="muted">Шаблоны оформления и блоки для витрины AdminSite. Контент остаётся неизменным при смене шаблона.</p>
+            </div>
+            <div class="badge-list">
+                <span class="tag">HeroBlock</span>
+                <span class="tag">CardsBlock</span>
+                <span class="tag">TextBlock</span>
+                <span class="tag">SocialBlock</span>
+            </div>
+        </div>
+        <div class="status" id="status-homepage"></div>
+        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:14px;">
+            <div class="card" style="padding:14px;">
+                <h4 style="margin-top:0;">Шаблон</h4>
+                <label>Выберите пресет оформления
+                    <select id="homepage-template">
+                        <option value="baskets">Baskets</option>
+                        <option value="electronics">Electronics</option>
+                        <option value="services">Services (дефолт)</option>
+                    </select>
+                </label>
+                <p class="muted" style="margin-top:6px;">Смена шаблона влияет только на цвета, радиусы и тени. Контент блоков не меняется.</p>
+                <div class="divider"></div>
+                <p class="muted">Шаблоны описаны в registry и применяются на фронте через CSS variables.</p>
+            </div>
+            <div class="card" style="padding:14px;">
+                <h4 style="margin-top:0;">Блоки</h4>
+                <p class="muted" style="margin-top:-4px;">Редактируйте конфигурацию блоков в формате JSON. Поддерживаются hero, cards, text, social.</p>
+                <textarea id="homepage-blocks" rows="18" style="width:100%; resize:vertical; font-family: monospace;"></textarea>
+                <div class="actions" style="margin-top:12px; gap:8px;">
+                    <button class="btn-secondary" type="button" id="homepage-reset">Сбросить</button>
+                    <button class="btn-primary" type="button" id="homepage-save">Сохранить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
 {% endblock %}
 {% block scripts %}
     <script type="module" src="{{ url_for('static', path='adminsite/constructor.js') }}"></script>
