@@ -5,6 +5,7 @@ import unicodedata
 from typing import Iterable
 
 from fastapi import HTTPException, Request
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from admin_panel.dependencies import require_admin
@@ -194,18 +195,44 @@ def update_category(
 
 def delete_category(db: Session, category_id: int) -> dict[str, str]:
     category = get_category(db, category_id)
-    has_items = (
+    child_count = (
+        db.query(AdminSiteCategory.id)
+        .filter(AdminSiteCategory.parent_id == category_id)
+        .count()
+    )
+    items_count = (
         db.query(AdminSiteItem.id)
         .filter(AdminSiteItem.category_id == category_id)
-        .first()
+        .count()
     )
-    if has_items:
+    settings_count = (
+        db.query(AdminSiteWebAppSettings.id)
+        .filter(AdminSiteWebAppSettings.scope == "category")
+        .filter(AdminSiteWebAppSettings.category_id == category_id)
+        .count()
+    )
+
+    blockers: list[str] = []
+    if child_count:
+        blockers.append(f"подкатегории ({child_count})")
+    if items_count:
+        blockers.append(f"элементы ({items_count})")
+    if settings_count:
+        blockers.append(f"WebApp настройки ({settings_count})")
+
+    if blockers:
+        message = "Нельзя удалить категорию — " + "; ".join(blockers)
+        raise HTTPException(status_code=409, detail=message)
+
+    try:
+        db.delete(category)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
         raise HTTPException(
-            status_code=400,
-            detail="Cannot delete category with items",
+            status_code=409,
+            detail="Нельзя удалить категорию — есть связанные записи",
         )
-    db.delete(category)
-    db.commit()
     return {"status": "ok"}
 
 

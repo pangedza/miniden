@@ -152,18 +152,33 @@ if (!window.history.state || !window.history.state.adminsiteRoot) {
 }
 
 function registerModal(modal) {
+    modal.setCloseHandler((reason) => closeTrackedModal(modal, reason));
     modal.onClose(() => {
         const idx = modalHistory.lastIndexOf(modal);
         if (idx !== -1) {
             modalHistory.splice(idx, 1);
         }
     });
-    modal.onClose(() => {
-        if (handlingPopState) return;
-        if (window.history.state?.adminsiteModal === modal.__adminsiteStateId) {
-            window.history.back();
-        }
-    });
+}
+
+function closeTrackedModal(modal, reason = 'manual', { skipHistory = false } = {}) {
+    if (!modal) return;
+    const idx = modalHistory.lastIndexOf(modal);
+    if (idx !== -1) {
+        modalHistory.splice(idx, 1);
+    }
+    modal.close(reason);
+
+    const currentState = window.history.state;
+    if (
+        !skipHistory &&
+        !handlingPopState &&
+        currentState?.adminsiteModal === modal.__adminsiteStateId
+    ) {
+        handlingPopState = true;
+        window.history.back();
+        handlingPopState = false;
+    }
 }
 
 function openTrackedModal(modal, stateId) {
@@ -174,10 +189,10 @@ function openTrackedModal(modal, stateId) {
     modal.open();
 }
 
-function closeTopModal() {
+function closeTopModal(reason = 'manual', { skipHistory = false } = {}) {
     const modal = modalHistory.pop();
     if (modal) {
-        modal.close();
+        closeTrackedModal(modal, reason, { skipHistory });
         return true;
     }
     return false;
@@ -186,7 +201,7 @@ function closeTopModal() {
 window.addEventListener('popstate', () => {
     handlingPopState = true;
     try {
-        if (closeTopModal()) return;
+        if (closeTopModal('history', { skipHistory: true })) return;
         if (window.history.state?.adminsiteTab) {
             setActiveTab(window.history.state.adminsiteTab, { pushHistory: false });
             return;
@@ -205,7 +220,7 @@ window.addEventListener('popstate', () => {
 
 document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
-        closeTopModal();
+        closeTopModal('escape');
     }
 });
 
@@ -228,6 +243,8 @@ const translitMap = {
     'ъ': '', 'ь': ''
 };
 
+const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
 function transliterate(value) {
     return value
         .split('')
@@ -248,6 +265,22 @@ function slugify(value) {
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/(^-|-$)/g, '')
         .replace(/-{2,}/g, '-');
+}
+
+function normalizeSlugInput(value) {
+    return slugify(value || '');
+}
+
+function normalizeSlugForSubmit(rawValue) {
+    const trimmed = (rawValue || '').trim();
+    if (!trimmed) return { value: '', error: '' };
+
+    const normalized = normalizeSlugInput(trimmed);
+    if (!normalized || !SLUG_PATTERN.test(normalized)) {
+        return { value: '', error: 'Slug может содержать только латиницу, цифры и дефисы.' };
+    }
+
+    return { value: normalized, error: '' };
 }
 
 function ensureTypeState(type) {
@@ -273,6 +306,49 @@ function setStatus(targetId, message, isError = false) {
     if (message) {
         el.classList.add(isError ? 'error' : 'success');
     }
+}
+
+function attachSlugHelpers(modal) {
+    if (!modal?.form) return;
+
+    const titleInput = modal.form.querySelector('input[name="title"]');
+    const slugInput = modal.form.querySelector('input[name="slug"]');
+    if (!titleInput || !slugInput) return;
+
+    let slugTouched = false;
+
+    if (!slugInput.nextElementSibling?.classList?.contains('slug-hint')) {
+        const hint = document.createElement('p');
+        hint.className = 'muted slug-hint';
+        hint.textContent = 'Slug: латиница, цифры и дефисы. Можно оставить пустым для автогенерации.';
+        slugInput.insertAdjacentElement('afterend', hint);
+    }
+
+    titleInput.addEventListener('input', () => {
+        const currentSlug = slugInput.value.trim();
+        if (!slugTouched || !currentSlug) {
+            slugInput.value = normalizeSlugInput(titleInput.value);
+        }
+    });
+
+    slugInput.addEventListener('input', () => {
+        slugTouched = true;
+        const normalized = normalizeSlugInput(slugInput.value);
+        if (slugInput.value !== normalized) {
+            slugInput.value = normalized;
+        }
+    });
+
+    slugInput.addEventListener('blur', () => {
+        const normalized = normalizeSlugInput(slugInput.value);
+        if (slugInput.value !== normalized) {
+            slugInput.value = normalized;
+        }
+    });
+
+    modal.onClose(() => {
+        slugTouched = false;
+    });
 }
 
 function normalizeWebappType(value, { statusTarget } = {}) {
@@ -412,10 +488,13 @@ async function deleteCategory(type, id) {
 }
 
 async function upsertCategory(type, payload) {
+    const { value: normalizedSlug, error: slugError } = normalizeSlugForSubmit(payload.slug);
+    if (slugError) throw new Error(slugError);
+
     const body = {
         type,
         title: payload.title,
-        slug: payload.slug || slugify(payload.title),
+        slug: normalizedSlug || null,
         is_active: payload.is_active,
         sort: payload.sort ?? 0,
     };
@@ -493,11 +572,14 @@ async function deleteItem(type, id) {
 }
 
 async function upsertItem(type, payload) {
+    const { value: normalizedSlug, error: slugError } = normalizeSlugForSubmit(payload.slug);
+    if (slugError) throw new Error(slugError);
+
     const body = {
         type,
         category_id: payload.category_id,
         title: payload.title,
-        slug: payload.slug || slugify(payload.title),
+        slug: normalizedSlug || null,
         price: payload.price ?? 0,
         image_url: payload.image_url,
         short_text: payload.short_text,
@@ -781,6 +863,7 @@ function ensureCategoryModal(type) {
             title: `Категория (${humanizeType(type)})`,
             onSubmit: (payload) => upsertCategory(type, payload),
         });
+        attachSlugHelpers(categoryModals[type]);
         registerModal(categoryModals[type]);
     }
     return categoryModals[type];
@@ -793,6 +876,7 @@ function ensureItemModal(type) {
             categoriesProvider: (t) => categoryOptions(t),
             onSubmit: (payload) => upsertItem(type, payload),
         });
+        attachSlugHelpers(itemModals[type]);
         registerModal(itemModals[type]);
     }
     return itemModals[type];

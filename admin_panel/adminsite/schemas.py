@@ -19,6 +19,14 @@ class CategoryPayload(BaseModel):
     is_active: bool = True
     sort: int = 0
 
+    @field_validator("slug", mode="before")
+    def _normalize_slug(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
 
 class CategoryUpdatePayload(BaseModel):
     type: TypeLiteral | None = None
@@ -29,6 +37,10 @@ class CategoryUpdatePayload(BaseModel):
     sort: int | None = None
 
     model_config = ConfigDict(extra="ignore")
+
+    _normalize_slug = field_validator("slug", mode="before")(
+        CategoryPayload._normalize_slug
+    )
 
 
 class CategoryResponse(BaseModel):
@@ -60,6 +72,10 @@ class ItemPayload(BaseModel):
     def _coerce_price(cls, value: Decimal | str | int) -> Decimal:
         return Decimal(value)
 
+    _normalize_slug = field_validator("slug", mode="before")(
+        CategoryPayload._normalize_slug
+    )
+
 
 class ItemUpdatePayload(BaseModel):
     type: TypeLiteral | None = None
@@ -80,6 +96,10 @@ class ItemUpdatePayload(BaseModel):
         if value is None:
             return None
         return Decimal(value)
+
+    _normalize_slug = field_validator("slug", mode="before")(
+        CategoryPayload._normalize_slug
+    )
 
 
 class ItemResponse(BaseModel):
