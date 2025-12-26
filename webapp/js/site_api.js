@@ -46,3 +46,7 @@ export function fetchProduct(slug) {
 export function fetchMasterclass(slug) {
   return request(`/api/site/masterclasses/${encodeURIComponent(slug)}`);
 }
+
+export function fetchItems(params = {}) {
+  return request('/api/site/items', params);
+}

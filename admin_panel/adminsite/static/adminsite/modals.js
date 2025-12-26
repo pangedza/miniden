@@ -232,18 +232,24 @@ export class ItemModal extends BaseModal {
         this.saveButton.disabled = true;
         try {
             const formType = this.form.dataset.type;
+            const categoryId = Number(
+                this.form.querySelector('select[name="category_id"]').value,
+            );
+            const priceRaw = this.form.querySelector('input[name="price"]').value;
+            const price = priceRaw === '' ? 0 : Number(priceRaw);
             await this.onSubmit({
                 id: this.form.querySelector('input[name="id"]').value,
                 type: formType,
-                category_id: Number(this.form.querySelector('select[name="category_id"]').value),
+                category_id: Number.isNaN(categoryId) ? null : categoryId,
                 title: this.form.querySelector('input[name="title"]').value.trim(),
                 slug: this.form.querySelector('input[name="slug"]').value.trim(),
-                price: this.form.querySelector('input[name="price"]').value || 0,
+                price: Number.isNaN(price) ? 0 : price,
                 image_url: this.form.querySelector('input[name="image_url"]').value || null,
                 short_text: this.form.querySelector('textarea[name="short_text"]').value || null,
                 description: this.form.querySelector('textarea[name="description"]').value || null,
                 is_active: this.form.querySelector('input[name="is_active"]').checked,
-                sort: Number(this.form.querySelector('input[name="sort"]').value) || 0,
+                sort:
+                    Number(this.form.querySelector('input[name="sort"]').value) || 0,
             });
             this.close();
         } catch (error) {
