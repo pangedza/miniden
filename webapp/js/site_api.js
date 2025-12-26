@@ -1,0 +1,48 @@
+export async function request(path, params = null) {
+  const url = new URL(path, window.location.origin);
+  if (params) {
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        url.searchParams.set(key, value);
+      }
+    });
+  }
+
+  const response = await fetch(url.toString());
+  const text = await response.text();
+  const isJson = text.trim().startsWith('{') || text.trim().startsWith('[');
+  const payload = isJson ? JSON.parse(text || '{}') : text;
+
+  if (!response.ok) {
+    const message = payload?.detail || payload?.message || response.statusText;
+    const error = new Error(message);
+    error.status = response.status;
+    throw error;
+  }
+
+  return payload;
+}
+
+export function fetchMenu(type = 'product') {
+  return request('/api/site/menu', { type });
+}
+
+export function fetchHome(limit = 6) {
+  return request('/api/site/home', { limit });
+}
+
+export function fetchCategories(type = null) {
+  return request('/api/site/categories', { type });
+}
+
+export function fetchCategory(slug, type = null) {
+  return request(`/api/site/categories/${encodeURIComponent(slug)}`, { type });
+}
+
+export function fetchProduct(slug) {
+  return request(`/api/site/products/${encodeURIComponent(slug)}`);
+}
+
+export function fetchMasterclass(slug) {
+  return request(`/api/site/masterclasses/${encodeURIComponent(slug)}`);
+}

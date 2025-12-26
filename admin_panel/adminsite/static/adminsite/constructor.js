@@ -324,20 +324,40 @@ function renderCategoryTable(type) {
     tbody.innerHTML = '';
     state.categories[type].forEach((category) => {
         const tr = document.createElement('tr');
+        const publicUrl = category.slug ? `/c/${category.slug}` : '';
+        const publicLink = publicUrl
+            ? `<a href="${publicUrl}" class="link" target="_blank" rel="noopener">${publicUrl}</a>`
+            : '<span class="muted">—</span>';
+        const itemsLabel = type === 'course' ? 'Мастер-классы' : 'Товары';
         tr.innerHTML = `
             <td>${category.id}</td>
             <td>${category.title}</td>
             <td>${category.slug || ''}</td>
+            <td>${publicLink}</td>
             <td>${category.is_active ? 'Да' : 'Нет'}</td>
             <td>${category.sort ?? ''}</td>
             <td>${category.created_at ? new Date(category.created_at).toLocaleString() : ''}</td>
             <td>
                 <div class="table-actions">
+                    <button class="btn-secondary" data-action="open-page" ${publicUrl ? '' : 'disabled'}>Страница</button>
+                    <button class="btn-secondary" data-action="items">${itemsLabel}</button>
                     <button class="btn-secondary" data-action="edit">Редактировать</button>
                     <button class="btn-danger" data-action="delete">Удалить</button>
                 </div>
             </td>
         `;
+        tr.querySelector('[data-action="open-page"]')?.addEventListener('click', () => {
+            if (publicUrl) window.open(publicUrl, '_blank', 'noopener');
+        });
+        tr.querySelector('[data-action="items"]')?.addEventListener('click', () => {
+            const filter = document.getElementById(`items-filter-${type}`);
+            if (filter) {
+                filter.value = String(category.id);
+            }
+            state.filters[type].categoryId = String(category.id);
+            loadItems(type);
+            setActiveTab(`panel-${type}`);
+        });
         tr.querySelector('[data-action="edit"]').addEventListener('click', () => openCategoryModal(type, category));
         tr.querySelector('[data-action="delete"]').addEventListener('click', () => deleteCategory(type, category.id));
         tbody.appendChild(tr);
@@ -640,6 +660,7 @@ function createTypePanel(type) {
                             <th>ID</th>
                             <th>Title</th>
                             <th>Slug</th>
+                            <th>Страница</th>
                             <th>Active</th>
                             <th>Sort</th>
                             <th>Created</th>
