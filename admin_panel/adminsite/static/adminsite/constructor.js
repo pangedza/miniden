@@ -129,13 +129,26 @@ const defaultWebappSettings = {
     min_selected: 1,
 };
 
+const HERO_PLACEHOLDER_IMAGE =
+    "data:image/svg+xml;utf8," +
+    "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 360'>" +
+    "<defs><linearGradient id='g' x1='0' x2='1' y1='0' y2='1'>" +
+    "<stop offset='0%' stop-color='%23f3e7e9'/><stop offset='100%' stop-color='%23e3eeff'/>" +
+    "</linearGradient></defs>" +
+    "<rect width='600' height='360' rx='24' fill='url(%23g)'/>" +
+    "<rect x='160' y='120' width='280' height='120' rx='18' fill='rgba(0,0,0,0.05)'/>" +
+    "<rect x='200' y='150' width='200' height='12' rx='6' fill='rgba(0,0,0,0.16)'/>" +
+    "<rect x='200' y='170' width='160' height='12' rx='6' fill='rgba(0,0,0,0.12)'/>" +
+    "<rect x='200' y='190' width='120' height='12' rx='6' fill='rgba(0,0,0,0.08)'/>" +
+    "</svg>";
+
 function buildDefaultBlocks() {
     return [
         {
             type: 'hero',
             title: 'Витрина AdminSite',
             subtitle: 'Настройте оформление и блоки под свои задачи.',
-            imageUrl: '/static/img/home-placeholder.svg',
+            imageUrl: HERO_PLACEHOLDER_IMAGE,
             background: {
                 type: 'gradient',
                 value: 'linear-gradient(135deg, rgba(255,255,255,0.12), rgba(0,0,0,0.04))',
@@ -1242,7 +1255,7 @@ function createBlockOfType(type) {
         type: 'hero',
         title: 'Витрина AdminSite',
         subtitle: 'Добавьте описание и картинку',
-        imageUrl: '/static/img/home-placeholder.svg',
+        imageUrl: HERO_PLACEHOLDER_IMAGE,
         background: { type: 'gradient', value: 'linear-gradient(135deg, rgba(255,255,255,0.12), rgba(0,0,0,0.04))' },
     });
 }
