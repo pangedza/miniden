@@ -579,6 +579,23 @@ function buildSocialSection(block) {
   return section;
 }
 
+function appendBlockFallback(block, errorMessage = 'Блок не отобразился') {
+  if (!homeBlocksContainer) return;
+  const notice = document.createElement('div');
+  notice.className = 'notice';
+
+  const title = document.createElement('h3');
+  title.textContent = block?.title || `Блок ${block?.type || ''}` || 'Блок';
+  notice.appendChild(title);
+
+  const text = document.createElement('p');
+  text.className = 'muted';
+  text.textContent = errorMessage;
+  notice.appendChild(text);
+
+  homeBlocksContainer.appendChild(notice);
+}
+
 function renderHomeBlocks(blocks, data) {
   if (!homeBlocksContainer) return;
   homeBlocksContainer.innerHTML = '';
@@ -589,41 +606,80 @@ function renderHomeBlocks(blocks, data) {
     return;
   }
 
-  normalizedBlocks.forEach((block) => {
-    if (block?.type === 'hero') {
-      homeBlocksContainer.appendChild(buildHeroSection(block));
-    }
-    if (block?.type === 'cards') {
-      homeBlocksContainer.appendChild(buildCardsSection(block, data));
-    }
-    if (block?.type === 'text') {
-      homeBlocksContainer.appendChild(buildTextSection(block));
-    }
-    if (block?.type === 'social') {
-      homeBlocksContainer.appendChild(buildSocialSection(block));
+  const blockErrors = [];
+
+  normalizedBlocks.forEach((block, index) => {
+    try {
+      if (block?.type === 'hero') {
+        homeBlocksContainer.appendChild(buildHeroSection(block));
+        return;
+      }
+      if (block?.type === 'cards') {
+        homeBlocksContainer.appendChild(buildCardsSection(block, data));
+        return;
+      }
+      if (block?.type === 'text') {
+        homeBlocksContainer.appendChild(buildTextSection(block));
+        return;
+      }
+      if (block?.type === 'social') {
+        homeBlocksContainer.appendChild(buildSocialSection(block));
+        return;
+      }
+
+      appendBlockFallback(block, 'Тип блока не поддерживается.');
+      blockErrors.push(`block #${index + 1}: unsupported type ${block?.type || 'unknown'}`);
+    } catch (error) {
+      console.error('Failed to render block', block, error);
+      const message = error?.message || String(error);
+      blockErrors.push(`block #${index + 1} (${block?.type || 'unknown'}): ${message}`);
+      appendBlockFallback(block, message);
     }
   });
+
+  updateDebugOverlay({ lastError: blockErrors.join(' | ') });
 }
 
 function normalizeHomeResponse(data) {
   const page = data?.page ?? data?.config ?? (data?.blocks ? data : null);
   const blocks = data?.blocks ?? page?.blocks ?? [];
-  const templateId = page?.templateId || page?.template_id || data?.templateId || data?.template_id || null;
+  const templateId =
+    page?.templateId || page?.template_id || data?.templateId || data?.template_id || null;
   const version = data?.version ?? page?.version ?? data?.updatedAt ?? page?.updatedAt ?? '—';
   const updatedAt = page?.updatedAt ?? data?.updatedAt ?? version ?? '—';
+  const blockTypes = Array.isArray(blocks)
+    ? blocks.map((block) => block?.type || 'unknown').filter(Boolean)
+    : [];
 
-  return { page, blocks, templateId, version, updatedAt, raw: data };
+  return {
+    __normalized: true,
+    page,
+    blocks: Array.isArray(blocks) ? blocks : [],
+    templateId,
+    version,
+    updatedAt,
+    blocksCount: Array.isArray(blocks) ? blocks.length : 0,
+    blockTypes,
+    raw: data,
+  };
 }
 
 function renderHome(data) {
-  const normalized = data?.page || data?.blocks ? data : normalizeHomeResponse(data);
+  const normalized = data?.__normalized ? data : normalizeHomeResponse(data);
   if (!normalized.page && !normalized.blocks.length) {
     renderHomeMessage('Главная не настроена');
     return;
   }
 
   console.debug('[site] Loaded home config', normalized);
-  applyTemplate(normalized.templateId);
+  const appliedTemplate = applyTemplate(normalized.templateId);
+  updateDebugOverlay({
+    appliedTemplateId: appliedTemplate,
+    receivedVersion: normalized.version || '—',
+    updatedAt: normalized.updatedAt || normalized.version || '—',
+    blocksCount: normalized.blocksCount || 0,
+    blockTypes: normalized.blockTypes?.join(', ') || '—',
+  });
   renderHomeBlocks(normalized.blocks, normalized.raw || normalized.page || {});
 }
 
@@ -828,19 +884,19 @@ async function loadHomeConfig({ reason = 'initial' } = {}) {
   });
 
   try {
-    const homeData = await fetchHome(6, cacheBust, { reason });
+    const { payload: homeData, status, statusText, url } = await fetchHome(6, cacheBust, { reason });
     const normalized = normalizeHomeResponse(homeData);
     lastHomeConfig = normalized;
 
     updateDebugOverlay({
-      lastFetchStatus: '200 OK',
+      lastFetchUrl: url || fetchUrl,
+      lastFetchStatus: `${status || 200} ${statusText || 'OK'}`.trim(),
+      lastError: '',
       receivedVersion: normalized.version || '—',
       updatedAt: normalized.updatedAt || '—',
-      blocksCount: normalized.blocks?.length || 0,
-      blockTypes:
-        normalized.blocks
-          ?.map((block) => block?.type || 'unknown')
-          .join(', ') || '—',
+      appliedTemplateId: normalized.templateId || '—',
+      blocksCount: normalized.blocksCount || 0,
+      blockTypes: normalized.blockTypes?.join(', ') || '—',
     });
 
     renderHome(normalized);
@@ -849,6 +905,7 @@ async function loadHomeConfig({ reason = 'initial' } = {}) {
     updateDebugOverlay({
       lastFetchStatus: error?.status ? `error ${error.status}` : 'error',
       lastError: error?.message || String(error),
+      lastFetchUrl: fetchUrl,
       appliedTemplateId: '—',
       blocksCount: 0,
       blockTypes: '',

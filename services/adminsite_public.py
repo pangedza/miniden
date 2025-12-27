@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import func, select
@@ -197,8 +198,33 @@ def _load_items(session: Session, *, type_value: str, limit: int = 6):
     )
 
 
+def _extract_page_meta(page: dict[str, Any]) -> dict[str, Any]:
+    blocks = page.get("blocks") or []
+    template_id = (
+        page.get("templateId")
+        or page.get("template_id")
+        or adminsite_pages.DEFAULT_TEMPLATE_ID
+    )
+    version = page.get("version") or page.get("updatedAt") or page.get("updated_at")
+    if not version:
+        version = datetime.utcnow().isoformat()
+
+    updated_at = page.get("updatedAt") or page.get("updated_at") or version
+    block_types = [block.get("type", "unknown") for block in blocks if isinstance(block, dict)]
+
+    return {
+        "template_id": template_id,
+        "version": version,
+        "updated_at": updated_at,
+        "blocks": blocks,
+        "blocks_count": len(blocks),
+        "block_types": block_types,
+    }
+
+
 def get_home_summary(limit: int = 6) -> dict[str, Any]:
     page = adminsite_pages.get_page()
+    meta = _extract_page_meta(page)
     with get_session() as session:
         categories_product = session.execute(
             _category_query(session, "product")
@@ -212,6 +238,13 @@ def get_home_summary(limit: int = 6) -> dict[str, Any]:
 
     return {
         "page": page,
+        "templateId": meta["template_id"],
+        "template_id": meta["template_id"],
+        "version": meta["version"],
+        "updatedAt": meta["updated_at"],
+        "updated_at": meta["updated_at"],
+        "blocksCount": meta["blocks_count"],
+        "blockTypes": meta["block_types"],
         "product_categories": [_serialize_category(item) for item in categories_product],
         "course_categories": [_serialize_category(item) for item in categories_course],
         "featured_products": [_serialize_item(item, category=category) for item, category in products],
