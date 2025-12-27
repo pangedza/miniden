@@ -22,6 +22,27 @@ const sidebarOverlay = document.querySelector('.app-sidebar-overlay');
 const templateName = document.getElementById('template-name');
 const homeBlocksContainer = document.getElementById('home-blocks');
 
+function renderHomeMessage(title, description = 'Настройте главную страницу в AdminSite.') {
+  if (!homeBlocksContainer) return;
+  homeBlocksContainer.innerHTML = '';
+
+  const notice = document.createElement('div');
+  notice.className = 'notice';
+
+  const heading = document.createElement('h2');
+  heading.textContent = title;
+  notice.appendChild(heading);
+
+  if (description) {
+    const text = document.createElement('p');
+    text.className = 'muted';
+    text.textContent = description;
+    notice.appendChild(text);
+  }
+
+  homeBlocksContainer.appendChild(notice);
+}
+
 function hideAllViews() {
   Object.values(views).forEach((view) => {
     if (view) view.setAttribute('hidden', '');
@@ -370,12 +391,13 @@ function renderHomeBlocks(page, data) {
   if (!homeBlocksContainer) return;
   homeBlocksContainer.innerHTML = '';
 
-  const blocks = page?.blocks?.length ? page.blocks : [];
-  const hasBlocks = blocks.length > 0;
+  const blocks = Array.isArray(page?.blocks) ? page.blocks : [];
+  if (!blocks.length) {
+    renderHomeMessage('Главная не настроена');
+    return;
+  }
 
-  const list = hasBlocks ? blocks : [{ type: 'hero' }, { type: 'cards' }, { type: 'social' }];
-
-  list.forEach((block) => {
+  blocks.forEach((block) => {
     if (block?.type === 'hero') {
       homeBlocksContainer.appendChild(buildHeroSection(block));
     }
@@ -392,9 +414,15 @@ function renderHomeBlocks(page, data) {
 }
 
 function renderHome(data) {
-  const templateId = data?.page?.templateId || 'services';
+  if (!data?.page) {
+    renderHomeMessage('Главная не настроена');
+    return;
+  }
+
+  console.debug('[site] Loaded home config', data);
+  const templateId = data.page?.templateId || 'services';
   applyTemplate(templateId);
-  renderHomeBlocks(data?.page, data);
+  renderHomeBlocks(data.page, data);
 }
 
 function renderBreadcrumbs(target, parts) {
@@ -511,8 +539,13 @@ async function handleRoute() {
   try {
     const route = parseRoute();
     if (route.view === 'home') {
-      const homeData = await fetchHome();
-      renderHome(homeData);
+      try {
+        const homeData = await fetchHome();
+        renderHome(homeData);
+      } catch (error) {
+        console.error('Failed to load home', error);
+        renderHomeMessage('Не удалось загрузить главную', 'Попробуйте обновить страницу позже.');
+      }
       showView('home');
       return;
     }
