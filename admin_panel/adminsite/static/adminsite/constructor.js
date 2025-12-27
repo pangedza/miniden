@@ -1120,6 +1120,7 @@ const homepageBlocksField = getElementOrWarn('homepage-blocks');
 const homepageSaveButton = getElementOrWarn('homepage-save');
 const homepageResetButton = getElementOrWarn('homepage-reset');
 const homepageStatus = getElementOrWarn('status-homepage');
+const homepagePreviewLink = getElementOrWarn('homepage-preview');
 const homepageBlocksList = getElementOrWarn('homepage-blocks-list');
 const homepageBlockEditor = getElementOrWarn('homepage-block-editor');
 const homepageEditorTitle = getElementOrWarn('homepage-editor-title');
@@ -1183,6 +1184,14 @@ function renderHomepageDiagnostics() {
 function setHomepageVersion(version) {
     homepageDiagnostics.version = version || '—';
     renderHomepageDiagnostics();
+}
+
+function openHomepagePreview(event) {
+    if (event) event.preventDefault();
+    const cacheBust = Date.now().toString();
+    const previewUrl = `/?debug=1&t=${cacheBust}`;
+    if (homepagePreviewLink) homepagePreviewLink.href = previewUrl;
+    window.open(previewUrl, '_blank', 'noopener');
 }
 
 function setHomepageSaveState(label, isError = false) {
@@ -1840,6 +1849,7 @@ async function saveHomepageConfig() {
 function setupHomepageListeners() {
     homepageSaveButton?.addEventListener('click', saveHomepageConfig);
     homepageResetButton?.addEventListener('click', resetHomepageForm);
+    homepagePreviewLink?.addEventListener('click', openHomepagePreview);
     homepageAddBlockButton?.addEventListener('click', openBlockPicker);
     homepageTemplateCards.forEach((card) => {
         card.addEventListener('click', () => setTemplate(card.dataset.template));
