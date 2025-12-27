@@ -36,6 +36,56 @@ const debugState = {
 let debugPanel = null;
 let lastHomeConfig = null;
 
+function normalizeMediaUrl(url, { absolute = false } = {}) {
+  if (!url) return '';
+
+  const raw = String(url).trim();
+  if (!raw) return '';
+
+  const isAbsolute = /^(https?:)?\/\//i.test(raw) || raw.startsWith('data:');
+  let normalized = raw;
+
+  if (!isAbsolute) {
+    if (raw.startsWith('/static/')) {
+      normalized = raw;
+    } else if (raw.startsWith('/')) {
+      normalized = raw;
+    } else {
+      normalized = `/static/uploads/${raw}`;
+    }
+  }
+
+  if (absolute) {
+    try {
+      normalized = new URL(normalized, window.location.origin).href;
+    } catch (error) {
+      console.warn('Failed to build absolute media URL', raw, error);
+    }
+  }
+
+  return normalized;
+}
+
+function appendImageWithFallback(container, url, alt, { onFallback, absolute = true } = {}) {
+  if (!container) return null;
+
+  const normalizedUrl = normalizeMediaUrl(url, { absolute });
+  if (!normalizedUrl) {
+    onFallback?.();
+    return null;
+  }
+
+  const img = document.createElement('img');
+  img.alt = alt || '';
+  img.src = normalizedUrl;
+  img.onerror = () => {
+    img.remove();
+    onFallback?.();
+  };
+  container.appendChild(img);
+  return img;
+}
+
 function ensureDebugOverlay() {
   if (!DEBUG_MODE || debugPanel) return debugPanel;
 
@@ -201,16 +251,24 @@ function buildItemCard(item) {
 
   const imageWrapper = document.createElement('div');
   imageWrapper.className = 'catalog-card-image';
-  if (item?.image_url) {
-    const img = document.createElement('img');
-    img.src = item.image_url;
-    img.alt = item.title || 'Элемент витрины';
-    imageWrapper.appendChild(img);
-  } else {
+
+  const showPlaceholder = () => {
+    if (imageWrapper.querySelector('.catalog-card-meta')) return;
     const placeholder = document.createElement('div');
     placeholder.className = 'catalog-card-meta';
     placeholder.textContent = 'Изображение появится позже';
     imageWrapper.appendChild(placeholder);
+  };
+
+  const itemImage = appendImageWithFallback(
+    imageWrapper,
+    item?.image_url || item?.imageUrl,
+    item.title || 'Элемент витрины',
+    { onFallback: showPlaceholder }
+  );
+
+  if (!itemImage) {
+    showPlaceholder();
   }
 
   const body = document.createElement('div');
@@ -339,19 +397,21 @@ function buildHeroSection(block) {
     return placeholder;
   };
 
-  if (block?.imageUrl) {
-    const img = document.createElement('img');
-    img.alt = block?.title || 'Hero';
-    img.src = block.imageUrl;
-    img.onerror = () => {
-      img.remove();
-      if (!visual.querySelector('.page-hero__placeholder')) {
-        visual.appendChild(createPlaceholder());
-      }
-    };
-    visual.appendChild(img);
-  } else {
-    visual.appendChild(createPlaceholder());
+  const ensurePlaceholder = () => {
+    if (!visual.querySelector('.page-hero__placeholder')) {
+      visual.appendChild(createPlaceholder());
+    }
+  };
+
+  const heroImage = appendImageWithFallback(
+    visual,
+    block?.imageUrl || block?.image_url,
+    block?.title || 'Hero',
+    { onFallback: ensurePlaceholder }
+  );
+
+  if (!heroImage) {
+    ensurePlaceholder();
   }
 
   section.append(content, visual);
@@ -388,13 +448,11 @@ function buildCard(item) {
   const card = document.createElement('article');
   card.className = 'page-card hover-lift';
 
-  if (item?.imageUrl) {
-    const img = document.createElement('img');
-    img.className = 'page-card__image';
-    img.src = item.imageUrl;
-    img.alt = item.title || 'Изображение';
-    card.appendChild(img);
-  }
+  appendImageWithFallback(
+    card,
+    item?.imageUrl || item?.image_url,
+    item?.title || 'Изображение'
+  );
 
   const body = document.createElement('div');
   body.className = 'page-card__body';

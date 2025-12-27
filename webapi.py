@@ -240,12 +240,17 @@ def ensure_adminsite_static_dir() -> None:
         )
 
 
+ensure_media_dirs()
 app.mount("/media", StaticFiles(directory=MEDIA_ROOT), name="media")
 ensure_adminsite_static_dir()
 app.mount(
     "/static",
     # AdminSite templates rely on url_for('static', path='adminsite/...').
-    LoggingStaticFiles(directory=str(ADMINSITE_STATIC_PATH), check_dir=False),
+    LoggingStaticFiles(
+        directory=str(STATIC_DIR_PUBLIC),
+        packages=[("admin_panel.adminsite", "static")],
+        check_dir=False,
+    ),
     name="static",
 )
 log_static_mount()
