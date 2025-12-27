@@ -1693,18 +1693,25 @@ async function saveHomepageConfig() {
             templateId: homepageConfig.templateId || 'services',
             blocks: homepageConfig.blocks || [],
         };
+        console.debug('[AdminSite constructor] Отправка страницы', payload);
         const data = await apiRequest(`${API_BASE}/pages/home`, {
             method: 'PUT',
             body: payload,
             credentials: 'include',
         });
+        if (!data || typeof data !== 'object') {
+            throw new Error('API вернул пустой ответ, страница не сохранена');
+        }
+
         homepageLoadedConfig = normalizeHomepageConfig(data || payload);
         renderHomepageForm(homepageLoadedConfig);
         setHomepageStatus('Сохранено');
         showToast('Страница обновлена');
+        console.debug('[AdminSite constructor] Страница сохранена', homepageLoadedConfig);
     } catch (error) {
-        console.error(error);
+        console.error('[AdminSite constructor] Сохранение страницы не удалось', error);
         setHomepageStatus(error.message || 'Не удалось сохранить страницу', true);
+        showToast(error.message || 'Не удалось сохранить страницу', 'error');
     }
 }
 
