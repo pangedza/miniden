@@ -8,6 +8,9 @@ import {
 } from './site_api.js';
 import { getTemplateById, templatesRegistry } from './templates_registry.js';
 
+const queryParams = new URLSearchParams(window.location.search);
+const DEBUG_MODE = queryParams.get('debug') === '1';
+
 const views = {
   home: document.getElementById('view-home'),
   category: document.getElementById('view-category'),
@@ -21,6 +24,112 @@ const navLinks = document.getElementById('nav-links');
 const sidebarOverlay = document.querySelector('.app-sidebar-overlay');
 const templateName = document.getElementById('template-name');
 const homeBlocksContainer = document.getElementById('home-blocks');
+const debugState = {
+  lastFetchUrl: '—',
+  lastFetchStatus: '—',
+  lastError: '',
+  receivedVersion: '—',
+  updatedAt: '—',
+  blocksCount: 0,
+  blockTypes: '',
+};
+let debugPanel = null;
+let lastHomeConfig = null;
+
+function ensureDebugOverlay() {
+  if (!DEBUG_MODE || debugPanel) return debugPanel;
+
+  const overlay = document.createElement('div');
+  overlay.id = 'site-debug-overlay';
+  overlay.style.position = 'fixed';
+  overlay.style.bottom = '12px';
+  overlay.style.right = '12px';
+  overlay.style.zIndex = '9999';
+  overlay.style.background = 'rgba(15,23,42,0.9)';
+  overlay.style.color = '#e5e7eb';
+  overlay.style.padding = '12px';
+  overlay.style.borderRadius = '12px';
+  overlay.style.width = '320px';
+  overlay.style.boxShadow = '0 10px 30px rgba(0,0,0,0.3)';
+  overlay.style.fontSize = '12px';
+  overlay.style.lineHeight = '1.5';
+
+  const title = document.createElement('div');
+  title.textContent = 'Home debug overlay';
+  title.style.fontWeight = '700';
+  title.style.marginBottom = '8px';
+  overlay.appendChild(title);
+
+  const rows = {};
+  const rowKeys = [
+    ['lastFetchUrl', 'lastFetchUrl'],
+    ['lastFetchStatus', 'lastFetchStatus'],
+    ['lastError', 'lastError'],
+    ['receivedVersion', 'receivedVersion'],
+    ['updatedAt', 'updatedAt'],
+    ['blocksCount', 'blocksCount'],
+    ['blockTypes', 'blockTypes'],
+  ];
+
+  rowKeys.forEach(([label, key]) => {
+    const row = document.createElement('div');
+    row.style.display = 'flex';
+    row.style.justifyContent = 'space-between';
+    row.style.gap = '6px';
+    row.style.marginBottom = '4px';
+
+    const labelEl = document.createElement('span');
+    labelEl.textContent = `${label}:`;
+    labelEl.style.color = '#9ca3af';
+
+    const valueEl = document.createElement('span');
+    valueEl.dataset.debugKey = key;
+    valueEl.style.textAlign = 'right';
+    valueEl.style.flex = '1';
+    valueEl.textContent = '—';
+
+    row.append(labelEl, valueEl);
+    overlay.appendChild(row);
+    rows[key] = valueEl;
+  });
+
+  const actions = document.createElement('div');
+  actions.style.display = 'flex';
+  actions.style.justifyContent = 'flex-end';
+  actions.style.gap = '8px';
+  actions.style.marginTop = '8px';
+
+  const reloadButton = document.createElement('button');
+  reloadButton.textContent = 'Reload config';
+  reloadButton.style.background = '#22c55e';
+  reloadButton.style.color = '#0b1727';
+  reloadButton.style.border = 'none';
+  reloadButton.style.padding = '6px 10px';
+  reloadButton.style.borderRadius = '6px';
+  reloadButton.style.cursor = 'pointer';
+  reloadButton.style.fontWeight = '700';
+  reloadButton.addEventListener('click', () => loadHomeConfig({ reason: 'manual-reload' }));
+
+  actions.appendChild(reloadButton);
+  overlay.appendChild(actions);
+
+  document.body.appendChild(overlay);
+  debugPanel = { overlay, rows, reloadButton };
+  return debugPanel;
+}
+
+function updateDebugOverlay(partial = {}) {
+  if (!DEBUG_MODE) return;
+  if (!debugPanel) ensureDebugOverlay();
+  Object.assign(debugState, partial);
+
+  if (!debugPanel) return;
+  Object.entries(debugPanel.rows).forEach(([key, el]) => {
+    el.textContent = debugState[key] ?? '—';
+  });
+
+  debugPanel.overlay.style.border = debugState.lastError ? '1px solid #fca5a5' : '1px solid transparent';
+}
 
 function renderHomeMessage(title, description = 'Настройте главную страницу в AdminSite.') {
   if (!homeBlocksContainer) return;
@@ -387,17 +496,17 @@ function buildSocialSection(block) {
   return section;
 }
 
-function renderHomeBlocks(page, data) {
+function renderHomeBlocks(blocks, data) {
   if (!homeBlocksContainer) return;
   homeBlocksContainer.innerHTML = '';
 
-  const blocks = Array.isArray(page?.blocks) ? page.blocks : [];
-  if (!blocks.length) {
-    renderHomeMessage('Главная не настроена');
+  const normalizedBlocks = Array.isArray(blocks) ? blocks : [];
+  if (!normalizedBlocks.length) {
+    renderHomeMessage('Блоки отсутствуют', 'Сохраните блоки в AdminSite и обновите страницу.');
     return;
   }
 
-  blocks.forEach((block) => {
+  normalizedBlocks.forEach((block) => {
     if (block?.type === 'hero') {
       homeBlocksContainer.appendChild(buildHeroSection(block));
     }
@@ -413,16 +522,26 @@ function renderHomeBlocks(page, data) {
   });
 }
 
+function normalizeHomeResponse(data) {
+  const page = data?.page ?? data?.config ?? (data?.blocks ? data : null);
+  const blocks = data?.blocks ?? page?.blocks ?? [];
+  const templateId = page?.templateId || page?.template_id || 'services';
+  const version = data?.version ?? page?.version ?? data?.updatedAt ?? page?.updatedAt ?? '—';
+  const updatedAt = page?.updatedAt ?? data?.updatedAt ?? version ?? '—';
+
+  return { page, blocks, templateId, version, updatedAt, raw: data };
+}
+
 function renderHome(data) {
-  if (!data?.page) {
+  const normalized = normalizeHomeResponse(data);
+  if (!normalized.page && !normalized.blocks.length) {
     renderHomeMessage('Главная не настроена');
     return;
   }
 
-  console.debug('[site] Loaded home config', data);
-  const templateId = data.page?.templateId || 'services';
-  applyTemplate(templateId);
-  renderHomeBlocks(data.page, data);
+  console.debug('[site] Loaded home config', normalized);
+  applyTemplate(normalized.templateId || 'services');
+  renderHomeBlocks(normalized.blocks, normalized.raw || normalized.page || {});
 }
 
 function renderBreadcrumbs(target, parts) {
@@ -539,13 +658,7 @@ async function handleRoute() {
   try {
     const route = parseRoute();
     if (route.view === 'home') {
-      try {
-        const homeData = await fetchHome();
-        renderHome(homeData);
-      } catch (error) {
-        console.error('Failed to load home', error);
-        renderHomeMessage('Не удалось загрузить главную', 'Попробуйте обновить страницу позже.');
-      }
+      await loadHomeConfig();
       showView('home');
       return;
     }
@@ -622,10 +735,50 @@ function setupMenuToggle() {
   sidebarOverlay?.addEventListener('click', closeSidebar);
 }
 
+async function loadHomeConfig({ reason = 'initial' } = {}) {
+  const cacheBust = Date.now().toString();
+  const fetchUrl = `/api/site/home?limit=6&t=${cacheBust}`;
+  updateDebugOverlay({
+    lastFetchUrl: fetchUrl,
+    lastFetchStatus: 'loading',
+    lastError: '',
+  });
+
+  try {
+    const homeData = await fetchHome(6, cacheBust, { reason });
+    const normalized = normalizeHomeResponse(homeData);
+    lastHomeConfig = normalized;
+
+    updateDebugOverlay({
+      lastFetchStatus: '200 OK',
+      receivedVersion: normalized.version || '—',
+      updatedAt: normalized.updatedAt || '—',
+      blocksCount: normalized.blocks?.length || 0,
+      blockTypes:
+        normalized.blocks
+          ?.slice(0, 2)
+          .map((block) => block?.type || 'unknown')
+          .join(', ') || '—',
+    });
+
+    renderHome(normalized);
+  } catch (error) {
+    console.error('Failed to load home', error);
+    updateDebugOverlay({
+      lastFetchStatus: error?.status ? `error ${error.status}` : 'error',
+      lastError: error?.message || String(error),
+      blocksCount: 0,
+      blockTypes: '',
+    });
+    renderHomeMessage('Не удалось загрузить главную', 'Попробуйте обновить страницу позже.');
+  }
+}
+
 async function bootstrap() {
   applyTemplate('services');
   setupMenuToggle();
   bindRouterLinks();
+  ensureDebugOverlay();
 
   try {
     const menu = await fetchMenu('product');

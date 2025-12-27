@@ -30,10 +30,12 @@ export function fetchMenu(type = 'product') {
   return request('/api/site/menu', { type });
 }
 
-export function fetchHome(limit = 6, version = null) {
+export function fetchHome(limit = 6, version = null, extraParams = {}) {
   const params = {
     limit,
     v: version || Date.now().toString(),
+    t: Date.now().toString(),
+    ...extraParams,
   };
   return request('/api/site/home', params);
 }
