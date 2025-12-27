@@ -3339,6 +3339,17 @@ body.page-index .pill:nth-child(2) {
   box-shadow: 0 16px 38px rgba(0, 0, 0, 0.08);
 }
 
+.page-hero__placeholder {
+  width: 100%;
+  max-width: 420px;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius-card);
+  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.08);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(0, 0, 0, 0.04)),
+    linear-gradient(90deg, var(--surface-secondary), var(--surface-primary));
+  border: 1px dashed var(--color-border-subtle);
+}
+
 .page-section {
   background: var(--surface-primary);
   border: 1px solid var(--color-border-subtle);
