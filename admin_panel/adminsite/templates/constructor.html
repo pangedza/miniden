@@ -130,18 +130,32 @@
                     </div>
                 </div>
             </div>
-            <div class="homepage-actions">
-                <a class="btn-secondary" href="/" target="_blank" rel="noopener">Предпросмотр</a>
-                <button class="btn-primary" type="button" id="homepage-save">Сохранить</button>
+        <div class="homepage-actions">
+            <a class="btn-secondary" href="/" target="_blank" rel="noopener">Предпросмотр</a>
+            <button class="btn-primary" type="button" id="homepage-save">Сохранить</button>
+        </div>
+    </div>
+
+    <div class="homepage-layout">
+        <div class="card" id="homepage-diagnostics" style="margin-bottom:16px;">
+            <div class="card-header" style="gap:8px; align-items:center;">
+                <h4 style="margin:0;">Диагностика</h4>
+                <span class="tag" id="homepage-diagnostic-save">—</span>
+                <span class="tag" id="homepage-diagnostic-public">Публичный: —</span>
+            </div>
+            <div class="muted" style="margin-bottom:8px;">Проверка доступности данных после сохранения.</div>
+            <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:8px;">
+                <div class="diag-row"><strong>Источник</strong><div id="homepage-diagnostic-source">/api/adminsite/pages/home</div></div>
+                <div class="diag-row"><strong>Публично</strong><div id="homepage-diagnostic-public-url">/api/site/home</div></div>
+                <div class="diag-row"><strong>Page key</strong><div id="homepage-diagnostic-page">home</div></div>
+                <div class="diag-row"><strong>Версия</strong><div id="homepage-diagnostic-version">—</div></div>
             </div>
         </div>
-
-        <div class="homepage-layout">
-            <div class="card block-list-card">
-                <div class="card-header">
-                    <h4 style="margin:0;">Блоки страницы</h4>
-                    <div class="actions" style="margin:0;">
-                        <button class="btn-secondary" type="button" id="homepage-add-block">+ Добавить блок</button>
+        <div class="card block-list-card">
+            <div class="card-header">
+                <h4 style="margin:0;">Блоки страницы</h4>
+                <div class="actions" style="margin:0;">
+                    <button class="btn-secondary" type="button" id="homepage-add-block">+ Добавить блок</button>
                         <button class="btn-ghost" type="button" id="homepage-reset">Сбросить</button>
                     </div>
                 </div>

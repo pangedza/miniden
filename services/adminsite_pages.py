@@ -56,9 +56,20 @@ def _normalize_page(page: AdminSitePage | None) -> PageConfig:
     return config
 
 
-def _serialize(page: AdminSitePage | None) -> dict[str, Any]:
+def _serialize(page: AdminSitePage | None, slug: str = DEFAULT_SLUG) -> dict[str, Any]:
     config = _normalize_page(page)
-    return config.model_dump(by_alias=True)
+    payload = config.model_dump(by_alias=True)
+
+    if page:
+        payload["version"] = (page.updated_at or page.created_at).isoformat()
+        payload["updatedAt"] = (page.updated_at or page.created_at).isoformat()
+        payload["slug"] = page.slug or slug
+    else:
+        payload["version"] = datetime.utcnow().isoformat()
+        payload["updatedAt"] = payload["version"]
+        payload["slug"] = slug
+
+    return payload
 
 
 def get_page(slug: str = DEFAULT_SLUG) -> dict[str, Any]:
@@ -85,7 +96,7 @@ def _get_page(session: Session, slug: str) -> dict[str, Any]:
         session.commit()
         session.refresh(page)
 
-    return _serialize(page)
+    return _serialize(page, slug)
 
 
 def update_page(payload: dict[str, Any], slug: str = DEFAULT_SLUG) -> dict[str, Any]:
@@ -114,7 +125,7 @@ def update_page(payload: dict[str, Any], slug: str = DEFAULT_SLUG) -> dict[str, 
 
         session.commit()
         session.refresh(page)
-        return _serialize(page)
+        return _serialize(page, slug)
 
 
 __all__ = ["get_page", "update_page", "DEFAULT_TEMPLATE_ID"]
