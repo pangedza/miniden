@@ -4,7 +4,11 @@ import { BaseModal, CategoryModal, ItemModal } from './modals.js';
 console.log('[AdminSite] constructor.js loaded');
 document.documentElement.setAttribute('data-adminsite-js', 'loaded');
 
+// AdminSite home constructor writes to /api/adminsite/pages/home, index.html reads from /api/site/home (public).
 const API_BASE = '/api/adminsite';
+const HOMEPAGE_SOURCE_API = `${API_BASE}/pages/home`;
+const HOMEPAGE_PUBLIC_API = '/api/site/home';
+const HOMEPAGE_PAGE_KEY = 'home';
 const diagnosticState = {
     jsLoaded: true,
     apiStatus: 'pending',
@@ -1127,9 +1131,25 @@ const homepageDevStatus = getElementOrWarn('homepage-dev-status');
 const homepageDevApply = getElementOrWarn('homepage-dev-apply');
 const homepageDevHide = getElementOrWarn('homepage-dev-hide');
 const homepageAddBlockButton = getElementOrWarn('homepage-add-block');
+const homepageDiagnosticCard = getElementOrWarn('homepage-diagnostics');
+const homepageDiagnosticSave = getElementOrWarn('homepage-diagnostic-save');
+const homepageDiagnosticPublic = getElementOrWarn('homepage-diagnostic-public');
+const homepageDiagnosticSource = getElementOrWarn('homepage-diagnostic-source');
+const homepageDiagnosticPublicUrl = getElementOrWarn('homepage-diagnostic-public-url');
+const homepageDiagnosticPage = getElementOrWarn('homepage-diagnostic-page');
+const homepageDiagnosticVersion = getElementOrWarn('homepage-diagnostic-version');
 
 let homepageLoadedConfig = normalizeHomepageConfig(homepageDefaults);
 let blockPickerModal = null;
+const homepageDiagnostics = {
+    source: HOMEPAGE_SOURCE_API,
+    publicSource: HOMEPAGE_PUBLIC_API,
+    pageKey: HOMEPAGE_PAGE_KEY,
+    version: null,
+    lastSave: '—',
+    publicStatus: '—',
+};
+renderHomepageDiagnostics();
 
 function setHomepageStatus(message, isError = false) {
     if (!homepageStatus) return;
@@ -1142,6 +1162,37 @@ function setHomepageStatus(message, isError = false) {
     homepageStatus.textContent = message;
     homepageStatus.classList.toggle('error', isError);
     homepageStatus.style.display = 'block';
+}
+
+function updateDiagnosticTag(el, text, isError = false) {
+    if (!el) return;
+    el.textContent = text || '—';
+    el.classList.toggle('error', Boolean(text && isError));
+    el.classList.toggle('ok', Boolean(text && !isError));
+}
+
+function renderHomepageDiagnostics() {
+    if (homepageDiagnosticSource) homepageDiagnosticSource.textContent = homepageDiagnostics.source;
+    if (homepageDiagnosticPublicUrl) homepageDiagnosticPublicUrl.textContent = homepageDiagnostics.publicSource;
+    if (homepageDiagnosticPage) homepageDiagnosticPage.textContent = homepageDiagnostics.pageKey;
+    if (homepageDiagnosticVersion) homepageDiagnosticVersion.textContent = homepageDiagnostics.version || '—';
+    updateDiagnosticTag(homepageDiagnosticSave, homepageDiagnostics.lastSave, homepageDiagnostics.lastSave?.toLowerCase().includes('ошибка'));
+    updateDiagnosticTag(homepageDiagnosticPublic, `Публичный: ${homepageDiagnostics.publicStatus}`, homepageDiagnostics.publicStatus?.toLowerCase().includes('ошибка'));
+}
+
+function setHomepageVersion(version) {
+    homepageDiagnostics.version = version || '—';
+    renderHomepageDiagnostics();
+}
+
+function setHomepageSaveState(label, isError = false) {
+    homepageDiagnostics.lastSave = label || '—';
+    updateDiagnosticTag(homepageDiagnosticSave, homepageDiagnostics.lastSave, isError);
+}
+
+function setPublicAvailability(label, isError = false) {
+    homepageDiagnostics.publicStatus = label || '—';
+    updateDiagnosticTag(homepageDiagnosticPublic, `Публичный: ${homepageDiagnostics.publicStatus}`, isError);
 }
 
 function setDevStatus(message, isError = false) {
@@ -1671,15 +1722,72 @@ function resetHomepageForm() {
     setDevStatus('');
 }
 
+async function fetchPublicHomepage() {
+    const url = new URL(HOMEPAGE_PUBLIC_API, window.location.origin);
+    url.searchParams.set('_', Date.now().toString());
+    const response = await fetch(url.toString(), { cache: 'no-store' });
+    const text = await response.text();
+    const isJson = text.trim().startsWith('{') || text.trim().startsWith('[');
+    const payload = isJson && text ? JSON.parse(text) : {};
+
+    if (!response.ok) {
+        const message = payload?.detail || payload?.message || `HTTP ${response.status}`;
+        const error = new Error(message);
+        error.status = response.status;
+        throw error;
+    }
+
+    return payload;
+}
+
+function isSameHomepageConfig(saved, publicPage) {
+    if (!saved || !publicPage) return false;
+    const templateMatch = (saved.templateId || 'services') === (publicPage.templateId || publicPage.template_id || 'services');
+    const savedBlocks = JSON.stringify(saved.blocks || []);
+    const publicBlocks = JSON.stringify(publicPage.blocks || []);
+    return templateMatch && savedBlocks === publicBlocks;
+}
+
+function extractPageVersion(page) {
+    return page?.version || page?.updatedAt || page?.updated_at || null;
+}
+
+async function refreshPublicDiagnostics() {
+    try {
+        setPublicAvailability('загрузка...');
+        const payload = await fetchPublicHomepage();
+        const normalized = normalizeHomepageConfig(payload?.page || payload || {});
+        setPublicAvailability('OK');
+        if (payload?.page?.slug) homepageDiagnostics.pageKey = payload.page.slug;
+        const version = extractPageVersion(payload?.page) || extractPageVersion(normalized);
+        if (version) setHomepageVersion(version);
+        renderHomepageDiagnostics();
+        return normalized;
+    } catch (error) {
+        setPublicAvailability(error.message || 'Ошибка', true);
+        renderHomepageDiagnostics();
+        throw error;
+    }
+}
+
 async function loadHomepageConfig() {
     try {
         setHomepageStatus('Загрузка страницы...');
-        const data = await apiRequest(`${API_BASE}/pages/home`, { credentials: 'include' });
+        const data = await apiRequest(HOMEPAGE_SOURCE_API, { credentials: 'include' });
         homepageLoadedConfig = normalizeHomepageConfig(data || homepageDefaults);
         renderHomepageForm(homepageLoadedConfig);
+        setHomepageVersion(extractPageVersion(data));
+        setHomepageSaveState('Загружено');
+        setPublicAvailability('—');
+        renderHomepageDiagnostics();
         setHomepageStatus('Страница загружена');
+        refreshPublicDiagnostics().catch((error) => {
+            console.warn('[AdminSite constructor] Публичный ответ не получен', error);
+        });
     } catch (error) {
         setHomepageStatus(error.message || 'Не удалось загрузить страницу', true);
+        setHomepageSaveState('Ошибка загрузки', true);
+        renderHomepageDiagnostics();
     }
 }
 
@@ -1689,12 +1797,13 @@ async function saveHomepageConfig() {
     }
     try {
         setHomepageStatus('Сохранение...');
+        setHomepageSaveState('Сохранение...');
         const payload = {
             templateId: homepageConfig.templateId || 'services',
             blocks: homepageConfig.blocks || [],
         };
         console.debug('[AdminSite constructor] Отправка страницы', payload);
-        const data = await apiRequest(`${API_BASE}/pages/home`, {
+        const data = await apiRequest(HOMEPAGE_SOURCE_API, {
             method: 'PUT',
             body: payload,
             credentials: 'include',
@@ -1703,14 +1812,27 @@ async function saveHomepageConfig() {
             throw new Error('API вернул пустой ответ, страница не сохранена');
         }
 
-        homepageLoadedConfig = normalizeHomepageConfig(data || payload);
+        const normalizedSaved = normalizeHomepageConfig(data || payload);
+        homepageLoadedConfig = normalizedSaved;
         renderHomepageForm(homepageLoadedConfig);
-        setHomepageStatus('Сохранено');
+        const version = extractPageVersion(data) || extractPageVersion(normalizedSaved);
+        if (version) setHomepageVersion(version);
+        const publicPage = await refreshPublicDiagnostics();
+        const matches = isSameHomepageConfig(normalizedSaved, publicPage);
+        if (!matches) {
+            throw new Error('Публичная витрина отдала устаревший ответ, обновите страницу и повторите');
+        }
+
+        setHomepageSaveState('Применено');
+        setPublicAvailability('OK');
+        setHomepageStatus('Сохранено и доступно');
         showToast('Страница обновлена');
         console.debug('[AdminSite constructor] Страница сохранена', homepageLoadedConfig);
     } catch (error) {
         console.error('[AdminSite constructor] Сохранение страницы не удалось', error);
         setHomepageStatus(error.message || 'Не удалось сохранить страницу', true);
+        setHomepageSaveState('Ошибка', true);
+        setPublicAvailability('Ошибка', true);
         showToast(error.message || 'Не удалось сохранить страницу', 'error');
     }
 }
