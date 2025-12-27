@@ -30,6 +30,7 @@ const debugState = {
   lastError: '',
   receivedVersion: '—',
   updatedAt: '—',
+  appliedTemplateId: '—',
   blocksCount: 0,
   blockTypes: '',
 };
@@ -117,6 +118,7 @@ function ensureDebugOverlay() {
     ['lastError', 'lastError'],
     ['receivedVersion', 'receivedVersion'],
     ['updatedAt', 'updatedAt'],
+    ['appliedTemplateId', 'appliedTemplateId'],
     ['blocksCount', 'blocksCount'],
     ['blockTypes', 'blockTypes'],
   ];
@@ -326,7 +328,9 @@ function renderMenu(menu) {
 }
 
 function applyTemplate(templateId) {
-  const template = getTemplateById(templateId) || getTemplateById('services') || templatesRegistry[0];
+  const resolvedTemplate = getTemplateById(templateId);
+  const fallbackTemplate = getTemplateById('services') || templatesRegistry[0];
+  const template = resolvedTemplate || fallbackTemplate;
   const vars = template?.cssVars || {};
   const root = document.documentElement;
 
@@ -351,8 +355,11 @@ function applyTemplate(templateId) {
     '--card-border-color',
     template?.stylePreset?.cardBorder ? 'rgba(0,0,0,0.08)' : 'transparent',
   );
-  root.dataset.template = template?.id || 'services';
-  if (templateName) templateName.textContent = template?.name || templateId || 'Services';
+  const appliedId = template?.id || templateId || 'services';
+  root.dataset.template = appliedId;
+  if (templateName) templateName.textContent = template?.name || templateId || '—';
+  updateDebugOverlay({ appliedTemplateId: appliedId });
+  return appliedId;
 }
 
 function buildHeroSection(block) {
@@ -601,7 +608,7 @@ function renderHomeBlocks(blocks, data) {
 function normalizeHomeResponse(data) {
   const page = data?.page ?? data?.config ?? (data?.blocks ? data : null);
   const blocks = data?.blocks ?? page?.blocks ?? [];
-  const templateId = page?.templateId || page?.template_id || 'services';
+  const templateId = page?.templateId || page?.template_id || data?.templateId || data?.template_id || null;
   const version = data?.version ?? page?.version ?? data?.updatedAt ?? page?.updatedAt ?? '—';
   const updatedAt = page?.updatedAt ?? data?.updatedAt ?? version ?? '—';
 
@@ -609,14 +616,14 @@ function normalizeHomeResponse(data) {
 }
 
 function renderHome(data) {
-  const normalized = normalizeHomeResponse(data);
+  const normalized = data?.page || data?.blocks ? data : normalizeHomeResponse(data);
   if (!normalized.page && !normalized.blocks.length) {
     renderHomeMessage('Главная не настроена');
     return;
   }
 
   console.debug('[site] Loaded home config', normalized);
-  applyTemplate(normalized.templateId || 'services');
+  applyTemplate(normalized.templateId);
   renderHomeBlocks(normalized.blocks, normalized.raw || normalized.page || {});
 }
 
@@ -832,8 +839,7 @@ async function loadHomeConfig({ reason = 'initial' } = {}) {
       blocksCount: normalized.blocks?.length || 0,
       blockTypes:
         normalized.blocks
-          ?.slice(0, 2)
-          .map((block) => block?.type || 'unknown')
+          ?.map((block) => block?.type || 'unknown')
           .join(', ') || '—',
     });
 
@@ -843,6 +849,7 @@ async function loadHomeConfig({ reason = 'initial' } = {}) {
     updateDebugOverlay({
       lastFetchStatus: error?.status ? `error ${error.status}` : 'error',
       lastError: error?.message || String(error),
+      appliedTemplateId: '—',
       blocksCount: 0,
       blockTypes: '',
     });
@@ -851,7 +858,6 @@ async function loadHomeConfig({ reason = 'initial' } = {}) {
 }
 
 async function bootstrap() {
-  applyTemplate('services');
   setupMenuToggle();
   bindRouterLinks();
   ensureDebugOverlay();
