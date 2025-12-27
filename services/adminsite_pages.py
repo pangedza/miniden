@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from database import get_session
 from models import AdminSitePage
+from utils.home_images import HOME_PLACEHOLDER_URL
 from schemas.adminsite_page import PageConfig
 
 DEFAULT_TEMPLATE_ID = "services"
@@ -20,7 +21,7 @@ def _default_blocks() -> list[dict[str, Any]]:
             "type": "hero",
             "title": "Витрина AdminSite",
             "subtitle": "Настройте оформление и блоки под свои задачи.",
-            "imageUrl": "/static/img/home-placeholder.svg",
+            "imageUrl": HOME_PLACEHOLDER_URL,
             "background": {
                 "type": "gradient",
                 "value": "linear-gradient(135deg, rgba(255,255,255,0.12), rgba(0,0,0,0.04))",
