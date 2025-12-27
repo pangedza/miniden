@@ -10,6 +10,7 @@ from pydantic import BaseModel
 import hashlib
 import hmac
 import json
+import mimetypes
 import logging
 import time
 from datetime import datetime, timedelta
@@ -89,6 +90,7 @@ BASE_DIR = Path(__file__).resolve().parent
 ADMINSITE_STATIC_PATH = ADMINSITE_STATIC_ROOT.resolve()
 WEBAPP_DIR = BASE_DIR / "webapp"
 STATIC_DIR_PUBLIC = BASE_DIR / "static"
+STATIC_UPLOADS_DIR = STATIC_DIR_PUBLIC / "uploads"
 setup_logging(log_file=API_LOG_FILE)
 
 app = FastAPI(title="MiniDeN Web API", version="1.0.0")
@@ -186,6 +188,7 @@ REQUIRED_DIRS = [
     MEDIA_ROOT / "tmp/products",
     MEDIA_ROOT / "tmp/courses",
 ]
+UPLOAD_FOLDERS = {"products", "courses", "categories", "home", "reviews", "uploads"}
 
 BRANDING_LOGO_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".svg"}
 BRANDING_FAVICON_EXTENSIONS = {".ico", ".png", ".svg"}
@@ -196,6 +199,12 @@ BRANDING_FAVICON_MAX_MB = 2
 def ensure_media_dirs() -> None:
     for d in REQUIRED_DIRS:
         d.mkdir(parents=True, exist_ok=True)
+
+
+def ensure_upload_dirs() -> None:
+    STATIC_UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+    for folder in UPLOAD_FOLDERS:
+        (STATIC_UPLOADS_DIR / folder).mkdir(parents=True, exist_ok=True)
 
 
 def ensure_admin_static_dirs() -> bool:
@@ -241,6 +250,7 @@ def ensure_adminsite_static_dir() -> None:
 
 
 ensure_media_dirs()
+ensure_upload_dirs()
 app.mount("/media", StaticFiles(directory=MEDIA_ROOT), name="media")
 ensure_adminsite_static_dir()
 app.mount(
@@ -367,24 +377,54 @@ def _notify_admin_about_chat(chat_session, preview_text: str) -> list[int]:
     return message_ids
 
 
-def _save_uploaded_image(file: UploadFile, base_folder: str) -> str:
+def _save_uploaded_image(file: UploadFile, base_folder: str) -> dict[str, Any]:
     if file.content_type not in ("image/jpeg", "image/png", "image/webp"):
         raise HTTPException(status_code=400, detail="Неверный формат изображения")
 
-    ensure_media_dirs()
+    base_folder = base_folder or "uploads"
+    if base_folder not in UPLOAD_FOLDERS:
+        base_folder = "uploads"
+
+    ensure_upload_dirs()
 
     ext = (file.filename or "jpg").split(".")[-1].lower()
     if ext not in ("jpg", "jpeg", "png", "webp"):
         ext = "jpg"
 
     filename = f"{uuid4().hex}.{ext}"
-    full_path = MEDIA_ROOT / base_folder / filename
+    target_dir = STATIC_UPLOADS_DIR / base_folder
+    target_dir.mkdir(parents=True, exist_ok=True)
+    full_path = target_dir / filename
 
+    content = file.file.read()
     with full_path.open("wb") as f:
-        f.write(file.file.read())
+        f.write(content)
 
-    relative = full_path.relative_to(MEDIA_ROOT).as_posix()
-    return f"/media/{relative}"
+    if not full_path.exists():
+        logger.error("Upload write reported success but file is missing: %s", full_path)
+        raise HTTPException(
+            status_code=500,
+            detail="Не удалось сохранить файл на сервер",
+        )
+
+    saved_size = len(content)
+    content_type = file.content_type or mimetypes.guess_type(full_path.name)[0]
+    relative = full_path.relative_to(STATIC_DIR_PUBLIC).as_posix()
+    url = f"/static/{relative}"
+
+    logger.info(
+        "Saved upload to %s (size=%s, content_type=%s)",
+        full_path,
+        saved_size,
+        content_type,
+    )
+
+    return {
+        "url": url,
+        "original_name": file.filename or filename,
+        "size": saved_size,
+        "content_type": content_type or "application/octet-stream",
+    }
 
 
 def _save_branding_file(
@@ -416,12 +456,17 @@ def _save_branding_file(
 
 
 def _delete_media_file(url: str | None) -> None:
-    if not url or not url.startswith("/media/"):
+    if not url:
         return
 
-    relative = url.split("/media/", 1)[1]
-    target_path = MEDIA_ROOT / relative
     try:
+        if url.startswith("/media/"):
+            target_path = MEDIA_ROOT / url.split("/media/", 1)[1]
+        elif url.startswith("/static/uploads/"):
+            target_path = STATIC_DIR_PUBLIC / url.replace("/static/", "")
+        else:
+            return
+
         if target_path.is_file():
             target_path.unlink()
     except OSError:
@@ -2248,19 +2293,19 @@ def admin_upload_image(
         AdminImageKind.home: "home",
     }
     base_folder = base_folder_by_kind.get(kind, "products")
-    url = _save_uploaded_image(file, base_folder)
+    upload = _save_uploaded_image(file, base_folder)
 
-    return {"ok": True, "url": url}
+    return {"ok": True, **upload}
 
 
 @app.post("/api/admin/home/upload_image")
 def admin_upload_home_image(file: UploadFile = File(...), admin_user=Depends(get_admin_user)):
     """
     Загрузка изображения для блоков главной страницы.
-    Путь отличается от общего upload-image, но использует ту же базу `/media/home/`.
+    Путь отличается от общего upload-image, но использует ту же базу `/static/uploads/home/`.
     """
-    url = _save_uploaded_image(file, "home")
-    return {"ok": True, "url": url}
+    upload = _save_uploaded_image(file, "home")
+    return {"ok": True, **upload}
 
 
 @app.get("/api/admin/products/{product_id}/images")
@@ -2282,12 +2327,13 @@ def admin_upload_product_images(
     if not files:
         raise HTTPException(status_code=400, detail="Нет файлов для загрузки")
 
-    urls = [_save_uploaded_image(file, "products") for file in files]
+    uploads = [_save_uploaded_image(file, "products") for file in files]
+    urls = [item["url"] for item in uploads]
     try:
         images = products_service.add_product_images(product_id, urls)
     except ValueError:
         raise HTTPException(status_code=404, detail="Product not found")
-    return {"items": images}
+    return {"items": images, "uploads": uploads}
 
 
 @app.delete("/api/admin/products/images/{image_id}")
@@ -2320,12 +2366,13 @@ def admin_upload_masterclass_images(
     if not files:
         raise HTTPException(status_code=400, detail="Нет файлов для загрузки")
 
-    urls = [_save_uploaded_image(file, "courses") for file in files]
+    uploads = [_save_uploaded_image(file, "courses") for file in files]
+    urls = [item["url"] for item in uploads]
     try:
         images = products_service.add_masterclass_images(masterclass_id, urls)
     except ValueError:
         raise HTTPException(status_code=404, detail="Masterclass not found")
-    return {"items": images}
+    return {"items": images, "uploads": uploads}
 
 
 @app.delete("/api/admin/masterclasses/images/{image_id}")
@@ -2618,7 +2665,8 @@ async def _parse_category_payload(
 def _persist_category_image(image_file: UploadFile | None, *, current_url: str | None = None) -> str | None:
     if not image_file:
         return current_url
-    new_url = _save_uploaded_image(image_file, "categories")
+    upload = _save_uploaded_image(image_file, "categories")
+    new_url = upload["url"]
     if current_url and current_url != new_url:
         _delete_media_file(current_url)
     return new_url
