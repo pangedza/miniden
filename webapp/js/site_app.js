@@ -331,10 +331,28 @@ function buildHeroSection(block) {
 
   const visual = document.createElement('div');
   visual.className = 'page-hero__visual';
-  const img = document.createElement('img');
-  img.alt = block?.title || 'Hero';
-  img.src = block?.imageUrl || '/static/img/home-placeholder.svg';
-  visual.appendChild(img);
+
+  const createPlaceholder = () => {
+    const placeholder = document.createElement('div');
+    placeholder.className = 'page-hero__placeholder';
+    placeholder.setAttribute('aria-hidden', 'true');
+    return placeholder;
+  };
+
+  if (block?.imageUrl) {
+    const img = document.createElement('img');
+    img.alt = block?.title || 'Hero';
+    img.src = block.imageUrl;
+    img.onerror = () => {
+      img.remove();
+      if (!visual.querySelector('.page-hero__placeholder')) {
+        visual.appendChild(createPlaceholder());
+      }
+    };
+    visual.appendChild(img);
+  } else {
+    visual.appendChild(createPlaceholder());
+  }
 
   section.append(content, visual);
   return section;
