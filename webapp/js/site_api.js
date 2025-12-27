@@ -1,5 +1,6 @@
 export async function request(path, params = null) {
   const url = new URL(path, window.location.origin);
+
   if (params) {
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined && value !== null && value !== '') {
@@ -8,7 +9,9 @@ export async function request(path, params = null) {
     });
   }
 
-  const response = await fetch(url.toString());
+  url.searchParams.set('_', Date.now().toString());
+
+  const response = await fetch(url.toString(), { cache: 'no-store' });
   const text = await response.text();
   const isJson = text.trim().startsWith('{') || text.trim().startsWith('[');
   const payload = isJson ? JSON.parse(text || '{}') : text;
