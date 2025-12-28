@@ -694,6 +694,7 @@ class AdminSitePage(Base):
     slug = Column(String(64), nullable=False, unique=True)
     template_id = Column(String(64), nullable=False, default="services", server_default="services")
     blocks = Column(JSONB, nullable=False, default=list, server_default="[]")
+    theme = Column(JSONB, nullable=False, default=dict, server_default="{}")
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 

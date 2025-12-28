@@ -22,7 +22,6 @@ const views = {
 const navMenu = document.getElementById('nav-menu');
 const navLinks = document.getElementById('nav-links');
 const sidebarOverlay = document.querySelector('.app-sidebar-overlay');
-const themeStylesheet = document.getElementById('theme-stylesheet');
 const templateName = document.getElementById('template-name');
 const homeBlocksContainer = document.getElementById('home-blocks');
 const debugState = {
@@ -186,22 +185,29 @@ function updateDebugOverlay(partial = {}) {
   debugPanel.overlay.style.border = debugState.lastError ? '1px solid #fca5a5' : '1px solid transparent';
 }
 
-function buildThemeUrl(version) {
-  const base = '/css/theme.css';
-  if (!version) return base;
-  return `${base}?v=${encodeURIComponent(version)}`;
-}
+function applyThemeVariables(theme, fallbackTemplateId) {
+  const cssVars = theme?.cssVars || {};
+  const appliedTemplateId = theme?.appliedTemplateId || fallbackTemplateId || null;
+  const target = document.documentElement;
 
-function ensureThemeStylesheet(version) {
-  const cacheBust = queryParams.get('theme') || version;
-  const href = buildThemeUrl(cacheBust);
-  if (themeStylesheet && href !== themeStylesheet.getAttribute('href')) {
-    themeStylesheet.setAttribute('href', href);
+  Object.entries(cssVars).forEach(([key, value]) => {
+    if (value !== undefined && value !== null) {
+      target.style.setProperty(`--${key}`, value);
+    }
+  });
+
+  if (appliedTemplateId) {
+    document.documentElement.dataset.template = appliedTemplateId;
+    document.body.dataset.template = appliedTemplateId;
   }
 
-  const appliedHref = themeStylesheet?.getAttribute('href') || href;
-  updateDebugOverlay({ themeLoadedUrl: appliedHref || '—' });
-  return appliedHref;
+  updateDebugOverlay({
+    themeLoadedUrl: theme?.updatedAt
+      ? `api/theme @ ${theme.updatedAt}`
+      : appliedTemplateId || '—',
+  });
+
+  return appliedTemplateId;
 }
 
 function renderHomeMessage(title, description = 'Настройте главную страницу в AdminSite.') {
@@ -674,11 +680,12 @@ function renderHome(data) {
   }
 
   console.debug('[site] Loaded home config', normalized);
-  const themeUrl = ensureThemeStylesheet(normalized.themeVersion);
-  const appliedTemplate = applyTemplate(normalized.themeTemplate || normalized.templateId);
+  const appliedThemeTemplate = applyThemeVariables(normalized.theme, normalized.templateId);
+  const appliedTemplate = applyTemplate(
+    appliedThemeTemplate || normalized.themeTemplate || normalized.templateId,
+  );
   updateDebugOverlay({
     appliedTemplateId: appliedTemplate,
-    themeLoadedUrl: themeUrl || '—',
     receivedVersion: normalized.version || '—',
     updatedAt: normalized.updatedAt || normalized.version || '—',
     blocksCount: normalized.blocksCount || 0,

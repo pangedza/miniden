@@ -56,7 +56,7 @@ def adminsite_update_home_page(
     payload: PageConfig, request: Request, db: Session = Depends(get_db_session)
 ):
     service.ensure_admin(request, db)
-    return adminsite_pages.update_page(payload.model_dump(by_alias=True))
+    return adminsite_pages.update_page(payload.model_dump(by_alias=True, exclude_unset=True))
 
 
 @router.post("/theme/apply", response_model=ThemeApplyResponse)

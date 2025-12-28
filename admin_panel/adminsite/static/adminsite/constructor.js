@@ -1206,9 +1206,7 @@ function setHomepageVersion(version) {
 function openHomepagePreview(event) {
     if (event) event.preventDefault();
     const cacheBust = Date.now().toString();
-    const themeVersion = (lastAppliedTheme && lastAppliedTheme.timestamp) || homepageDiagnostics.themeVersion;
-    const themeParam = themeVersion ? `&theme=${themeVersion}` : '';
-    const previewUrl = `/?debug=1&t=${cacheBust}${themeParam}`;
+    const previewUrl = `/?debug=1&t=${cacheBust}`;
     if (homepagePreviewLink) homepagePreviewLink.href = previewUrl;
     window.open(previewUrl, '_blank', 'noopener');
 }
