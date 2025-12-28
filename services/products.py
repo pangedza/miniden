@@ -144,6 +144,7 @@ def _serialize_product(
         "type": product_type,
         "name": product.name,
         "price": price,
+        "stock": int(getattr(product, "stock", 0) or 0),
         "short_description": getattr(product, "short_description", None),
         "description": product.description or "",
         "detail_url": getattr(product, "detail_url", None),
@@ -863,6 +864,7 @@ def create_product(
     product_type: str,
     name: str,
     price: int,
+    stock: int = 0,
     description: str = "",
     short_description: str | None = None,
     detail_url: str | None = None,
@@ -881,6 +883,7 @@ def create_product(
         "description": description,
         "short_description": short_description,
         "price": price,
+        "stock": max(int(stock), 0),
         "detail_url": detail_url,
         "is_active": 1,
         "category_id": category_id,
@@ -973,6 +976,7 @@ def update_product_full(
     product_type: str,
     name: str,
     price: int,
+    stock: int | None = None,
     description: str = "",
     short_description: str | None = None,
     detail_url: str | None = None,
@@ -1013,6 +1017,8 @@ def update_product_full(
             payload["image_url"] = image_url
         if is_active is not None:
             payload["is_active"] = 1 if is_active else 0
+        if stock is not None:
+            payload["stock"] = max(int(stock), 0)
 
         if product_type == "course":
             for field in ("wb_url", "ozon_url", "yandex_url", "avito_url"):

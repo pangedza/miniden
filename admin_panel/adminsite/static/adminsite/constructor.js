@@ -752,15 +752,16 @@ function renderItemsTable(type) {
     });
     rows.forEach((item) => {
         const categoryTitle = state.categories[type].find((c) => c.id === item.category_id)?.title || '';
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td>${item.id}</td>
-            <td>${item.title}</td>
-            <td>${categoryTitle}</td>
-            <td>${item.price ?? ''}</td>
-            <td>${item.is_active ? 'Да' : 'Нет'}</td>
-            <td>${item.sort ?? ''}</td>
-            <td>
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${item.id}</td>
+                <td>${item.title}</td>
+                <td>${categoryTitle}</td>
+                <td>${item.price ?? ''}</td>
+                <td>${item.stock ?? 0}</td>
+                <td>${item.is_active ? 'Да' : 'Нет'}</td>
+                <td>${item.sort ?? ''}</td>
+                <td>
                 <div class="table-actions">
                     <button class="btn-secondary" data-action="edit">Редактировать</button>
                     <button class="btn-danger" data-action="delete">Удалить</button>
@@ -795,6 +796,7 @@ async function upsertItem(type, payload) {
         title: payload.title,
         slug: normalizedSlug || null,
         price: payload.price ?? 0,
+        stock: payload.stock ?? 0,
         image_url: payload.image_url,
         short_text: payload.short_text,
         description: payload.description,
@@ -988,6 +990,7 @@ function createTypePanel(type) {
                             <th>Title</th>
                             <th>Category</th>
                             <th>Price</th>
+                            <th>Stock</th>
                             <th>Active</th>
                             <th>Sort</th>
                             <th>Действия</th>

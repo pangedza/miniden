@@ -72,9 +72,11 @@ def init_db() -> None:
             "ALTER TABLE products_baskets ADD COLUMN IF NOT EXISTS ozon_url TEXT",
             "ALTER TABLE products_baskets ADD COLUMN IF NOT EXISTS yandex_url TEXT",
             "ALTER TABLE products_baskets ADD COLUMN IF NOT EXISTS avito_url TEXT",
+            "ALTER TABLE products_baskets ADD COLUMN IF NOT EXISTS stock INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE products_baskets ADD COLUMN IF NOT EXISTS masterclass_url TEXT",
             "ALTER TABLE products_baskets ADD COLUMN IF NOT EXISTS short_description TEXT",
             "ALTER TABLE products_courses ADD COLUMN IF NOT EXISTS short_description TEXT",
+            "ALTER TABLE products_courses ADD COLUMN IF NOT EXISTS stock INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE products_courses ADD COLUMN IF NOT EXISTS masterclass_url TEXT",
             "ALTER TABLE product_reviews ADD COLUMN IF NOT EXISTS masterclass_id INTEGER",
             "ALTER TABLE product_reviews ALTER COLUMN product_id DROP NOT NULL",
@@ -87,6 +89,7 @@ def init_db() -> None:
             "ALTER TABLE webchat_sessions ADD COLUMN IF NOT EXISTS unread_for_manager INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE webchat_messages ADD COLUMN IF NOT EXISTS is_read_by_manager BOOLEAN NOT NULL DEFAULT FALSE",
             "ALTER TABLE webchat_messages ADD COLUMN IF NOT EXISTS is_read_by_client BOOLEAN NOT NULL DEFAULT FALSE",
+            "ALTER TABLE adminsite_items ADD COLUMN IF NOT EXISTS stock INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE adminsite_pages ADD COLUMN IF NOT EXISTS theme JSONB DEFAULT '{}'",
         ]
 
