@@ -357,7 +357,31 @@ function buildItemCard(item) {
   more.textContent = 'Подробнее';
   more.setAttribute('data-router-link', '');
 
-  footer.append(price, more);
+  const canUseTelegram = !!(window.isTelegramWebApp && window.Telegram?.WebApp);
+  const availableStock = Number(item?.stock ?? 0);
+  const canAddToCart =
+    canUseTelegram && Number.isFinite(availableStock) && availableStock > 0 && item?.id !== undefined;
+
+  if (canAddToCart) {
+    const addButton = document.createElement('button');
+    addButton.className = 'btn secondary';
+    addButton.type = 'button';
+    addButton.textContent = '➕';
+    addButton.addEventListener('click', () => {
+      try {
+        window.Telegram.WebApp.sendData(
+          JSON.stringify({ action: 'add_to_cart', product_id: item.id, qty: 1 })
+        );
+        window.Telegram.WebApp.close();
+      } catch (error) {
+        console.error('Не удалось отправить данные в Telegram WebApp', error);
+      }
+    });
+
+    footer.append(price, addButton, more);
+  } else {
+    footer.append(price, more);
+  }
   body.append(meta, title, description, footer);
   card.append(imageWrapper, body);
   return card;

@@ -86,6 +86,7 @@ def _serialize_item(
         "title": item.title,
         "slug": item.slug,
         "price": float(item.price or 0),
+        "stock": int(getattr(item, "stock", 0) or 0),
         "image_url": item.image_url,
         "short_text": item.short_text,
         "description": item.description,

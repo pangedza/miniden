@@ -273,6 +273,7 @@ def create_item(db: Session, payload: ItemPayload) -> AdminSiteItem:
         title=payload.title,
         slug=slug,
         price=payload.price,
+        stock=int(payload.stock or 0),
         image_url=payload.image_url,
         short_text=payload.short_text,
         description=payload.description,
@@ -305,6 +306,8 @@ def update_item(db: Session, item_id: int, payload: ItemUpdatePayload) -> AdminS
         item.title = payload.title
     if payload.price is not None:
         item.price = payload.price
+    if payload.stock is not None:
+        item.stock = int(payload.stock)
     if payload.image_url is not None:
         item.image_url = payload.image_url
     if payload.short_text is not None:

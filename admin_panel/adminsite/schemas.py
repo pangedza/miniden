@@ -66,6 +66,7 @@ class ItemPayload(BaseModel):
     title: str
     slug: str | None = Field(default=None, pattern=SlugPattern)
     price: Decimal = Field(ge=0)
+    stock: int = Field(default=0, ge=0)
     image_url: str | None = None
     short_text: str | None = None
     description: str | None = None
@@ -87,6 +88,7 @@ class ItemUpdatePayload(BaseModel):
     title: str | None = None
     slug: str | None = Field(default=None, pattern=SlugPattern)
     price: Decimal | None = Field(default=None, ge=0)
+    stock: int | None = Field(default=None, ge=0)
     image_url: str | None = None
     short_text: str | None = None
     description: str | None = None
@@ -113,6 +115,7 @@ class ItemResponse(BaseModel):
     title: str
     slug: str
     price: Decimal
+    stock: int
     image_url: str | None
     short_text: str | None
     description: str | None

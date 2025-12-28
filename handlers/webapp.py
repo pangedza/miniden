@@ -4,6 +4,12 @@ import logging
 from aiogram import F, Router
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, WebAppInfo
 
+import json
+import logging
+
+from aiogram import F, Router
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, WebAppInfo
+
 from config import get_settings
 from services.cart import add_to_cart
 from services.products import get_product_by_id
@@ -39,6 +45,18 @@ def _build_adminsite_menu() -> InlineKeyboardMarkup:
         )
 
     return InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
+
+
+def _build_cart_keyboard() -> InlineKeyboardMarkup | None:
+    settings = get_settings()
+    cart_url = settings.webapp_cart_url or settings.webapp_index_url
+    if not cart_url:
+        return None
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Открыть корзину", web_app=WebAppInfo(url=cart_url))]
+        ]
+    )
 
 
 def _is_valid_adminsite_item(item: dict) -> bool:
@@ -103,11 +121,25 @@ async def handle_webapp_data(message: Message) -> None:
         return
 
     raw = message.web_app_data.data
+    logging.info(
+        "web_app_data received from user %s: %s",
+        getattr(message.from_user, "id", None),
+        raw,
+    )
     try:
         data = json.loads(raw)
     except Exception:
         logging.exception("Не удалось разобрать web_app_data: %s", raw)
         return
+
+    product_id = data.get("product_id")
+    qty_raw = data.get("qty") or 1
+
+    try:
+        qty_int = max(int(qty_raw), 1)
+    except (TypeError, ValueError):
+        logging.warning("Некорректный qty в web_app_data: %s", qty_raw)
+        qty_int = 1
 
     if data.get("source") == "adminsite":
         await _handle_adminsite_payload(message, data)
@@ -116,7 +148,6 @@ async def handle_webapp_data(message: Message) -> None:
     if data.get("action") != "add_to_cart":
         return
 
-    product_id = data.get("product_id")
     if product_id is None:
         return
 
@@ -136,11 +167,16 @@ async def handle_webapp_data(message: Message) -> None:
             user_id=message.from_user.id,
             product_id=product_id_int,
             product_type=product.get("type") or "basket",
-            qty=1,
+            qty=qty_int,
         )
     except Exception:
         logging.exception("Ошибка при добавлении товара из WebApp в корзину")
         return
 
-    # Можно не отправлять ответ, чтобы не спамить в чат
-    # await message.answer("✅ Товар добавлен в корзину")
+    product_name = product.get("name") or f"Товар #{product_id_int}"
+    keyboard = _build_cart_keyboard()
+    response_text = f"✅ Добавлено в корзину: {product_name} (x{qty_int}). Открыть корзину?"
+    if keyboard:
+        await message.answer(response_text, reply_markup=keyboard)
+    else:
+        await message.answer(f"{response_text}\n\nНажми 🛒 Корзина")

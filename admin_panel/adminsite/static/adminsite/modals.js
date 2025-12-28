@@ -168,6 +168,9 @@ export class ItemModal extends BaseModal {
                     <label>Цена
                         <input type="number" name="price" step="0.01" value="0" />
                     </label>
+                    <label>В наличии (stock)
+                        <input type="number" name="stock" min="0" step="1" value="0" />
+                    </label>
                     <label>Порядок
                         <input type="number" name="sort" value="0" />
                     </label>
@@ -212,6 +215,7 @@ export class ItemModal extends BaseModal {
         this.form.querySelector('input[name="title"]').value = item?.title || '';
         this.form.querySelector('input[name="slug"]').value = item?.slug || '';
         this.form.querySelector('input[name="price"]').value = item?.price ?? 0;
+        this.form.querySelector('input[name="stock"]').value = item?.stock ?? 0;
         this.form.querySelector('input[name="sort"]').value = item?.sort ?? 0;
         this.form.querySelector('input[name="image_url"]').value = item?.image_url || '';
         this.form.querySelector('textarea[name="short_text"]').value = item?.short_text || '';
@@ -226,6 +230,7 @@ export class ItemModal extends BaseModal {
         this.form.querySelector('input[name="title"]').value = '';
         this.form.querySelector('input[name="slug"]').value = '';
         this.form.querySelector('input[name="price"]').value = 0;
+        this.form.querySelector('input[name="stock"]').value = 0;
         this.form.querySelector('input[name="sort"]').value = 0;
         this.form.querySelector('input[name="image_url"]').value = '';
         this.form.querySelector('textarea[name="short_text"]').value = '';
@@ -246,6 +251,8 @@ export class ItemModal extends BaseModal {
             );
             const priceRaw = this.form.querySelector('input[name="price"]').value;
             const price = priceRaw === '' ? 0 : Number(priceRaw);
+            const stockRaw = this.form.querySelector('input[name="stock"]').value;
+            const stock = stockRaw === '' ? 0 : Math.max(0, Number(stockRaw));
             await this.onSubmit({
                 id: this.form.querySelector('input[name="id"]').value,
                 type: formType,
@@ -253,6 +260,7 @@ export class ItemModal extends BaseModal {
                 title: this.form.querySelector('input[name="title"]').value.trim(),
                 slug: this.form.querySelector('input[name="slug"]').value.trim(),
                 price: Number.isNaN(price) ? 0 : price,
+                stock: Number.isNaN(stock) ? 0 : stock,
                 image_url: this.form.querySelector('input[name="image_url"]').value || null,
                 short_text: this.form.querySelector('textarea[name="short_text"]').value || null,
                 description: this.form.querySelector('textarea[name="description"]').value || null,

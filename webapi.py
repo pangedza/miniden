@@ -1485,6 +1485,7 @@ class AdminProductsCreatePayload(BaseModel):
     type: str
     name: str
     price: int
+    stock: int = Field(default=0, ge=0)
     short_description: str | None = ""
     description: str | None = ""
     detail_url: str | None = None
@@ -1503,6 +1504,7 @@ class AdminProductsUpdatePayload(BaseModel):
     type: str
     name: str
     price: int
+    stock: int | None = Field(default=None, ge=0)
     short_description: str | None = ""
     description: str | None = ""
     detail_url: str | None = None
@@ -2751,6 +2753,7 @@ def admin_create_product(payload: AdminProductsCreatePayload):
         product_type,
         payload.name,
         payload.price,
+        payload.stock,
         payload.short_description or None,
         payload.description or "",
         payload.detail_url,
@@ -2775,6 +2778,7 @@ def admin_update_product(product_id: int, payload: AdminProductsUpdatePayload):
         product_type,
         payload.name,
         payload.price,
+        payload.stock,
         payload.short_description or None,
         payload.description or "",
         payload.detail_url,
