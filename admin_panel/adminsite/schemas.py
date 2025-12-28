@@ -4,6 +4,10 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Literal
 
+from datetime import datetime
+from decimal import Decimal
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 TypeLiteral = str
@@ -149,3 +153,17 @@ class WebAppSettingsResponse(BaseModel):
     min_selected: int
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class ThemeApplyPayload(BaseModel):
+    template_id: str = Field(alias="templateId")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class ThemeApplyResponse(BaseModel):
+    applied_template_id: str = Field(alias="appliedTemplateId")
+    timestamp: int
+    updated_at: str = Field(alias="updatedAt")
+
+    model_config = ConfigDict(populate_by_name=True)

@@ -2,13 +2,16 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from sqlalchemy.orm import Session
 
 from admin_panel.dependencies import get_current_admin, get_db_session
 from schemas.adminsite_page import PageConfig
 from . import media as media_service, service
 from services import adminsite_pages
+from services.theme_service import ThemeApplyError, apply_theme
 from .schemas import (
     CategoryPayload,
     CategoryResponse,
@@ -16,6 +19,8 @@ from .schemas import (
     ItemPayload,
     ItemResponse,
     ItemUpdatePayload,
+    ThemeApplyPayload,
+    ThemeApplyResponse,
     WebAppSettingsPayload,
     WebAppSettingsResponse,
 )
@@ -52,6 +57,17 @@ def adminsite_update_home_page(
 ):
     service.ensure_admin(request, db)
     return adminsite_pages.update_page(payload.model_dump(by_alias=True))
+
+
+@router.post("/theme/apply", response_model=ThemeApplyResponse)
+def adminsite_apply_theme(
+    payload: ThemeApplyPayload, request: Request, db: Session = Depends(get_db_session)
+):
+    service.ensure_admin(request, db)
+    try:
+        return apply_theme(payload.template_id)
+    except ThemeApplyError as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 @router.get("/media", response_model=list[dict])

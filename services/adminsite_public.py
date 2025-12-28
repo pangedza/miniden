@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from database import get_session
 from models import AdminSiteCategory, AdminSiteItem
-from services import adminsite_pages
+from services import adminsite_pages, theme_service
 
 ALLOWED_TYPES = {"product", "course"}
 
@@ -225,6 +225,7 @@ def _extract_page_meta(page: dict[str, Any]) -> dict[str, Any]:
 def get_home_summary(limit: int = 6) -> dict[str, Any]:
     page = adminsite_pages.get_page()
     meta = _extract_page_meta(page)
+    theme_meta = theme_service.get_theme_metadata()
     with get_session() as session:
         categories_product = session.execute(
             _category_query(session, "product")
@@ -251,4 +252,6 @@ def get_home_summary(limit: int = 6) -> dict[str, Any]:
         "featured_masterclasses": [
             _serialize_item(item, category=category) for item, category in masterclasses
         ],
+        "theme": theme_meta,
+        "themeVersion": theme_meta.get("timestamp"),
     }
