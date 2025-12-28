@@ -149,8 +149,21 @@ app.add_middleware(
 
 @app.middleware("http")
 async def add_build_header(request: Request, call_next):  # type: ignore[override]
-    response = await call_next(request)
-    response.headers["X-Build-Commit"] = BUILD_COMMIT
+    try:
+        response = await call_next(request)
+    except Exception:
+        # Do not interfere with the underlying error handling
+        raise
+
+    if not hasattr(response, "headers"):
+        return response
+
+    try:
+        response.headers["X-Build-Commit"] = BUILD_COMMIT or "unknown"
+    except Exception:
+        # Best-effort: never let header-setting break the response
+        logger.exception("Failed to set X-Build-Commit header")
+
     return response
 
 
