@@ -8,6 +8,7 @@ document.documentElement.setAttribute('data-adminsite-js', 'loaded');
 const API_BASE = '/api/adminsite';
 const HOMEPAGE_SOURCE_API = `${API_BASE}/pages/home`;
 const HOMEPAGE_PUBLIC_API = '/api/site/home';
+const THEME_APPLY_API = `${API_BASE}/theme/apply`;
 const HOMEPAGE_PAGE_KEY = 'home';
 const diagnosticState = {
     jsLoaded: true,
@@ -1154,6 +1155,7 @@ const homepageDiagnosticPage = getElementOrWarn('homepage-diagnostic-page');
 const homepageDiagnosticVersion = getElementOrWarn('homepage-diagnostic-version');
 
 let homepageLoadedConfig = normalizeHomepageConfig(homepageDefaults);
+let lastAppliedTheme = null;
 let blockPickerModal = null;
 const homepageDiagnostics = {
     source: HOMEPAGE_SOURCE_API,
@@ -1162,6 +1164,8 @@ const homepageDiagnostics = {
     version: null,
     lastSave: '—',
     publicStatus: '—',
+    themeVersion: null,
+    themeTemplate: '—',
 };
 renderHomepageDiagnostics();
 
@@ -1202,7 +1206,9 @@ function setHomepageVersion(version) {
 function openHomepagePreview(event) {
     if (event) event.preventDefault();
     const cacheBust = Date.now().toString();
-    const previewUrl = `/?debug=1&t=${cacheBust}`;
+    const themeVersion = (lastAppliedTheme && lastAppliedTheme.timestamp) || homepageDiagnostics.themeVersion;
+    const themeParam = themeVersion ? `&theme=${themeVersion}` : '';
+    const previewUrl = `/?debug=1&t=${cacheBust}${themeParam}`;
     if (homepagePreviewLink) homepagePreviewLink.href = previewUrl;
     window.open(previewUrl, '_blank', 'noopener');
 }
@@ -1239,6 +1245,20 @@ function setTemplateActive(templateId) {
 function setTemplate(templateId) {
     homepageConfig = { ...homepageConfig, templateId: templateId || 'services' };
     setTemplateActive(homepageConfig.templateId);
+}
+
+async function applyThemeFromAdmin(templateId) {
+    if (!templateId) {
+        throw new Error('Не указан templateId для применения темы');
+    }
+
+    const payload = { templateId };
+    const response = await apiRequest(THEME_APPLY_API, { method: 'POST', body: payload, credentials: 'include' });
+    lastAppliedTheme = response;
+    homepageDiagnostics.themeVersion = response?.timestamp || homepageDiagnostics.themeVersion;
+    homepageDiagnostics.themeTemplate = response?.appliedTemplateId || homepageDiagnostics.themeTemplate;
+    renderHomepageDiagnostics();
+    return response;
 }
 
 function createBlockOfType(type) {
@@ -1730,6 +1750,7 @@ function applyDevJson({ silent = false } = {}) {
 function renderHomepageForm(data = homepageDefaults) {
     const payload = normalizeHomepageConfig(data);
     homepageConfig = JSON.parse(JSON.stringify(payload));
+    lastAppliedTheme = null;
     homepageSelectedIndex = 0;
     setTemplateActive(homepageConfig.templateId);
     syncDevTextarea();
@@ -1783,6 +1804,8 @@ async function refreshPublicDiagnostics() {
         if (payload?.page?.slug) homepageDiagnostics.pageKey = payload.page.slug;
         const version = extractPageVersion(payload?.page) || extractPageVersion(normalized);
         if (version) setHomepageVersion(version);
+        if (payload?.theme?.timestamp) homepageDiagnostics.themeVersion = payload.theme.timestamp;
+        if (payload?.theme?.appliedTemplateId) homepageDiagnostics.themeTemplate = payload.theme.appliedTemplateId;
         renderHomepageDiagnostics();
         return normalized;
     } catch (error) {
@@ -1839,6 +1862,7 @@ async function saveHomepageConfig() {
         renderHomepageForm(homepageLoadedConfig);
         const version = extractPageVersion(data) || extractPageVersion(normalizedSaved);
         if (version) setHomepageVersion(version);
+        await applyThemeFromAdmin(payload.templateId || 'services');
         const publicPage = await refreshPublicDiagnostics();
         const matches = isSameHomepageConfig(normalizedSaved, publicPage);
         if (!matches) {

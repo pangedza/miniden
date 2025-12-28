@@ -22,6 +22,7 @@ const views = {
 const navMenu = document.getElementById('nav-menu');
 const navLinks = document.getElementById('nav-links');
 const sidebarOverlay = document.querySelector('.app-sidebar-overlay');
+const themeStylesheet = document.getElementById('theme-stylesheet');
 const templateName = document.getElementById('template-name');
 const homeBlocksContainer = document.getElementById('home-blocks');
 const debugState = {
@@ -31,6 +32,7 @@ const debugState = {
   receivedVersion: '—',
   updatedAt: '—',
   appliedTemplateId: '—',
+  themeLoadedUrl: '—',
   blocksCount: 0,
   blockTypes: '',
 };
@@ -119,6 +121,7 @@ function ensureDebugOverlay() {
     ['receivedVersion', 'receivedVersion'],
     ['updatedAt', 'updatedAt'],
     ['appliedTemplateId', 'appliedTemplateId'],
+    ['themeLoadedUrl', 'themeLoadedUrl'],
     ['blocksCount', 'blocksCount'],
     ['blockTypes', 'blockTypes'],
   ];
@@ -181,6 +184,24 @@ function updateDebugOverlay(partial = {}) {
   });
 
   debugPanel.overlay.style.border = debugState.lastError ? '1px solid #fca5a5' : '1px solid transparent';
+}
+
+function buildThemeUrl(version) {
+  const base = '/css/theme.css';
+  if (!version) return base;
+  return `${base}?v=${encodeURIComponent(version)}`;
+}
+
+function ensureThemeStylesheet(version) {
+  const cacheBust = queryParams.get('theme') || version;
+  const href = buildThemeUrl(cacheBust);
+  if (themeStylesheet && href !== themeStylesheet.getAttribute('href')) {
+    themeStylesheet.setAttribute('href', href);
+  }
+
+  const appliedHref = themeStylesheet?.getAttribute('href') || href;
+  updateDebugOverlay({ themeLoadedUrl: appliedHref || '—' });
+  return appliedHref;
 }
 
 function renderHomeMessage(title, description = 'Настройте главную страницу в AdminSite.') {
@@ -329,35 +350,9 @@ function renderMenu(menu) {
 
 function applyTemplate(templateId) {
   const resolvedTemplate = getTemplateById(templateId);
-  const fallbackTemplate = getTemplateById('services') || templatesRegistry[0];
-  const template = resolvedTemplate || fallbackTemplate;
-  const vars = template?.cssVars || {};
-  const root = document.documentElement;
-
-  const defaults = {
-    bg: '#f5f6fb',
-    text: '#1f2937',
-    muted: '#6b7280',
-    'card-bg': '#ffffff',
-    accent: '#2563eb',
-    radius: '16px',
-    shadow: '0 10px 30px rgba(15, 23, 42, 0.08)',
-    font: '"Inter", system-ui, sans-serif',
-  };
-
-  Object.entries({ ...defaults, ...vars }).forEach(([key, value]) => {
-    if (typeof value === 'string') {
-      root.style.setProperty(`--${key}`, value);
-    }
-  });
-
-  root.style.setProperty(
-    '--card-border-color',
-    template?.stylePreset?.cardBorder ? 'rgba(0,0,0,0.08)' : 'transparent',
-  );
-  const appliedId = template?.id || templateId || 'services';
-  root.dataset.template = appliedId;
-  if (templateName) templateName.textContent = template?.name || templateId || '—';
+  const appliedId = resolvedTemplate?.id || templateId || '—';
+  document.documentElement.dataset.template = appliedId;
+  if (templateName) templateName.textContent = resolvedTemplate?.name || templateId || '—';
   updateDebugOverlay({ appliedTemplateId: appliedId });
   return appliedId;
 }
@@ -647,6 +642,10 @@ function normalizeHomeResponse(data) {
     page?.templateId || page?.template_id || data?.templateId || data?.template_id || null;
   const version = data?.version ?? page?.version ?? data?.updatedAt ?? page?.updatedAt ?? '—';
   const updatedAt = page?.updatedAt ?? data?.updatedAt ?? version ?? '—';
+  const theme = data?.theme || {};
+  const themeVersion =
+    data?.themeVersion || theme?.timestamp || theme?.updatedAt || theme?.generatedAt || null;
+  const themeTemplate = theme?.appliedTemplateId || templateId;
   const blockTypes = Array.isArray(blocks)
     ? blocks.map((block) => block?.type || 'unknown').filter(Boolean)
     : [];
@@ -658,6 +657,9 @@ function normalizeHomeResponse(data) {
     templateId,
     version,
     updatedAt,
+    theme,
+    themeVersion,
+    themeTemplate,
     blocksCount: Array.isArray(blocks) ? blocks.length : 0,
     blockTypes,
     raw: data,
@@ -672,9 +674,11 @@ function renderHome(data) {
   }
 
   console.debug('[site] Loaded home config', normalized);
-  const appliedTemplate = applyTemplate(normalized.templateId);
+  const themeUrl = ensureThemeStylesheet(normalized.themeVersion);
+  const appliedTemplate = applyTemplate(normalized.themeTemplate || normalized.templateId);
   updateDebugOverlay({
     appliedTemplateId: appliedTemplate,
+    themeLoadedUrl: themeUrl || '—',
     receivedVersion: normalized.version || '—',
     updatedAt: normalized.updatedAt || normalized.version || '—',
     blocksCount: normalized.blocksCount || 0,
@@ -918,6 +922,7 @@ async function bootstrap() {
   setupMenuToggle();
   bindRouterLinks();
   ensureDebugOverlay();
+  ensureThemeStylesheet();
 
   try {
     const menu = await fetchMenu('product');
