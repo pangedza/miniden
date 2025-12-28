@@ -33,13 +33,25 @@
   </nav>
 </header>
 
-<div class="app-sidebar-overlay"></div>
-<div id="toast-container"></div>
+  <div class="app-sidebar-overlay"></div>
+  <div id="toast-container"></div>
 
-<main class="site-main">
-  <section id="view-home" class="site-view">
-    <div id="home-blocks" class="page-blocks"></div>
-  </section>
+  <main class="site-main">
+    <section id="view-home" class="site-view">
+      <section id="home-categories" class="site-panel" hidden>
+        <div class="panel-header">
+          <div>
+            <p class="muted">Категории</p>
+            <h2>Навигация по разделам</h2>
+          </div>
+          <button id="categories-refresh" class="btn secondary" type="button">Обновить</button>
+        </div>
+        <div id="categories-grid" class="categories-grid"></div>
+      </section>
+
+      <div id="debug-strip" class="debug-strip" hidden></div>
+      <div id="home-blocks" class="page-blocks"></div>
+    </section>
 
   <section id="view-category" class="site-view" hidden>
     <div class="breadcrumbs" id="category-breadcrumbs"></div>

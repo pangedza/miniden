@@ -1216,7 +1216,7 @@ function setHomepageVersion(version) {
 function openHomepagePreview(event) {
     if (event) event.preventDefault();
     const cacheBust = Date.now().toString();
-    const previewUrl = `/?debug=1&t=${cacheBust}`;
+    const previewUrl = `/?debug=1&_=${cacheBust}`;
     if (homepagePreviewLink) homepagePreviewLink.href = previewUrl;
     window.open(previewUrl, '_blank', 'noopener');
 }
@@ -1890,6 +1890,7 @@ async function saveHomepageConfig() {
         setHomepageStatus('Сохранено и доступно');
         showToast('Страница обновлена');
         console.debug('[AdminSite constructor] Страница сохранена', homepageLoadedConfig);
+        openHomepagePreview();
     } catch (error) {
         console.error('[AdminSite constructor] Сохранение страницы не удалось', error);
         const message = formatErrorMessage(error, 'Не удалось сохранить страницу');

@@ -115,6 +115,8 @@ def _persist_theme_state(template: ThemeTemplate, theme_state: dict[str, Any]) -
         }
         page.updated_at = datetime.utcnow()
         session.add(page)
+        session.commit()
+        session.refresh(page)
 
 
 def _build_theme_state(template: ThemeTemplate, *, existing: dict[str, Any] | None = None) -> dict[str, Any]:
