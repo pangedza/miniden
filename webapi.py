@@ -36,7 +36,6 @@ from fastapi import (
     Response,
     UploadFile,
 )
-from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.exceptions import RequestValidationError
@@ -227,7 +226,27 @@ async def validation_exception_handler(
 
         return HTMLResponse(status_code=422, content=content)
 
-    return JSONResponse(status_code=422, content=jsonable_encoder({"detail": exc.errors()}))
+    return JSONResponse(status_code=422, content={"detail": _safe_validation_errors(exc)})
+
+
+def _safe_validation_errors(exc: RequestValidationError) -> list[dict[str, Any]]:
+    safe_errors = []
+    for err in exc.errors():
+        loc = err.get("loc", [])
+        if isinstance(loc, (list, tuple)):
+            safe_loc = [str(item) for item in loc]
+        else:
+            safe_loc = [str(loc)] if loc else []
+
+        safe_errors.append(
+            {
+                "loc": safe_loc,
+                "msg": str(err.get("msg", "")),
+                "type": str(err.get("type", "")),
+            }
+        )
+
+    return safe_errors
 
 
 ALLOWED_TYPES = {"basket", "course"}
