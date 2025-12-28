@@ -730,9 +730,14 @@ async function loadItems(type) {
     setStatus(target, 'Загрузка...');
     try {
         const data = await callApi(`/items?${params.toString()}`);
-        state.items[type] = data;
+        if (!Array.isArray(data)) {
+            console.warn('[AdminSite constructor] /items returned non-array payload', data);
+            state.items[type] = [];
+        } else {
+            state.items[type] = data;
+        }
         renderItemsTable(type);
-        setStatus(target, `Загружено: ${data.length}`);
+        setStatus(target, `Загружено: ${state.items[type].length}`);
     } catch (error) {
         state.items[type] = [];
         renderItemsTable(type);
@@ -746,12 +751,14 @@ function renderItemsTable(type) {
     tbody.innerHTML = '';
     const filter = state.filters[type];
     const search = filter.search.toLowerCase();
-    const rows = state.items[type].filter((item) => {
+    const items = Array.isArray(state.items[type]) ? state.items[type] : [];
+    const categories = Array.isArray(state.categories[type]) ? state.categories[type] : [];
+    const rows = items.filter((item) => {
         const title = item.title || '';
         return !search || title.toLowerCase().includes(search);
     });
     rows.forEach((item) => {
-        const categoryTitle = state.categories[type].find((c) => c.id === item.category_id)?.title || '';
+        const categoryTitle = categories.find((c) => c.id === item.category_id)?.title || '';
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td>${item.id}</td>
