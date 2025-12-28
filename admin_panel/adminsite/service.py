@@ -320,9 +320,12 @@ def update_item(db: Session, item_id: int, payload: ItemUpdatePayload) -> AdminS
         item.sort = payload.sort
 
     slug_base = None
-    if "slug" in payload.__fields_set__:
+    slug_provided = "slug" in payload.__fields_set__
+    title_provided = "title" in payload.__fields_set__
+
+    if slug_provided and payload.slug is not None:
         slug_base = normalize_slug(payload.slug, title=item.title)
-    elif "title" in payload.__fields_set__:
+    elif not slug_provided and title_provided:
         slug_base = normalize_slug(None, title=item.title)
 
     if slug_base:

@@ -15,6 +15,14 @@ ScopeLiteral = Literal["global", "category"]
 SlugPattern = r"^[a-z0-9]+(?:-[a-z0-9]+)*$"
 
 
+def _normalize_slug_value(value: str | None) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, str) and not value.strip():
+        return None
+    return value
+
+
 class CategoryPayload(BaseModel):
     type: TypeLiteral
     title: str
@@ -24,12 +32,9 @@ class CategoryPayload(BaseModel):
     sort: int = 0
 
     @field_validator("slug", mode="before")
+    @classmethod
     def _normalize_slug(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        if isinstance(value, str) and not value.strip():
-            return None
-        return value
+        return _normalize_slug_value(value)
 
 
 class CategoryUpdatePayload(BaseModel):
@@ -42,9 +47,10 @@ class CategoryUpdatePayload(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    _normalize_slug = field_validator("slug", mode="before")(
-        CategoryPayload._normalize_slug
-    )
+    @field_validator("slug", mode="before")
+    @classmethod
+    def _normalize_slug(cls, value: str | None) -> str | None:
+        return _normalize_slug_value(value)
 
 
 class CategoryResponse(BaseModel):
@@ -77,9 +83,10 @@ class ItemPayload(BaseModel):
     def _coerce_price(cls, value: Decimal | str | int) -> Decimal:
         return Decimal(value)
 
-    _normalize_slug = field_validator("slug", mode="before")(
-        CategoryPayload._normalize_slug
-    )
+    @field_validator("slug", mode="before")
+    @classmethod
+    def _normalize_slug(cls, value: str | None) -> str | None:
+        return _normalize_slug_value(value)
 
 
 class ItemUpdatePayload(BaseModel):
@@ -103,9 +110,10 @@ class ItemUpdatePayload(BaseModel):
             return None
         return Decimal(value)
 
-    _normalize_slug = field_validator("slug", mode="before")(
-        CategoryPayload._normalize_slug
-    )
+    @field_validator("slug", mode="before")
+    @classmethod
+    def _normalize_slug(cls, value: str | None) -> str | None:
+        return _normalize_slug_value(value)
 
 
 class ItemResponse(BaseModel):
