@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Annotated
 from uuid import uuid4
+from decimal import Decimal
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import JSONResponse
@@ -17,7 +18,7 @@ from schemas.adminsite_page import PageConfig
 from . import media as media_service, service
 from services import adminsite_pages
 from database import DATABASE_URL
-from models import AdminSitePage
+from models import AdminSiteItem, AdminSitePage
 from sqlalchemy.engine.url import make_url
 from services.theme_service import ThemeApplyError, apply_theme
 from .schemas import (
@@ -77,6 +78,35 @@ def _check_path(path: Path) -> dict[str, str | bool]:
         "is_dir": resolved.is_dir(),
         "is_writable": os.access(resolved, os.W_OK),
     }
+
+
+def _serialize_item(item: AdminSiteItem) -> ItemResponse:
+    """Convert ORM item to response with safe defaults.
+
+    Some legacy rows may contain NULL values; normalize them to keep
+    serialization stable instead of propagating a 500 to the client.
+    """
+
+    payload = {
+        "id": item.id,
+        "type": item.type or "",
+        "category_id": item.category_id,
+        "title": item.title or "",
+        "slug": item.slug or "",
+        "price": Decimal(item.price or 0),
+        "stock": int(item.stock or 0),
+        "image_url": item.image_url,
+        "short_text": item.short_text,
+        "description": item.description,
+        "is_active": bool(item.is_active),
+        "sort": item.sort or 0,
+        "created_at": item.created_at,
+    }
+    try:
+        return ItemResponse.model_validate(payload)
+    except Exception:
+        logger.exception("Failed to serialize AdminSite item id=%s", getattr(item, "id", "?"))
+        raise
 
 
 @router.get("/health")
@@ -265,8 +295,15 @@ def list_items(
     db: Session = Depends(get_db_session),
 ):
     service.ensure_admin(request, db)
-    items = service.list_items(db, type, category_id)
-    return items
+    try:
+        items = service.list_items(db, type, category_id)
+        return [_serialize_item(item) for item in items]
+    except HTTPException:
+        raise
+    except Exception:
+        error_id = uuid4().hex[:8]
+        logger.exception("Failed to list AdminSite items error_id=%s", error_id)
+        return JSONResponse(status_code=200, content=[])
 
 
 @router.post("/items", response_model=ItemResponse)
