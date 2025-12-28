@@ -1,16 +1,24 @@
 from __future__ import annotations
 
+import logging
+import os
+from datetime import datetime
+from pathlib import Path
 from typing import Annotated
-
-from typing import Annotated
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
+from fastapi.responses import JSONResponse
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from admin_panel.dependencies import get_current_admin, get_db_session
 from schemas.adminsite_page import PageConfig
 from . import media as media_service, service
 from services import adminsite_pages
+from database import DATABASE_URL
+from models import AdminSitePage
+from sqlalchemy.engine.url import make_url
 from services.theme_service import ThemeApplyError, apply_theme
 from .schemas import (
     CategoryPayload,
@@ -28,6 +36,47 @@ from .schemas import (
 TypeQuery = Annotated[str, Query(min_length=1)]
 
 router = APIRouter(prefix="/api/adminsite", tags=["AdminSite"])
+logger = logging.getLogger(__name__)
+
+
+def _safe_slug(key: str | None) -> str:
+    slug = (key or "").strip() or adminsite_pages.DEFAULT_SLUG
+    return slug
+
+
+def _build_error_payload(error_id: str) -> dict[str, str]:
+    return {"error": "internal", "error_id": error_id, "message": "см. логи"}
+
+
+def _build_default_home(slug: str) -> dict[str, str | list]:
+    now = datetime.utcnow().isoformat()
+    return {
+        "key": slug,
+        "templateId": adminsite_pages.DEFAULT_TEMPLATE_ID,
+        "blocks": [],
+        "updatedAt": now,
+        "version": now,
+        "slug": slug,
+    }
+
+
+def _mask_database_url(raw_url: str) -> str:
+    try:
+        parsed = make_url(raw_url)
+        return parsed.render_as_string(hide_password=True)
+    except Exception:
+        logger.exception("Failed to mask database URL")
+        return "unknown"
+
+
+def _check_path(path: Path) -> dict[str, str | bool]:
+    resolved = path.resolve()
+    return {
+        "path": str(resolved),
+        "exists": resolved.exists(),
+        "is_dir": resolved.is_dir(),
+        "is_writable": os.access(resolved, os.W_OK),
+    }
 
 
 @router.get("/health")
@@ -45,10 +94,74 @@ def debug_env(request: Request, db: Session = Depends(get_db_session)) -> dict[s
     }
 
 
+@router.get("/debug/diag")
+def debug_diag(request: Request, db: Session = Depends(get_db_session)) -> dict[str, object]:
+    service.ensure_admin(request, db)
+
+    project_root = Path(__file__).resolve().parents[2]
+    webapp_path = project_root / "webapp"
+    static_path = project_root / "static"
+    adminsite_static = Path(__file__).resolve().parent / "static"
+
+    db_masked = _mask_database_url(DATABASE_URL)
+    db_path_info: dict[str, object] | None = None
+    try:
+        parsed_url = make_url(DATABASE_URL)
+        if parsed_url.drivername.startswith("sqlite") and parsed_url.database:
+            db_path_info = _check_path(Path(parsed_url.database))
+    except Exception:
+        logger.exception("Failed to parse DB URL for diag")
+
+    home_page = (
+        db.execute(select(AdminSitePage).where(AdminSitePage.slug == adminsite_pages.DEFAULT_SLUG))
+        .scalars()
+        .first()
+    )
+
+    return {
+        "cwd": str(Path.cwd()),
+        "paths": {
+            "webapp_path": _check_path(webapp_path),
+            "static_path": _check_path(static_path),
+            "adminsite_static_path": _check_path(adminsite_static),
+            "db_path": db_path_info,
+        },
+        "database": {
+            "dsn": db_masked,
+        },
+        "home": {
+            "found": bool(home_page),
+            "templateId": (home_page.template_id if home_page else None) or adminsite_pages.DEFAULT_TEMPLATE_ID,
+        },
+    }
+
+
+def _get_page_response(page_key: str, request: Request, db: Session) -> JSONResponse | dict:
+    service.ensure_admin(request, db)
+    slug = _safe_slug(page_key)
+    try:
+        return adminsite_pages.get_page(slug, raise_on_error=True)
+    except HTTPException:
+        raise
+    except Exception:
+        error_id = uuid4().hex[:8]
+        logger.exception("Failed to load AdminSite page %s error_id=%s", slug, error_id)
+        if slug == adminsite_pages.DEFAULT_SLUG:
+            payload = _build_default_home(slug)
+            payload["error_id"] = error_id
+            payload["fallback"] = True
+            return JSONResponse(status_code=200, content=payload)
+        return JSONResponse(status_code=500, content=_build_error_payload(error_id))
+
+
+@router.get("/pages/{page_key}", response_model=dict)
+def adminsite_page(page_key: str, request: Request, db: Session = Depends(get_db_session)):
+    return _get_page_response(page_key, request, db)
+
+
 @router.get("/pages/home", response_model=dict)
 def adminsite_home_page(request: Request, db: Session = Depends(get_db_session)):
-    service.ensure_admin(request, db)
-    return adminsite_pages.get_page()
+    return _get_page_response(adminsite_pages.DEFAULT_SLUG, request, db)
 
 
 @router.put("/pages/home", response_model=dict)
