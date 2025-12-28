@@ -145,32 +145,46 @@ const HERO_PLACEHOLDER_IMAGE =
     "<rect x='200' y='190' width='120' height='12' rx='6' fill='rgba(0,0,0,0.08)'/>" +
     "</svg>";
 
-function buildDefaultBlocks() {
+function buildPortfolioPresetBlocks() {
     return [
         {
             type: 'hero',
-            title: 'Витрина AdminSite',
-            subtitle: 'Настройте оформление и блоки под свои задачи.',
+            title: 'Творческий портфель',
+            subtitle: 'Покажите товары, мастер-классы и откройте удобные контакты.',
             imageUrl: HERO_PLACEHOLDER_IMAGE,
             background: {
                 type: 'gradient',
-                value: 'linear-gradient(135deg, rgba(255,255,255,0.12), rgba(0,0,0,0.04))',
+                value: 'linear-gradient(135deg, rgba(255,255,255,0.2), rgba(76,106,255,0.08))',
             },
+            buttons: [
+                { label: 'Товары', href: '/catalog', variant: 'primary' },
+                { label: 'Мастер-классы', href: '/courses', variant: 'secondary' },
+            ],
         },
         {
             type: 'cards',
-            title: 'Подборка',
-            subtitle: 'Карточки можно использовать для товаров, услуг или ссылок.',
-            layout: { columns: 2 },
-            items: [],
+            title: 'Главные разделы',
+            subtitle: 'Быстрые ссылки на ключевые направления.',
+            layout: { columns: 3 },
+            items: [
+                { title: 'Товары', href: '/catalog', imageUrl: HERO_PLACEHOLDER_IMAGE },
+                { title: 'Мастер-классы', href: '/courses', imageUrl: HERO_PLACEHOLDER_IMAGE },
+                { title: 'Связаться', href: 'https://t.me/', imageUrl: HERO_PLACEHOLDER_IMAGE },
+            ],
         },
         {
-            type: 'text',
-            title: 'Описание',
-            text: 'Добавьте короткое описание компании или продукта.',
+            type: 'social',
+            items: [
+                { type: 'telegram', label: 'Telegram', href: 'https://t.me/' },
+                { type: 'whatsapp', label: 'WhatsApp', href: 'https://wa.me/7' },
+                { type: 'vk', label: 'VK', href: 'https://vk.com/' },
+            ],
         },
-        { type: 'social', items: [] },
     ];
+}
+
+function buildDefaultBlocks() {
+    return buildPortfolioPresetBlocks();
 }
 
 const homepageDefaults = {
@@ -217,12 +231,44 @@ function normalizeLayout(layout = {}) {
     return { columns: safeColumns };
 }
 
+function slugifyTitle(text) {
+    return (text || '')
+        .toString()
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)+/g, '')
+        .slice(0, 120);
+}
+
+function normalizeButton(button = {}) {
+    const variant = button?.variant === 'secondary' ? 'secondary' : 'primary';
+    return {
+        label: button?.label || 'Подробнее',
+        href: button?.href || '',
+        variant,
+    };
+}
+
 function normalizeCardItem(item = {}) {
     return {
         title: item?.title || 'Карточка',
         imageUrl: item?.imageUrl || item?.image_url || null,
         href: item?.href || '',
         icon: item?.icon || null,
+    };
+}
+
+function normalizeCategoryItem(item = {}) {
+    const rawHref = item?.href || item?.url || '';
+    const slugFromHref = rawHref?.match(/\/(?:c|category)\/([^/?#]+)/i)?.[1] || '';
+    const title = item?.title || 'Категория';
+    const slug = item?.slug || slugFromHref || slugifyTitle(title) || 'category';
+    return {
+        title,
+        slug,
+        href: rawHref || `/c/${slug}`,
+        type: item?.type === 'course' ? 'course' : 'product',
     };
 }
 
@@ -246,6 +292,7 @@ function normalizeBlock(block = {}) {
             subtitle: block.subtitle || '',
             imageUrl: block.imageUrl || block.image_url || '',
             background: normalizeBackground(block.background),
+            buttons: Array.isArray(block.buttons) ? block.buttons.map(normalizeButton) : [],
         };
     }
     if (block.type === 'cards') {
@@ -269,6 +316,15 @@ function normalizeBlock(block = {}) {
         const items = Array.isArray(block.items) ? block.items.map(normalizeSocialItem) : [];
         return {
             type: 'social',
+            items,
+        };
+    }
+    if (block.type === 'categories') {
+        const items = Array.isArray(block.items) ? block.items.map(normalizeCategoryItem) : [];
+        return {
+            type: 'categories',
+            title: block.title || 'Категории',
+            subtitle: block.subtitle || '',
             items,
         };
     }
@@ -1135,6 +1191,7 @@ const homepageTemplateCards = Array.from(document.querySelectorAll('#homepage-te
 const homepageBlocksField = getElementOrWarn('homepage-blocks');
 const homepageSaveButton = getElementOrWarn('homepage-save');
 const homepageResetButton = getElementOrWarn('homepage-reset');
+const homepagePresetButton = getElementOrWarn('homepage-preset');
 const homepageStatus = getElementOrWarn('status-homepage');
 const homepagePreviewLink = getElementOrWarn('homepage-preview');
 const homepageBlocksList = getElementOrWarn('homepage-blocks-list');
@@ -1279,13 +1336,23 @@ function createBlockOfType(type) {
     if (type === 'social') {
         return normalizeBlock({ type: 'social', items: [] });
     }
-    return normalizeBlock({
-        type: 'hero',
-        title: 'Витрина AdminSite',
-        subtitle: 'Добавьте описание и картинку',
-        imageUrl: HERO_PLACEHOLDER_IMAGE,
-        background: { type: 'gradient', value: 'linear-gradient(135deg, rgba(255,255,255,0.12), rgba(0,0,0,0.04))' },
-    });
+    if (type === 'categories') {
+        return normalizeBlock({ type: 'categories', title: 'Категории', subtitle: '', items: [] });
+    }
+    const presetHero = buildPortfolioPresetBlocks()?.[0];
+    return normalizeBlock(
+        presetHero || {
+            type: 'hero',
+            title: 'Витрина AdminSite',
+            subtitle: 'Добавьте описание и картинку',
+            imageUrl: HERO_PLACEHOLDER_IMAGE,
+            background: { type: 'gradient', value: 'linear-gradient(135deg, rgba(255,255,255,0.12), rgba(0,0,0,0.04))' },
+            buttons: [
+                { label: 'Товары', href: '/catalog' },
+                { label: 'Мастер-классы', href: '/courses', variant: 'secondary' },
+            ],
+        },
+    );
 }
 
 function ensureBlocksPresent() {
@@ -1340,6 +1407,7 @@ function ensureBlockPicker() {
         { type: 'hero', title: 'Hero', text: 'Крупный блок с заголовком и картинкой' },
         { type: 'cards', title: 'Карточки', text: 'Сетка карточек с картинками' },
         { type: 'text', title: 'Текст', text: 'Абзац текста и заголовок' },
+        { type: 'categories', title: 'Категории', text: 'Список категорий витрины' },
         { type: 'social', title: 'Социальные ссылки', text: 'Ссылки и контакты' },
     ].forEach((item) => {
         const row = document.createElement('div');
@@ -1491,7 +1559,14 @@ function renderHeroEditor(block, index) {
     bgTypeLabel.appendChild(bgTypeSelect);
     bgTypeWrapper.append(bgTypeLabel, bgValueField.label);
 
-    container.append(titleField.label, subtitleField.label, imageField.label, imageActions, bgTypeWrapper);
+    container.append(
+        titleField.label,
+        subtitleField.label,
+        imageField.label,
+        imageActions,
+        bgTypeWrapper,
+        renderHeroButtons(block, index),
+    );
     return container;
 }
 
@@ -1577,6 +1652,80 @@ function renderCardItems(block, index) {
             updateBlock(index, { ...block, items: next });
         });
         actions.append(up, down, remove);
+
+        row.append(body, actions);
+        wrapper.appendChild(row);
+    });
+
+    wrapper.appendChild(addBtn);
+    return wrapper;
+}
+
+function renderCategoryItems(block, index) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'block-list';
+
+    const addBtn = document.createElement('button');
+    addBtn.className = 'btn-secondary';
+    addBtn.type = 'button';
+    addBtn.textContent = '+ Добавить категорию';
+    addBtn.addEventListener('click', () => {
+        const nextItems = [...(block.items || []), normalizeCategoryItem({ title: 'Категория', href: '/catalog' })];
+        updateBlock(index, { ...block, items: nextItems });
+    });
+
+    (block.items || []).forEach((item, itemIndex) => {
+        const row = document.createElement('div');
+        row.className = 'list-item';
+
+        const body = document.createElement('div');
+        const titleField = createInput('Заголовок', item.title || '', (val) => {
+            const next = [...block.items];
+            next[itemIndex] = { ...item, title: val };
+            updateBlock(index, { ...block, items: next });
+        });
+        const slugField = createInput('Slug / ссылка', item.slug || '', (val) => {
+            const next = [...block.items];
+            next[itemIndex] = { ...item, slug: val, href: item.href || `/c/${val}` };
+            updateBlock(index, { ...block, items: next });
+        });
+        const hrefField = createInput('URL', item.href || '', (val) => {
+            const next = [...block.items];
+            next[itemIndex] = { ...item, href: val };
+            updateBlock(index, { ...block, items: next });
+        });
+
+        const typeLabel = document.createElement('label');
+        typeLabel.textContent = 'Тип';
+        const select = document.createElement('select');
+        ['product', 'course'].forEach((type) => {
+            const opt = document.createElement('option');
+            opt.value = type;
+            opt.textContent = type;
+            select.appendChild(opt);
+        });
+        select.value = item.type || 'product';
+        select.addEventListener('change', (event) => {
+            const next = [...block.items];
+            next[itemIndex] = { ...item, type: event.target.value };
+            updateBlock(index, { ...block, items: next });
+        });
+        typeLabel.appendChild(select);
+
+        body.append(titleField.label, slugField.label, hrefField.label, typeLabel);
+
+        const actions = document.createElement('div');
+        actions.className = 'actions';
+        const remove = document.createElement('button');
+        remove.className = 'btn-danger';
+        remove.type = 'button';
+        remove.textContent = 'Удалить';
+        remove.addEventListener('click', () => {
+            const next = [...block.items];
+            next.splice(itemIndex, 1);
+            updateBlock(index, { ...block, items: next });
+        });
+        actions.appendChild(remove);
 
         row.append(body, actions);
         wrapper.appendChild(row);
@@ -1711,6 +1860,12 @@ function renderBlockEditor() {
         columnsLabel.appendChild(columns);
 
         editorContent.append(titleField.label, subtitleField.label, columnsLabel, renderCardItems(block, homepageSelectedIndex));
+    } else if (block.type === 'categories') {
+        const titleField = createInput('Заголовок', block.title || '', (val) => updateBlock(homepageSelectedIndex, { ...block, title: val }));
+        const subtitleField = createInput('Подзаголовок', block.subtitle || '', (val) =>
+            updateBlock(homepageSelectedIndex, { ...block, subtitle: val }),
+        );
+        editorContent.append(titleField.label, subtitleField.label, renderCategoryItems(block, homepageSelectedIndex));
     } else if (block.type === 'text') {
         const titleField = createInput('Заголовок', block.title || '', (val) => updateBlock(homepageSelectedIndex, { ...block, title: val }));
         const textField = createInput('Текст', block.text || '', (val) => updateBlock(homepageSelectedIndex, { ...block, text: val }), { textarea: true });
@@ -1720,6 +1875,75 @@ function renderBlockEditor() {
     }
 
     homepageBlockEditor.appendChild(editorContent);
+}
+
+function renderHeroButtons(block, index) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'block-list';
+
+    const addBtn = document.createElement('button');
+    addBtn.className = 'btn-secondary';
+    addBtn.type = 'button';
+    addBtn.textContent = '+ Добавить кнопку';
+    addBtn.addEventListener('click', () => {
+        const nextItems = [...(block.buttons || []), normalizeButton({ label: 'Подробнее', href: '/' })];
+        updateBlock(index, { ...block, buttons: nextItems });
+    });
+
+    (block.buttons || []).forEach((button, buttonIndex) => {
+        const row = document.createElement('div');
+        row.className = 'list-item';
+
+        const body = document.createElement('div');
+        const labelField = createInput('Текст кнопки', button.label || '', (val) => {
+            const next = [...(block.buttons || [])];
+            next[buttonIndex] = { ...button, label: val };
+            updateBlock(index, { ...block, buttons: next });
+        });
+        const hrefField = createInput('Ссылка', button.href || '', (val) => {
+            const next = [...(block.buttons || [])];
+            next[buttonIndex] = { ...button, href: val };
+            updateBlock(index, { ...block, buttons: next });
+        });
+
+        const variantLabel = document.createElement('label');
+        variantLabel.textContent = 'Вариант';
+        const select = document.createElement('select');
+        ['primary', 'secondary'].forEach((variant) => {
+            const opt = document.createElement('option');
+            opt.value = variant;
+            opt.textContent = variant;
+            select.appendChild(opt);
+        });
+        select.value = button.variant || 'primary';
+        select.addEventListener('change', (event) => {
+            const next = [...(block.buttons || [])];
+            next[buttonIndex] = { ...button, variant: event.target.value };
+            updateBlock(index, { ...block, buttons: next });
+        });
+        variantLabel.appendChild(select);
+
+        body.append(labelField.label, hrefField.label, variantLabel);
+
+        const actions = document.createElement('div');
+        actions.className = 'actions';
+        const remove = document.createElement('button');
+        remove.className = 'btn-danger';
+        remove.type = 'button';
+        remove.textContent = 'Удалить';
+        remove.addEventListener('click', () => {
+            const next = [...(block.buttons || [])];
+            next.splice(buttonIndex, 1);
+            updateBlock(index, { ...block, buttons: next });
+        });
+        actions.appendChild(remove);
+
+        row.append(body, actions);
+        wrapper.appendChild(row);
+    });
+
+    wrapper.appendChild(addBtn);
+    return wrapper;
 }
 
 function toggleDeveloperMode(enabled) {
@@ -1770,6 +1994,20 @@ function renderHomepageForm(data = homepageDefaults) {
 function resetHomepageForm() {
     renderHomepageForm(homepageLoadedConfig);
     setHomepageStatus('');
+    setDevStatus('');
+}
+
+function applyPortfolioPreset() {
+    const preset = normalizeHomepageConfig({
+        templateId: homepageConfig.templateId || 'services',
+        blocks: buildPortfolioPresetBlocks(),
+    });
+    homepageConfig = preset;
+    homepageSelectedIndex = 0;
+    renderBlocksList();
+    renderBlockEditor();
+    syncDevTextarea();
+    setHomepageStatus('Портфолио-пресет загружен');
     setDevStatus('');
 }
 
@@ -1904,6 +2142,7 @@ async function saveHomepageConfig() {
 function setupHomepageListeners() {
     homepageSaveButton?.addEventListener('click', saveHomepageConfig);
     homepageResetButton?.addEventListener('click', resetHomepageForm);
+    homepagePresetButton?.addEventListener('click', applyPortfolioPreset);
     homepagePreviewLink?.addEventListener('click', openHomepagePreview);
     homepageAddBlockButton?.addEventListener('click', openBlockPicker);
     homepageTemplateCards.forEach((card) => {

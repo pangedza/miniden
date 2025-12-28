@@ -3,6 +3,7 @@ MiniDeN — Telegram-бот и веб-магазин
 
 Changelog / История изменений
 -----------------------------
+- 2026-02-10: Главная витрина перешла на портфолио-пресет: hero с CTA-кнопками, карточки разделов и соцсети по умолчанию. Блок категорий выводится только если добавить блок `categories` в конструкторе AdminSite.
 - 2026-02-06: Global audit витрины/AdminSite. /api/site/home теперь возвращает templateId/version/updatedAt + blocksCount/blockTypes для диагностики; витрина читает конфиг только из API с защитой рендера (try/catch по блокам) и debug-оверлеем (?debug=1) со статусом запроса; кнопка «Предпросмотр» в AdminSite открывает витрину с cache-bust параметром и debug-флагом; placeholder вынесен в data URI, каталог static/uploads создаётся при старте.
 - 2025-12-07: Исправлен SyntaxError в `services/products.py` (незакрытые скобки вокруг запроса категорий), из-за которого падал запуск `miniden-api`. Проверка: `python -m py_compile services/products.py`.
 - 2025-12-01: Fix AdminSite static + unify nginx deploy config. Исправлено монтирование `/static` в FastAPI (ошибка `url_for('static', ...)` больше не возникает), шаблоны AdminSite теперь ссылаются на конструктор через `url_for`, а единственным источником nginx-конфига остаётся `deploy/nginx/miniden.conf`, который копируется из `deploy.sh` в `/etc/nginx/sites-available/miniden.conf` и линкуется в `sites-enabled`. Проверка: `curl -I http://127.0.0.1:8000/static/adminsite/base.css`, `curl -I http://127.0.0.1:8000/static/adminsite/constructor.js`, открытие https://miniden.ru/adminsite/ и https://miniden.ru/adminsite/constructor/ (CSS/JS должны быть 200 и с корректным Content-Type).
@@ -29,6 +30,11 @@ Smoke test
 2. Создать товар «Корзинка вязаная», выбрать категорию «Корзинки», ввести цену (например, 750) и сохранить.
 3. Открыть `/c/korzinki` из колонки «Страница» в конструкторе.
 4. Убедиться, что товар отображается в списке категории (если категорий пусто — выводится «В этой категории пока нет товаров»).
+
+Главная витрина (home)
+----------------------
+- В конструкторе AdminSite добавлена кнопка «Портфолио-пресет» — она заполняет главную hero-блоком с CTA, карточками разделов и соцсетями. Все тексты и ссылки редактируются через блоки.
+- Категории на главной отображаются только через блок `categories`: добавьте этот блок в списке блоков, если нужна сетка разделов; без него рендерятся только сохранённые блоки.
 
 Правило: legacy `webapp/admin.html` не редактируем; для каталога/витрины используем AdminSite (constructor + /c/:slug).
 

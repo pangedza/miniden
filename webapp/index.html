@@ -12,31 +12,44 @@
 </head>
 <body class="site-app">
 <header class="top-nav">
-  <div class="brand">
-    <div class="brand__logo-wrapper brand__logo-placeholder" aria-hidden="true"></div>
-    <div class="brand__text">
-      <div class="brand__title">MiniDeN</div>
-      <span class="muted">конструктор витрины</span>
+  <div class="layout-shell top-nav__inner">
+    <div class="brand">
+      <div class="brand__logo-wrapper brand__logo-placeholder" aria-hidden="true"></div>
+      <div class="brand__text">
+        <div class="brand__title">MiniDeN</div>
+        <span class="muted">конструктор витрины</span>
+      </div>
+    </div>
+    <div class="header-actions">
+      <div class="template-switcher">
+        <span class="muted">Шаблон</span>
+        <div class="template-name" id="template-name">—</div>
+      </div>
+      <button class="menu-toggle" aria-label="Открыть меню">Меню</button>
     </div>
   </div>
-  <div class="header-actions">
-    <div class="template-switcher">
-      <span class="muted">Шаблон</span>
-      <div class="template-name" id="template-name">—</div>
-    </div>
-    <button class="menu-toggle" aria-label="Открыть меню">☰</button>
-  </div>
-  <nav class="nav-links app-sidebar" id="nav-links">
-    <a href="/" data-router-link class="active">Главная</a>
-    <div class="nav-divider"></div>
-    <div id="nav-menu"></div>
-  </nav>
 </header>
 
-  <div class="app-sidebar-overlay"></div>
-  <div id="toast-container"></div>
+<nav class="nav-links app-sidebar" id="nav-links">
+  <div class="sidebar-head">
+    <div class="brand brand--inline">
+      <div class="brand__logo-wrapper brand__logo-placeholder" aria-hidden="true"></div>
+      <div class="brand__text">
+        <div class="brand__title">MiniDeN</div>
+        <span class="muted">конструктор витрины</span>
+      </div>
+    </div>
+    <button class="menu-close" aria-label="Закрыть меню">✕</button>
+  </div>
+  <a href="/" data-router-link class="active">Главная</a>
+  <div class="nav-divider"></div>
+  <div id="nav-menu"></div>
+</nav>
 
-  <main class="site-main">
+<div class="app-sidebar-overlay"></div>
+<div id="toast-container"></div>
+
+  <main class="site-main layout-shell">
     <section id="view-home" class="site-view">
       <section id="home-categories" class="site-panel" hidden>
         <div class="panel-header">
