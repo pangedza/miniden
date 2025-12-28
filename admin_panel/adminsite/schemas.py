@@ -161,11 +161,29 @@ class ThemeApplyPayload(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class StylePreset(BaseModel):
+    card_border: bool | str | None = Field(default=None, alias="cardBorder")
+    button_style: str | None = Field(default=None, alias="buttonStyle")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    @field_validator("card_border", mode="before")
+    @classmethod
+    def parse_card_border(cls, value: object) -> object:
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in {"true", "1"}:
+                return True
+            if normalized in {"false", "0"}:
+                return False
+        return value
+
+
 class ThemeApplyResponse(BaseModel):
     applied_template_id: str = Field(alias="appliedTemplateId")
     timestamp: int
     updated_at: str = Field(alias="updatedAt")
     css_vars: dict[str, str] = Field(default_factory=dict, alias="cssVars")
-    style_preset: dict[str, str] | None = Field(default=None, alias="stylePreset")
+    style_preset: StylePreset | None = Field(default=None, alias="stylePreset")
 
     model_config = ConfigDict(populate_by_name=True)

@@ -86,10 +86,30 @@ PageBlock = Annotated[
 ]
 
 
+class StylePreset(BaseModel):
+    card_border: bool | str | None = Field(default=None, alias="cardBorder")
+    button_style: str | None = Field(default=None, alias="buttonStyle")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    @field_validator("card_border", mode="before")
+    @classmethod
+    def parse_card_border(cls, value: object) -> object:
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in {"true", "1"}:
+                return True
+            if normalized in {"false", "0"}:
+                return False
+        return value
+
+
 class ThemeConfig(BaseModel):
     applied_template_id: str | None = Field(default=None, alias="appliedTemplateId")
     css_vars: dict[str, Any] = Field(default_factory=dict, alias="cssVars")
-    style_preset: dict[str, Any] | None = Field(default_factory=dict, alias="stylePreset")
+    style_preset: StylePreset | None = Field(
+        default_factory=StylePreset, alias="stylePreset"
+    )
     timestamp: int | str | None = None
     updated_at: str | None = Field(default=None, alias="updatedAt")
 
@@ -97,6 +117,8 @@ class ThemeConfig(BaseModel):
 
     @staticmethod
     def _normalize_mapping(value: Any) -> dict[str, Any]:
+        if isinstance(value, StylePreset):
+            return value.model_dump(by_alias=True, exclude_none=True)
         if value is None:
             return {}
         if isinstance(value, dict):
