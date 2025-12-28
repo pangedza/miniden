@@ -22,6 +22,7 @@ const views = {
 const navMenu = document.getElementById('nav-menu');
 const navLinks = document.getElementById('nav-links');
 const sidebarOverlay = document.querySelector('.app-sidebar-overlay');
+const sidebarClose = document.querySelector('.menu-close');
 const templateName = document.getElementById('template-name');
 const categoriesSection = document.getElementById('home-categories');
 const categoriesGrid = document.getElementById('categories-grid');
@@ -392,48 +393,59 @@ function mapCategories(rawCategories = []) {
     }));
 }
 
-function renderCategories(categories = []) {
-  if (!categoriesSection || !categoriesGrid) return;
-  const normalized = mapCategories(categories);
-  cachedCategories = normalized;
+function buildCategoryLink(category) {
+  const link = document.createElement('a');
+  link.className = 'category-card hover-lift';
+  link.href = category.url;
+  link.dataset.routerLink = '';
 
-  categoriesGrid.innerHTML = '';
-  categoriesSection.hidden = !normalized.length;
-  if (!normalized.length) return;
+  const icon = document.createElement('div');
+  icon.className = 'category-icon';
+  icon.textContent = (category.title || '?').slice(0, 1).toUpperCase();
 
-  normalized.forEach((category) => {
-    const link = document.createElement('a');
-    link.className = 'category-card hover-lift';
-    link.href = category.url;
-    link.dataset.routerLink = '';
+  const meta = document.createElement('div');
+  meta.className = 'category-meta';
 
-    const icon = document.createElement('div');
-    icon.className = 'category-icon';
-    icon.textContent = (category.title || '?').slice(0, 1).toUpperCase();
+  const title = document.createElement('div');
+  title.textContent = category.title || 'Категория';
 
-    const meta = document.createElement('div');
-    meta.className = 'category-meta';
+  const type = document.createElement('span');
+  type.className = 'muted';
+  type.textContent = category.type === 'course' ? 'Мастер-классы' : 'Товары';
 
-    const title = document.createElement('div');
-    title.textContent = category.title || 'Категория';
-
-    const type = document.createElement('span');
-    type.className = 'muted';
-    type.textContent = category.type === 'course' ? 'Мастер-классы' : 'Товары';
-
-    meta.append(title, type);
-    link.append(icon, meta);
-    categoriesGrid.appendChild(link);
-  });
+  meta.append(title, type);
+  link.append(icon, meta);
+  return link;
 }
 
-async function refreshCategoriesFromApi() {
+function renderCategories(categories = [], { target = categoriesGrid, section = categoriesSection } = {}) {
+  const normalized = mapCategories(categories);
+  cachedCategories = normalized;
+  if (!target) return normalized;
+
+  target.innerHTML = '';
+  if (section) section.hidden = !normalized.length;
+  if (!normalized.length) return normalized;
+
+  normalized.forEach((category) => {
+    target.appendChild(buildCategoryLink(category));
+  });
+
+  return normalized;
+}
+
+async function refreshCategoriesFromApi({ renderPanel = false } = {}) {
   try {
     const payload = await fetchCategories();
     const items = Array.isArray(payload?.items) ? payload.items : payload;
-    renderCategories(items || []);
+    const normalized = renderCategories(items || [], renderPanel ? {} : { target: null, section: null });
+    if (!renderPanel) {
+      cachedCategories = normalized;
+    }
+    return normalized;
   } catch (error) {
     console.warn('Failed to refresh categories', error);
+    return cachedCategories;
   }
 }
 
@@ -476,6 +488,30 @@ function buildHeroSection(block) {
     subtitle.className = 'hero-subtitle';
     subtitle.textContent = block.subtitle;
     content.appendChild(subtitle);
+  }
+
+  const actions = document.createElement('div');
+  actions.className = 'hero-actions';
+  const buttons = Array.isArray(block?.buttons) ? block.buttons : [];
+  buttons.forEach((button) => {
+    const link = document.createElement('a');
+    const isSecondary = button?.variant === 'secondary';
+    link.className = isSecondary ? 'btn secondary' : 'btn';
+    link.href = button?.href || '#';
+    link.textContent = button?.label || 'Подробнее';
+
+    if (link.href.startsWith('/') && !link.href.startsWith('//')) {
+      link.dataset.routerLink = '';
+    } else {
+      link.target = '_blank';
+      link.rel = 'noopener';
+    }
+
+    actions.appendChild(link);
+  });
+
+  if (actions.childElementCount) {
+    content.appendChild(actions);
   }
 
   const visual = document.createElement('div');
@@ -663,6 +699,46 @@ function buildSocialSection(block) {
   return section;
 }
 
+function buildCategoriesSection(block, categories = []) {
+  const section = document.createElement('section');
+  section.className = 'page-section reveal categories-section';
+
+  const header = document.createElement('div');
+  header.className = 'section__header';
+
+  const heading = document.createElement('h2');
+  heading.textContent = block?.title || 'Категории';
+  header.appendChild(heading);
+
+  if (block?.subtitle) {
+    const subtitle = document.createElement('p');
+    subtitle.className = 'muted';
+    subtitle.textContent = block.subtitle;
+    header.appendChild(subtitle);
+  }
+
+  section.appendChild(header);
+
+  const grid = document.createElement('div');
+  grid.className = 'categories-grid categories-grid--cards';
+  const normalized = block?.items?.length ? mapCategories(block.items) : mapCategories(categories);
+
+  if (!normalized.length) {
+    const empty = document.createElement('div');
+    empty.className = 'muted';
+    empty.textContent = 'Добавьте категории или карточки в админке.';
+    section.appendChild(empty);
+    return section;
+  }
+
+  normalized.forEach((category) => {
+    grid.appendChild(buildCategoryLink(category));
+  });
+
+  section.appendChild(grid);
+  return section;
+}
+
 function appendBlockFallback(block, errorMessage = 'Блок не отобразился') {
   if (!homeBlocksContainer) return;
   const notice = document.createElement('div');
@@ -680,7 +756,7 @@ function appendBlockFallback(block, errorMessage = 'Блок не отобраз
   homeBlocksContainer.appendChild(notice);
 }
 
-function renderHomeBlocks(blocks, data) {
+function renderHomeBlocks(blocks, data, { categories = [] } = {}) {
   if (!homeBlocksContainer) return;
   homeBlocksContainer.innerHTML = '';
 
@@ -708,6 +784,10 @@ function renderHomeBlocks(blocks, data) {
       }
       if (block?.type === 'social') {
         homeBlocksContainer.appendChild(buildSocialSection(block));
+        return;
+      }
+      if (block?.type === 'categories') {
+        homeBlocksContainer.appendChild(buildCategoriesSection(block, categories));
         return;
       }
 
@@ -764,7 +844,7 @@ function normalizeHomeResponse(data) {
   };
 }
 
-function renderHome(data) {
+async function renderHome(data) {
   const normalized = data?.__normalized ? data : normalizeHomeResponse(data);
   if (!normalized.page && !normalized.blocks.length) {
     renderHomeMessage('Главная не настроена');
@@ -787,8 +867,20 @@ function renderHome(data) {
     blockTypes: normalized.blockTypes?.join(', ') || '—',
   });
   updateDebugStrip();
-  renderCategories(normalized.categories || cachedCategories);
-  renderHomeBlocks(normalized.blocks, normalized.raw || normalized.page || {});
+
+  const hasCategoriesBlock = normalized.blocks.some((block) => block?.type === 'categories');
+  let categoriesForBlocks = hasCategoriesBlock ? normalized.categories || cachedCategories : [];
+  if (hasCategoriesBlock && (!categoriesForBlocks || !categoriesForBlocks.length)) {
+    categoriesForBlocks = await refreshCategoriesFromApi();
+  }
+
+  if (!hasCategoriesBlock && categoriesSection) {
+    categoriesSection.hidden = true;
+  }
+
+  renderHomeBlocks(normalized.blocks, normalized.raw || normalized.page || {}, {
+    categories: categoriesForBlocks || [],
+  });
 }
 
 function renderBreadcrumbs(target, parts) {
@@ -980,6 +1072,7 @@ function setupMenuToggle() {
   const toggle = document.querySelector('.menu-toggle');
   toggle?.addEventListener('click', openSidebar);
   sidebarOverlay?.addEventListener('click', closeSidebar);
+  sidebarClose?.addEventListener('click', closeSidebar);
 }
 
 async function loadHomeConfig({ reason = 'initial' } = {}) {
@@ -1008,10 +1101,7 @@ async function loadHomeConfig({ reason = 'initial' } = {}) {
     });
     updateDebugStrip();
 
-    renderHome(normalized);
-    if (!normalized.categories?.length) {
-      refreshCategoriesFromApi();
-    }
+    await renderHome(normalized);
   } catch (error) {
     console.error('Failed to load home', error);
     updateDebugOverlay({
@@ -1032,7 +1122,7 @@ async function bootstrap() {
   bindRouterLinks();
   ensureDebugOverlay();
   ensureThemeStylesheet();
-  categoriesRefresh?.addEventListener('click', () => refreshCategoriesFromApi());
+  categoriesRefresh?.addEventListener('click', () => refreshCategoriesFromApi({ renderPanel: true }));
 
   try {
     const menu = await fetchMenu('product');
