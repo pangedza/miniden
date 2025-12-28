@@ -28,6 +28,10 @@ function parseErrorDetail(detail) {
     if (!detail) return 'Ошибка запроса';
     if (typeof detail === 'string') return detail;
 
+    if (detail.error_id) {
+        return `${detail.detail || detail.message || 'Internal Error'} (error_id: ${detail.error_id})`;
+    }
+
     if (detail.detail) {
         const validation = parseValidationErrors(detail.detail);
         return validation || parseErrorDetail(detail.detail);
@@ -64,6 +68,9 @@ export async function apiRequest(url, options = {}) {
         const error = new Error(message);
         error.status = response.status;
         error.body = responseText;
+        if (payload?.error_id) {
+            error.errorId = payload.error_id;
+        }
         throw error;
     }
 

@@ -12,6 +12,8 @@ import hmac
 import json
 import mimetypes
 import logging
+import os
+import subprocess
 import time
 from datetime import datetime, timedelta
 from enum import Enum
@@ -98,6 +100,37 @@ app = FastAPI(title="MiniDeN Web API", version="1.0.0")
 logger = logging.getLogger(__name__)
 
 
+def _detect_git_commit() -> str:
+    env_commit = os.getenv("BUILD_COMMIT")
+    if env_commit:
+        return env_commit
+
+    repo_dir = Path(__file__).resolve().parent
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=repo_dir,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return result.stdout.strip() or "unknown"
+    except Exception:  # pragma: no cover - defensive
+        logger.exception("Failed to detect git commit")
+        return "unknown"
+
+
+BUILD_COMMIT = _detect_git_commit()
+BUILD_TIME = os.getenv("BUILD_TIME") or datetime.utcnow().isoformat() + "Z"
+SERVICE_NAME = os.getenv("SERVICE_NAME", "miniden-webapi")
+
+
+class VersionInfo(BaseModel):
+    commit: str
+    build_time: str
+    service_name: str
+
+
 class LoggingStaticFiles(StaticFiles):
     """StaticFiles wrapper to log each incoming request path."""
 
@@ -112,6 +145,22 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def add_build_header(request: Request, call_next):  # type: ignore[override]
+    response = await call_next(request)
+    response.headers["X-Build-Commit"] = BUILD_COMMIT
+    return response
+
+
+@app.get("/api/version", response_model=VersionInfo)
+def version() -> VersionInfo:
+    return VersionInfo(
+        commit=BUILD_COMMIT,
+        build_time=BUILD_TIME,
+        service_name=SERVICE_NAME,
+    )
 
 
 @app.exception_handler(Exception)

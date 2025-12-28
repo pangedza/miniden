@@ -66,11 +66,13 @@ function reportApiFailure(error) {
         return;
     }
     if (error.status) {
-        setApiStatus('error', `API недоступен: HTTP ${error.status} ${error.message || ''}`.trim());
+        const message = formatErrorMessage(error, error.message || 'Ошибка API');
+        setApiStatus('error', `API недоступен: HTTP ${error.status} ${message || ''}`.trim());
         return;
     }
     if (error.message) {
-        setApiStatus('error', error.message);
+        const message = formatErrorMessage(error, error.message);
+        setApiStatus('error', message);
     }
 }
 
@@ -1182,6 +1184,14 @@ function setHomepageStatus(message, isError = false) {
     homepageStatus.style.display = 'block';
 }
 
+function formatErrorMessage(error, fallback) {
+    const message = (error && error.message) || fallback;
+    if (error && error.errorId) {
+        return `${message} (error_id: ${error.errorId})`;
+    }
+    return message;
+}
+
 function updateDiagnosticTag(el, text, isError = false) {
     if (!el) return;
     el.textContent = text || '—';
@@ -1823,12 +1833,20 @@ async function loadHomepageConfig() {
         setHomepageSaveState('Загружено');
         setPublicAvailability('—');
         renderHomepageDiagnostics();
-        setHomepageStatus('Страница загружена');
+        const payloadErrorId = data?.error_id || data?.errorId;
+        if (data?.fallback) {
+            setHomepageStatus(`Страница восстановлена по умолчанию${payloadErrorId ? ` (error_id: ${payloadErrorId})` : ''}`.trim(), true);
+        } else if (payloadErrorId) {
+            setHomepageStatus(`Страница загружена с предупреждением (error_id: ${payloadErrorId})`, true);
+        } else {
+            setHomepageStatus('Страница загружена');
+        }
         refreshPublicDiagnostics().catch((error) => {
             console.warn('[AdminSite constructor] Публичный ответ не получен', error);
         });
     } catch (error) {
-        setHomepageStatus(error.message || 'Не удалось загрузить страницу', true);
+        const message = formatErrorMessage(error, 'Не удалось загрузить страницу');
+        setHomepageStatus(message, true);
         setHomepageSaveState('Ошибка загрузки', true);
         renderHomepageDiagnostics();
     }
@@ -1874,10 +1892,11 @@ async function saveHomepageConfig() {
         console.debug('[AdminSite constructor] Страница сохранена', homepageLoadedConfig);
     } catch (error) {
         console.error('[AdminSite constructor] Сохранение страницы не удалось', error);
-        setHomepageStatus(error.message || 'Не удалось сохранить страницу', true);
+        const message = formatErrorMessage(error, 'Не удалось сохранить страницу');
+        setHomepageStatus(message, true);
         setHomepageSaveState('Ошибка', true);
         setPublicAvailability('Ошибка', true);
-        showToast(error.message || 'Не удалось сохранить страницу', 'error');
+        showToast(message, 'error');
     }
 }
 

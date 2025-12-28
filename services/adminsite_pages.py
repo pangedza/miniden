@@ -59,15 +59,19 @@ def _serialize(page: AdminSitePage | None, slug: str = DEFAULT_SLUG) -> dict[str
         payload["updatedAt"] = payload["version"]
         payload["slug"] = slug
 
+    payload["key"] = slug
+
     return payload
 
 
-def get_page(slug: str = DEFAULT_SLUG) -> dict[str, Any]:
+def get_page(slug: str = DEFAULT_SLUG, *, raise_on_error: bool = False) -> dict[str, Any]:
     try:
         with get_session() as session:
             return _get_page(session, slug)
     except Exception:
         safe_slug = slug or DEFAULT_SLUG
+        if raise_on_error:
+            raise
         logger.exception("Failed to load AdminSite page %s, returning minimal state", safe_slug)
         return _serialize(None, safe_slug)
 
