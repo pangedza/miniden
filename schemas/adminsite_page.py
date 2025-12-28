@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from typing import Annotated, Literal, Union
+import json
+from typing import Annotated, Any, Literal, Union
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class BackgroundConfig(BaseModel):
@@ -85,9 +86,51 @@ PageBlock = Annotated[
 ]
 
 
+class ThemeConfig(BaseModel):
+    applied_template_id: str | None = Field(default=None, alias="appliedTemplateId")
+    css_vars: dict[str, Any] = Field(default_factory=dict, alias="cssVars")
+    style_preset: dict[str, Any] | None = Field(default_factory=dict, alias="stylePreset")
+    timestamp: int | str | None = None
+    updated_at: str | None = Field(default=None, alias="updatedAt")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    @staticmethod
+    def _normalize_mapping(value: Any) -> dict[str, Any]:
+        if value is None:
+            return {}
+        if isinstance(value, dict):
+            return value
+        if isinstance(value, str) and value.strip():
+            try:
+                parsed = json.loads(value)
+                if isinstance(parsed, dict):
+                    return parsed
+            except Exception:
+                return {}
+        return {}
+
+    @field_validator("css_vars", "style_preset", mode="before")
+    @classmethod
+    def parse_theme_mapping(cls, value: Any) -> dict[str, Any]:
+        return cls._normalize_mapping(value)
+
+    @field_validator("timestamp", mode="before")
+    @classmethod
+    def parse_timestamp(cls, value: Any) -> int | str | None:
+        if value is None:
+            return None
+        if isinstance(value, (int, str)):
+            try:
+                return int(value)
+            except Exception:
+                return value
+        return None
+
+
 class PageConfig(BaseModel):
     template_id: str = Field(default="services", alias="templateId")
     blocks: list[PageBlock] = Field(default_factory=list)
-    theme: dict[str, str] = Field(default_factory=dict)
+    theme: ThemeConfig = Field(default_factory=ThemeConfig)
 
     model_config = ConfigDict(populate_by_name=True)
