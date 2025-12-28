@@ -23,6 +23,10 @@ const navMenu = document.getElementById('nav-menu');
 const navLinks = document.getElementById('nav-links');
 const sidebarOverlay = document.querySelector('.app-sidebar-overlay');
 const templateName = document.getElementById('template-name');
+const categoriesSection = document.getElementById('home-categories');
+const categoriesGrid = document.getElementById('categories-grid');
+const categoriesRefresh = document.getElementById('categories-refresh');
+const debugStrip = document.getElementById('debug-strip');
 const homeBlocksContainer = document.getElementById('home-blocks');
 const debugState = {
   lastFetchUrl: '—',
@@ -37,6 +41,7 @@ const debugState = {
 };
 let debugPanel = null;
 let lastHomeConfig = null;
+let cachedCategories = [];
 
 function normalizeMediaUrl(url, { absolute = false } = {}) {
   if (!url) return '';
@@ -183,6 +188,28 @@ function updateDebugOverlay(partial = {}) {
   });
 
   debugPanel.overlay.style.border = debugState.lastError ? '1px solid #fca5a5' : '1px solid transparent';
+}
+
+function updateDebugStrip() {
+  if (!debugStrip) return;
+  const templateId = debugState.appliedTemplateId || lastHomeConfig?.templateId || '—';
+  const blocksCount = debugState.blocksCount ?? lastHomeConfig?.blocksCount ?? 0;
+  const updatedAt = debugState.updatedAt || lastHomeConfig?.updatedAt || '—';
+
+  if (DEBUG_MODE) {
+    debugStrip.hidden = false;
+    debugStrip.textContent = `debug: template=${templateId} • blocks=${blocksCount} • updated=${updatedAt}`;
+  } else {
+    debugStrip.hidden = true;
+    debugStrip.textContent = '';
+  }
+}
+
+function ensureThemeStylesheet() {
+  const link = document.getElementById('theme-stylesheet');
+  if (link && !link.getAttribute('href')) {
+    link.setAttribute('href', '/css/theme.css');
+  }
 }
 
 function applyThemeVariables(theme, fallbackTemplateId) {
@@ -352,6 +379,62 @@ function renderMenu(menu) {
     link.dataset.routerLink = '';
     navMenu.appendChild(link);
   });
+}
+
+function mapCategories(rawCategories = []) {
+  if (!Array.isArray(rawCategories)) return [];
+  return rawCategories
+    .filter((item) => item && item.slug)
+    .map((item) => ({
+      ...item,
+      url: item.url || `/c/${encodeURIComponent(item.slug)}`,
+      type: item.type || 'product',
+    }));
+}
+
+function renderCategories(categories = []) {
+  if (!categoriesSection || !categoriesGrid) return;
+  const normalized = mapCategories(categories);
+  cachedCategories = normalized;
+
+  categoriesGrid.innerHTML = '';
+  categoriesSection.hidden = !normalized.length;
+  if (!normalized.length) return;
+
+  normalized.forEach((category) => {
+    const link = document.createElement('a');
+    link.className = 'category-card hover-lift';
+    link.href = category.url;
+    link.dataset.routerLink = '';
+
+    const icon = document.createElement('div');
+    icon.className = 'category-icon';
+    icon.textContent = (category.title || '?').slice(0, 1).toUpperCase();
+
+    const meta = document.createElement('div');
+    meta.className = 'category-meta';
+
+    const title = document.createElement('div');
+    title.textContent = category.title || 'Категория';
+
+    const type = document.createElement('span');
+    type.className = 'muted';
+    type.textContent = category.type === 'course' ? 'Мастер-классы' : 'Товары';
+
+    meta.append(title, type);
+    link.append(icon, meta);
+    categoriesGrid.appendChild(link);
+  });
+}
+
+async function refreshCategoriesFromApi() {
+  try {
+    const payload = await fetchCategories();
+    const items = Array.isArray(payload?.items) ? payload.items : payload;
+    renderCategories(items || []);
+  } catch (error) {
+    console.warn('Failed to refresh categories', error);
+  }
 }
 
 function applyTemplate(templateId) {
@@ -645,7 +728,11 @@ function normalizeHomeResponse(data) {
   const page = data?.page ?? data?.config ?? (data?.blocks ? data : null);
   const blocks = data?.blocks ?? page?.blocks ?? [];
   const templateId =
-    page?.templateId || page?.template_id || data?.templateId || data?.template_id || null;
+    page?.templateId ||
+    page?.template_id ||
+    data?.templateId ||
+    data?.template_id ||
+    'services';
   const version = data?.version ?? page?.version ?? data?.updatedAt ?? page?.updatedAt ?? '—';
   const updatedAt = page?.updatedAt ?? data?.updatedAt ?? version ?? '—';
   const theme = data?.theme || {};
@@ -655,6 +742,10 @@ function normalizeHomeResponse(data) {
   const blockTypes = Array.isArray(blocks)
     ? blocks.map((block) => block?.type || 'unknown').filter(Boolean)
     : [];
+  const categories = mapCategories([
+    ...(Array.isArray(data?.product_categories) ? data.product_categories : []),
+    ...(Array.isArray(data?.course_categories) ? data.course_categories : []),
+  ]);
 
   return {
     __normalized: true,
@@ -668,6 +759,7 @@ function normalizeHomeResponse(data) {
     themeTemplate,
     blocksCount: Array.isArray(blocks) ? blocks.length : 0,
     blockTypes,
+    categories,
     raw: data,
   };
 }
@@ -680,7 +772,10 @@ function renderHome(data) {
   }
 
   console.debug('[site] Loaded home config', normalized);
-  const appliedThemeTemplate = applyThemeVariables(normalized.theme, normalized.templateId);
+  const appliedThemeTemplate = applyThemeVariables(
+    normalized.theme,
+    normalized.templateId || 'services',
+  );
   const appliedTemplate = applyTemplate(
     appliedThemeTemplate || normalized.themeTemplate || normalized.templateId,
   );
@@ -691,6 +786,8 @@ function renderHome(data) {
     blocksCount: normalized.blocksCount || 0,
     blockTypes: normalized.blockTypes?.join(', ') || '—',
   });
+  updateDebugStrip();
+  renderCategories(normalized.categories || cachedCategories);
   renderHomeBlocks(normalized.blocks, normalized.raw || normalized.page || {});
 }
 
@@ -909,8 +1006,12 @@ async function loadHomeConfig({ reason = 'initial' } = {}) {
       blocksCount: normalized.blocksCount || 0,
       blockTypes: normalized.blockTypes?.join(', ') || '—',
     });
+    updateDebugStrip();
 
     renderHome(normalized);
+    if (!normalized.categories?.length) {
+      refreshCategoriesFromApi();
+    }
   } catch (error) {
     console.error('Failed to load home', error);
     updateDebugOverlay({
@@ -921,6 +1022,7 @@ async function loadHomeConfig({ reason = 'initial' } = {}) {
       blocksCount: 0,
       blockTypes: '',
     });
+    updateDebugStrip();
     renderHomeMessage('Не удалось загрузить главную', 'Попробуйте обновить страницу позже.');
   }
 }
@@ -930,6 +1032,7 @@ async function bootstrap() {
   bindRouterLinks();
   ensureDebugOverlay();
   ensureThemeStylesheet();
+  categoriesRefresh?.addEventListener('click', () => refreshCategoriesFromApi());
 
   try {
     const menu = await fetchMenu('product');
