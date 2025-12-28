@@ -52,8 +52,9 @@ def _normalize_page(page: AdminSitePage | None) -> PageConfig:
 
     template_id = page.template_id or DEFAULT_TEMPLATE_ID
     raw_blocks = page.blocks or []
+    theme = page.theme or {}
 
-    config = PageConfig(template_id=template_id, blocks=raw_blocks)
+    config = PageConfig(template_id=template_id, blocks=raw_blocks, theme=theme)
     return config
 
 
@@ -102,6 +103,7 @@ def _get_page(session: Session, slug: str) -> dict[str, Any]:
 
 def update_page(payload: dict[str, Any], slug: str = DEFAULT_SLUG) -> dict[str, Any]:
     data = PageConfig.model_validate(payload)
+    theme_payload = payload.get("theme") if isinstance(payload, dict) else None
 
     with get_session() as session:
         page = (
@@ -117,11 +119,14 @@ def update_page(payload: dict[str, Any], slug: str = DEFAULT_SLUG) -> dict[str, 
                 slug=slug or DEFAULT_SLUG,
                 template_id=data.template_id or DEFAULT_TEMPLATE_ID,
                 blocks=data.model_dump(by_alias=True).get("blocks", _default_blocks()),
+                theme=(data.theme if theme_payload is not None else {}),
             )
             session.add(page)
         else:
             page.template_id = data.template_id or DEFAULT_TEMPLATE_ID
             page.blocks = data.model_dump(by_alias=True).get("blocks", _default_blocks())
+            if theme_payload is not None:
+                page.theme = data.theme
             page.updated_at = datetime.utcnow()
 
         session.commit()

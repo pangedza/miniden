@@ -165,5 +165,7 @@ class ThemeApplyResponse(BaseModel):
     applied_template_id: str = Field(alias="appliedTemplateId")
     timestamp: int
     updated_at: str = Field(alias="updatedAt")
+    css_vars: dict[str, str] = Field(default_factory=dict, alias="cssVars")
+    style_preset: dict[str, str] | None = Field(default=None, alias="stylePreset")
 
     model_config = ConfigDict(populate_by_name=True)

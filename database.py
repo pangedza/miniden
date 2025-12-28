@@ -87,6 +87,7 @@ def init_db() -> None:
             "ALTER TABLE webchat_sessions ADD COLUMN IF NOT EXISTS unread_for_manager INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE webchat_messages ADD COLUMN IF NOT EXISTS is_read_by_manager BOOLEAN NOT NULL DEFAULT FALSE",
             "ALTER TABLE webchat_messages ADD COLUMN IF NOT EXISTS is_read_by_client BOOLEAN NOT NULL DEFAULT FALSE",
+            "ALTER TABLE adminsite_pages ADD COLUMN IF NOT EXISTS theme JSONB DEFAULT '{}'",
         ]
 
         with engine.begin() as conn:

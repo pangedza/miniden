@@ -88,5 +88,6 @@ PageBlock = Annotated[
 class PageConfig(BaseModel):
     template_id: str = Field(default="services", alias="templateId")
     blocks: list[PageBlock] = Field(default_factory=list)
+    theme: dict[str, str] = Field(default_factory=dict)
 
     model_config = ConfigDict(populate_by_name=True)
