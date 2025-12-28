@@ -36,6 +36,7 @@ from fastapi import (
     Response,
     UploadFile,
 )
+from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.exceptions import RequestValidationError
@@ -226,7 +227,7 @@ async def validation_exception_handler(
 
         return HTMLResponse(status_code=422, content=content)
 
-    return JSONResponse(status_code=422, content={"detail": exc.errors()})
+    return JSONResponse(status_code=422, content=jsonable_encoder({"detail": exc.errors()}))
 
 
 ALLOWED_TYPES = {"basket", "course"}
