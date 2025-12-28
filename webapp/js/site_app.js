@@ -269,6 +269,7 @@ function showView(name) {
   hideAllViews();
   const target = views[name];
   if (target) target.removeAttribute('hidden');
+  document.body.dataset.view = name || '';
 }
 
 function formatPrice(value) {
@@ -545,32 +546,6 @@ function buildHeroSection(block) {
   return section;
 }
 
-function buildFallbackCards(data) {
-  const cards = [];
-  const categories = [...(data?.product_categories || []), ...(data?.course_categories || [])];
-  categories.slice(0, 3).forEach((category) => {
-    cards.push({
-      title: category?.title || 'Категория',
-      href: category?.url || `/c/${category?.slug || ''}`,
-      icon: 'folder',
-      imageUrl: category?.image_url,
-      description: category?.type === 'course' ? 'Мастер-классы' : 'Каталог',
-    });
-  });
-
-  const featured = [...(data?.featured_products || []), ...(data?.featured_masterclasses || [])];
-  featured.slice(0, 3).forEach((item) => {
-    cards.push({
-      title: item?.title || 'Элемент',
-      href: item?.url || '#',
-      imageUrl: item?.image_url,
-      description: item?.short_text,
-    });
-  });
-
-  return cards;
-}
-
 function buildCard(item) {
   const card = document.createElement('article');
   card.className = 'page-card hover-lift';
@@ -608,7 +583,7 @@ function buildCard(item) {
   return card;
 }
 
-function buildCardsSection(block, data) {
+function buildCardsSection(block) {
   const section = document.createElement('section');
   section.className = 'page-section reveal';
 
@@ -633,11 +608,12 @@ function buildCardsSection(block, data) {
   grid.className = 'cards-grid';
   grid.style.setProperty('--columns', block?.layout?.columns || 2);
 
-  const items = block?.items?.length ? block.items : buildFallbackCards(data);
+  // Cards render only explicitly configured items to avoid implicit category fallbacks.
+  const items = Array.isArray(block?.items) ? block.items : [];
   if (!items.length) {
     const empty = document.createElement('div');
     empty.className = 'muted';
-    empty.textContent = 'Карточки будут показаны после заполнения конфигурации.';
+    empty.textContent = 'Карточки появятся после добавления элементов в AdminSite.';
     section.appendChild(empty);
   } else {
     items.forEach((item) => grid.appendChild(buildCard(item)));
@@ -775,7 +751,7 @@ function renderHomeBlocks(blocks, data, { categories = [] } = {}) {
         return;
       }
       if (block?.type === 'cards') {
-        homeBlocksContainer.appendChild(buildCardsSection(block, data));
+        homeBlocksContainer.appendChild(buildCardsSection(block));
         return;
       }
       if (block?.type === 'text') {
