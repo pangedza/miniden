@@ -106,6 +106,7 @@ def update_page(payload: dict[str, Any], slug: str = DEFAULT_SLUG) -> dict[str, 
         return _serialize(None, safe_slug)
 
     theme_payload = payload.get("theme") if isinstance(payload, dict) else None
+    theme_data = data.theme.model_dump(by_alias=True) if theme_payload is not None else {}
 
     try:
         with get_session() as session:
@@ -120,14 +121,14 @@ def update_page(payload: dict[str, Any], slug: str = DEFAULT_SLUG) -> dict[str, 
                     slug=safe_slug,
                     template_id=data.template_id or DEFAULT_TEMPLATE_ID,
                     blocks=data.model_dump(by_alias=True).get("blocks", _default_blocks()),
-                    theme=(data.theme if theme_payload is not None else {}),
+                    theme=theme_data,
                 )
                 session.add(page)
             else:
                 page.template_id = data.template_id or DEFAULT_TEMPLATE_ID
                 page.blocks = data.model_dump(by_alias=True).get("blocks", _default_blocks())
                 if theme_payload is not None:
-                    page.theme = data.theme
+                    page.theme = theme_data
                 page.updated_at = datetime.utcnow()
 
             session.commit()
