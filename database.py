@@ -136,6 +136,7 @@ def init_db() -> None:
             "ALTER TABLE bot_nodes ADD COLUMN IF NOT EXISTS config_json JSONB",
             "ALTER TABLE bot_nodes ADD COLUMN IF NOT EXISTS clear_chat BOOLEAN NOT NULL DEFAULT FALSE",
             "ALTER TABLE user_state ADD COLUMN IF NOT EXISTS bot_message_ids JSONB",
+            "ALTER TABLE user_state ADD COLUMN IF NOT EXISTS current_node_code VARCHAR",
         ]
 
         create_user_vars = """
@@ -156,6 +157,7 @@ def init_db() -> None:
         create_user_state = """
         CREATE TABLE IF NOT EXISTS user_state (
             user_id BIGINT PRIMARY KEY,
+            current_node_code VARCHAR NULL,
             waiting_node_code VARCHAR NULL,
             waiting_input_type VARCHAR NULL,
             waiting_var_key VARCHAR NULL,
@@ -221,6 +223,8 @@ def init_db() -> None:
             "ALTER TABLE bot_buttons ADD COLUMN IF NOT EXISTS target_node_code VARCHAR(64)",
             "ALTER TABLE bot_buttons ADD COLUMN IF NOT EXISTS url TEXT",
             "ALTER TABLE bot_buttons ADD COLUMN IF NOT EXISTS webapp_url TEXT",
+            "ALTER TABLE bot_buttons ADD COLUMN IF NOT EXISTS render VARCHAR(16) NOT NULL DEFAULT 'INLINE'",
+            "ALTER TABLE bot_buttons ADD COLUMN IF NOT EXISTS action_payload TEXT",
         ]
 
         with engine.begin() as conn:

@@ -50,6 +50,14 @@
     </select>
     <div class="hint">Callback — действие в боте. Ссылка — открытие в браузере. WebApp — сайт внутри Telegram.</div>
 
+    <label>Отображение</label>
+    <select name="render" id="render_type">
+        {% for value, label in render_types %}
+            <option value="{{ value }}" {% if form_state.render == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+    </select>
+    <div class="hint">INLINE — кнопка под сообщением. REPLY — кнопка под полем ввода, показывает постоянное меню узла.</div>
+
     <div id="callback_block" class="block" style="display:none;">
         <label>Действие</label>
         <select name="callback_action" id="callback_action">
@@ -135,12 +143,12 @@
         <div>
             <label>Ряд</label>
             <input type="number" name="row" value="{{ button.row if button else 0 }}">
-            <div class="hint">0 = первая строка кнопок.</div>
+            <div class="hint">0 = первая строка кнопок. Для REPLY используется раскладка под вводом.</div>
         </div>
         <div>
             <label>Позиция</label>
             <input type="number" name="pos" value="{{ button.pos if button else 0 }}">
-            <div class="hint">0 = первая кнопка в ряду.</div>
+            <div class="hint">0 = первая кнопка в ряду. Работает и для INLINE, и для REPLY.</div>
         </div>
     </div>
 

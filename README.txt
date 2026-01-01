@@ -905,3 +905,4 @@ Front reset: theme-only + constructor-driven site
 - Removed unused placeholder `admin_panel/static/.keep` to avoid duplicate sentinel files.
 - Documented unified structure, run commands, and deploy expectations.
 - Fixed AdminSite constructor modals so category/product dialogs close on Отмена, Esc, and backdrop clicks without page reloads; touched `admin_panel/adminsite/static/adminsite/modals.js`, verify with the constructor smoke steps.
+- Unified бот-кнопки: у BotButton добавлены поля render/action_payload, поддержка REPLY-кнопок по узлам, новые API `/adminbot/api/buttons`, `/adminbot/api/buttons/save`, `/adminbot/api/buttons/delete`.
