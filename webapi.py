@@ -1887,7 +1887,11 @@ def site_items(type: str | None = None, category_id: int | None = None):
 
 @app.get("/api/site/home")
 def site_home(limit: int = 6):
-    return adminsite_public.get_home_summary(limit=limit)
+    payload = adminsite_public.get_home_summary(limit=limit)
+    response = JSONResponse(content=payload)
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+    return response
 
 
 @app.get("/api/site/pages/{page_key}")

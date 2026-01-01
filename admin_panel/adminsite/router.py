@@ -4,7 +4,7 @@ import logging
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import uuid4
 from decimal import Decimal
 
@@ -70,6 +70,33 @@ def _build_default_home(slug: str) -> dict[str, str | list]:
         "version": now,
         "slug": slug,
     }
+
+
+def _attach_page_metadata(payload: Any) -> Any:
+    if not isinstance(payload, dict):
+        return payload
+
+    now_iso = datetime.utcnow().isoformat()
+    draft = payload.get("draft") if isinstance(payload.get("draft"), dict) else {}
+    published = payload.get("published") if isinstance(payload.get("published"), dict) else {}
+
+    updated_at = (
+        payload.get("updatedAt")
+        or payload.get("updated_at")
+        or draft.get("updatedAt")
+        or published.get("updatedAt")
+        or payload.get("version")
+        or draft.get("version")
+        or published.get("version")
+        or now_iso
+    )
+    version = payload.get("version") or draft.get("version") or published.get("version") or updated_at
+
+    enriched = dict(payload)
+    enriched["updatedAt"] = updated_at
+    enriched["version"] = version
+    enriched["ok"] = True
+    return enriched
 
 
 def _mask_database_url(raw_url: str) -> str:
@@ -181,7 +208,7 @@ def _get_page_response(page_key: str, request: Request, db: Session) -> JSONResp
     service.ensure_admin(request, db)
     slug = _safe_slug(page_key)
     try:
-        return adminsite_pages.get_page(slug, raise_on_error=True)
+        return _attach_page_metadata(adminsite_pages.get_page(slug, raise_on_error=True))
     except HTTPException as exc:
         if exc.status_code >= 500:
             logger.exception("AdminSite page load failed for %s", slug)
@@ -221,7 +248,8 @@ def adminsite_update_page(
     service.ensure_admin(request, db)
     slug = _safe_slug(page_key)
     try:
-        return adminsite_pages.update_page(payload.model_dump(by_alias=True, exclude_unset=True), slug)
+        saved = adminsite_pages.update_page(payload.model_dump(by_alias=True, exclude_unset=True), slug)
+        return _attach_page_metadata(saved)
     except HTTPException as exc:
         logger.warning("Failed to save AdminSite page %s: %s", slug, exc.detail)
         raise
@@ -232,7 +260,7 @@ def adminsite_publish_page(page_key: str, request: Request, db: Session = Depend
     service.ensure_admin(request, db)
     slug = _safe_slug(page_key)
     try:
-        return adminsite_pages.publish_page(slug)
+        return _attach_page_metadata(adminsite_pages.publish_page(slug))
     except HTTPException as exc:
         logger.warning("Failed to publish AdminSite page %s: %s", slug, exc.detail)
         raise

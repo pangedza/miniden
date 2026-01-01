@@ -906,3 +906,9 @@ Front reset: theme-only + constructor-driven site
 - Documented unified structure, run commands, and deploy expectations.
 - Fixed AdminSite constructor modals so category/product dialogs close on Отмена, Esc, and backdrop clicks without page reloads; touched `admin_panel/adminsite/static/adminsite/modals.js`, verify with the constructor smoke steps.
 - Unified бот-кнопки: у BotButton добавлены поля render/action_payload, поддержка REPLY-кнопок по узлам, новые API `/adminbot/api/buttons`, `/adminbot/api/buttons/save`, `/adminbot/api/buttons/delete`.
+
+Важно: AdminSite / Версии / Кэш
+- Публичный эндпоинт `/api/site/home` должен отдавать заголовок Cache-Control: no-store (плюс совместимый Pragma: no-cache).
+- Админские эндпоинты сохранения/публикации страниц возвращают updatedAt/version, чтобы фронт мог отличать свежий ответ.
+- Конструктор должен работать с защитой DOM: отсутствующие элементы не ломают сценарий (warning + skip вместо ошибки).
+- Быстрая проверка: DevTools → Network, сохранить страницу и сразу открыть `/api/site/home` — JSON должен быть новым без кэша и с актуальным updatedAt/version.
