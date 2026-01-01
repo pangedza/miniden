@@ -4,14 +4,9 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Literal
 
-from datetime import datetime
-from decimal import Decimal
-from typing import Literal
-
-from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 TypeLiteral = str
-ScopeLiteral = Literal["global", "category"]
 SlugPattern = r"^[a-z0-9]+(?:-[a-z0-9]+)*$"
 
 
@@ -130,38 +125,6 @@ class ItemResponse(BaseModel):
     is_active: bool
     sort: int
     created_at: datetime
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class WebAppSettingsPayload(BaseModel):
-    scope: ScopeLiteral
-    type: TypeLiteral
-    category_id: int | None = None
-    action_enabled: bool = True
-    action_label: str | None = "Оформить"
-    min_selected: int = Field(1, ge=0)
-
-    @field_validator("category_id")
-    def _validate_category_scope(
-        cls, value: int | None, info: ValidationInfo
-    ) -> int | None:
-        scope = (info.data or {}).get("scope")
-        if scope == "category" and value is None:
-            raise ValueError("category_id is required when scope=category")
-        if scope == "global" and value is not None:
-            raise ValueError("category_id must be null when scope=global")
-        return value
-
-
-class WebAppSettingsResponse(BaseModel):
-    id: int
-    scope: ScopeLiteral
-    type: TypeLiteral
-    category_id: int | None
-    action_enabled: bool
-    action_label: str | None
-    min_selected: int
 
     model_config = ConfigDict(from_attributes=True)
 

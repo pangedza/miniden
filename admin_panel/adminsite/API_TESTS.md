@@ -84,26 +84,3 @@ curl -X PUT -H "Content-Type: application/json" \
 curl -X DELETE -b "admin_session=<token>" http://localhost:8000/api/adminsite/items/1
 ```
 
-## Настройки WebApp
-
-Получить настройки (вернёт категорию, если есть, иначе global):
-
-```bash
-curl -b "admin_session=<token>" "http://localhost:8000/api/adminsite/webapp-settings?type=product&category_id=1"
-```
-
-Upsert настроек:
-
-```bash
-curl -X PUT -H "Content-Type: application/json" \
-  -b "admin_session=<token>" \
-  -d '{
-    "scope": "category",
-    "type": "product",
-    "category_id": 1,
-    "action_enabled": true,
-    "action_label": "Оформить",
-    "min_selected": 1
-  }' \
-  http://localhost:8000/api/adminsite/webapp-settings
-```

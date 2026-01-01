@@ -7,15 +7,14 @@
 <div id="constructor-status-bar"></div>
 <div class="page-actions" style="justify-content: space-between; align-items:flex-start; gap:16px;">
     <div>
-        <h1>Категории, элементы и WebApp кнопка</h1>
-        <p class="muted">Управляйте категориями и элементами витрины. Используйте вкладку «WebApp кнопка», чтобы настроить действие красной кнопки.</p>
+        <h1>Категории и элементы</h1>
+        <p class="muted">Управляйте категориями и элементами витрины через единый конструктор.</p>
     </div>
     <div class="notice" style="max-width: 360px;">
         <div class="badge-list">
             <span class="tag">Категории</span>
             <span class="tag">Товары</span>
             <span class="tag">Мастер-классы</span>
-            <span class="tag">WebApp</span>
         </div>
         <p style="margin-top:10px;">Все изменения сохраняются через API AdminSite без перезагрузки страницы.</p>
     </div>
@@ -26,70 +25,6 @@
 <div class="tabs" id="constructor-tabs"></div>
 
 <div id="constructor-panels"></div>
-
-<section class="panel" id="panel-webapp">
-    <div class="card">
-        <div class="table-top">
-            <div>
-                <h3 style="margin:0;">WebApp кнопка</h3>
-                <p class="muted">Настройка действия красной кнопки WebApp.</p>
-            </div>
-            <div class="badge-list">
-                <span class="tag">action_label</span>
-                <span class="tag">scope</span>
-                <span class="tag">type</span>
-            </div>
-        </div>
-        <div class="status" id="status-webapp"></div>
-        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:14px;">
-            <div class="card" style="padding:14px;">
-                <form id="webapp-form">
-                    <label>Текст кнопки
-                        <input type="text" name="action_label" id="webapp-label" placeholder="Например, Открыть витрину" required />
-                    </label>
-                    <label>Scope
-                        <select name="scope" id="webapp-scope">
-                            <option value="global">global</option>
-                            <option value="category">category</option>
-                        </select>
-                    </label>
-                    <div class="form-row">
-                        <label>Type
-                            <select name="type" id="webapp-type">
-                                <option value="product">product — витрина товаров</option>
-                                <option value="course">course — витрина мастер-классов</option>
-                            </select>
-                        </label>
-                        <label id="webapp-category-wrapper">Category
-                            <select name="category_id" id="webapp-category"></select>
-                        </label>
-                    </div>
-                    <div class="form-row">
-                        <div>
-                            <label>Минимум выбранных
-                                <input type="number" name="min_selected" id="webapp-min-selected" min="0" value="1" />
-                            </label>
-                        </div>
-                        <div style="display:flex; align-items:center; gap:8px; margin-top:26px;">
-                            <input type="checkbox" id="webapp-enabled" />
-                            <label for="webapp-enabled" class="muted">action_enabled</label>
-                        </div>
-                    </div>
-                    <div class="actions" style="margin-top:18px; gap:8px;">
-                        <button class="btn-secondary" id="webapp-reload" type="button">Обновить</button>
-                        <button class="btn-primary" type="submit">Сохранить</button>
-                    </div>
-                </form>
-            </div>
-            <div class="card" style="padding:14px;">
-                <h4 style="margin-top:0;">Подсказки</h4>
-                <p class="muted">Тип действия и категория влияют на то, что откроется по кнопке. Если категория не указана, используется корневая страница витрины.</p>
-                <div class="divider"></div>
-                <p class="muted">Флаг <b>action_enabled</b> отключает кнопку без удаления настроек.</p>
-            </div>
-        </div>
-    </div>
-</section>
 
 <section class="panel" id="panel-homepage">
     <div class="card">

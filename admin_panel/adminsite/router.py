@@ -30,8 +30,6 @@ from .schemas import (
     ItemUpdatePayload,
     ThemeApplyPayload,
     ThemeApplyResponse,
-    WebAppSettingsPayload,
-    WebAppSettingsResponse,
 )
 
 TypeQuery = Annotated[str, Query(min_length=1)]
@@ -339,24 +337,3 @@ def delete_item(
     return service.delete_item(db, item_id)
 
 
-@router.get("/webapp-settings", response_model=WebAppSettingsResponse)
-def get_webapp_settings(
-    request: Request,
-    type: TypeQuery,
-    category_id: int | None = Query(None),
-    db: Session = Depends(get_db_session),
-):
-    service.ensure_admin(request, db)
-    settings = service.get_webapp_settings(db, type, category_id)
-    return settings
-
-
-@router.put("/webapp-settings", response_model=WebAppSettingsResponse)
-def upsert_webapp_settings(
-    payload: WebAppSettingsPayload,
-    request: Request,
-    db: Session = Depends(get_db_session),
-):
-    service.ensure_admin(request, db)
-    settings = service.upsert_webapp_settings(db, payload)
-    return settings
