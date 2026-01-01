@@ -56,6 +56,12 @@ from admin_panel.routes import auth as admin_auth
 from admin_panel.routes import users as admin_users
 from config import get_settings
 from database import get_session, init_db
+from media_paths import (
+    ADMIN_BOT_MEDIA_ROOT,
+    ADMIN_SITE_MEDIA_ROOT,
+    MEDIA_ROOT,
+    ensure_media_dirs,
+)
 from models import AuthSession, User
 from models.support import (
     SupportMessage,
@@ -256,32 +262,12 @@ SETTINGS = get_settings()
 BOT_TOKEN = SETTINGS.bot_token
 AUTH_SESSION_TTL_SECONDS = 600
 COOKIE_MAX_AGE = 30 * 24 * 60 * 60
-MEDIA_ROOT = Path("/opt/miniden/media")
-REQUIRED_DIRS = [
-    MEDIA_ROOT,
-    MEDIA_ROOT / "users",
-    MEDIA_ROOT / "products",
-    MEDIA_ROOT / "courses",
-    MEDIA_ROOT / "categories",
-    MEDIA_ROOT / "home",
-    MEDIA_ROOT / "reviews",
-    MEDIA_ROOT / "branding",
-    MEDIA_ROOT / "tmp",
-    MEDIA_ROOT / "tmp/products",
-    MEDIA_ROOT / "tmp/courses",
-]
 UPLOAD_FOLDERS = {"products", "courses", "categories", "home", "reviews", "uploads"}
 
 BRANDING_LOGO_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".svg"}
 BRANDING_FAVICON_EXTENSIONS = {".ico", ".png", ".svg"}
 BRANDING_LOGO_MAX_MB = 5
 BRANDING_FAVICON_MAX_MB = 2
-
-
-def ensure_media_dirs() -> None:
-    for d in REQUIRED_DIRS:
-        d.mkdir(parents=True, exist_ok=True)
-
 
 def ensure_upload_dirs() -> None:
     STATIC_UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
@@ -332,7 +318,6 @@ def ensure_adminsite_static_dir() -> None:
 
 
 ensure_media_dirs()
-ensure_upload_dirs()
 app.mount("/media", StaticFiles(directory=MEDIA_ROOT), name="media")
 ensure_adminsite_static_dir()
 app.mount(
@@ -459,22 +444,25 @@ def _notify_admin_about_chat(chat_session, preview_text: str) -> list[int]:
     return message_ids
 
 
-def _save_uploaded_image(file: UploadFile, base_folder: str) -> dict[str, Any]:
+def _save_uploaded_image(
+    file: UploadFile, base_folder: str, *, scope: str = "adminsite"
+) -> dict[str, Any]:
     if file.content_type not in ("image/jpeg", "image/png", "image/webp"):
         raise HTTPException(status_code=400, detail="Неверный формат изображения")
 
-    base_folder = base_folder or "uploads"
+    base_folder = (base_folder or "").strip("/") or "uploads"
     if base_folder not in UPLOAD_FOLDERS:
         base_folder = "uploads"
 
-    ensure_upload_dirs()
+    media_root = ADMIN_SITE_MEDIA_ROOT if scope == "adminsite" else ADMIN_BOT_MEDIA_ROOT
+    ensure_media_dirs()
 
     ext = (file.filename or "jpg").split(".")[-1].lower()
     if ext not in ("jpg", "jpeg", "png", "webp"):
         ext = "jpg"
 
     filename = f"{uuid4().hex}.{ext}"
-    target_dir = STATIC_UPLOADS_DIR / base_folder
+    target_dir = media_root / base_folder if base_folder else media_root
     target_dir.mkdir(parents=True, exist_ok=True)
     full_path = target_dir / filename
 
@@ -491,8 +479,8 @@ def _save_uploaded_image(file: UploadFile, base_folder: str) -> dict[str, Any]:
 
     saved_size = len(content)
     content_type = file.content_type or mimetypes.guess_type(full_path.name)[0]
-    relative = full_path.relative_to(STATIC_DIR_PUBLIC).as_posix()
-    url = f"/static/{relative}"
+    relative = full_path.relative_to(MEDIA_ROOT).as_posix()
+    url = f"/media/{relative}"
 
     logger.info(
         "Saved upload to %s (size=%s, content_type=%s)",
@@ -2386,7 +2374,7 @@ def admin_upload_image(
 def admin_upload_home_image(file: UploadFile = File(...), admin_user=Depends(get_admin_user)):
     """
     Загрузка изображения для блоков главной страницы.
-    Путь отличается от общего upload-image, но использует ту же базу `/static/uploads/home/`.
+    Путь отличается от общего upload-image, но сохраняет файл в `/media/adminsite/home/`.
     """
     upload = _save_uploaded_image(file, "home")
     return {"ok": True, **upload}

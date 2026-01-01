@@ -13,12 +13,13 @@ from sqlalchemy.orm import Session
 from admin_panel import TEMPLATES
 from admin_panel.dependencies import get_db_session, require_admin
 from models.admin_user import AdminRole
+from media_paths import ADMIN_BOT_MEDIA_ROOT, MEDIA_ROOT, ensure_media_dirs
 
 router = APIRouter(tags=["AdminBot"])
 
 
 ALLOWED_ROLES = (AdminRole.superadmin, AdminRole.admin_bot, AdminRole.moderator)
-UPLOAD_DIR = Path(__file__).resolve().parents[2] / "static" / "uploads"
+UPLOAD_DIR = ADMIN_BOT_MEDIA_ROOT
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 ALLOWED_MIMES = {"image/jpeg", "image/png", "image/webp"}
 MAX_SIZE_BYTES = 5 * 1024 * 1024
@@ -30,12 +31,13 @@ def _login_redirect(next_url: str | None = None) -> RedirectResponse:
 
 
 def _ensure_dir() -> None:
+    ensure_media_dirs()
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _build_file_url(filename: str) -> str:
     safe_name = filename.lstrip("/")
-    return f"/static/uploads/{safe_name}"
+    return f"/media/{UPLOAD_DIR.relative_to(MEDIA_ROOT).as_posix()}/{safe_name}"
 
 
 def _list_files() -> list[dict]:
