@@ -251,6 +251,14 @@ def init_db() -> None:
 
     _ensure_bot_buttons_extensions()
 
+    def _drop_adminsite_webapp_settings() -> None:
+        """Удаление устаревшей таблицы настроек WebApp-кнопки AdminSite."""
+
+        with engine.begin() as conn:
+            conn.execute(text("DROP TABLE IF EXISTS adminsite_webapp_settings"))
+
+    _drop_adminsite_webapp_settings()
+
     def _ensure_bot_runtime_settings() -> None:
         alter_statements = [
             "ALTER TABLE bot_runtime ADD COLUMN IF NOT EXISTS start_node_code VARCHAR(64)",

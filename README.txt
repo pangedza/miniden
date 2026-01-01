@@ -262,8 +262,8 @@ AdminSite Static
 - После замены логотипа или favicon автоматически увеличивается `assets_version`, а ссылки на ресурсы приходят с суффиксом `?v=...`, чтобы сбрасывать кеш в браузерах.
 - Данные брендинга отдаются через публичный endpoint `/api/branding` для WebApp.
 
-AdminSite API (категории, товары/курсы, настройки WebApp)
-----------------------------------------------------------
+AdminSite API (категории и товары/курсы)
+----------------------------------------
 
 Все методы под префиксом `/api/adminsite/*`, требуют авторизации администратора (`superadmin` или `admin_site`). Схемы полностью совместимы с Pydantic v2.
 
@@ -278,19 +278,18 @@ AdminSite API (категории, товары/курсы, настройки W
 
     - `POST /api/adminsite/items`
     - `PUT /api/adminsite/items/{id}`
-    - `DELETE /api/adminsite/items/{id}`
-  - Настройки WebApp (красная кнопка):
-    - `GET /api/adminsite/webapp-settings?type=product|course&category_id=<id>` — отдаёт настройки для категории или глобальные, если категория не настроена.
-    - `PUT /api/adminsite/webapp-settings` — upsert по `scope+type+category_id`.
+  - `DELETE /api/adminsite/items/{id}`
 
-AdminPanel/adminsite: страницы конструктора
+- Функционал WebApp-кнопки удалён: эндпоинты `/api/adminsite/webapp-settings` больше не доступны, связанные настройки больше не блокируют удаление категорий, таблица `adminsite_webapp_settings` удаляется при инициализации БД, вкладка WebApp в конструкторе скрыта.
+
+- AdminPanel/adminsite: страницы конструктора
 -------------------------------------------
-- Маршрут `/adminsite/constructor` открывает новый раздел "AdminSite Конструктор" с вкладками для CRUD категорий и элементов, а также настройки красной WebApp-кнопки.
-- Шаблон: `admin_panel/adminsite/templates/constructor.html` (вкладки, таблицы, форма WebApp).
+- Маршрут `/adminsite/constructor` открывает раздел "AdminSite Конструктор" с вкладками для CRUD категорий и элементов.
+- Шаблон: `admin_panel/adminsite/templates/constructor.html` (вкладки, таблицы и формы для категорий/элементов).
 - Статические модули:
   - `admin_panel/adminsite/static/adminsite/apiClient.js` — обёртка над fetch с разбором ошибок.
   - `admin_panel/adminsite/static/adminsite/modals.js` — компоненты CategoryModal и ItemModal с блокировкой кнопок на время сохранения.
-  - `admin_panel/adminsite/static/adminsite/constructor.js` — логика страниц: загрузка данных, фильтры, поиск по названию, CRUD и настройка WebApp.
+  - `admin_panel/adminsite/static/adminsite/constructor.js` — логика страниц: загрузка данных, фильтры, поиск по названию и CRUD.
   - `admin_panel/adminsite/static/adminsite/constructor.css` — стили карточек, таблиц, модалок и тостов.
   - URL для загрузки конструкторских статик-ресурсов: `/static/adminsite/constructor.js` и `/static/adminsite/constructor.css`.
 - Новые кнопки навигации на страницах админки ведут в раздел "AdminSite Конструктор".
@@ -309,11 +308,6 @@ curl -H "Cookie: admin_session=<cookie>" \
   -H "Content-Type: application/json" \
   -d '{"type":"product","category_id":1,"title":"Бокал","price":990}' \
   http://127.0.0.1:8000/api/adminsite/items
-
-curl -H "Cookie: admin_session=<cookie>" \
-  -H "Content-Type: application/json" \
-  -d '{"scope":"global","type":"product","action_label":"Купить","min_selected":1}' \
-  http://127.0.0.1:8000/api/adminsite/webapp-settings
 ```
 
 ### Система отзывов

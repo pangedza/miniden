@@ -9,14 +9,13 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from admin_panel.dependencies import require_admin
-from models import AdminSiteCategory, AdminSiteItem, AdminSiteWebAppSettings
+from models import AdminSiteCategory, AdminSiteItem
 from models.admin_user import AdminRole
 from .schemas import (
     CategoryPayload,
     CategoryUpdatePayload,
     ItemPayload,
     ItemUpdatePayload,
-    WebAppSettingsPayload,
 )
 
 DEFAULT_TYPES: set[str] = {"product", "course"}
@@ -49,7 +48,6 @@ def get_allowed_types(db: Session) -> set[str]:
     db_types = {
         *_distinct_column(db, AdminSiteCategory.type),
         *_distinct_column(db, AdminSiteItem.type),
-        *_distinct_column(db, AdminSiteWebAppSettings.type),
     }
     return DEFAULT_TYPES | {value for value in db_types if value}
 
@@ -205,20 +203,12 @@ def delete_category(db: Session, category_id: int) -> dict[str, str]:
         .filter(AdminSiteItem.category_id == category_id)
         .count()
     )
-    settings_count = (
-        db.query(AdminSiteWebAppSettings.id)
-        .filter(AdminSiteWebAppSettings.scope == "category")
-        .filter(AdminSiteWebAppSettings.category_id == category_id)
-        .count()
-    )
 
     blockers: list[str] = []
     if child_count:
         blockers.append(f"подкатегории ({child_count})")
     if items_count:
         blockers.append(f"элементы ({items_count})")
-    if settings_count:
-        blockers.append(f"WebApp настройки ({settings_count})")
 
     if blockers:
         message = "Нельзя удалить категорию — " + "; ".join(blockers)
@@ -356,90 +346,3 @@ def delete_item(db: Session, item_id: int) -> dict[str, str]:
     db.delete(item)
     db.commit()
     return {"status": "ok"}
-
-
-def get_webapp_settings(
-    db: Session, type_value: str, category_id: int | None
-) -> AdminSiteWebAppSettings:
-    validate_type(type_value, db)
-
-    settings: AdminSiteWebAppSettings | None = None
-    if category_id is not None:
-        get_category(db, category_id)
-        settings = (
-            db.query(AdminSiteWebAppSettings)
-            .filter(
-                AdminSiteWebAppSettings.scope == "category",
-                AdminSiteWebAppSettings.type == type_value,
-                AdminSiteWebAppSettings.category_id == category_id,
-            )
-            .first()
-        )
-
-    if settings is None:
-        settings = (
-            db.query(AdminSiteWebAppSettings)
-            .filter(
-                AdminSiteWebAppSettings.scope == "global",
-                AdminSiteWebAppSettings.type == type_value,
-            )
-            .first()
-        )
-
-    if settings is None:
-        settings = AdminSiteWebAppSettings(
-            scope="global",
-            type=type_value,
-            category_id=None,
-            action_enabled=True,
-            action_label="Оформить",
-            min_selected=1,
-        )
-        db.add(settings)
-        db.commit()
-        db.refresh(settings)
-
-    return settings
-
-
-def upsert_webapp_settings(
-    db: Session, payload: WebAppSettingsPayload
-) -> AdminSiteWebAppSettings:
-    validate_type(payload.type, db)
-
-    category_id = payload.category_id
-    if payload.scope == "category":
-        category = get_category(db, payload.category_id or 0)
-        if category.type != payload.type:
-            raise HTTPException(
-                status_code=400,
-                detail="Settings type does not match category",
-            )
-    else:
-        category_id = None
-
-    settings = (
-        db.query(AdminSiteWebAppSettings)
-        .filter(
-            AdminSiteWebAppSettings.scope == payload.scope,
-            AdminSiteWebAppSettings.type == payload.type,
-            AdminSiteWebAppSettings.category_id == category_id,
-        )
-        .first()
-    )
-
-    if settings is None:
-        settings = AdminSiteWebAppSettings(
-            scope=payload.scope,
-            type=payload.type,
-            category_id=category_id,
-        )
-
-    settings.action_enabled = payload.action_enabled
-    settings.action_label = payload.action_label
-    settings.min_selected = payload.min_selected
-
-    db.add(settings)
-    db.commit()
-    db.refresh(settings)
-    return settings

@@ -121,15 +121,8 @@ const state = {
     ui: {
         tabsContainer: null,
         panelsContainer: null,
-        webappTab: null,
     },
     activeTab: null,
-};
-
-const defaultWebappSettings = {
-    action_enabled: true,
-    action_label: 'Оформить',
-    min_selected: 1,
 };
 
 const HERO_PLACEHOLDER_IMAGE =
@@ -565,21 +558,6 @@ function attachSlugHelpers(modal) {
     });
 }
 
-function normalizeWebappType(value, { statusTarget } = {}) {
-    const available = state.types.length ? state.types : DEFAULT_TYPES;
-    if (available.includes(value)) {
-        return value;
-    }
-    const fallback = available[0];
-    console.warn(
-        `[AdminSite constructor] Некорректный type для WebApp настроек: ${value}, используем ${fallback}`,
-    );
-    if (statusTarget) {
-        setStatus(statusTarget, `Некорректный тип, переключено на ${fallback}`, true);
-    }
-    return fallback;
-}
-
 async function callApi(path, options) {
     try {
         return await apiRequest(`${API_BASE}${path}`, options);
@@ -665,11 +643,6 @@ function renderCategorySelects(type) {
     const selects = [];
     if (filter) {
         selects.push(filter);
-    }
-    const webappSelect = getElementOrWarn('webapp-category');
-    const webappType = getElementOrWarn('webapp-type');
-    if (webappSelect && webappType && webappType.value === type) {
-        selects.push(webappSelect);
     }
 
     selects.forEach((select) => {
@@ -817,118 +790,6 @@ async function upsertItem(type, payload) {
     showToast('Элемент сохранён', 'success');
 }
 
-async function loadWebappSettings() {
-    const typeSelect = getElementOrWarn('webapp-type');
-    const scopeSelect = getElementOrWarn('webapp-scope');
-    const categorySelect = getElementOrWarn('webapp-category');
-
-    if (!typeSelect || !scopeSelect || !categorySelect) {
-        console.warn('[AdminSite constructor] WebApp форма не найдена, пропускаем загрузку настроек.');
-        return;
-    }
-
-    const type = normalizeWebappType(typeSelect.value, { statusTarget: 'status-webapp' });
-    if (typeSelect.value !== type) {
-        typeSelect.value = type;
-    }
-    const scope = scopeSelect.value;
-    const params = new URLSearchParams({ type });
-    if (scope === 'category') {
-        if (!categorySelect.value) {
-            setStatus('status-webapp', 'Выберите категорию для загрузки настроек', true);
-            return;
-        }
-        params.append('category_id', categorySelect.value);
-    }
-    try {
-        const data = await callApi(`/webapp-settings?${params.toString()}`);
-        const enabled = getElementOrWarn('webapp-enabled');
-        const label = getElementOrWarn('webapp-label');
-        const minSelected = getElementOrWarn('webapp-min-selected');
-        if (enabled) enabled.checked = data?.action_enabled ?? defaultWebappSettings.action_enabled;
-        if (label) label.value = data?.action_label ?? defaultWebappSettings.action_label;
-        if (minSelected) minSelected.value = data?.min_selected ?? defaultWebappSettings.min_selected;
-        setStatus('status-webapp', 'Настройки загружены');
-    } catch (error) {
-        const enabled = getElementOrWarn('webapp-enabled');
-        const label = getElementOrWarn('webapp-label');
-        const minSelected = getElementOrWarn('webapp-min-selected');
-        if (enabled) enabled.checked = defaultWebappSettings.action_enabled;
-        if (label) label.value = defaultWebappSettings.action_label;
-        if (minSelected) minSelected.value = defaultWebappSettings.min_selected;
-        const message = error.status === 404
-            ? 'Настройки не найдены, применены значения по умолчанию'
-            : error.message;
-        setStatus('status-webapp', message, error.status !== 404);
-        if (error.status !== 404) {
-            showToast(error.message, 'error');
-        } else {
-            setApiStatus('ok', message);
-        }
-    }
-}
-
-async function saveWebappSettings(event) {
-    event.preventDefault();
-    const button = event.submitter || event.target.querySelector('button[type="submit"]');
-    if (button) button.disabled = true;
-    const typeSelect = getElementOrWarn('webapp-type');
-    const scopeSelect = getElementOrWarn('webapp-scope');
-    const categorySelect = getElementOrWarn('webapp-category');
-    const enabled = getElementOrWarn('webapp-enabled');
-    const label = getElementOrWarn('webapp-label');
-    const minSelected = getElementOrWarn('webapp-min-selected');
-
-    if (!typeSelect || !scopeSelect || !categorySelect || !enabled || !label || !minSelected) {
-        console.warn('[AdminSite constructor] WebApp форма неполная, сохранять нечего.');
-        if (button) button.disabled = false;
-        return;
-    }
-
-    const type = normalizeWebappType(typeSelect.value, { statusTarget: 'status-webapp' });
-    if (typeSelect.value !== type) {
-        typeSelect.value = type;
-    }
-    const scope = scopeSelect.value;
-    if (scope === 'category' && !categorySelect.value) {
-        setStatus('status-webapp', 'Выберите категорию перед сохранением', true);
-        if (button) button.disabled = false;
-        return;
-    }
-    const payload = {
-        scope,
-        type,
-        category_id: scope === 'category' ? Number(categorySelect.value) : null,
-        action_enabled: enabled.checked,
-        action_label: label.value || null,
-        min_selected: Number(minSelected.value) || 0,
-    };
-    try {
-        await callApi('/webapp-settings', { method: 'PUT', body: payload });
-        setStatus('status-webapp', 'Настройки сохранены');
-        showToast('Настройки сохранены', 'success');
-        await loadWebappSettings();
-    } catch (error) {
-        setStatus('status-webapp', error.message, true);
-        showToast(error.message, 'error');
-    } finally {
-        if (button) button.disabled = false;
-    }
-}
-
-function toggleWebappCategory() {
-    const scopeSelect = getElementOrWarn('webapp-scope');
-    const wrapper = getElementOrWarn('webapp-category-wrapper');
-    const categorySelect = getElementOrWarn('webapp-category');
-    if (!scopeSelect || !wrapper) return;
-
-    const scope = scopeSelect.value;
-    wrapper.style.display = scope === 'category' ? 'block' : 'none';
-    if (categorySelect) {
-        categorySelect.toggleAttribute('disabled', scope !== 'category');
-    }
-}
-
 function humanizeType(type) {
     if (!type) return 'Раздел';
     return type.charAt(0).toUpperCase() + type.slice(1);
@@ -1049,7 +910,7 @@ function getInitialTab() {
     if (document.getElementById('panel-media')) {
         return 'panel-media';
     }
-    return document.getElementById('panel-webapp') ? 'panel-webapp' : null;
+    return null;
 }
 
 function renderTypeTabs() {
@@ -1066,19 +927,6 @@ function renderTypeTabs() {
         panels.appendChild(createTypePanel(type));
         bindTypeButtons(type);
     });
-
-    const webappPanel = document.getElementById('panel-webapp');
-    if (webappPanel) {
-        webappPanel.classList.remove('active');
-        panels.appendChild(webappPanel);
-        const webappTab = document.createElement('button');
-        webappTab.className = 'tab';
-        webappTab.dataset.target = 'panel-webapp';
-        webappTab.textContent = 'WebApp';
-        webappTab.addEventListener('click', () => setActiveTab('panel-webapp'));
-        tabs.appendChild(webappTab);
-        state.ui.webappTab = webappTab;
-    }
 
     const homepagePanel = document.getElementById('panel-homepage');
     if (homepagePanel) {
@@ -1159,41 +1007,6 @@ function bindTypeButtons(type) {
     bindElement(`items-search-${type}`, 'input', (event) => {
         state.filters[type].search = event.target.value;
         renderItemsTable(type);
-    });
-}
-
-function renderWebappTypeOptions() {
-    const select = getElementOrWarn('webapp-type');
-    if (!select) return;
-    const types = state.types.length ? state.types : DEFAULT_TYPES;
-    const current = select.value;
-    select.innerHTML = '';
-    types.forEach((type) => {
-        const option = document.createElement('option');
-        option.value = type;
-        option.textContent = `${type} — витрина`;
-        select.appendChild(option);
-    });
-    if (current && types.includes(current)) {
-        select.value = current;
-    }
-}
-
-function setupWebappListeners() {
-    const webappType = bindElement('webapp-type', 'change', async () => {
-        renderCategorySelects(webappType?.value);
-        toggleWebappCategory();
-        await loadWebappSettings();
-    });
-    bindElement('webapp-scope', 'change', async () => {
-        toggleWebappCategory();
-        await loadWebappSettings();
-    });
-    bindElement('webapp-category', 'change', loadWebappSettings);
-    bindElement('webapp-form', 'submit', saveWebappSettings);
-    bindElement('webapp-reload', 'click', (e) => {
-        e.preventDefault();
-        loadWebappSettings();
     });
 }
 
@@ -2379,19 +2192,15 @@ async function loadTypesFromApi() {
 async function bootstrap() {
     state.ui.tabsContainer = getElementOrWarn('constructor-tabs');
     state.ui.panelsContainer = getElementOrWarn('constructor-panels');
-    setupWebappListeners();
     setupHomepageListeners();
     setupMediaListeners();
-    toggleWebappCategory();
     try {
         await loadTypesFromApi();
-        renderWebappTypeOptions();
         renderTypeTabs();
         for (const type of state.types) {
             await loadCategories(type);
             await loadItems(type);
         }
-        await loadWebappSettings();
         await loadHomepageConfig();
         await loadMediaLibrary({ silent: true });
         setStatus('global-status', 'Данные загружены');
