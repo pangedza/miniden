@@ -62,6 +62,7 @@
     <thead>
     <tr>
         <th>Текст кнопки</th>
+        <th>Отображение</th>
         <th>Тип</th>
         <th>Цель / payload</th>
         <th>Строка</th>
@@ -74,6 +75,7 @@
     {% for button in buttons %}
     <tr>
         <td>{{ button.title }}</td>
+        <td>{{ button.render }}</td>
         <td>{{ button.action_type }}</td>
         <td class="muted">{{ button.action_value }}</td>
         <td>{{ button.row }}</td>

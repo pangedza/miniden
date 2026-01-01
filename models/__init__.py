@@ -83,7 +83,9 @@ class BotButton(Base):
     title = Column(Text, nullable=False)
     type = Column(String, nullable=False)
     payload = Column(Text, nullable=False)
+    render = Column(String(16), nullable=False, default="INLINE", server_default="INLINE")
     action_type = Column(String(16), nullable=False, default="NODE", server_default="NODE")
+    action_payload = Column(Text, nullable=True)
     target_node_code = Column(String(64), nullable=True)
     url = Column(Text, nullable=True)
     webapp_url = Column(Text, nullable=True)
@@ -396,6 +398,7 @@ class UserState(Base):
     __tablename__ = "user_state"
 
     user_id = Column(BigInteger, primary_key=True)
+    current_node_code = Column(String, nullable=True)
     waiting_node_code = Column(String, nullable=True)
     waiting_input_type = Column(String, nullable=True)
     waiting_var_key = Column(String, nullable=True)

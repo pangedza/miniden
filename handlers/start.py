@@ -20,10 +20,11 @@ from models import AuthSession, User, UserState, UserTag, UserVar
 from services import users as users_service
 from services.bot_config import (
     BotTriggerView,
+    NodeButtonView,
     NodeView,
     get_start_node_code,
+    load_button,
     load_node,
-    load_menu_buttons,
     load_triggers,
 )
 from services.bot_logging import (
@@ -38,7 +39,6 @@ from services.subscription import (
     check_channels_subscription,
     is_user_subscribed,
 )
-from keyboards.main_menu import get_main_menu
 from utils.texts import format_start_text, format_subscription_required_text
 
 
@@ -150,11 +150,6 @@ async def _answer_and_track(message: types.Message, text: str, **kwargs):
     return sent
 
 
-def _get_menu_keyboard() -> ReplyKeyboardMarkup | None:
-    buttons = load_menu_buttons()
-    return get_main_menu(buttons, include_fallback=True)
-
-
 async def _apply_reply_keyboard(message: types.Message, keyboard: ReplyKeyboardMarkup | None):
     if not keyboard:
         return None
@@ -162,30 +157,19 @@ async def _apply_reply_keyboard(message: types.Message, keyboard: ReplyKeyboardM
     return await _answer_and_track(message, "\u2060", reply_markup=keyboard)
 
 
-def _find_menu_button_by_text(text_value: str | None):
-    normalized = (text_value or "").strip().lower()
-    if not normalized:
-        return None
+async def _dispatch_button_action(message: types.Message, button: NodeButtonView) -> None:
+    action_type = (button.action_type or "").upper()
+    payload = (button.action_payload or "").strip()
 
-    for button in load_menu_buttons():
-        if (button.text or "").strip().lower() == normalized and button.is_active:
-            return button
-
-    return None
-
-
-async def _handle_menu_button_action(message: types.Message, button) -> None:
-    action_type = (getattr(button, "action_type", "") or "").lower()
-    payload = (getattr(button, "action_payload", "") or "").strip()
-
-    if action_type == "node":
-        if payload:
-            await _open_node_with_fallback(message, payload)
+    if action_type == "NODE":
+        target_code = button.target_node_code or payload
+        if target_code:
+            await _open_node_with_fallback(message, target_code)
         else:
             await _answer_and_track(message, "Узел для перехода не настроен.")
         return
 
-    if action_type == "command":
+    if action_type == "COMMAND":
         if payload:
             handled = await _process_triggers(message, text_override=payload)
             if handled:
@@ -193,19 +177,23 @@ async def _handle_menu_button_action(message: types.Message, button) -> None:
         await _answer_and_track(message, "Команда недоступна или не настроена.")
         return
 
-    if action_type in {"url", "webapp"}:
-        if not payload:
+    if action_type in {"URL", "WEBAPP"}:
+        target_url = button.url or button.webapp_url or payload
+        if not target_url:
             await _answer_and_track(message, "Ссылка недоступна.")
             return
 
-        button_text = (getattr(button, "text", "") or "Открыть")
         inline_button = (
-            InlineKeyboardButton(text=button_text, url=payload)
-            if action_type == "url"
-            else InlineKeyboardButton(text=button_text, web_app=WebAppInfo(url=payload))
+            InlineKeyboardButton(text=button.text, url=target_url)
+            if action_type == "URL"
+            else InlineKeyboardButton(text=button.text, web_app=WebAppInfo(url=target_url))
         )
         markup = InlineKeyboardMarkup(inline_keyboard=[[inline_button]])
         await _answer_and_track(message, "Открыть ссылку", reply_markup=markup)
+        return
+
+    if action_type == "BACK":
+        await _answer_and_track(message, "Возврат невозможен из этого раздела.")
         return
 
     await _answer_and_track(message, "Действие временно недоступно.")
@@ -302,9 +290,14 @@ async def _send_node(message: types.Message, node: NodeView, *, remove_reply_key
         username=message.from_user.username,
         node_code=node.code,
     )
+    _remember_current_node(message.from_user.id, node.code)
+    reply_keyboard = _build_reply_keyboard(node)
     if node.clear_chat:
         await _clear_previous_bot_messages(message)
-        await _apply_reply_keyboard(message, _get_menu_keyboard())
+    if reply_keyboard:
+        await _apply_reply_keyboard(message, reply_keyboard)
+    else:
+        await _apply_reply_keyboard(message, ReplyKeyboardRemove())
     if node.node_type == "CONDITION":
         _clear_user_state(message.from_user.id)
         if _is_subscription_condition(node):
@@ -323,9 +316,8 @@ async def _send_node(message: types.Message, node: NodeView, *, remove_reply_key
     if node.node_type == "INPUT":
         await _send_input_node(message, node, user_vars)
     else:
-        reply_markup = ReplyKeyboardRemove() if remove_reply_keyboard else None
         _clear_user_state(message.from_user.id)
-        await _send_message_node(message, node, user_vars, reply_markup=reply_markup)
+        await _send_message_node(message, node, user_vars)
 
 
 def _validate_input_value(node: NodeView, message: types.Message) -> tuple[bool, str, str]:
@@ -639,6 +631,7 @@ def _set_waiting_state(user_id: int, node: NodeView) -> None:
         state = session.get(UserState, user_id)
         if not state:
             state = UserState(user_id=user_id)
+        state.current_node_code = node.code
         state.waiting_node_code = node.code
         state.waiting_input_type = node.input_type
         state.waiting_var_key = node.input_var_key
@@ -650,6 +643,20 @@ def _set_waiting_state(user_id: int, node: NodeView) -> None:
 def _get_user_state(user_id: int) -> UserState | None:
     with get_session() as session:
         return session.get(UserState, user_id)
+
+
+def _remember_current_node(user_id: int, node_code: str | None) -> None:
+    with get_session() as session:
+        state = session.get(UserState, user_id)
+        if not state:
+            state = UserState(user_id=user_id)
+        state.current_node_code = node_code
+        session.add(state)
+
+
+def _get_current_node_code(user_id: int) -> str | None:
+    state = _get_user_state(user_id)
+    return state.current_node_code if state else None
 
 
 def _clear_user_state(user_id: int) -> None:
@@ -698,6 +705,41 @@ def _build_request_keyboard(button_text: str, request_type: str) -> ReplyKeyboar
     else:
         btn = KeyboardButton(text=button_text or "Отправить геолокацию", request_location=True)
     return ReplyKeyboardMarkup(keyboard=[[btn]], resize_keyboard=True, one_time_keyboard=True)
+
+
+def _build_reply_keyboard(node: NodeView) -> ReplyKeyboardMarkup | None:
+    rows: dict[int, list[KeyboardButton]] = {}
+    for button in node.reply_buttons:
+        text = (button.text or "").strip()
+        if not text:
+            continue
+        rows.setdefault(button.row, []).append((button.position, KeyboardButton(text=text)))
+
+    if not rows:
+        return None
+
+    keyboard_rows: list[list[KeyboardButton]] = []
+    for row in sorted(rows.keys()):
+        row_buttons = [btn for _, btn in sorted(rows[row], key=lambda item: (item[0], item[1].text))]
+        if row_buttons:
+            keyboard_rows.append(row_buttons)
+
+    if not keyboard_rows:
+        return None
+
+    return ReplyKeyboardMarkup(keyboard=keyboard_rows, resize_keyboard=True)
+
+
+def _find_reply_button_by_text(node: NodeView, text_value: str | None) -> NodeButtonView | None:
+    normalized = (text_value or "").strip().lower()
+    if not normalized:
+        return None
+
+    for button in node.reply_buttons:
+        if (button.text or "").strip().lower() == normalized:
+            return button
+
+    return None
 
 
 def _get_admin_telegram_ids() -> list[int]:
@@ -1044,9 +1086,8 @@ async def open_menu_command(message: types.Message):
 
 
 async def _send_start_screen(message: types.Message, is_admin: bool) -> None:
-    menu_keyboard = _get_menu_keyboard()
-
-    if await _send_dynamic_start_screen(message, menu_keyboard):
+    _remember_current_node(message.from_user.id, None)
+    if await _send_dynamic_start_screen(message, None):
         return
 
     settings = get_settings()
@@ -1056,14 +1097,12 @@ async def _send_start_screen(message: types.Message, is_admin: bool) -> None:
         sent = await message.answer_photo(
             photo=banner,
             caption=format_start_text(),
-            reply_markup=menu_keyboard,
         )
         _remember_bot_message(message.from_user.id, sent)
     else:
         await _answer_and_track(
             message,
             format_start_text(),
-            reply_markup=menu_keyboard,
         )
 
 
@@ -1168,6 +1207,25 @@ async def handle_open_node(callback: CallbackQuery):
     await callback.answer()
 
 
+@router.callback_query(F.data.startswith("BTN_ACTION:"))
+async def handle_button_action(callback: CallbackQuery):
+    _, raw_button_id = callback.data.split(":", maxsplit=1)
+    try:
+        button_id = int(raw_button_id)
+    except Exception:
+        await callback.answer("Действие недоступно", show_alert=True)
+        return
+
+    button = load_button(button_id)
+    if not button:
+        await callback.answer("Кнопка недоступна", show_alert=True)
+        return
+
+    if callback.message:
+        await _dispatch_button_action(callback.message, button)
+    await callback.answer()
+
+
 @router.callback_query(F.data.startswith("SUB_CHECK:"))
 async def handle_subscription_check_callback(callback: CallbackQuery):
     _, node_code = callback.data.split(":", maxsplit=1)
@@ -1255,15 +1313,15 @@ async def handle_waiting_input(message: types.Message):
     await _open_node_by_code(message, node.next_node_code_success)
 
 
-@router.message(F.text.func(lambda value: _find_menu_button_by_text(value) is not None))
-async def handle_menu_reply_button(message: types.Message):
-    button = _find_menu_button_by_text(message.text)
-    if not button:
-        return
-
-    await _handle_menu_button_action(message, button)
-
-
 @router.message(F.text)
-async def handle_triggers(message: types.Message):
+async def handle_reply_buttons_or_triggers(message: types.Message):
+    current_node_code = _get_current_node_code(message.from_user.id)
+    if current_node_code:
+        node = load_node(current_node_code)
+        if node:
+            reply_button = _find_reply_button_by_text(node, message.text)
+            if reply_button:
+                await _dispatch_button_action(message, reply_button)
+                return
+
     await _process_triggers(message)

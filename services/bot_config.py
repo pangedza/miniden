@@ -30,6 +30,7 @@ class NodeView:
     parse_mode: str
     image_url: str | None
     keyboard: InlineKeyboardMarkup | None
+    reply_buttons: list["NodeButtonView"]
     node_type: str
     input_type: str | None
     input_var_key: str | None
@@ -56,6 +57,21 @@ class NodeActionView:
     action_type: str
     payload: dict
     sort_order: int
+    is_enabled: bool
+
+
+@dataclass
+class NodeButtonView:
+    id: int
+    text: str
+    render: str
+    action_type: str
+    action_payload: str | None
+    target_node_code: str | None
+    url: str | None
+    webapp_url: str | None
+    row: int
+    position: int
     is_enabled: bool
 
 
@@ -87,6 +103,7 @@ _cache: dict[str, object] = {
     "triggers": [],
     "start_node_code": None,
     "menu_buttons": [],
+    "buttons": {},
 }
 
 
@@ -111,57 +128,39 @@ def get_config_version(session=None) -> int:
 
 def _resolve_button_action(button: BotButton) -> InlineKeyboardButton | None:
     action_type = (button.action_type or "NODE").upper()
-    if action_type == "NODE":
-        target_code = button.target_node_code
-        if not target_code and button.type == "callback" and (
-            button.payload or ""
-        ).startswith("OPEN_NODE:"):
-            target_code = (button.payload or "OPEN_NODE:").split(":", maxsplit=1)[1]
-        if target_code:
-            payload = f"OPEN_NODE:{target_code}"
-            return InlineKeyboardButton(text=button.title, callback_data=payload)
-        if button.type == "callback" and button.payload:
-            # Старый формат callback с произвольным payload
-            return InlineKeyboardButton(text=button.title, callback_data=button.payload)
-        logger.warning("Не указан узел для кнопки %s", button.id)
-        return None
-
     if action_type == "URL":
-        target_url = button.url or button.payload
+        target_url = button.url or button.payload or button.action_payload
         if not target_url:
             logger.warning("Не указана ссылка для кнопки %s", button.id)
             return None
         return InlineKeyboardButton(text=button.title, url=target_url)
 
     if action_type == "WEBAPP":
-        webapp_url = button.webapp_url or button.payload
+        webapp_url = button.webapp_url or button.payload or button.action_payload
         if not webapp_url:
             logger.warning("Не указана WebApp ссылка для кнопки %s", button.id)
             return None
         return InlineKeyboardButton(text=button.title, web_app=WebAppInfo(url=webapp_url))
 
-    if action_type in {"BACK", "RAW"}:
-        payload = button.payload
-        if not payload:
-            logger.warning("Не указан payload для callback-кнопки %s", button.id)
-            return None
-        return InlineKeyboardButton(text=button.title, callback_data=payload)
+    if action_type == "NODE" and button.target_node_code:
+        return InlineKeyboardButton(
+            text=button.title, callback_data=f"OPEN_NODE:{button.target_node_code}"
+        )
 
-    # Совместимость со старыми кнопками
-    if button.type == "callback":
+    if button.type == "callback" and button.payload and action_type in {"NODE", "BACK"}:
+        # Совместимость со старыми callback
         return InlineKeyboardButton(text=button.title, callback_data=button.payload)
-    if button.type == "url":
-        return InlineKeyboardButton(text=button.title, url=button.payload)
-    if button.type == "webapp":
-        return InlineKeyboardButton(text=button.title, web_app=WebAppInfo(url=button.payload))
 
-    logger.warning("Неизвестный тип кнопки: %s", button.type)
-    return None
+    callback_data = f"BTN_ACTION:{button.id}"
+    return InlineKeyboardButton(text=button.title, callback_data=callback_data)
 
 
 def _build_inline_keyboard(buttons: list[BotButton]) -> InlineKeyboardMarkup | None:
     rows: Dict[int, list[InlineKeyboardButton]] = {}
     for button in sorted(buttons, key=lambda btn: (btn.row, btn.pos, btn.id)):
+        render_type = (button.render or "INLINE").upper()
+        if render_type != "INLINE":
+            continue
         if not button.is_enabled:
             continue
 
@@ -202,9 +201,29 @@ def _reload_cache(session, version: int, start_node_code: str | None) -> None:
             )
         )
     prepared: Dict[str, NodeView] = {}
+    buttons_map: Dict[int, NodeButtonView] = {}
     for node in nodes:
         enabled_buttons = [btn for btn in node.buttons if btn.is_enabled]
         keyboard = _build_inline_keyboard(enabled_buttons)
+        reply_buttons: list[NodeButtonView] = []
+        for btn in enabled_buttons:
+            render_type = (btn.render or "INLINE").upper()
+            view = NodeButtonView(
+                id=btn.id,
+                text=btn.title,
+                render=render_type,
+                action_type=btn.action_type or "NODE",
+                action_payload=btn.action_payload,
+                target_node_code=btn.target_node_code,
+                url=btn.url,
+                webapp_url=btn.webapp_url,
+                row=btn.row or 0,
+                position=btn.pos or 0,
+                is_enabled=bool(btn.is_enabled),
+            )
+            buttons_map[btn.id] = view
+            if render_type == "REPLY":
+                reply_buttons.append(view)
         config_json: dict | None = node.config_json if isinstance(node.config_json, dict) else None
         prepared[node.code] = NodeView(
             code=node.code,
@@ -213,6 +232,7 @@ def _reload_cache(session, version: int, start_node_code: str | None) -> None:
             parse_mode=node.parse_mode or "HTML",
             image_url=node.image_url,
             keyboard=keyboard,
+            reply_buttons=reply_buttons,
             node_type=node.node_type or "MESSAGE",
             input_type=node.input_type,
             input_var_key=node.input_var_key,
@@ -233,6 +253,7 @@ def _reload_cache(session, version: int, start_node_code: str | None) -> None:
             config_json=config_json,
             clear_chat=bool(node.clear_chat),
         )
+    _cache["buttons"] = buttons_map
 
     triggers = (
         session.query(BotTrigger)
@@ -299,6 +320,16 @@ def load_node(code: str) -> Optional[NodeView]:
 
         nodes: Dict[str, NodeView] = _cache.get("nodes", {})  # type: ignore[assignment]
         return nodes.get(code)
+
+
+def load_button(button_id: int) -> Optional[NodeButtonView]:
+    with get_session() as session:
+        runtime = _get_runtime(session)
+        if _cache.get("version") != runtime.config_version:
+            _reload_cache(session, runtime.config_version, runtime.start_node_code)
+
+        buttons: Dict[int, NodeButtonView] = _cache.get("buttons", {})  # type: ignore[assignment]
+        return buttons.get(button_id)
 
 
 def load_triggers() -> list[BotTriggerView]:

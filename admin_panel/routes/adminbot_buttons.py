@@ -4,8 +4,9 @@ from urllib.parse import urlparse
 from uuid import uuid4
 import re
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from admin_panel import TEMPLATES
@@ -29,8 +30,33 @@ CALLBACK_ACTIONS = [
     ("OPEN_NODE", "Перейти в узел"),
     ("GO_MAIN", "Вернуться в главное меню"),
     ("GO_BACK", "Назад (если поддерживается)"),
+    ("COMMAND", "Команда (текст)"),
     ("RAW", "Свой payload (для продвинутых)"),
 ]
+
+RENDER_TYPES = [
+    ("INLINE", "Кнопка под сообщением (Inline)"),
+    ("REPLY", "Кнопка под строкой ввода (Reply)")
+]
+
+
+class ButtonPayload(BaseModel):
+    id: int | None = None
+    node_id: int
+    title: str
+    render: str = "INLINE"
+    action_type: str = "NODE"
+    action_payload: str | None = None
+    target_node_code: str | None = None
+    url: str | None = None
+    webapp_url: str | None = None
+    row: int = 0
+    pos: int = 0
+    is_enabled: bool = True
+
+
+class DeletePayload(BaseModel):
+    button_id: int
 
 
 def _login_redirect(next_url: str | None = None) -> RedirectResponse:
@@ -107,6 +133,7 @@ def _prepare_button_payload(
             return "Укажите корректную ссылку (http/https)", None
         return None, {
             "action_type": "URL",
+            "action_payload": url_value,
             "target_node_code": None,
             "url": url_value,
             "webapp_url": None,
@@ -120,6 +147,7 @@ def _prepare_button_payload(
             return "Укажите корректную ссылку WebApp (http/https)", None
         return None, {
             "action_type": "WEBAPP",
+            "action_payload": webapp_value,
             "target_node_code": None,
             "url": None,
             "webapp_url": webapp_value,
@@ -135,6 +163,7 @@ def _prepare_button_payload(
         payload = _build_callback_payload("OPEN_NODE", node_code)
         return None, {
             "action_type": "NODE",
+            "action_payload": node_code,
             "target_node_code": node_code,
             "url": None,
             "webapp_url": None,
@@ -146,6 +175,7 @@ def _prepare_button_payload(
         payload = _build_callback_payload("GO_MAIN")
         return None, {
             "action_type": "NODE",
+            "action_payload": MAIN_MENU_CODE,
             "target_node_code": MAIN_MENU_CODE,
             "url": None,
             "webapp_url": None,
@@ -157,11 +187,26 @@ def _prepare_button_payload(
         payload = _build_callback_payload("GO_BACK")
         return None, {
             "action_type": "BACK",
+            "action_payload": payload,
             "target_node_code": None,
             "url": None,
             "webapp_url": None,
             "legacy_type": "callback",
             "legacy_payload": payload or (legacy_payload or "GO_BACK"),
+        }
+
+    if normalized_action == "COMMAND":
+        command_value = (raw_payload or legacy_payload or "").strip()
+        if not command_value:
+            return "Укажите текст команды", None
+        return None, {
+            "action_type": "COMMAND",
+            "action_payload": command_value,
+            "target_node_code": None,
+            "url": None,
+            "webapp_url": None,
+            "legacy_type": "callback",
+            "legacy_payload": command_value,
         }
 
     if normalized_action == "RAW":
@@ -170,6 +215,7 @@ def _prepare_button_payload(
             return "Укажите payload для callback", None
         return None, {
             "action_type": "RAW",
+            "action_payload": raw_value,
             "target_node_code": None,
             "url": None,
             "webapp_url": None,
@@ -204,6 +250,7 @@ def _button_form_state(button: BotButton | None) -> dict:
             "url": "",
             "webapp_url": "",
             "raw_payload": None,
+            "render": "INLINE",
         }
 
     btn_type = (button.type or "callback").lower()
@@ -215,7 +262,8 @@ def _button_form_state(button: BotButton | None) -> dict:
             "target_node_code": None,
             "url": button.url or button.payload,
             "webapp_url": "",
-            "raw_payload": None,
+            "raw_payload": button.action_payload,
+            "render": button.render or "INLINE",
         }
 
     if btn_type == "webapp" or (button.action_type or "").upper() == "WEBAPP":
@@ -225,7 +273,8 @@ def _button_form_state(button: BotButton | None) -> dict:
             "target_node_code": None,
             "url": "",
             "webapp_url": button.webapp_url or button.payload,
-            "raw_payload": None,
+            "raw_payload": button.action_payload,
+            "render": button.render or "INLINE",
         }
 
     detected = _detect_callback_action(button)
@@ -235,7 +284,8 @@ def _button_form_state(button: BotButton | None) -> dict:
         "target_node_code": detected.get("target_code"),
         "url": "",
         "webapp_url": "",
-        "raw_payload": detected.get("raw_payload") or button.payload,
+        "raw_payload": button.action_payload or detected.get("raw_payload") or button.payload,
+        "render": button.render or "INLINE",
     }
 
 
@@ -308,6 +358,8 @@ def _button_view(button: BotButton, nodes_map: dict[str, BotNode]) -> dict:
             action_value = "Переход в: Главное меню"
         elif callback_action == "GO_BACK":
             action_value = "Назад (payload: GO_BACK)"
+        elif callback_action == "COMMAND":
+            action_value = f"Команда: {form_state.get('raw_payload') or '—'}"
         else:
             action_value = form_state.get("raw_payload") or button.payload or "—"
 
@@ -316,6 +368,7 @@ def _button_view(button: BotButton, nodes_map: dict[str, BotNode]) -> dict:
         "title": button.title,
         "row": button.row,
         "pos": button.pos,
+        "render": (form_state.get("render") or button.render or "INLINE").upper(),
         "is_enabled": button.is_enabled,
         "action_type": action_label,
         "action_value": action_value,
@@ -420,6 +473,7 @@ async def new_button_form(
             "button": None,
             "button_types": BUTTON_TYPES,
             "callback_actions": CALLBACK_ACTIONS,
+            "render_types": RENDER_TYPES,
             "nodes_groups": _collect_node_options(db),
             "error": None,
             "form_state": _button_form_state(None),
@@ -438,6 +492,7 @@ async def create_button(
     url: str | None = Form(None),
     webapp_url: str | None = Form(None),
     raw_payload: str | None = Form(None),
+    render: str = Form("INLINE"),
     row: str | None = Form(None),
     pos: str | None = Form(None),
     is_enabled: bool = Form(False),
@@ -461,6 +516,7 @@ async def create_button(
         "url": (url or "").strip(),
         "webapp_url": (webapp_url or "").strip(),
         "raw_payload": (raw_payload or "").strip() or None,
+        "render": (render or "INLINE").upper(),
     }
 
     error, payload_info = _prepare_button_payload(
@@ -481,6 +537,7 @@ async def create_button(
                 "button": None,
                 "button_types": BUTTON_TYPES,
                 "callback_actions": CALLBACK_ACTIONS,
+                "render_types": RENDER_TYPES,
                 "nodes_groups": _collect_node_options(db),
                 "error": error,
                 "form_state": form_state,
@@ -494,7 +551,9 @@ async def create_button(
             title=title,
             type=payload_info["legacy_type"],
             payload=payload_info["legacy_payload"],
+            render=(render or "INLINE").upper(),
             action_type=payload_info["action_type"],
+            action_payload=payload_info.get("action_payload"),
             target_node_code=payload_info.get("target_node_code"),
             url=payload_info.get("url"),
             webapp_url=payload_info.get("webapp_url"),
@@ -535,6 +594,7 @@ async def edit_button_form(
             "button": button,
             "button_types": BUTTON_TYPES,
             "callback_actions": CALLBACK_ACTIONS,
+            "render_types": RENDER_TYPES,
             "nodes_groups": _collect_node_options(db),
             "error": None,
             "form_state": _button_form_state(button),
@@ -553,6 +613,7 @@ async def update_button(
     url: str | None = Form(None),
     webapp_url: str | None = Form(None),
     raw_payload: str | None = Form(None),
+    render: str = Form("INLINE"),
     row: str | None = Form(None),
     pos: str | None = Form(None),
     is_enabled: bool = Form(False),
@@ -577,6 +638,7 @@ async def update_button(
         "webapp_url": (webapp_url or "").strip(),
         "raw_payload": (raw_payload or "").strip()
         or (button.payload if button.type == "callback" else None),
+        "render": (render or "INLINE").upper(),
     }
 
     error, payload_info = _prepare_button_payload(
@@ -599,6 +661,7 @@ async def update_button(
                 "button": button,
                 "button_types": BUTTON_TYPES,
                 "callback_actions": CALLBACK_ACTIONS,
+                "render_types": RENDER_TYPES,
                 "nodes_groups": _collect_node_options(db),
                 "error": error,
                 "form_state": form_state,
@@ -609,7 +672,9 @@ async def update_button(
     button.title = title
     button.type = payload_info["legacy_type"]
     button.payload = payload_info["legacy_payload"]
+    button.render = (render or "INLINE").upper()
     button.action_type = payload_info["action_type"]
+    button.action_payload = payload_info.get("action_payload")
     button.target_node_code = payload_info.get("target_node_code")
     button.url = payload_info.get("url")
     button.webapp_url = payload_info.get("webapp_url")
@@ -656,6 +721,119 @@ async def quick_create_node(
     db.refresh(node)
 
     return {"ok": True, "node": {"id": node.id, "code": node.code, "title": node.title}}
+
+
+@router.get("/api/buttons")
+async def api_list_buttons(
+    request: Request,
+    node_id: int,
+    db: Session = Depends(get_db_session),
+):
+    user = require_admin(request, db, roles=ALLOWED_ROLES)
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    node = _get_node(db, node_id)
+    if not node:
+        raise HTTPException(status_code=404, detail="Node not found")
+
+    buttons = (
+        db.query(BotButton)
+        .filter(BotButton.node_id == node_id)
+        .order_by(BotButton.row, BotButton.pos, BotButton.id)
+        .all()
+    )
+
+    return {
+        "ok": True,
+        "node": {"id": node.id, "code": node.code, "title": node.title},
+        "buttons": [
+            {
+                "id": btn.id,
+                "title": btn.title,
+                "render": (btn.render or "INLINE").upper(),
+                "action_type": (btn.action_type or "NODE").upper(),
+                "action_payload": btn.action_payload,
+                "target_node_code": btn.target_node_code,
+                "url": btn.url,
+                "webapp_url": btn.webapp_url,
+                "row": btn.row,
+                "pos": btn.pos,
+                "is_enabled": btn.is_enabled,
+            }
+            for btn in buttons
+        ],
+    }
+
+
+@router.post("/api/buttons/save")
+async def api_save_button(
+    request: Request,
+    payload: ButtonPayload,
+    db: Session = Depends(get_db_session),
+):
+    user = require_admin(request, db, roles=ALLOWED_ROLES)
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    node = _get_node(db, payload.node_id)
+    if not node:
+        raise HTTPException(status_code=404, detail="Node not found")
+
+    render_type = (payload.render or "INLINE").upper()
+    if render_type not in {"INLINE", "REPLY"}:
+        raise HTTPException(status_code=422, detail="Invalid render type")
+
+    action_type = (payload.action_type or "NODE").upper()
+    button = db.get(BotButton, payload.id) if payload.id else BotButton(node_id=node.id)
+    if payload.id and (not button or button.node_id != node.id):
+        raise HTTPException(status_code=422, detail="Button not found for node")
+
+    button.node_id = node.id
+    button.title = payload.title
+    button.render = render_type
+    button.action_type = action_type
+    button.action_payload = payload.action_payload
+    button.target_node_code = payload.target_node_code
+    button.url = payload.url
+    button.webapp_url = payload.webapp_url
+    button.row = payload.row
+    button.pos = payload.pos
+    button.is_enabled = payload.is_enabled
+    button.type = "callback" if action_type not in {"URL", "WEBAPP"} else action_type.lower()
+    button.payload = (
+        payload.action_payload
+        or payload.target_node_code
+        or payload.url
+        or payload.webapp_url
+        or ""
+    )
+
+    db.add(button)
+    db.commit()
+    db.refresh(button)
+
+    return {"ok": True, "button_id": button.id}
+
+
+@router.post("/api/buttons/delete")
+async def api_delete_button(
+    request: Request,
+    payload: DeletePayload,
+    db: Session = Depends(get_db_session),
+):
+    user = require_admin(request, db, roles=ALLOWED_ROLES)
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    button = db.get(BotButton, payload.button_id)
+    if not button:
+        raise HTTPException(status_code=404, detail="Button not found")
+
+    db.delete(button)
+    db.commit()
+
+    return {"ok": True}
 
 
 @router.post("/nodes/{node_id}/submenu")
