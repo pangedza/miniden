@@ -62,6 +62,7 @@ class BotNode(Base):
     next_node_code_true = Column(String, nullable=True)
     next_node_code_false = Column(String, nullable=True)
     config_json = Column(JSONB, nullable=True)
+    clear_chat = Column(Boolean, nullable=False, default=False, server_default="false")
     is_enabled = Column(Boolean, default=True, nullable=False, server_default="true")
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=func.now(), nullable=False)
@@ -136,6 +137,20 @@ class BotTrigger(Base):
     target_node_code = Column(String(64), nullable=False)
     priority = Column(Integer, nullable=False, default=100, server_default="100")
     is_enabled = Column(Boolean, default=True, nullable=False, server_default="true")
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=func.now(), nullable=False)
+
+
+class MenuButton(Base):
+    __tablename__ = "menu_buttons"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    text = Column(String(255), nullable=False)
+    action_type = Column(String(16), nullable=False, default="NODE", server_default="NODE")
+    action_payload = Column(Text, nullable=True)
+    row = Column(Integer, nullable=False, default=0, server_default="0")
+    position = Column(Integer, nullable=False, default=0, server_default="0")
+    is_active = Column(Boolean, nullable=False, default=True, server_default="true")
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=func.now(), nullable=False)
 
@@ -386,6 +401,7 @@ class UserState(Base):
     waiting_var_key = Column(String, nullable=True)
     next_node_code_success = Column(String, nullable=True)
     next_node_code_cancel = Column(String, nullable=True)
+    bot_message_ids = Column(JSONB, nullable=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=func.now(), nullable=False)
 
 

@@ -37,6 +37,7 @@
 <header>
     <a href="/adminbot/nodes" class="button">Назад к списку</a>
     <a href="/adminbot/templates" class="button">Шаблоны</a>
+    <a href="/adminbot/menu-buttons" class="button">Меню</a>
     <a href="/adminbot/triggers" class="button" title="Триггеры — с чего бот начинает">Триггеры</a>
     <a href="/adminbot/media" class="button" title="Загрузка картинок для узлов">Медиа</a>
     <a href="/adminbot/runtime" class="button" title="Работа бота — обновление версии сценария">Работа бота</a>
@@ -124,6 +125,11 @@
             <input type="checkbox" id="is_enabled" name="is_enabled" data-section="message" {% if node is none or node.is_enabled %}checked{% endif %}>
             <label for="is_enabled" style="margin:0; font-weight:normal;">Включен</label>
         </div>
+        <div class="checkbox">
+            <input type="checkbox" id="clear_chat" name="clear_chat" {% if node and node.clear_chat %}checked{% endif %}>
+            <label for="clear_chat" style="margin:0; font-weight:normal;">Очищать чат перед показом узла</label>
+        </div>
+        <div class="hint">Если включено, бот попробует удалить предыдущие сообщения перед отправкой этого экрана.</div>
     </div>
 
     <div id="input_settings" class="card" style="display:none;">

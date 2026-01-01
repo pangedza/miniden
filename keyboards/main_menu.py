@@ -1,3 +1,5 @@
+from typing import Any, Sequence
+
 from aiogram.types import KeyboardButton, ReplyKeyboardMarkup, WebAppInfo
 
 from utils.commands_map import get_admin_commands
@@ -20,75 +22,57 @@ def get_start_keyboard() -> ReplyKeyboardMarkup:
     )
 
 
-def get_main_menu(is_admin: bool = False) -> ReplyKeyboardMarkup:
+def _extract_button_field(button: Any, field: str, default: Any = None) -> Any:
+    if isinstance(button, dict):
+        return button.get(field, default)
+    return getattr(button, field, default)
+
+
+def get_main_menu(
+    menu_buttons: Sequence[Any] | None = None, *, include_fallback: bool = True
+) -> ReplyKeyboardMarkup | None:
     """
-    Главное меню после прохождения проверки подписки.
+    Динамическое меню из конструктора AdminBot.
+    Если кнопок нет, возвращает клавиатуру только с кнопкой «Меню»
+    или None, если include_fallback=False.
     """
 
-    settings = get_settings()
-    keyboard: list[list[KeyboardButton]] = []
+    prepared_rows: dict[int, list[KeyboardButton]] = {}
 
-    webapp_row: list[KeyboardButton] = []
+    for button in menu_buttons or []:
+        text = (_extract_button_field(button, "text") or "").strip()
+        row = _extract_button_field(button, "row", 0) or 0
+        position = _extract_button_field(button, "position", 0) or 0
 
-    if settings.webapp_index_url:
-        webapp_row.append(
-            KeyboardButton(
-                text="🏠 Главная (WebApp)",
-                web_app=WebAppInfo(url=settings.webapp_index_url),
-            )
+        if not text:
+            continue
+
+        prepared_rows.setdefault(row, []).append(
+            (position, KeyboardButton(text=text))
         )
 
-    if settings.webapp_products_url:
-        webapp_row.append(
-            KeyboardButton(
-                text="🛍 Товары (WebApp)",
-                web_app=WebAppInfo(url=settings.webapp_products_url),
-            )
+    if not prepared_rows:
+        if not include_fallback:
+            return None
+        return ReplyKeyboardMarkup(
+            keyboard=[[KeyboardButton(text="Меню")]],
+            resize_keyboard=True,
+            input_field_placeholder="Открыть меню…",
         )
 
-    if settings.webapp_masterclasses_url:
-        webapp_row.append(
-            KeyboardButton(
-                text="🎓 Мастер-классы (WebApp)",
-                web_app=WebAppInfo(url=settings.webapp_masterclasses_url),
-            )
-        )
+    keyboard_rows: list[list[KeyboardButton]] = []
+    for row in sorted(prepared_rows.keys()):
+        sorted_buttons = [btn for _, btn in sorted(prepared_rows[row], key=lambda item: (item[0], item[1].text))]
+        if sorted_buttons:
+            keyboard_rows.append(sorted_buttons)
 
-    if settings.webapp_cart_url:
-        webapp_row.append(
-            KeyboardButton(
-                text="🛒 Корзина (WebApp)",
-                web_app=WebAppInfo(url=settings.webapp_cart_url),
-            )
-        )
-
-    if settings.webapp_profile_url:
-        webapp_row.append(
-            KeyboardButton(
-                text="👤 Профиль (WebApp)",
-                web_app=WebAppInfo(url=settings.webapp_profile_url),
-            )
-        )
-
-    if webapp_row:
-        keyboard.append(webapp_row)
-
-    keyboard.append([KeyboardButton(text="❓ Вопросы и ответы")])
-
-    if is_admin and getattr(settings, "webapp_admin_url", None):
-        keyboard.append(
-            [
-                KeyboardButton(
-                    text="⚙️ Админка (WebApp)",
-                    web_app=WebAppInfo(url=settings.webapp_admin_url),
-                )
-            ]
-        )
+    if not keyboard_rows:
+        return None
 
     return ReplyKeyboardMarkup(
-        keyboard=keyboard,
+        keyboard=keyboard_rows,
         resize_keyboard=True,
-        input_field_placeholder="Откройте магазин через WebApp…",
+        input_field_placeholder="Выберите раздел…",
     )
 
 
