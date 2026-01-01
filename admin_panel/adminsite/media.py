@@ -2,24 +2,29 @@ from __future__ import annotations
 
 import mimetypes
 from pathlib import Path
+import mimetypes
+from pathlib import Path
 from typing import Any
 
 from fastapi import HTTPException, UploadFile
 
+from media_paths import ADMIN_SITE_MEDIA_ROOT, MEDIA_ROOT, ensure_media_dirs
 
-UPLOAD_DIR = Path(__file__).resolve().parents[2] / "static" / "uploads"
+
+UPLOAD_DIR = ADMIN_SITE_MEDIA_ROOT
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 ALLOWED_MIMES = {"image/jpeg", "image/png", "image/webp"}
 MAX_SIZE_BYTES = 5 * 1024 * 1024
 
 
 def _ensure_dir() -> None:
+    ensure_media_dirs()
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _build_file_url(filename: str) -> str:
     safe_name = filename.lstrip("/")
-    return f"/static/uploads/{safe_name}"
+    return f"/media/{UPLOAD_DIR.relative_to(MEDIA_ROOT).as_posix()}/{safe_name}"
 
 
 def list_media(query: str | None = None) -> list[dict[str, Any]]:

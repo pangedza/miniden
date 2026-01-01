@@ -1,4 +1,5 @@
 import logging
+import os
 import re
 
 from aiogram import Router, types, F
@@ -37,6 +38,22 @@ from services.subscription import (
     is_user_subscribed,
 )
 from utils.texts import format_start_text, format_subscription_required_text
+
+
+BASE_ORIGIN = (os.getenv("BASE_URL") or os.getenv("API_URL") or "http://localhost:8000").rstrip("/")
+if BASE_ORIGIN.endswith("/api"):
+    BASE_ORIGIN = BASE_ORIGIN[: -len("/api")]
+
+
+def _to_absolute_media(url: str | None) -> str | None:
+    if not url:
+        return None
+
+    cleaned = url.strip()
+    if cleaned.startswith("/media/"):
+        return f"{BASE_ORIGIN}{cleaned}"
+
+    return cleaned
 
 router = Router()
 
@@ -86,23 +103,28 @@ async def _send_message_node(
 ) -> None:
     settings = get_settings()
     keyboard = reply_markup if reply_markup is not None else node.keyboard
-    photo = node.image_url or settings.banner_start or settings.start_banner_id
+    photo = _to_absolute_media(node.image_url) or settings.banner_start or settings.start_banner_id
     context_vars = _build_template_context(message.from_user, user_vars)
     rendered_text = _apply_variables(node.message_text, context_vars)
 
     if photo:
-        await message.answer_photo(
-            photo=photo,
-            caption=rendered_text,
-            parse_mode=node.parse_mode,
-            reply_markup=keyboard,
-        )
-    else:
-        await message.answer(
-            rendered_text,
-            parse_mode=node.parse_mode,
-            reply_markup=keyboard,
-        )
+        try:
+            await message.answer_photo(
+                photo=photo,
+                caption=rendered_text,
+                parse_mode=node.parse_mode,
+                reply_markup=keyboard,
+            )
+            return
+        except Exception:
+            # Fallback to text if Telegram rejects the image URL
+            pass
+
+    await message.answer(
+        rendered_text,
+        parse_mode=node.parse_mode,
+        reply_markup=keyboard,
+    )
 
 
 async def _send_input_node(message: types.Message, node: NodeView, user_vars: dict[str, str]) -> None:
