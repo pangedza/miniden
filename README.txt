@@ -3,6 +3,7 @@ MiniDeN — Telegram-бот и веб-магазин
 
 Changelog / История изменений
 -----------------------------
+- 2026-05-XX: Палитра витрины хранится в `/api/site-settings` (activePalette + cssVars); конструктор AdminSite сохраняет черновик страницы через `PUT /api/adminsite/pages/{pageKey}` и публикует через `POST /api/adminsite/pages/{pageKey}/publish`, а витрина читает опубликованные блоки по `GET /api/site/pages/{pageKey}`. Кнопка «➕» на карточке отображается только при количестве > 0 (stock/quantity/count).
 - 2026-04-XX: Обновление товара допускает `slug=null` — API сохраняет текущий slug в БД и не возвращает 422.
 - 2026-04-XX: Обработчик валидации упаковывает ошибки безопасно (без ValidationInfo в Pydantic v2) и возвращает 422 в формате JSON.
 - 2026-04-XX: /api/adminsite/items стабилизирован: бэкенд логирует ошибки и отдаёт 200 с пустым списком вместо 500, конструктор AdminSite игнорирует некорректный ответ и не падает при пустых данных.
@@ -153,6 +154,20 @@ Production деплой одной командой
 ----------------
 - /adminbot/login
 - /adminsite/login
+
+Обновление палитры и публикации блоков (коротко)
+-----------------------------------------------
+- Настройка палитры: `GET /api/site-settings` → `{ "activePalette": "services", "theme": { cssVars... } }`; смена палитры: `PUT /api/site-settings` с телом `{ "activePalette": "electronics" }` (доступно только администратору AdminSite).
+- Черновик страницы: `GET /api/adminsite/pages/{pageKey}` возвращает `{ draft: {blocks, version}, published: {…} }`; сохранение черновика — `PUT /api/adminsite/pages/{pageKey}` с `{ templateId, blocks }`.
+- Публикация: `POST /api/adminsite/pages/{pageKey}/publish` копирует текущий черновик в опубликованную версию.
+- Публичные блоки: `GET /api/site/pages/{pageKey}` отдаёт только опубликованные блоки (`pageKey`, `templateId`, `version`, `blocks`). Главная (`/api/site/home`) использует те же опубликованные данные.
+- Плюс-кнопка на витрине видна только если `quantity/stock/count > 0`.
+
+Тронутые файлы (ключевые изменения)
+----------------------------------
+- `services/adminsite_pages.py`, `services/adminsite_public.py`, `webapi.py` — единый цикл черновик/публикация + новый `/api/site-settings`.
+- `admin_panel/adminsite/router.py`, `admin_panel/adminsite/static/adminsite/constructor.js`, `admin_panel/adminsite/templates/constructor.html` — конструктор получает черновик и публикует страницу.
+- `webapp/js/site_api.js`, `webapp/js/site_app.js` — витрина берёт палитру из API, рендерит опубликованные блоки; «➕» зависит от количества.
 
 AdminSite UI / шаблоны
 ----------------------

@@ -51,6 +51,7 @@ from admin_panel.adminsite import (
     ADMINSITE_STATIC_ROOT,
     router as adminsite_api_router,
 )
+from admin_panel.adminsite import service as adminsite_service
 from admin_panel.routes import adminbot, adminsite
 from admin_panel.routes import auth as admin_auth
 from admin_panel.routes import users as admin_users
@@ -72,8 +73,10 @@ from models.support import (
     WebChatMessagesResponse,
 )
 from services import admin_notes as admin_notes_service
+from services import adminsite_pages
 from services import adminsite_public
 from services import cart as cart_service
+from services import theme_service
 from services import favorites as favorites_service
 from services import home as home_service
 from services import faq_service
@@ -1813,6 +1816,28 @@ def site_menu(type: str | None = "product"):
     return {"items": adminsite_public.list_menu(normalized_type)}
 
 
+@app.get("/api/site-settings")
+def site_settings():
+    theme_meta = theme_service.get_theme_metadata()
+    return {
+        "activePalette": theme_meta.get("appliedTemplateId") or theme_service.DEFAULT_TEMPLATE_ID,
+        "theme": theme_meta,
+    }
+
+
+@app.put("/api/site-settings")
+def update_site_settings(payload: dict, request: Request, db: Session = Depends(get_session)):
+    adminsite_service.ensure_admin(request, db)
+    palette = (payload or {}).get("activePalette") or (payload or {}).get("palette")
+    if not palette:
+        raise HTTPException(status_code=422, detail="activePalette is required")
+    theme = theme_service.apply_theme(palette)
+    return {
+        "activePalette": theme.get("appliedTemplateId") or palette,
+        "theme": theme,
+    }
+
+
 @app.get("/api/site/categories")
 def site_categories(type: str | None = None):
     normalized_type = _normalize_adminsite_type(type)
@@ -1863,6 +1888,18 @@ def site_items(type: str | None = None, category_id: int | None = None):
 @app.get("/api/site/home")
 def site_home(limit: int = 6):
     return adminsite_public.get_home_summary(limit=limit)
+
+
+@app.get("/api/site/pages/{page_key}")
+def site_page(page_key: str):
+    slug = (page_key or "").strip() or adminsite_pages.DEFAULT_SLUG
+    try:
+        return adminsite_public.get_public_page(slug)
+    except HTTPException:
+        raise
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.exception("Failed to load public page %s", slug)
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 @app.get("/api/categories")
