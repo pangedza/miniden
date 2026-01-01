@@ -134,6 +134,8 @@ def init_db() -> None:
             "ALTER TABLE bot_nodes ADD COLUMN IF NOT EXISTS next_node_code_false VARCHAR",
             "ALTER TABLE bot_nodes ADD COLUMN IF NOT EXISTS next_node_code VARCHAR",
             "ALTER TABLE bot_nodes ADD COLUMN IF NOT EXISTS config_json JSONB",
+            "ALTER TABLE bot_nodes ADD COLUMN IF NOT EXISTS clear_chat BOOLEAN NOT NULL DEFAULT FALSE",
+            "ALTER TABLE user_state ADD COLUMN IF NOT EXISTS bot_message_ids JSONB",
         ]
 
         create_user_vars = """

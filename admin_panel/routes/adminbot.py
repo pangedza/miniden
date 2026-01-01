@@ -15,6 +15,7 @@ from . import (
     adminbot_media,
     adminbot_logs,
     adminbot_nodes,
+    adminbot_menu_buttons,
     adminbot_runtime,
     adminbot_templates,
     adminbot_triggers,
@@ -73,6 +74,7 @@ async def logout(request: Request, db: Session = Depends(get_db_session)):
 
 router.include_router(adminbot_nodes.router)
 router.include_router(adminbot_buttons.router)
+router.include_router(adminbot_menu_buttons.router)
 router.include_router(adminbot_triggers.router)
 router.include_router(adminbot_runtime.router)
 router.include_router(adminbot_logs.router)

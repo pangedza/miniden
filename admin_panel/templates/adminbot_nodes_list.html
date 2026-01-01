@@ -19,6 +19,7 @@
     <a href="/adminbot" class="button">Главная</a>
     <a href="/adminbot/templates" class="button">Шаблоны</a>
     <a href="/adminbot/nodes" class="button">Узлы</a>
+    <a href="/adminbot/menu-buttons" class="button">Меню</a>
     <a href="/adminbot/triggers" class="button" title="Триггеры — как бот понимает, что запускать">Триггеры</a>
     <a href="/adminbot/media" class="button">Медиа</a>
     <a href="/adminbot/runtime" class="button" title="Работа бота — обновление версии сценария">Работа бота</a>
@@ -37,6 +38,7 @@
         <th>Код узла</th>
         <th>Название (для вас)</th>
         <th>Тип</th>
+        <th>Чат</th>
         <th>Включён</th>
         <th>Обновлён</th>
         <th>Действия</th>
@@ -52,6 +54,7 @@
                 {{ 'Ожидание ввода' if node.node_type == 'INPUT' else ('Условие' if node.node_type == 'CONDITION' else ('Действие' if node.node_type == 'ACTION' else 'Сообщение')) }}
             </span>
         </td>
+        <td>{{ '🧹' if node.clear_chat else '—' }}</td>
         <td>{{ '✅' if node.is_enabled else '⛔' }}</td>
         <td class="muted">{{ node.updated_at }}</td>
         <td>
@@ -60,7 +63,7 @@
         </td>
     </tr>
     {% else %}
-    <tr><td colspan="6">Нет узлов</td></tr>
+    <tr><td colspan="7">Нет узлов</td></tr>
     {% endfor %}
     </tbody>
 </table>

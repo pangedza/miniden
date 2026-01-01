@@ -10,7 +10,14 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from sqlalchemy.orm import selectinload
 
 from database import get_session
-from models import BotButton, BotNode, BotNodeAction, BotRuntime, BotTrigger
+from models import (
+    BotButton,
+    BotNode,
+    BotNodeAction,
+    BotRuntime,
+    BotTrigger,
+    MenuButton,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +48,7 @@ class NodeView:
     condition_type: str | None
     condition_payload: dict | None
     config_json: dict | None
+    clear_chat: bool
 
 
 @dataclass
@@ -62,11 +70,23 @@ class BotTriggerView:
     is_enabled: bool
 
 
+@dataclass
+class MenuButtonView:
+    id: int
+    text: str
+    action_type: str
+    action_payload: str | None
+    row: int
+    position: int
+    is_active: bool
+
+
 _cache: dict[str, object] = {
     "version": None,
     "nodes": {},
     "triggers": [],
     "start_node_code": None,
+    "menu_buttons": [],
 }
 
 
@@ -211,6 +231,7 @@ def _reload_cache(session, version: int, start_node_code: str | None) -> None:
             condition_type=(config_json or {}).get("condition_type"),
             condition_payload=(config_json or {}).get("condition_payload"),
             config_json=config_json,
+            clear_chat=bool(node.clear_chat),
         )
 
     triggers = (
@@ -236,15 +257,37 @@ def _reload_cache(session, version: int, start_node_code: str | None) -> None:
         )
     ]
 
+    menu_buttons = (
+        session.query(MenuButton)
+        .filter(MenuButton.is_active.is_(True))
+        .order_by(MenuButton.row, MenuButton.position, MenuButton.id)
+        .all()
+    )
+    prepared_menu = [
+        MenuButtonView(
+            id=btn.id,
+            text=btn.text,
+            action_type=btn.action_type or "",
+            action_payload=btn.action_payload,
+            row=btn.row or 0,
+            position=btn.position or 0,
+            is_active=bool(btn.is_active),
+        )
+        for btn in menu_buttons
+        if btn.is_active
+    ]
+
     _cache["version"] = version
     _cache["nodes"] = prepared
     _cache["triggers"] = prepared_triggers
     _cache["start_node_code"] = start_node_code
+    _cache["menu_buttons"] = prepared_menu
     logger.info(
-        "Bot config cache reloaded (version=%s, nodes=%s, triggers=%s)",
+        "Bot config cache reloaded (version=%s, nodes=%s, triggers=%s, menu_buttons=%s)",
         version,
         len(prepared),
         len(prepared_triggers),
+        len(prepared_menu),
     )
 
 
@@ -275,3 +318,12 @@ def get_start_node_code() -> str:
 
         cached_start_node = _cache.get("start_node_code") or runtime.start_node_code
         return (cached_start_node or "MAIN_MENU").strip() or "MAIN_MENU"
+
+
+def load_menu_buttons() -> list[MenuButtonView]:
+    with get_session() as session:
+        runtime = _get_runtime(session)
+        if _cache.get("version") != runtime.config_version:
+            _reload_cache(session, runtime.config_version, runtime.start_node_code)
+
+        return list(_cache.get("menu_buttons", []))  # type: ignore[list-item]

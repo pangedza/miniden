@@ -11,18 +11,19 @@ from aiogram.types import (
     KeyboardButton,
     ReplyKeyboardMarkup,
     ReplyKeyboardRemove,
+    WebAppInfo,
 )
 
 from config import ADMIN_IDS, ADMIN_IDS_SET, get_settings
 from database import get_session
 from models import AuthSession, User, UserState, UserTag, UserVar
 from services import users as users_service
-from keyboards.main_menu import get_main_menu
 from services.bot_config import (
     BotTriggerView,
     NodeView,
     get_start_node_code,
     load_node,
+    load_menu_buttons,
     load_triggers,
 )
 from services.bot_logging import (
@@ -37,6 +38,7 @@ from services.subscription import (
     check_channels_subscription,
     is_user_subscribed,
 )
+from keyboards.main_menu import get_main_menu
 from utils.texts import format_start_text, format_subscription_required_text
 
 
@@ -61,9 +63,157 @@ router = Router()
 VAR_PATTERN = re.compile(r"{{\s*([a-zA-Z0-9_]+)\s*}}")
 logger = logging.getLogger(__name__)
 
+BOT_MESSAGE_LIMIT = 50
+
+
+def _get_tracked_messages(user_id: int) -> list[dict[str, int]]:
+    with get_session() as session:
+        state = session.get(UserState, user_id)
+        if not state or not isinstance(state.bot_message_ids, list):
+            return []
+
+        result: list[dict[str, int]] = []
+        for item in state.bot_message_ids:
+            if not isinstance(item, dict):
+                continue
+            message_id = item.get("message_id")
+            chat_id = item.get("chat_id")
+            if message_id is None:
+                continue
+            try:
+                normalized_chat_id = int(chat_id) if chat_id is not None else None
+                normalized_message_id = int(message_id)
+            except Exception:
+                continue
+
+            result.append(
+                {
+                    "chat_id": normalized_chat_id or 0,
+                    "message_id": normalized_message_id,
+                }
+            )
+        return result
+
+
+def _save_tracked_messages(user_id: int, messages: list[dict[str, int]]) -> None:
+    normalized = [
+        {
+            "chat_id": int(item.get("chat_id") or 0),
+            "message_id": int(item.get("message_id") or 0),
+        }
+        for item in messages
+        if item.get("message_id")
+    ]
+
+    with get_session() as session:
+        state = session.get(UserState, user_id)
+        if not state:
+            state = UserState(user_id=user_id)
+        state.bot_message_ids = normalized[-BOT_MESSAGE_LIMIT:]
+        session.add(state)
+
+
+def _remember_bot_message(user_id: int, bot_message: types.Message | None) -> None:
+    if not bot_message:
+        return
+
+    tracked = _get_tracked_messages(user_id)
+    tracked.append(
+        {
+            "chat_id": bot_message.chat.id if bot_message.chat else 0,
+            "message_id": bot_message.message_id,
+        }
+    )
+    _save_tracked_messages(user_id, tracked)
+
+
+async def _clear_previous_bot_messages(message: types.Message) -> None:
+    tracked = _get_tracked_messages(message.from_user.id)
+    if not tracked:
+        return
+
+    for item in tracked:
+        try:
+            await message.bot.delete_message(
+                chat_id=item.get("chat_id") or message.chat.id,
+                message_id=item.get("message_id"),
+            )
+        except Exception:
+            continue
+
+    _save_tracked_messages(message.from_user.id, [])
+
+
+async def _answer_and_track(message: types.Message, text: str, **kwargs):
+    sent = await message.answer(text, **kwargs)
+    _remember_bot_message(message.from_user.id, sent)
+    return sent
+
+
+def _get_menu_keyboard() -> ReplyKeyboardMarkup | None:
+    buttons = load_menu_buttons()
+    return get_main_menu(buttons, include_fallback=True)
+
+
+async def _apply_reply_keyboard(message: types.Message, keyboard: ReplyKeyboardMarkup | None):
+    if not keyboard:
+        return None
+
+    return await _answer_and_track(message, "\u2060", reply_markup=keyboard)
+
+
+def _find_menu_button_by_text(text_value: str | None):
+    normalized = (text_value or "").strip().lower()
+    if not normalized:
+        return None
+
+    for button in load_menu_buttons():
+        if (button.text or "").strip().lower() == normalized and button.is_active:
+            return button
+
+    return None
+
+
+async def _handle_menu_button_action(message: types.Message, button) -> None:
+    action_type = (getattr(button, "action_type", "") or "").lower()
+    payload = (getattr(button, "action_payload", "") or "").strip()
+
+    if action_type == "node":
+        if payload:
+            await _open_node_with_fallback(message, payload)
+        else:
+            await _answer_and_track(message, "Узел для перехода не настроен.")
+        return
+
+    if action_type == "command":
+        if payload:
+            handled = await _process_triggers(message, text_override=payload)
+            if handled:
+                return
+        await _answer_and_track(message, "Команда недоступна или не настроена.")
+        return
+
+    if action_type in {"url", "webapp"}:
+        if not payload:
+            await _answer_and_track(message, "Ссылка недоступна.")
+            return
+
+        button_text = (getattr(button, "text", "") or "Открыть")
+        inline_button = (
+            InlineKeyboardButton(text=button_text, url=payload)
+            if action_type == "url"
+            else InlineKeyboardButton(text=button_text, web_app=WebAppInfo(url=payload))
+        )
+        markup = InlineKeyboardMarkup(inline_keyboard=[[inline_button]])
+        await _answer_and_track(message, "Открыть ссылку", reply_markup=markup)
+        return
+
+    await _answer_and_track(message, "Действие временно недоступно.")
+
 
 async def _send_subscription_invite(target_message) -> None:
-    await target_message.answer(
+    await _answer_and_track(
+        target_message,
         format_subscription_required_text(),
         reply_markup=get_subscription_keyboard(),
     )
@@ -107,24 +257,28 @@ async def _send_message_node(
     context_vars = _build_template_context(message.from_user, user_vars)
     rendered_text = _apply_variables(node.message_text, context_vars)
 
+    sent_message: types.Message | None = None
+
     if photo:
         try:
-            await message.answer_photo(
+            sent_message = await message.answer_photo(
                 photo=photo,
                 caption=rendered_text,
                 parse_mode=node.parse_mode,
                 reply_markup=keyboard,
             )
+            _remember_bot_message(message.from_user.id, sent_message)
             return
         except Exception:
             # Fallback to text if Telegram rejects the image URL
             pass
 
-    await message.answer(
+    sent_message = await message.answer(
         rendered_text,
         parse_mode=node.parse_mode,
         reply_markup=keyboard,
     )
+    _remember_bot_message(message.from_user.id, sent_message)
 
 
 async def _send_input_node(message: types.Message, node: NodeView, user_vars: dict[str, str]) -> None:
@@ -132,7 +286,8 @@ async def _send_input_node(message: types.Message, node: NodeView, user_vars: di
     await _send_message_node(message, node, user_vars, reply_markup=inline_keyboard)
 
     if node.input_type == "CONTACT":
-        await message.answer(
+        await _answer_and_track(
+            message,
             "Отправьте контакт или нажмите «Отмена».",
             reply_markup=_build_contact_keyboard(node),
         )
@@ -147,6 +302,9 @@ async def _send_node(message: types.Message, node: NodeView, *, remove_reply_key
         username=message.from_user.username,
         node_code=node.code,
     )
+    if node.clear_chat:
+        await _clear_previous_bot_messages(message)
+        await _apply_reply_keyboard(message, _get_menu_keyboard())
     if node.node_type == "CONDITION":
         _clear_user_state(message.from_user.id)
         if _is_subscription_condition(node):
@@ -209,7 +367,7 @@ def _validate_input_value(node: NodeView, message: types.Message) -> tuple[bool,
 async def _open_node_by_code(message: types.Message, node_code: str) -> None:
     node = load_node(node_code)
     if not node:
-        await message.answer("Ошибка конфигурации: узел перехода не найден.")
+        await _answer_and_track(message, "Ошибка конфигурации: узел перехода не найден.")
         log_error_event(
             user_id=message.from_user.id,
             username=message.from_user.username,
@@ -223,7 +381,7 @@ async def _open_node_by_code(message: types.Message, node_code: str) -> None:
 
 async def _open_node_with_fallback(message: types.Message, node_code: str | None) -> None:
     if not node_code:
-        await message.answer("Ошибка конфигурации: узел перехода не найден.")
+        await _answer_and_track(message, "Ошибка конфигурации: узел перехода не найден.")
         log_error_event(
             user_id=message.from_user.id,
             username=message.from_user.username,
@@ -240,7 +398,7 @@ async def _open_node_with_fallback(message: types.Message, node_code: str | None
         await _send_node(message, node)
         return
 
-    await message.answer("Ошибка конфигурации: узел перехода не найден.")
+    await _answer_and_track(message, "Ошибка конфигурации: узел перехода не найден.")
     log_error_event(
         user_id=message.from_user.id,
         username=message.from_user.username,
@@ -285,8 +443,10 @@ def _matches_command_trigger(trigger: BotTriggerView, command: str) -> bool:
     return command == value
 
 
-async def _process_triggers(message: types.Message) -> bool:
-    text_value = (message.text or "").strip()
+async def _process_triggers(
+    message: types.Message, *, text_override: str | None = None
+) -> bool:
+    text_value = (text_override or message.text or "").strip()
     normalized_text = text_value.lower()
     command = _extract_command(text_value)
     triggers = load_triggers()
@@ -393,7 +553,9 @@ async def _handle_cancel_action(message: types.Message, state: UserState) -> Non
     if state.next_node_code_cancel:
         await _open_node_by_code(message, state.next_node_code_cancel)
     else:
-        await message.answer("Ввод отменён.", reply_markup=ReplyKeyboardRemove())
+        await _answer_and_track(
+            message, "Ввод отменён.", reply_markup=ReplyKeyboardRemove()
+        )
 
 
 def _ensure_user_exists(telegram_user: types.User) -> None:
@@ -652,7 +814,7 @@ async def _execute_single_action(
                     details="SEND_MESSAGE: пустой текст",
                 )
                 return False, None
-            await message.answer(text, parse_mode=node.parse_mode)
+            await _answer_and_track(message, text, parse_mode=node.parse_mode)
             return False, None
 
         if action_type == "SEND_ADMIN_MESSAGE":
@@ -696,13 +858,19 @@ async def _execute_single_action(
         if action_type == "REQUEST_CONTACT":
             text = _apply_variables(str(payload.get("text", "")), context)
             keyboard = _build_request_keyboard(text or "Поделиться контактом", "contact")
-            await message.answer(text or "Поделитесь контактом", reply_markup=keyboard)
+            await _answer_and_track(
+                message, text or "Поделитесь контактом", reply_markup=keyboard
+            )
             return False, None
 
         if action_type == "REQUEST_LOCATION":
             text = _apply_variables(str(payload.get("text", "")), context)
             keyboard = _build_request_keyboard(text or "Отправить геолокацию", "location")
-            await message.answer(text or "Отправьте вашу геолокацию", reply_markup=keyboard)
+            await _answer_and_track(
+                message,
+                text or "Отправьте вашу геолокацию",
+                reply_markup=keyboard,
+            )
             return False, None
 
         logger.error("[ACTION] Неизвестный тип действия: %s (узел=%s)", action_type, node.code)
@@ -765,14 +933,18 @@ async def cmd_start_deeplink(message: types.Message, command: CommandObject):
     with get_session() as s:
         session = s.query(AuthSession).filter(AuthSession.token == token).first()
         if not session:
-            await message.answer("Ссылка для авторизации устарела или неверна. Попробуйте начать авторизацию на сайте заново.")
+            await _answer_and_track(
+                message,
+                "Ссылка для авторизации устарела или неверна. Попробуйте начать авторизацию на сайте заново.",
+            )
             return
 
         session.telegram_id = message.from_user.id
 
-    await message.answer(
+    await _answer_and_track(
+        message,
         "✅ Авторизация для сайта выполнена!\n\n"
-        "Вернитесь в браузер и обновите страницу — ваш профиль и корзина будут доступны."
+        "Вернитесь в браузер и обновите страницу — ваш профиль и корзина будут доступны.",
     )
 
 
@@ -857,31 +1029,53 @@ async def cb_check_subscription(callback: CallbackQuery):
         await _send_subscription_invite(callback.message)
 
 
+@router.message(F.text == "Меню")
+async def open_menu_command(message: types.Message):
+    user_id = message.from_user.id
+    is_admin = user_id in ADMIN_IDS
+
+    _ensure_user_exists(message.from_user)
+
+    if await _open_start_node(message, is_admin=is_admin):
+        return
+
+    if await ensure_subscribed(message, message.bot, is_admin=is_admin):
+        await _send_start_screen(message, is_admin=is_admin)
+
+
 async def _send_start_screen(message: types.Message, is_admin: bool) -> None:
-    if await _send_dynamic_start_screen(message):
+    menu_keyboard = _get_menu_keyboard()
+
+    if await _send_dynamic_start_screen(message, menu_keyboard):
         return
 
     settings = get_settings()
-    main_menu = get_main_menu(is_admin=is_admin)
     banner = settings.banner_start or settings.start_banner_id
 
     if banner:
-        await message.answer_photo(
+        sent = await message.answer_photo(
             photo=banner,
             caption=format_start_text(),
-            reply_markup=main_menu,
+            reply_markup=menu_keyboard,
         )
+        _remember_bot_message(message.from_user.id, sent)
     else:
-        await message.answer(
+        await _answer_and_track(
+            message,
             format_start_text(),
-            reply_markup=main_menu,
+            reply_markup=menu_keyboard,
         )
 
 
-async def _send_dynamic_start_screen(message: types.Message) -> bool:
+async def _send_dynamic_start_screen(
+    message: types.Message, reply_keyboard: ReplyKeyboardMarkup | None
+) -> bool:
     start_node = load_node("MAIN_MENU")
     if not start_node:
         return False
+
+    if reply_keyboard:
+        await _apply_reply_keyboard(message, reply_keyboard)
 
     await _send_node(message, start_node)
     return True
@@ -1023,7 +1217,7 @@ async def handle_waiting_input(message: types.Message):
 
     node = load_node(state.waiting_node_code)
     if not node:
-        await message.answer("Ошибка конфигурации: узел не найден")
+        await _answer_and_track(message, "Ошибка конфигурации: узел не найден")
         _clear_user_state(message.from_user.id)
         log_error_event(
             user_id=message.from_user.id,
@@ -1040,7 +1234,7 @@ async def handle_waiting_input(message: types.Message):
     ok, value, error_text = _validate_input_value(node, message)
     if not ok:
         reply_markup = _build_contact_keyboard(node) if node.input_type == "CONTACT" else None
-        await message.answer(error_text, reply_markup=reply_markup)
+        await _answer_and_track(message, error_text, reply_markup=reply_markup)
         return
 
     if node.input_var_key:
@@ -1049,7 +1243,7 @@ async def handle_waiting_input(message: types.Message):
     _clear_user_state(message.from_user.id)
 
     if not node.next_node_code_success:
-        await message.answer("Ошибка конфигурации: узел не найден")
+        await _answer_and_track(message, "Ошибка конфигурации: узел не найден")
         log_error_event(
             user_id=message.from_user.id,
             username=message.from_user.username,
@@ -1059,6 +1253,15 @@ async def handle_waiting_input(message: types.Message):
         return
 
     await _open_node_by_code(message, node.next_node_code_success)
+
+
+@router.message(F.text.func(lambda value: _find_menu_button_by_text(value) is not None))
+async def handle_menu_reply_button(message: types.Message):
+    button = _find_menu_button_by_text(message.text)
+    if not button:
+        return
+
+    await _handle_menu_button_action(message, button)
 
 
 @router.message(F.text)

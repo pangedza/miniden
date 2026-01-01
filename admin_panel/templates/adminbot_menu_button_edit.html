@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>{% if button %}Редактирование кнопки меню{% else %}Новая кнопка меню{% endif %}</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 16px; background:#f5f5f5; }
+        header { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+        form { background:#fff; padding:16px; border:1px solid #cbd5e1; border-radius:8px; max-width:620px; }
+        label { display:block; margin-top:12px; font-weight:bold; }
+        input[type="text"], select { width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:6px; box-sizing:border-box; }
+        .actions { margin-top:16px; display:flex; gap:8px; }
+        .button { padding:8px 12px; border:none; background:#2563eb; color:#fff; border-radius:4px; cursor:pointer; text-decoration:none; }
+        .error { color:#dc2626; margin-top:8px; }
+        .muted { color:#475569; font-size:13px; margin-top:4px; }
+    </style>
+</head>
+<body>
+<header>
+    <a href="/adminbot/menu-buttons" class="button">Назад</a>
+    <a href="/adminbot/nodes" class="button">Узлы</a>
+    <a href="/adminbot/triggers" class="button">Триггеры</a>
+    <a href="/adminbot/runtime" class="button">Работа бота</a>
+    <a href="/adminbot/logout" class="button" style="background:#dc2626;">Выйти</a>
+</header>
+<h2>{% if button %}Редактирование: {{ button.text }}{% else %}Новая кнопка меню{% endif %}</h2>
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+<form method="post" action="{% if button %}/adminbot/menu-buttons/{{ button.id }}/edit{% else %}/adminbot/menu-buttons/new{% endif %}">
+    <label>Текст кнопки</label>
+    <input type="text" name="text" value="{{ button.text if button else '' }}" required>
+    <div class="muted">Что увидит пользователь на клавиатуре.</div>
+
+    <label style="margin-top:12px;">Тип действия</label>
+    <select name="action_type">
+        {% set action_type = button.action_type if button else 'node' %}
+        <option value="node" {% if action_type == 'node' %}selected{% endif %}>Перейти в узел</option>
+        <option value="command" {% if action_type == 'command' %}selected{% endif %}>Команда (/start, /faq и т.п.)</option>
+        <option value="url" {% if action_type == 'url' %}selected{% endif %}>Открыть ссылку</option>
+        <option value="webapp" {% if action_type == 'webapp' %}selected{% endif %}>Открыть WebApp</option>
+    </select>
+
+    <label style="margin-top:12px;">Payload</label>
+    <input type="text" name="action_payload" value="{{ button.action_payload if button else '' }}" placeholder="Код узла, команда или ссылка">
+    <div class="muted">Для узла — его код. Для команды — текст команды. Для URL/WebApp — ссылка.</div>
+
+    <label style="margin-top:12px;">Строка (row)</label>
+    <input type="text" name="row" value="{{ button.row if button else '0' }}" placeholder="0">
+    <div class="muted">Номер строки клавиатуры, начиная с 0.</div>
+
+    <label style="margin-top:12px;">Позиция в строке</label>
+    <input type="text" name="position" value="{{ button.position if button else '0' }}" placeholder="0">
+    <div class="muted">Порядок внутри строки, начиная с 0.</div>
+
+    <label style="margin-top:12px;">
+        <input type="checkbox" name="is_active" {% if button is none or button.is_active %}checked{% endif %}>
+        Кнопка включена
+    </label>
+
+    <div class="actions">
+        <button type="submit" class="button">Сохранить</button>
+        <a href="/adminbot/menu-buttons" class="button" style="background:#6b7280;">Отмена</a>
+    </div>
+</form>
+</body>
+</html>

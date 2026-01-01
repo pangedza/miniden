@@ -9,6 +9,7 @@ from services import bans as bans_service
 from services import orders as orders_service
 from services import products as products_service
 from services import user_stats as user_stats_service
+from services.bot_config import load_menu_buttons
 from keyboards.admin_inline import (
     course_access_list_kb,
     course_access_actions_kb,
@@ -34,6 +35,10 @@ WEB_ADMIN_REDIRECT_TEXT = (
 
 def _is_admin(user_id: int | None) -> bool:
     return bool(user_id) and user_id in ADMIN_IDS_SET
+
+
+def _get_reply_menu():
+    return get_main_menu(load_menu_buttons(), include_fallback=True)
 
 
 def _build_order_actions_kb(order_id: int, user_id: int) -> types.InlineKeyboardMarkup:
@@ -281,7 +286,7 @@ async def admin_home_cb(callback: types.CallbackQuery, state: FSMContext):
 
     await callback.message.answer(
         "Главное меню:",
-        reply_markup=get_main_menu(is_admin=True),
+        reply_markup=_get_reply_menu(),
     )
 
 
@@ -1019,7 +1024,7 @@ async def admin_go_main(message: types.Message, state: FSMContext):
     await state.clear()
     await message.answer(
         "Главное меню:",
-        reply_markup=get_main_menu(is_admin=_is_admin(message.from_user.id)),
+        reply_markup=_get_reply_menu(),
     )
 
 
