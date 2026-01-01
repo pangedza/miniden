@@ -333,6 +333,14 @@ function normalizeHomepageConfig(data = homepageDefaults) {
     const blocksRaw = Array.isArray(source?.blocks) ? source.blocks : [];
     const normalizedBlocks = blocksRaw.map(normalizeBlock).filter(Boolean);
     const safeBlocks = normalizedBlocks.length ? normalizedBlocks : buildDefaultBlocks();
+    const updatedAt =
+        source?.updatedAt ||
+        source?.updated_at ||
+        data?.updatedAt ||
+        data?.updated_at ||
+        source?.version ||
+        data?.version ||
+        null;
     return {
         templateId,
         blocks: safeBlocks,
@@ -340,6 +348,7 @@ function normalizeHomepageConfig(data = homepageDefaults) {
         published,
         pageKey: source?.pageKey || data?.pageKey || HOMEPAGE_PAGE_KEY,
         version: source?.version || data?.version || null,
+        updatedAt,
     };
 }
 
@@ -1650,7 +1659,10 @@ function updateBlock(index, nextValue) {
 }
 
 function renderBlockEditor() {
-    if (!homepageBlockEditor) return;
+    if (!homepageBlockEditor || !homepageEditorTitle || !homepageEditorSubtitle) {
+        console.warn('[AdminSite constructor] Редактор главной не инициализирован — пропускаем рендер');
+        return;
+    }
     ensureBlocksPresent();
     const block = homepageConfig.blocks[homepageSelectedIndex];
     homepageBlockEditor.innerHTML = '';
@@ -1884,6 +1896,26 @@ function extractPageVersion(page) {
     );
 }
 
+function extractPageUpdatedAt(page) {
+    if (!page) return null;
+    return (
+        page?.updatedAt ||
+        page?.updated_at ||
+        page?.version ||
+        page?.published?.updatedAt ||
+        page?.draft?.updatedAt ||
+        page?.published?.version ||
+        page?.draft?.version ||
+        null
+    );
+}
+
+function parseTimestamp(value) {
+    if (!value) return null;
+    const parsed = Date.parse(value);
+    return Number.isNaN(parsed) ? null : parsed;
+}
+
 async function refreshPublicDiagnostics() {
     try {
         setPublicAvailability('загрузка...');
@@ -1901,6 +1933,33 @@ async function refreshPublicDiagnostics() {
         setPublicAvailability(error.message || 'Ошибка', true);
         renderHomepageDiagnostics();
         throw error;
+    }
+}
+
+async function verifyPublicHomepageFreshness({ savedVersion, savedUpdatedAt }) {
+    try {
+        const publicPayload = await refreshPublicDiagnostics();
+        const publicVersion = extractPageVersion(publicPayload);
+        const publicUpdatedAt = extractPageUpdatedAt(publicPayload) || publicVersion;
+        const savedTimestamp = parseTimestamp(savedUpdatedAt || savedVersion);
+        const publicTimestamp = parseTimestamp(publicUpdatedAt);
+
+        if (savedTimestamp && publicTimestamp && publicTimestamp < savedTimestamp) {
+            console.warn('[AdminSite constructor] Публичная витрина ответила устаревшими данными', {
+                savedUpdatedAt,
+                publicUpdatedAt,
+                savedVersion,
+                publicVersion,
+            });
+            setHomepageStatus('Публичная витрина обновляется, ответ устарел — повторите проверку позже');
+            return false;
+        }
+
+        setPublicAvailability('OK');
+        return true;
+    } catch (error) {
+        console.warn('[AdminSite constructor] Публичная витрина недоступна', error);
+        return false;
     }
 }
 
@@ -1958,14 +2017,13 @@ async function saveHomepageConfig() {
         homepageLoadedConfig = normalizedSaved;
         renderHomepageForm(homepageLoadedConfig);
         const version = extractPageVersion(data) || extractPageVersion(normalizedSaved);
+        const updatedAt = extractPageUpdatedAt(data) || extractPageUpdatedAt(normalizedSaved);
         if (version) setHomepageVersion(version);
         await applyThemeFromAdmin(payload.templateId || 'services');
         setHomepageSaveState('Черновик сохранён');
         setPublicAvailability('Требуется публикация');
         setHomepageStatus('Черновик сохранён, опубликуйте для витрины');
-        refreshPublicDiagnostics().catch((error) => {
-            console.warn('[AdminSite constructor] Публичная витрина недоступна', error);
-        });
+        verifyPublicHomepageFreshness({ savedVersion: version, savedUpdatedAt: updatedAt });
         showToast('Черновик сохранён');
         console.debug('[AdminSite constructor] Страница сохранена', homepageLoadedConfig);
         openHomepagePreview();
@@ -1990,11 +2048,12 @@ async function publishHomepage() {
         homepageLoadedConfig = normalized;
         renderHomepageForm(normalized);
         const version = extractPageVersion(data) || extractPageVersion(normalized);
+        const updatedAt = extractPageUpdatedAt(data) || extractPageUpdatedAt(normalized);
         if (version) setHomepageVersion(version);
         setHomepageSaveState('Опубликовано');
         setPublicAvailability('OK');
         setHomepageStatus('Опубликовано');
-        await refreshPublicDiagnostics();
+        await verifyPublicHomepageFreshness({ savedVersion: version, savedUpdatedAt: updatedAt });
         showToast('Черновик опубликован');
     } catch (error) {
         console.error('[AdminSite constructor] Публикация страницы не удалась', error);
