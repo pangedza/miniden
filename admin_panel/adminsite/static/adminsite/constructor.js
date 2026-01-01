@@ -7,7 +7,8 @@ document.documentElement.setAttribute('data-adminsite-js', 'loaded');
 // AdminSite home constructor writes to /api/adminsite/pages/home, index.html reads from /api/site/home (public).
 const API_BASE = '/api/adminsite';
 const HOMEPAGE_SOURCE_API = `${API_BASE}/pages/home`;
-const HOMEPAGE_PUBLIC_API = '/api/site/home';
+const HOMEPAGE_PUBLIC_API = '/api/site/pages/home';
+const HOMEPAGE_PUBLISH_API = `${API_BASE}/pages/home/publish`;
 const THEME_APPLY_API = `${API_BASE}/theme/apply`;
 const HOMEPAGE_PAGE_KEY = 'home';
 const diagnosticState = {
@@ -325,11 +326,21 @@ function normalizeBlock(block = {}) {
 }
 
 function normalizeHomepageConfig(data = homepageDefaults) {
-    const templateId = data?.templateId || data?.template_id || 'services';
-    const blocksRaw = Array.isArray(data?.blocks) ? data.blocks : [];
+    const draft = data?.draft || data?.page?.draft;
+    const published = data?.published || data?.page?.published;
+    const source = draft?.blocks?.length ? draft : published || data || {};
+    const templateId = source?.templateId || source?.template_id || data?.templateId || 'services';
+    const blocksRaw = Array.isArray(source?.blocks) ? source.blocks : [];
     const normalizedBlocks = blocksRaw.map(normalizeBlock).filter(Boolean);
     const safeBlocks = normalizedBlocks.length ? normalizedBlocks : buildDefaultBlocks();
-    return { templateId, blocks: safeBlocks };
+    return {
+        templateId,
+        blocks: safeBlocks,
+        draft,
+        published,
+        pageKey: source?.pageKey || data?.pageKey || HOMEPAGE_PAGE_KEY,
+        version: source?.version || data?.version || null,
+    };
 }
 
 function getElementOrWarn(id) {
@@ -1013,6 +1024,7 @@ function bindTypeButtons(type) {
 const homepageTemplateCards = Array.from(document.querySelectorAll('#homepage-template .template-card'));
 const homepageBlocksField = getElementOrWarn('homepage-blocks');
 const homepageSaveButton = getElementOrWarn('homepage-save');
+const homepagePublishButton = getElementOrWarn('homepage-publish');
 const homepageResetButton = getElementOrWarn('homepage-reset');
 const homepagePresetButton = getElementOrWarn('homepage-preset');
 const homepageStatus = getElementOrWarn('status-homepage');
@@ -1861,7 +1873,15 @@ function isSameHomepageConfig(saved, publicPage) {
 }
 
 function extractPageVersion(page) {
-    return page?.version || page?.updatedAt || page?.updated_at || null;
+    if (!page) return null;
+    return (
+        page?.version ||
+        page?.updatedAt ||
+        page?.updated_at ||
+        page?.published?.version ||
+        page?.draft?.version ||
+        null
+    );
 }
 
 async function refreshPublicDiagnostics() {
@@ -1940,16 +1960,13 @@ async function saveHomepageConfig() {
         const version = extractPageVersion(data) || extractPageVersion(normalizedSaved);
         if (version) setHomepageVersion(version);
         await applyThemeFromAdmin(payload.templateId || 'services');
-        const publicPage = await refreshPublicDiagnostics();
-        const matches = isSameHomepageConfig(normalizedSaved, publicPage);
-        if (!matches) {
-            throw new Error('Публичная витрина отдала устаревший ответ, обновите страницу и повторите');
-        }
-
-        setHomepageSaveState('Применено');
-        setPublicAvailability('OK');
-        setHomepageStatus('Сохранено и доступно');
-        showToast('Страница обновлена');
+        setHomepageSaveState('Черновик сохранён');
+        setPublicAvailability('Требуется публикация');
+        setHomepageStatus('Черновик сохранён, опубликуйте для витрины');
+        refreshPublicDiagnostics().catch((error) => {
+            console.warn('[AdminSite constructor] Публичная витрина недоступна', error);
+        });
+        showToast('Черновик сохранён');
         console.debug('[AdminSite constructor] Страница сохранена', homepageLoadedConfig);
         openHomepagePreview();
     } catch (error) {
@@ -1962,8 +1979,36 @@ async function saveHomepageConfig() {
     }
 }
 
+async function publishHomepage() {
+    try {
+        setHomepageStatus('Публикация...');
+        const data = await apiRequest(HOMEPAGE_PUBLISH_API, {
+            method: 'POST',
+            credentials: 'include',
+        });
+        const normalized = normalizeHomepageConfig(data || {});
+        homepageLoadedConfig = normalized;
+        renderHomepageForm(normalized);
+        const version = extractPageVersion(data) || extractPageVersion(normalized);
+        if (version) setHomepageVersion(version);
+        setHomepageSaveState('Опубликовано');
+        setPublicAvailability('OK');
+        setHomepageStatus('Опубликовано');
+        await refreshPublicDiagnostics();
+        showToast('Черновик опубликован');
+    } catch (error) {
+        console.error('[AdminSite constructor] Публикация страницы не удалась', error);
+        const message = formatErrorMessage(error, 'Не удалось опубликовать страницу');
+        setHomepageStatus(message, true);
+        setHomepageSaveState('Ошибка публикации', true);
+        setPublicAvailability('Ошибка', true);
+        showToast(message, 'error');
+    }
+}
+
 function setupHomepageListeners() {
     homepageSaveButton?.addEventListener('click', saveHomepageConfig);
+    homepagePublishButton?.addEventListener('click', publishHomepage);
     homepageResetButton?.addEventListener('click', resetHomepageForm);
     homepagePresetButton?.addEventListener('click', applyPortfolioPreset);
     homepagePreviewLink?.addEventListener('click', openHomepagePreview);

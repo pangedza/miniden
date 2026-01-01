@@ -50,9 +50,22 @@ def _build_error_payload(error_id: str) -> dict[str, str]:
 def _build_default_home(slug: str) -> dict[str, str | list]:
     now = datetime.utcnow().isoformat()
     return {
-        "key": slug,
+        "pageKey": slug,
         "templateId": adminsite_pages.DEFAULT_TEMPLATE_ID,
-        "blocks": [],
+        "draft": {
+            "pageKey": slug,
+            "templateId": adminsite_pages.DEFAULT_TEMPLATE_ID,
+            "blocks": [],
+            "updatedAt": now,
+            "version": now,
+        },
+        "published": {
+            "pageKey": slug,
+            "templateId": adminsite_pages.DEFAULT_TEMPLATE_ID,
+            "blocks": [],
+            "updatedAt": now,
+            "version": now,
+        },
         "updatedAt": now,
         "version": now,
         "slug": slug,
@@ -169,7 +182,9 @@ def _get_page_response(page_key: str, request: Request, db: Session) -> JSONResp
     slug = _safe_slug(page_key)
     try:
         return adminsite_pages.get_page(slug, raise_on_error=True)
-    except HTTPException:
+    except HTTPException as exc:
+        if exc.status_code >= 500:
+            logger.exception("AdminSite page load failed for %s", slug)
         raise
     except Exception:
         error_id = uuid4().hex[:8]
@@ -196,8 +211,31 @@ def adminsite_home_page(request: Request, db: Session = Depends(get_db_session))
 def adminsite_update_home_page(
     payload: PageConfig, request: Request, db: Session = Depends(get_db_session)
 ):
+    return adminsite_update_page(adminsite_pages.DEFAULT_SLUG, payload, request, db)
+
+
+@router.put("/pages/{page_key}", response_model=dict)
+def adminsite_update_page(
+    page_key: str, payload: PageConfig, request: Request, db: Session = Depends(get_db_session)
+):
     service.ensure_admin(request, db)
-    return adminsite_pages.update_page(payload.model_dump(by_alias=True, exclude_unset=True))
+    slug = _safe_slug(page_key)
+    try:
+        return adminsite_pages.update_page(payload.model_dump(by_alias=True, exclude_unset=True), slug)
+    except HTTPException as exc:
+        logger.warning("Failed to save AdminSite page %s: %s", slug, exc.detail)
+        raise
+
+
+@router.post("/pages/{page_key}/publish", response_model=dict)
+def adminsite_publish_page(page_key: str, request: Request, db: Session = Depends(get_db_session)):
+    service.ensure_admin(request, db)
+    slug = _safe_slug(page_key)
+    try:
+        return adminsite_pages.publish_page(slug)
+    except HTTPException as exc:
+        logger.warning("Failed to publish AdminSite page %s: %s", slug, exc.detail)
+        raise
 
 
 @router.post("/theme/apply", response_model=ThemeApplyResponse)

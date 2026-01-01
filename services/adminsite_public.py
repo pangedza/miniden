@@ -224,7 +224,7 @@ def _extract_page_meta(page: dict[str, Any]) -> dict[str, Any]:
 
 
 def get_home_summary(limit: int = 6) -> dict[str, Any]:
-    page = adminsite_pages.get_page()
+    page = adminsite_pages.get_published_page()
     meta = _extract_page_meta(page)
     theme_meta = theme_service.get_theme_metadata()
     with get_session() as session:
@@ -256,3 +256,7 @@ def get_home_summary(limit: int = 6) -> dict[str, Any]:
         "theme": theme_meta,
         "themeVersion": theme_meta.get("timestamp"),
     }
+
+
+def get_public_page(page_key: str) -> dict[str, Any]:
+    return adminsite_pages.get_published_page(page_key)

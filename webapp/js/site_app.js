@@ -1,10 +1,12 @@
 import {
   fetchCategory,
   fetchHome,
+  fetchPageByKey,
   fetchMasterclass,
   fetchMenu,
   fetchProduct,
   fetchItems,
+  fetchSiteSettings,
 } from './site_api.js';
 import { getTemplateById, templatesRegistry } from './templates_registry.js';
 
@@ -43,6 +45,7 @@ const debugState = {
 let debugPanel = null;
 let lastHomeConfig = null;
 let cachedCategories = [];
+let activePalette = null;
 
 function normalizeMediaUrl(url, { absolute = false } = {}) {
   if (!url) return '';
@@ -213,6 +216,20 @@ function ensureThemeStylesheet() {
   }
 }
 
+async function loadSiteSettings() {
+  try {
+    const settings = await fetchSiteSettings();
+    activePalette = settings?.activePalette || 'services';
+    const applied = applyThemeVariables(settings?.theme || {}, activePalette);
+    applyTemplate(applied || activePalette || 'services');
+    updateDebugOverlay({ appliedTemplateId: applied || activePalette || 'services' });
+  } catch (error) {
+    console.warn('Failed to load site settings, falling back to default palette', error);
+    activePalette = activePalette || 'services';
+    applyTemplate(activePalette);
+  }
+}
+
 function applyThemeVariables(theme, fallbackTemplateId) {
   const cssVars = theme?.cssVars || {};
   const appliedTemplateId = theme?.appliedTemplateId || fallbackTemplateId || null;
@@ -358,7 +375,7 @@ function buildItemCard(item) {
   more.setAttribute('data-router-link', '');
 
   const canUseTelegram = !!(window.isTelegramWebApp && window.Telegram?.WebApp);
-  const availableStock = Number(item?.stock ?? 0);
+  const availableStock = Number(item?.quantity ?? item?.stock ?? item?.count ?? 0);
   const canAddToCart =
     canUseTelegram && Number.isFinite(availableStock) && availableStock > 0 && item?.id !== undefined;
 
@@ -854,11 +871,15 @@ async function renderHome(data) {
   console.debug('[site] Loaded home config', normalized);
   const appliedThemeTemplate = applyThemeVariables(
     normalized.theme,
-    normalized.templateId || 'services',
+    activePalette || normalized.templateId || 'services',
   );
-  const appliedTemplate = applyTemplate(
-    appliedThemeTemplate || normalized.themeTemplate || normalized.templateId,
-  );
+  const paletteToApply =
+    appliedThemeTemplate ||
+    normalized.themeTemplate ||
+    normalized.templateId ||
+    activePalette ||
+    'services';
+  const appliedTemplate = applyTemplate(paletteToApply);
   updateDebugOverlay({
     appliedTemplateId: appliedTemplate,
     receivedVersion: normalized.version || '—',
@@ -1104,6 +1125,14 @@ async function loadHomeConfig({ reason = 'initial' } = {}) {
     await renderHome(normalized);
   } catch (error) {
     console.error('Failed to load home', error);
+    try {
+      const pageOnly = await fetchPageByKey('home');
+      const normalized = normalizeHomeResponse(pageOnly);
+      lastHomeConfig = normalized;
+      await renderHome(normalized);
+    } catch (fallbackError) {
+      console.warn('Fallback page fetch failed', fallbackError);
+    }
     updateDebugOverlay({
       lastFetchStatus: error?.status ? `error ${error.status}` : 'error',
       lastError: error?.message || String(error),
@@ -1122,6 +1151,7 @@ async function bootstrap() {
   bindRouterLinks();
   ensureDebugOverlay();
   ensureThemeStylesheet();
+  await loadSiteSettings();
   categoriesRefresh?.addEventListener('click', () => refreshCategoriesFromApi({ renderPanel: true }));
 
   try {

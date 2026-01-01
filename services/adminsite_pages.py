@@ -4,6 +4,7 @@ from datetime import datetime
 import logging
 from typing import Any
 
+from fastapi import HTTPException
 from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -17,8 +18,60 @@ DEFAULT_SLUG = "home"
 logger = logging.getLogger(__name__)
 
 
+def _now_iso() -> str:
+    return datetime.utcnow().isoformat()
+
+
 def _default_blocks() -> list[dict[str, Any]]:
     return []
+
+
+def _wrap_state(blocks: list[dict[str, Any]] | None, *, template_id: str) -> dict[str, Any]:
+    safe_blocks = blocks or []
+    timestamp = _now_iso()
+    return {
+        "templateId": template_id or DEFAULT_TEMPLATE_ID,
+        "blocks": safe_blocks,
+        "version": timestamp,
+        "updatedAt": timestamp,
+    }
+
+
+def _extract_states(page: AdminSitePage | None, slug: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    template_id = (page.template_id if page else None) or DEFAULT_TEMPLATE_ID
+    updated_at = (page.updated_at or page.created_at).isoformat() if page else _now_iso()
+    raw_blocks = page.blocks if page else None
+
+    if isinstance(raw_blocks, dict):
+        draft = raw_blocks.get("draft") or {}
+        published = raw_blocks.get("published") or {}
+    elif isinstance(raw_blocks, list):
+        draft = {"blocks": raw_blocks, "version": updated_at, "updatedAt": updated_at, "templateId": template_id}
+        published = draft
+    else:
+        draft = {}
+        published = {}
+
+    def _normalize(entry: dict[str, Any]) -> dict[str, Any]:
+        blocks = entry.get("blocks") if isinstance(entry, dict) else None
+        version = entry.get("version") if isinstance(entry, dict) else None
+        updated = entry.get("updatedAt") if isinstance(entry, dict) else None
+        template = (
+            entry.get("templateId")
+            or entry.get("template_id")
+            or template_id
+        ) if isinstance(entry, dict) else template_id
+
+        wrapped = _wrap_state(blocks or _default_blocks(), template_id=template)
+        if version:
+            wrapped["version"] = version
+        if updated:
+            wrapped["updatedAt"] = updated
+        wrapped["slug"] = slug
+        wrapped["pageKey"] = slug
+        return wrapped
+
+    return _normalize(draft), _normalize(published)
 
 
 def _safe_page_config(
@@ -40,27 +93,24 @@ def _normalize_page(page: AdminSitePage | None) -> PageConfig:
         return _safe_page_config()
 
     template_id = page.template_id or DEFAULT_TEMPLATE_ID
-    raw_blocks = page.blocks or []
+    raw_blocks = []
+    if isinstance(page.blocks, list):
+        raw_blocks = page.blocks
+    elif isinstance(page.blocks, dict):
+        raw_blocks = page.blocks.get("draft", {}).get("blocks") or _default_blocks()
     theme = page.theme or {}
 
     return _safe_page_config(template_id=template_id, blocks=raw_blocks, theme=theme)
 
 
 def _serialize(page: AdminSitePage | None, slug: str = DEFAULT_SLUG) -> dict[str, Any]:
-    config = _normalize_page(page)
-    payload = config.model_dump(by_alias=True)
-
-    if page:
-        payload["version"] = (page.updated_at or page.created_at).isoformat()
-        payload["updatedAt"] = (page.updated_at or page.created_at).isoformat()
-        payload["slug"] = page.slug or slug
-    else:
-        payload["version"] = datetime.utcnow().isoformat()
-        payload["updatedAt"] = payload["version"]
-        payload["slug"] = slug
-
-    payload["key"] = slug
-
+    draft, published = _extract_states(page, slug)
+    payload = {
+        "pageKey": slug,
+        "draft": draft,
+        "published": published,
+        "templateId": (page.template_id if page else None) or DEFAULT_TEMPLATE_ID,
+    }
     return payload
 
 
@@ -88,7 +138,10 @@ def _get_page(session: Session, slug: str) -> dict[str, Any]:
         page = AdminSitePage(
             slug=safe_slug,
             template_id=DEFAULT_TEMPLATE_ID,
-            blocks=_default_blocks(),
+            blocks={
+                "draft": _wrap_state(_default_blocks(), template_id=DEFAULT_TEMPLATE_ID),
+                "published": _wrap_state(_default_blocks(), template_id=DEFAULT_TEMPLATE_ID),
+            },
         )
         session.add(page)
         session.commit()
@@ -103,7 +156,7 @@ def update_page(payload: dict[str, Any], slug: str = DEFAULT_SLUG) -> dict[str, 
         data = PageConfig.model_validate(payload)
     except ValidationError:
         logger.exception("Invalid AdminSite payload, returning minimal state for %s", safe_slug)
-        return _serialize(None, safe_slug)
+        raise HTTPException(status_code=422, detail="Invalid page payload")
 
     theme_payload = payload.get("theme") if isinstance(payload, dict) else None
     theme_data = data.theme.model_dump(by_alias=True) if theme_payload is not None else {}
@@ -116,17 +169,30 @@ def update_page(payload: dict[str, Any], slug: str = DEFAULT_SLUG) -> dict[str, 
                 .first()
             )
 
+            draft_state = _wrap_state(
+                data.model_dump(by_alias=True).get("blocks", _default_blocks()),
+                template_id=data.template_id or DEFAULT_TEMPLATE_ID,
+            )
+
             if not page:
                 page = AdminSitePage(
                     slug=safe_slug,
                     template_id=data.template_id or DEFAULT_TEMPLATE_ID,
-                    blocks=data.model_dump(by_alias=True).get("blocks", _default_blocks()),
+                    blocks={
+                        "draft": draft_state,
+                        "published": draft_state,
+                    },
                     theme=theme_data,
                 )
                 session.add(page)
             else:
                 page.template_id = data.template_id or DEFAULT_TEMPLATE_ID
-                page.blocks = data.model_dump(by_alias=True).get("blocks", _default_blocks())
+                existing_blocks = page.blocks if isinstance(page.blocks, dict) else {}
+                published_state = existing_blocks.get("published") if isinstance(existing_blocks, dict) else None
+                page.blocks = {
+                    "draft": draft_state,
+                    "published": published_state or draft_state,
+                }
                 if theme_payload is not None:
                     page.theme = theme_data
                 page.updated_at = datetime.utcnow()
@@ -134,9 +200,71 @@ def update_page(payload: dict[str, Any], slug: str = DEFAULT_SLUG) -> dict[str, 
             session.commit()
             session.refresh(page)
             return _serialize(page, safe_slug)
+    except HTTPException:
+        raise
     except Exception:
         logger.exception("Failed to update AdminSite page %s, returning minimal state", safe_slug)
-        return _serialize(None, safe_slug)
+        raise HTTPException(status_code=500, detail="Failed to save page")
 
 
-__all__ = ["get_page", "update_page", "DEFAULT_TEMPLATE_ID"]
+def publish_page(slug: str = DEFAULT_SLUG) -> dict[str, Any]:
+    safe_slug = slug or DEFAULT_SLUG
+    with get_session() as session:
+        page = (
+            session.execute(select(AdminSitePage).where(AdminSitePage.slug == safe_slug))
+            .scalars()
+            .first()
+        )
+
+        if not page:
+            _get_page(session, safe_slug)
+            page = (
+                session.execute(select(AdminSitePage).where(AdminSitePage.slug == safe_slug))
+                .scalars()
+                .first()
+            )
+            if not page:
+                raise HTTPException(status_code=404, detail="Page not found")
+
+        draft, _published = _extract_states(page, safe_slug)
+        if not draft.get("blocks"):
+            raise HTTPException(status_code=422, detail="Draft is empty")
+
+        page.blocks = {"draft": draft, "published": draft}
+        page.updated_at = datetime.utcnow()
+        session.add(page)
+        session.commit()
+        session.refresh(page)
+        return _serialize(page, safe_slug)
+
+
+def get_published_page(slug: str = DEFAULT_SLUG) -> dict[str, Any]:
+    safe_slug = slug or DEFAULT_SLUG
+    with get_session() as session:
+        page = (
+            session.execute(select(AdminSitePage).where(AdminSitePage.slug == safe_slug))
+            .scalars()
+            .first()
+        )
+
+        if not page:
+            raise HTTPException(status_code=404, detail="Page not found")
+
+        _draft, published = _extract_states(page, safe_slug)
+        payload = {
+            "pageKey": safe_slug,
+            "templateId": published.get("templateId") or page.template_id or DEFAULT_TEMPLATE_ID,
+            "version": published.get("version") or page.updated_at.isoformat(),
+            "updatedAt": published.get("updatedAt") or published.get("version"),
+            "blocks": published.get("blocks") or _default_blocks(),
+        }
+        return payload
+
+
+__all__ = [
+    "get_page",
+    "get_published_page",
+    "publish_page",
+    "update_page",
+    "DEFAULT_TEMPLATE_ID",
+]
