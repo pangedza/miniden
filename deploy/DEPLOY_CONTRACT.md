@@ -13,7 +13,6 @@ sudo /opt/miniden/deploy.sh
 
 ## Что деплой ОБЯЗАН обновлять
 -- git reset --hard origin/<branch> в /opt/miniden
-- зависимости Python (если менялся requirements.txt)
 - webapp -> /opt/miniden/webapp
 - nginx config -> /etc/nginx/sites-available/miniden.conf (+ symlink sites-enabled)
 - systemd units -> /etc/systemd/system/
@@ -34,3 +33,8 @@ sudo /opt/miniden/deploy.sh
 - /opt/miniden/media/
 - /opt/miniden/data/
 - действующий SSL-сертификат (Let’s Encrypt) и /etc/letsencrypt/*.pem
+
+## Предварительные условия (делаются вручную до запуска deploy.sh)
+- Python-зависимости устанавливаются вручную в `venv` (если менялся `requirements.txt`).
+- Системный пользователь/группа `miniden` и права на каталоги `/opt/miniden`, `/opt/miniden/logs`, `/opt/miniden/media`, `/opt/miniden/uploads`, `/opt/miniden/data` подготовлены заранее.
+- deploy.sh запускается от root (systemd юнит или `sudo`), чтобы обновлять конфиги и перезапускать сервисы.
