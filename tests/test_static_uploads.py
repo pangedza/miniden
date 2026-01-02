@@ -5,11 +5,17 @@ from __future__ import annotations
 import asyncio
 import base64
 import os
+import sys
 from pathlib import Path
 import unittest
 
+ROOT_DIR = Path(__file__).resolve().parents[1]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
 os.environ.setdefault("BOT_TOKEN", "test-bot-token")
 
+from config import get_settings
 from webapi import STATIC_DIR_PUBLIC, app
 
 
@@ -45,6 +51,15 @@ async def _call_app(path: str) -> tuple[int, dict[str, str], bytes]:
 
     await app(scope, receive, send)
     return status or 500, {k.decode(): v.decode() for k, v in headers}, bytes(response_body)
+
+
+def test_get_settings_accepts_telegram_bot_token(monkeypatch: object) -> None:
+    monkeypatch.delenv("BOT_TOKEN", raising=False)
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "token-from-telegram")
+
+    settings = get_settings()
+
+    assert settings.bot_token == "token-from-telegram"
 
 
 class StaticUploadsTestCase(unittest.TestCase):

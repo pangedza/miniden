@@ -94,6 +94,14 @@ ADMIN_IDS: list[int] = _load_admin_ids()
 ADMIN_IDS_SET: Set[int] = set(ADMIN_IDS)
 
 
+def _load_bot_token() -> str:
+    token = os.getenv("BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
+    if not token:
+        raise ValueError("Не найден BOT_TOKEN или TELEGRAM_BOT_TOKEN в окружении")
+
+    return token
+
+
 def get_settings() -> Settings:
     """
     Возвращает объект настроек.
@@ -104,9 +112,7 @@ def get_settings() -> Settings:
     - payments_provider_token
     - required_channel_id / required_channel_link (для проверки подписки)
     """
-    token = os.getenv("BOT_TOKEN")
-    if not token:
-        raise ValueError("Не найден BOT_TOKEN в .env")
+    token = _load_bot_token()
 
     payments_token = os.getenv("PAYMENTS_PROVIDER_TOKEN") or None
 
