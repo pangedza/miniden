@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+trap 'warn "Command failed (exit $?): $BASH_COMMAND"' ERR
 
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 VENV_BIN="$PROJECT_DIR/venv/bin"
@@ -37,20 +38,20 @@ backup_file() {
   fi
 
   local target="$BACKUP_DIR/${name}.$(ts)"
-  sudo mkdir -p "$(dirname "$target")"
-  sudo cp -a "$src" "$target"
+  mkdir -p "$(dirname "$target")"
+  cp -a "$src" "$target"
   log "-> Backup saved: $src -> $target"
 }
 
 fail_with_logs() {
   warn "$1"
   warn "---- journalctl -u miniden-api.service (last 120 lines) ----"
-  sudo journalctl -u miniden-api.service -n 120 --no-pager || true
+  journalctl -u miniden-api.service -n 120 --no-pager || true
   warn "---- journalctl -u miniden-bot.service (last 120 lines) ----"
-  sudo journalctl -u miniden-bot.service -n 120 --no-pager || true
-  if sudo test -f /var/log/nginx/miniden.error.log; then
+  journalctl -u miniden-bot.service -n 120 --no-pager || true
+  if test -f /var/log/nginx/miniden.error.log; then
     warn "---- /var/log/nginx/miniden.error.log (last 120 lines) ----"
-    sudo tail -n 120 /var/log/nginx/miniden.error.log || true
+    tail -n 120 /var/log/nginx/miniden.error.log || true
   fi
   exit 1
 }
@@ -93,33 +94,33 @@ ensure_js_content_type() {
 ensure_system_user() {
   if ! getent group "$SERVICE_GROUP" >/dev/null 2>&1; then
     log "-> Creating system group $SERVICE_GROUP"
-    sudo groupadd --system "$SERVICE_GROUP"
+    groupadd --system "$SERVICE_GROUP"
   fi
 
   if ! id -u "$SERVICE_USER" >/dev/null 2>&1; then
     log "-> Creating system user $SERVICE_USER"
-    sudo useradd --system --home-dir "$PROJECT_DIR" --shell /usr/sbin/nologin --gid "$SERVICE_GROUP" "$SERVICE_USER"
+    useradd --system --home-dir "$PROJECT_DIR" --shell /usr/sbin/nologin --gid "$SERVICE_GROUP" "$SERVICE_USER"
   fi
 
-  sudo usermod -g "$SERVICE_GROUP" "$SERVICE_USER"
+  usermod -g "$SERVICE_GROUP" "$SERVICE_USER"
 }
 
 ensure_permissions() {
-  sudo chown -R "$SERVICE_USER:$SERVICE_GROUP" "$PROJECT_DIR"
+  chown -R "$SERVICE_USER:$SERVICE_GROUP" "$PROJECT_DIR"
 
   for path in "$PROJECT_DIR/logs" "$PROJECT_DIR/media" "$PROJECT_DIR/uploads"; do
-    sudo mkdir -p "$path"
-    sudo chown -R "$SERVICE_USER:$SERVICE_GROUP" "$path"
-    sudo find "$path" -type d -exec chmod 775 {} +
-    sudo find "$path" -type f -exec chmod 664 {} +
+    mkdir -p "$path"
+    chown -R "$SERVICE_USER:$SERVICE_GROUP" "$path"
+    find "$path" -type d -exec chmod 775 {} +
+    find "$path" -type f -exec chmod 664 {} +
   done
 
-  sudo touch "$PROJECT_DIR/logs/bot.log"
-  sudo touch "$PROJECT_DIR/logs/api.log"
-  sudo chown "$SERVICE_USER:$SERVICE_GROUP" "$PROJECT_DIR/logs/bot.log"
-  sudo chown "$SERVICE_USER:$SERVICE_GROUP" "$PROJECT_DIR/logs/api.log"
-  sudo chmod 664 "$PROJECT_DIR/logs/bot.log"
-  sudo chmod 664 "$PROJECT_DIR/logs/api.log"
+  touch "$PROJECT_DIR/logs/bot.log"
+  touch "$PROJECT_DIR/logs/api.log"
+  chown "$SERVICE_USER:$SERVICE_GROUP" "$PROJECT_DIR/logs/bot.log"
+  chown "$SERVICE_USER:$SERVICE_GROUP" "$PROJECT_DIR/logs/api.log"
+  chmod 664 "$PROJECT_DIR/logs/bot.log"
+  chmod 664 "$PROJECT_DIR/logs/api.log"
 }
 
 install_nginx_config() {
@@ -129,33 +130,33 @@ install_nginx_config() {
 
   log "-> Install nginx config: $NGINX_SRC -> $NGINX_DST"
   local current_target
-  current_target=$(sudo readlink -f "$NGINX_ENABLED_DST" || true)
+  current_target=$(readlink -f "$NGINX_ENABLED_DST" || true)
   local tmp_dst
   tmp_dst="${NGINX_DST}.tmp.$(ts)"
 
   backup_file "$NGINX_DST" "nginx/miniden.conf"
 
-  sudo install -m 0644 "$NGINX_SRC" "$tmp_dst"
-  sudo ln -sfn "$tmp_dst" "$NGINX_ENABLED_DST"
+  install -m 0644 "$NGINX_SRC" "$tmp_dst"
+  ln -sfn "$tmp_dst" "$NGINX_ENABLED_DST"
 
   log "-> Guard: verifying https listener is present"
-  sudo grep -q 'listen 443 ssl' "$tmp_dst" || fail_with_logs "nginx config does not contain https listener"
+  grep -q 'listen 443 ssl' "$tmp_dst" || fail_with_logs "nginx config does not contain https listener"
 
   log "-> nginx config test"
-  if ! sudo nginx -t; then
+  if ! nginx -t; then
     warn "nginx -t failed; restoring previous config"
-    sudo rm -f "$tmp_dst"
+    rm -f "$tmp_dst"
     if [ -n "$current_target" ]; then
-      sudo ln -sfn "$current_target" "$NGINX_ENABLED_DST"
+      ln -sfn "$current_target" "$NGINX_ENABLED_DST"
     else
-      sudo rm -f "$NGINX_ENABLED_DST"
+      rm -f "$NGINX_ENABLED_DST"
     fi
     fail_with_logs "nginx config test failed"
   fi
 
-  sudo mv "$tmp_dst" "$NGINX_DST"
-  sudo ln -sfn "$NGINX_DST" "$NGINX_ENABLED_DST"
-  log "-> Active nginx config: $(sudo readlink -f "$NGINX_ENABLED_DST")"
+  mv "$tmp_dst" "$NGINX_DST"
+  ln -sfn "$NGINX_DST" "$NGINX_ENABLED_DST"
+  log "-> Active nginx config: $(readlink -f "$NGINX_ENABLED_DST")"
 }
 
 sync_systemd_units() {
@@ -165,9 +166,9 @@ sync_systemd_units() {
       [ -f "$unit" ] || continue
       local target="$SYSTEMD_DST_DIR/$(basename "$unit")"
       backup_file "$target" "systemd/$(basename "$unit")"
-      sudo install -m 0644 "$unit" "$target"
+      install -m 0644 "$unit" "$target"
     done
-    sudo systemctl daemon-reload
+    systemctl daemon-reload
   else
     warn "Systemd source dir not found: $SYSTEMD_SRC_DIR"
   fi
@@ -176,14 +177,14 @@ sync_systemd_units() {
 restart_services() {
   for service_name in miniden-api miniden-bot; do
     log "-> Restarting $service_name"
-    sudo systemctl reset-failed "$service_name" || true
-    if ! sudo systemctl restart "$service_name"; then
+    systemctl reset-failed "$service_name" || true
+    if ! systemctl restart "$service_name"; then
       fail_with_logs "Failed to restart $service_name"
     fi
-    if ! sudo systemctl is-active --quiet "$service_name"; then
+    if ! systemctl is-active --quiet "$service_name"; then
       fail_with_logs "$service_name is not active after restart"
     fi
-    sudo systemctl status "$service_name" --no-pager || warn "status check failed for $service_name"
+    systemctl status "$service_name" --no-pager || warn "status check failed for $service_name"
   done
 }
 
@@ -222,12 +223,12 @@ sync_systemd_units
 install_nginx_config
 
 log "-> Reload systemd configuration"
-sudo systemctl daemon-reload
+systemctl daemon-reload
 
 restart_services
 
 log "-> Reload nginx"
-sudo systemctl reload nginx
+systemctl reload nginx
 
 log "-> Post-deploy healthchecks (local)"
 check_http_ok "$BACKEND_HEALTH"
