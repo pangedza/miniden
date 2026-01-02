@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
+from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -224,7 +225,16 @@ def _extract_page_meta(page: dict[str, Any]) -> dict[str, Any]:
 
 
 def get_home_summary(limit: int = 6) -> dict[str, Any]:
-    page = adminsite_pages.get_published_page()
+    try:
+        page = adminsite_pages.get_published_page()
+    except HTTPException as exc:
+        if exc.status_code != 404:
+            raise
+        fallback = adminsite_pages.get_page()
+        page = fallback.get("published") or fallback
+    except Exception:
+        fallback = adminsite_pages.get_page()
+        page = fallback.get("published") or fallback
     meta = _extract_page_meta(page)
     theme_meta = theme_service.get_theme_metadata()
     with get_session() as session:

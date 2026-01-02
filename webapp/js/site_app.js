@@ -375,9 +375,7 @@ function buildItemCard(item) {
   more.setAttribute('data-router-link', '');
 
   const canUseTelegram = !!(window.isTelegramWebApp && window.Telegram?.WebApp);
-  const availableStock = Number(item?.quantity ?? item?.stock ?? item?.count ?? 0);
-  const canAddToCart =
-    canUseTelegram && Number.isFinite(availableStock) && availableStock > 0 && item?.id !== undefined;
+  const canAddToCart = canUseTelegram && item?.id !== undefined;
 
   if (canAddToCart) {
     const addButton = document.createElement('button');
