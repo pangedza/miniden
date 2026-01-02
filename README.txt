@@ -143,12 +143,10 @@ ReplyKeyboard-меню из конструктора AdminBot
 Production деплой одной командой
 --------------------------------
 - Контракт: `deploy/DEPLOY_CONTRACT.md` описывает, что именно обновляет `deploy.sh` и какие каталоги запрещено трогать.
-- Эталонные конфиги для прод-сервера лежат в `deploy/nginx/miniden.conf` и `deploy/systemd/*.service`; скрипт деплоя копирует их в `/etc/nginx/` и `/etc/systemd/system/`.
-- Ожидаемая команда на сервере: `sudo /opt/miniden/deploy.sh` (обновляет код, webapp и перезапускает сервисы по контракту).
+- Скрипт `deploy.sh` обновляет git-репозиторий, применяет Alembic-миграции и перезапускает сервисы `miniden-api`/`miniden-bot`. Конфиги nginx/systemd ставятся вручную из `deploy/nginx` и `deploy/systemd`.
+- Ожидаемая команда на сервере: `sudo /opt/miniden/deploy.sh` или `systemctl start miniden-deploy.service` (root). Deploy запускается только через systemd; в боте нет кнопок/команд для деплоя.
 - Перед запуском деплоя администратор сам обновляет зависимости внутри `venv` (например, `source venv/bin/activate && pip install -r requirements.txt`, если менялся `requirements.txt`).
-- Пользователь/группа `miniden` и права на `/opt/miniden` настраиваются заранее (deploy.sh больше не создаёт пользователя и не делает `chown -R`).
 - Защищённые пути (деплой не трогает): `/opt/miniden/.env`, `/opt/miniden/media/`, `/opt/miniden/data/`.
-- Deploy должен выполняться от root (через systemd юнит или `sudo`), чтобы перезаписывать конфиги nginx/systemd и рестартовать сервисы.
 - Быстрый чек после деплоя: `curl http://127.0.0.1:8000/api/health`.
 
 Deploy через systemd (root)
@@ -168,9 +166,9 @@ miniden ALL=(root) NOPASSWD: \
 
 Deploy из AdminSite (страница «Работа бота»)
 -------------------------------------------
-- На странице `/adminbot/runtime` появилась секция «Deploy проекта» с двумя кнопками: «🚀 Запустить Deploy» (POST `/admin/deploy/run`) и «📄 Статус Deploy» (GET `/admin/deploy/status`).
+- На странице `/adminbot/runtime` есть секция «Deploy проекта» с двумя кнопками: «🚀 Запустить Deploy» (POST `/admin/deploy/run`) и «📄 Статус (systemd)» (GET `/admin/deploy/status`).
 - Запуск инициируется командой `systemctl start miniden-deploy.service` от root; система не запрашивает пароль у пользователя `miniden` благодаря sudoers-конфигурации выше.
-- Статус определяется через `systemctl is-active/show miniden-deploy.service` и вывод последних строк `/opt/miniden/logs/deploy.log` (папка `/opt/miniden/logs` должна существовать заранее и быть доступной на чтение сервису API).
+- Статус строится по `systemctl status miniden-deploy.service` без запуска оболочки и без хвостов логов (отображается вывод systemd и PID, если есть).
 - Конечные точки и UI доступны только авторизованным администраторам AdminSite/AdminBot; путь до скрипта зашит в коде и не принимается из запросов.
 
 Почему 405 на curl -I — это нормально
@@ -897,15 +895,14 @@ Front reset: theme-only + constructor-driven site
 - Web front: serve `webapp/` via nginx or any static server (`/css`, `/js`, `/media` mounts needed for uploads/JS/CSS).
 
 ## Deploy notes
-- Single entrypoint: run `sudo /opt/miniden/deploy.sh` on the server to sync code, dependencies, nginx config and systemd units.
-- Nginx copies from `deploy/nginx/miniden.conf` (ensures `/static/adminsite/*` is served as JavaScript/CSS, webapp fallback is `/index.html`).
-- Systemd units: `deploy/systemd/miniden-api.service` and `miniden-bot.service` are installed/reloaded by the script, then restarted sequentially.
-- Protected paths: deploy script keeps existing `.env`, `media/`, `data/`, and runtime `logs/` untouched while updating code.
+- Single entrypoint: run `sudo /opt/miniden/deploy.sh` or `systemctl start miniden-deploy.service` to update code, run Alembic migrations, and restart services.
+- Reference configs live in `deploy/nginx/miniden.conf` and `deploy/systemd/*.service` and are installed manually (deploy.sh больше не копирует их автоматически).
+- Service restarts: `deploy.sh` touches only `miniden-api` и `miniden-bot`, оставляя `.env`, `media/`, `data/` и `logs/` нетронутыми.
 
 ### Deploy из AdminSite
-- Секция «Deploy проекта» на странице `/adminbot/runtime` запускает фиксированный скрипт `/opt/miniden/deploy.sh` (POST `/admin/deploy/run`) и показывает статус (GET `/admin/deploy/status`).
-- Статус сообщает, выполняется ли процесс, какой PID записан в `/opt/miniden/logs/deploy.pid`, и отдаёт хвост `/opt/miniden/logs/deploy.log` (папку `/opt/miniden/logs` нужно создать вручную с правами на запись).
-- Кнопки и эндпоинты доступны только авторизованным администраторам; путь до скрипта зашит в коде и не подменяется из UI или запроса.
+- Секция «Deploy проекта» на странице `/adminbot/runtime` запускает `systemctl start miniden-deploy.service` (POST `/admin/deploy/run`) и показывает вывод `systemctl status` (GET `/admin/deploy/status`).
+- Путь до скрипта/юнита зашит в коде, shell не используется; вывод status отдаётся как есть, без чтения логов и PID-файлов.
+- Кнопки и эндпоинты доступны только авторизованным администраторам.
 
 ## AdminSite/Constructor: Категории → Страницы
 - При создании/обновлении категории товаров или мастер-классов автоматически создаётся страница конструктора (таблица `adminsite_categories`) и `page_id` сохраняется в `product_categories.page_id`.

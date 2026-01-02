@@ -110,9 +110,6 @@ def get_admin_menu() -> ReplyKeyboardMarkup:
 
     keyboard.append([KeyboardButton(text="🎓 Доступ к курсам")])
 
-    keyboard.append([KeyboardButton(text="🚀 Deploy")])
-    keyboard.append([KeyboardButton(text="📄 Deploy статус")])
-
     if getattr(settings, "webapp_admin_url", None):
         keyboard.append(
             [

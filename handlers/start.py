@@ -44,7 +44,6 @@ from services.subscription import (
     check_channels_subscription,
     is_user_subscribed,
 )
-from handlers import admin as admin_handlers
 from utils.texts import format_start_text, format_subscription_required_text
 
 
@@ -217,19 +216,6 @@ async def _apply_reply_keyboard(message: types.Message, keyboard: ReplyKeyboardM
 async def _dispatch_button_action(message: types.Message, button: NodeButtonView) -> None:
     action_type = (button.action_type or "").upper()
     payload = (button.action_payload or "").strip()
-
-    if action_type in {"DEPLOY", "DEPLOY_STATUS"}:
-        if message.from_user.id not in _get_admin_telegram_ids():
-            await _answer_and_track(message, "Доступно только администраторам.")
-            return
-
-        if action_type == "DEPLOY":
-            started, response = admin_handlers.start_deploy_process()
-            await _answer_and_track(message, response)
-        else:
-            status_text = admin_handlers.build_deploy_status_text()
-            await _answer_and_track(message, status_text)
-        return
 
     if action_type == "NODE":
         target_code = button.target_node_code or payload

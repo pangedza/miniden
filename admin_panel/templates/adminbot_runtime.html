@@ -50,14 +50,14 @@
 
 <div class="card" style="margin-top:16px;">
     <h2>Deploy проекта</h2>
-    <p class="muted">Запуск выполняет только серверный скрипт <code>/opt/miniden/deploy.sh</code>. Второй запуск блокируется, если деплой уже идёт.</p>
+    <p class="muted">Deploy запускается только через systemd-юнит <code>miniden-deploy.service</code> (root → <code>/opt/miniden/deploy.sh</code>).</p>
     <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:8px;">
         <button type="button" id="deploy-run" class="button">🚀 Запустить Deploy</button>
-        <button type="button" id="deploy-status" class="button" style="background:#475569;">📄 Статус Deploy</button>
+        <button type="button" id="deploy-status" class="button" style="background:#475569;">📄 Статус (systemd)</button>
         <span id="deploy-running" class="muted"></span>
     </div>
-    <div id="deploy-meta" class="muted" style="margin-top:8px;">Нажмите «Статус Deploy», чтобы увидеть PID и хвост логов.</div>
-    <pre id="deploy-log" class="log-box" style="margin-top:12px;">Логи ещё не загружены.</pre>
+    <div id="deploy-meta" class="muted" style="margin-top:8px;">Вывод <code>systemctl status miniden-deploy.service</code> появится ниже.</div>
+    <pre id="deploy-log" class="log-box" style="margin-top:12px;">Статус ещё не загружен.</pre>
 </div>
 
 <script>
@@ -83,11 +83,14 @@
         function renderStatus(data) {
             const running = Boolean(data?.running);
             const pidText = data?.pid ? `PID ${data.pid}` : 'PID не найден';
-            runningLabel.textContent = running ? 'Статус: работает' : 'Статус: не запущен';
-            meta.textContent = running ? `Deploy выполняется (${pidText})` : `Deploy не запущен (${pidText})`;
+            const activeState = data?.active_state || 'unknown';
+            const result = data?.result || 'unknown';
+            const statusOutput = data?.status_output || 'Статус systemd недоступен.';
 
-            const lines = Array.isArray(data?.last_lines) ? data.last_lines : [];
-            logBox.textContent = lines.length ? lines.join('\n') : 'Лог пуст или отсутствует.';
+            runningLabel.textContent = running ? 'Статус: выполняется' : 'Статус: не запущен';
+            meta.textContent = `systemd: ${activeState} / ${result} (${pidText})`;
+
+            logBox.textContent = statusOutput;
 
             scheduleRefresh(running);
         }
@@ -123,10 +126,10 @@
                 if (payload.status === 'already_running') {
                     alert(`⏳ Deploy уже выполняется (pid ${payload.pid || 'неизвестен'})`);
                 } else if (payload.status === 'started') {
-                    alert(`✅ Deploy запущен (pid ${payload.pid})`);
+                    alert(`✅ Deploy запущен (pid ${payload.pid || 'неизвестен'})`);
                 }
 
-                fetchStatus(false);
+                renderStatus(payload);
             } catch (error) {
                 scheduleRefresh(false);
                 alert(`Ошибка запуска: ${error?.message || error}`);
