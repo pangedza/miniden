@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from database import get_session
 from models import AdminSiteCategory, AdminSiteItem
 from services import adminsite_pages, theme_service
+from services.theme_templates import DEFAULT_TEMPLATE_ID, get_template_by_id
 
 ALLOWED_TYPES = {"product", "course"}
 
@@ -56,6 +57,8 @@ def _item_query(
 
 
 def _serialize_category(category: AdminSiteCategory) -> dict[str, Any]:
+    created_at = category.created_at
+
     return {
         "id": int(category.id),
         "type": category.type,
@@ -64,7 +67,7 @@ def _serialize_category(category: AdminSiteCategory) -> dict[str, Any]:
         "parent_id": category.parent_id,
         "is_active": bool(category.is_active),
         "sort": category.sort or 0,
-        "created_at": category.created_at,
+        "created_at": created_at.isoformat() if isinstance(created_at, datetime) else created_at,
         "url": f"/c/{category.slug}",
     }
 
@@ -77,6 +80,7 @@ def _serialize_item(
         target_category = item.category  # type: ignore[attr-defined]
 
     item_url = f"/p/{item.slug}" if item.type == "product" else f"/m/{item.slug}"
+    created_at = item.created_at
 
     return {
         "id": int(item.id),
@@ -93,7 +97,7 @@ def _serialize_item(
         "description": item.description,
         "is_active": bool(item.is_active),
         "sort": item.sort or 0,
-        "created_at": item.created_at,
+        "created_at": created_at.isoformat() if isinstance(created_at, datetime) else created_at,
         "url": item_url,
     }
 
@@ -224,6 +228,20 @@ def _extract_page_meta(page: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _serialize_template(template_id: str | None) -> dict[str, Any]:
+    template = get_template_by_id(template_id) or get_template_by_id(DEFAULT_TEMPLATE_ID)
+    if not template:
+        return {"id": template_id or DEFAULT_TEMPLATE_ID}
+
+    return {
+        "id": template.id,
+        "name": template.name,
+        "description": template.description,
+        "cssVars": template.css_vars,
+        "stylePreset": template.style_preset or {},
+    }
+
+
 def get_home_summary(limit: int = 6) -> dict[str, Any]:
     try:
         page = adminsite_pages.get_published_page()
@@ -250,6 +268,8 @@ def get_home_summary(limit: int = 6) -> dict[str, Any]:
 
     return {
         "page": page,
+        "template": _serialize_template(meta.get("template_id")),
+        "blocks": meta.get("blocks") or [],
         "templateId": meta["template_id"],
         "template_id": meta["template_id"],
         "version": meta["version"],
