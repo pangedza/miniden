@@ -32,6 +32,8 @@ CALLBACK_ACTIONS = [
     ("GO_BACK", "Назад (если поддерживается)"),
     ("COMMAND", "Команда (текст)"),
     ("RAW", "Свой payload (для продвинутых)"),
+    ("DEPLOY", "🚀 Deploy (только админы)"),
+    ("DEPLOY_STATUS", "📄 Deploy статус"),
 ]
 
 RENDER_TYPES = [
@@ -232,6 +234,17 @@ def _prepare_button_payload(
             "legacy_payload": raw_value,
         }
 
+    if normalized_action in {"DEPLOY", "DEPLOY_STATUS"}:
+        return None, {
+            "action_type": normalized_action,
+            "action_payload": None,
+            "target_node_code": None,
+            "url": None,
+            "webapp_url": None,
+            "legacy_type": "callback",
+            "legacy_payload": normalized_action,
+        }
+
     return "Выберите действие для callback", None
 
 
@@ -243,6 +256,9 @@ def _detect_callback_action(button: BotButton) -> dict:
     if action_type == "NODE" and target_code:
         action = "GO_MAIN" if target_code == MAIN_MENU_CODE else "OPEN_NODE"
         return {"action": action, "target_code": target_code, "raw_payload": None}
+
+    if action_type in {"DEPLOY", "DEPLOY_STATUS"}:
+        return {"action": action_type, "target_code": None, "raw_payload": None}
 
     if action_type == "BACK" or payload == "GO_BACK":
         return {"action": "GO_BACK", "target_code": None, "raw_payload": payload or "GO_BACK"}

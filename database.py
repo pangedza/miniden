@@ -9,7 +9,7 @@ import os
 from contextlib import contextmanager
 from typing import Iterator
 
-from sqlalchemy import create_engine, select, text
+from sqlalchemy import create_engine, select, text, func, or_
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 from utils.home_images import HOME_PLACEHOLDER_URL
@@ -993,6 +993,76 @@ def init_db() -> None:
                 )
 
     _ensure_bot_constructor_seed()
+
+    def _ensure_logs_node_buttons() -> None:
+        with get_session() as session:
+            logs_node = (
+                session.query(BotNode)
+                .filter(
+                    or_(
+                        BotNode.title.ilike("логи"),
+                        BotNode.title.ilike("работа бота"),
+                        BotNode.code.in_(["LOGS", "BOT_LOGS", "BOT_RUNTIME"]),
+                    )
+                )
+                .order_by(BotNode.id.asc())
+                .first()
+            )
+
+            if not logs_node:
+                return
+
+            existing_buttons = (
+                session.query(BotButton)
+                .filter(BotButton.node_id == logs_node.id)
+                .all()
+            )
+            existing_titles = {(btn.title or "").strip() for btn in existing_buttons}
+
+            base_row = (
+                session.query(func.coalesce(func.max(BotButton.row), 0))
+                .filter(BotButton.node_id == logs_node.id)
+                .scalar()
+                or 0
+            )
+            desired_buttons = [
+                {"title": "🚀 Deploy", "action_type": "DEPLOY", "pos": 0},
+                {"title": "📄 Deploy статус", "action_type": "DEPLOY_STATUS", "pos": 1},
+            ]
+
+            added = False
+            for item in desired_buttons:
+                if item["title"] in existing_titles:
+                    continue
+
+                session.add(
+                    BotButton(
+                        node_id=logs_node.id,
+                        title=item["title"],
+                        type="callback",
+                        payload="",
+                        render="INLINE",
+                        action_type=item["action_type"],
+                        action_payload=None,
+                        target_node_code=None,
+                        url=None,
+                        webapp_url=None,
+                        row=base_row + 1,
+                        pos=item["pos"],
+                        is_enabled=True,
+                    )
+                )
+                added = True
+
+            if added:
+                runtime = session.query(BotRuntime).first()
+                if not runtime:
+                    runtime = BotRuntime(config_version=1, start_node_code="MAIN_MENU")
+                runtime.config_version = (runtime.config_version or 1) + 1
+                session.add(runtime)
+                session.commit()
+
+    _ensure_logs_node_buttons()
 
     if ADMIN_IDS_SET:
         with get_session() as session:

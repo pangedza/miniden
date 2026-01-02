@@ -3,6 +3,7 @@ import os
 import re
 
 from aiogram import Router, types, F
+from aiogram.exceptions import TelegramNetworkError
 from aiogram.filters import CommandStart, CommandObject
 from aiogram.types import (
     CallbackQuery,
@@ -39,6 +40,7 @@ from services.subscription import (
     check_channels_subscription,
     is_user_subscribed,
 )
+from handlers import admin as admin_handlers
 from utils.texts import format_start_text, format_subscription_required_text
 
 
@@ -145,7 +147,12 @@ async def _clear_previous_bot_messages(message: types.Message) -> None:
 
 
 async def _answer_and_track(message: types.Message, text: str, **kwargs):
-    sent = await message.answer(text, **kwargs)
+    try:
+        sent = await message.answer(text, **kwargs)
+    except TelegramNetworkError:
+        logger.warning("Не удалось отправить сообщение из-за сетевой ошибки Telegram", exc_info=True)
+        return None
+
     _remember_bot_message(message.from_user.id, sent)
     return sent
 
@@ -160,6 +167,19 @@ async def _apply_reply_keyboard(message: types.Message, keyboard: ReplyKeyboardM
 async def _dispatch_button_action(message: types.Message, button: NodeButtonView) -> None:
     action_type = (button.action_type or "").upper()
     payload = (button.action_payload or "").strip()
+
+    if action_type in {"DEPLOY", "DEPLOY_STATUS"}:
+        if message.from_user.id not in _get_admin_telegram_ids():
+            await _answer_and_track(message, "Доступно только администраторам.")
+            return
+
+        if action_type == "DEPLOY":
+            started, response = admin_handlers.start_deploy_process()
+            await _answer_and_track(message, response)
+        else:
+            status_text = admin_handlers.build_deploy_status_text()
+            await _answer_and_track(message, status_text)
+        return
 
     if action_type == "NODE":
         target_code = button.target_node_code or payload
@@ -257,15 +277,23 @@ async def _send_message_node(
             )
             _remember_bot_message(message.from_user.id, sent_message)
             return
+        except TelegramNetworkError:
+            logger.warning("Сетевая ошибка при отправке фото для узла %s", node.code, exc_info=True)
+            return
         except Exception:
             # Fallback to text if Telegram rejects the image URL
             pass
 
-    sent_message = await message.answer(
-        rendered_text,
-        parse_mode=node.parse_mode,
-        reply_markup=keyboard,
-    )
+    try:
+        sent_message = await message.answer(
+            rendered_text,
+            parse_mode=node.parse_mode,
+            reply_markup=keyboard,
+        )
+    except TelegramNetworkError:
+        logger.warning("Сетевая ошибка при отправке узла %s", node.code, exc_info=True)
+        return
+
     _remember_bot_message(message.from_user.id, sent_message)
 
 

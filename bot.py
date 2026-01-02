@@ -10,9 +10,11 @@ import asyncio
 import logging
 
 from aiogram import Bot, Dispatcher
+from aiogram.exceptions import TelegramNetworkError
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.client.default import DefaultBotProperties  # 👈 ДОБАВИЛИ ЭТОТ ИМПОРТ
+from aiohttp import ClientError
 
 from config import get_settings
 from database import init_db
@@ -60,7 +62,14 @@ async def main() -> None:
 
     # Старт поллинга
     await bot.delete_webhook(drop_pending_updates=True)
-    await dp.start_polling(bot)
+    while True:
+        try:
+            await dp.start_polling(bot)
+            break
+        except (TelegramNetworkError, ClientError) as exc:
+            logging.warning("Polling interrupted due to network error: %s", exc)
+            await asyncio.sleep(3)
+            continue
 
 
 if __name__ == "__main__":
