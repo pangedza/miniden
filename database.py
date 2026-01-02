@@ -1025,10 +1025,7 @@ def init_db() -> None:
                 .scalar()
                 or 0
             )
-            desired_buttons = [
-                {"title": "🚀 Deploy", "action_type": "DEPLOY", "pos": 0},
-                {"title": "📄 Deploy статус", "action_type": "DEPLOY_STATUS", "pos": 1},
-            ]
+            desired_buttons: list[dict[str, object]] = []
 
             added = False
             for item in desired_buttons:
