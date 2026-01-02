@@ -95,10 +95,11 @@
         async function fetchStatus(showToast = true) {
             try {
                 const response = await fetch('/admin/deploy/status');
-                const payload = await response.json();
                 if (!response.ok) {
-                    throw new Error(payload?.detail || 'Не удалось получить статус');
+                    const errorText = await response.text();
+                    throw new Error(errorText || 'Не удалось получить статус');
                 }
+                const payload = await response.json();
                 renderStatus(payload);
                 if (showToast) {
                     alert(`Статус: ${payload.running ? 'идёт' : 'нет'}${payload.pid ? ` (pid ${payload.pid})` : ''}`);
@@ -112,10 +113,12 @@
         async function runDeploy() {
             try {
                 const response = await fetch('/admin/deploy/run', { method: 'POST' });
-                const payload = await response.json();
                 if (!response.ok) {
-                    throw new Error(payload?.detail || 'Не удалось запустить deploy');
+                    const errorText = await response.text();
+                    throw new Error(errorText || 'Не удалось запустить deploy');
                 }
+
+                const payload = await response.json();
 
                 if (payload.status === 'already_running') {
                     alert(`⏳ Deploy уже выполняется (pid ${payload.pid || 'неизвестен'})`);

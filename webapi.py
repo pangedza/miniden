@@ -420,13 +420,13 @@ def _ensure_deploy_prerequisites() -> None:
 def _ensure_deploy_admin(request: Request, db: Session) -> None:
     user = require_admin(request, db, roles=DEPLOY_ROLES)
     if not user:
-        raise HTTPException(status_code=403, detail="Требуется авторизация администратора")
+        raise HTTPException(status_code=403, detail="Forbidden")
 
 
 deploy_router = APIRouter(prefix="/admin/deploy", tags=["AdminDeploy"])
 
 
-@deploy_router.post("/run")
+@deploy_router.post("/run", response_class=JSONResponse)
 async def run_deploy(request: Request, db: Session = Depends(get_db_session)):
     _ensure_deploy_admin(request, db)
 
@@ -465,7 +465,7 @@ async def run_deploy(request: Request, db: Session = Depends(get_db_session)):
     return {"status": "started", "pid": process.pid}
 
 
-@deploy_router.get("/status")
+@deploy_router.get("/status", response_class=JSONResponse)
 async def deploy_status(request: Request, db: Session = Depends(get_db_session)):
     _ensure_deploy_admin(request, db)
 
