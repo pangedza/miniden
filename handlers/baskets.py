@@ -1,4 +1,4 @@
-from aiogram import Router, types, F
+from aiogram import F, Router, types
 from aiogram.types import CallbackQuery
 
 from config import ADMIN_IDS
