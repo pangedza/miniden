@@ -13,6 +13,7 @@ import json
 import mimetypes
 import logging
 import os
+import stat
 import subprocess
 import time
 from datetime import datetime, timedelta
@@ -139,7 +140,10 @@ SERVICE_NAME = os.getenv("SERVICE_NAME", "miniden-webapi")
 
 DEPLOY_SCRIPT_PATH = Path("/opt/miniden/deploy.sh")
 DEPLOY_LOG_PATH = Path("/opt/miniden/logs/deploy.log")
-DEPLOY_PID_PATH = Path("/opt/miniden/logs/deploy.pid")
+DEPLOY_UNIT_PATH = Path("/etc/systemd/system/miniden-deploy.service")
+DEPLOY_UNIT_NAME = "miniden-deploy.service"
+SYSTEMCTL_PATH = "/bin/systemctl"
+SYSTEMCTL_RUN = ["sudo", SYSTEMCTL_PATH]
 DEPLOY_LOG_LIMIT = 120
 DEPLOY_ROLES = (AdminRole.superadmin, AdminRole.admin_bot)
 
@@ -361,38 +365,18 @@ else:  # pragma: no cover - defensive
     )
 
 
-def _read_deploy_pid() -> int | None:
-    try:
-        raw_value = DEPLOY_PID_PATH.read_text().strip()
-        return int(raw_value)
-    except FileNotFoundError:
-        return None
-    except Exception:
-        logger.exception("Failed to read deploy PID file")
-        return None
-
-
-def _is_process_running(pid: int | None) -> bool:
-    if not pid:
-        return False
-
-    try:
-        os.kill(pid, 0)
-        return True
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return False
-    except Exception:
-        logger.exception("Unexpected error while checking deploy pid=%s", pid)
-        return False
-
-
 def _ensure_deploy_prerequisites() -> None:
     if not DEPLOY_SCRIPT_PATH.exists():
         raise HTTPException(status_code=422, detail="Скрипт деплоя не найден")
 
-    if not os.access(DEPLOY_SCRIPT_PATH, os.X_OK):
+    try:
+        script_mode = DEPLOY_SCRIPT_PATH.stat().st_mode
+    except FileNotFoundError:
+        raise HTTPException(status_code=422, detail="Скрипт деплоя не найден")
+    except OSError:
+        raise HTTPException(status_code=422, detail="Нет доступа к файлу deploy.sh")
+
+    if not script_mode & (stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH):
         raise HTTPException(
             status_code=422, detail="Скрипт деплоя не исполняемый (chmod +x)"
         )
@@ -410,11 +394,87 @@ def _ensure_deploy_prerequisites() -> None:
             detail="Путь для логов деплоя должен быть папкой /opt/miniden/logs",
         )
 
-    if not os.access(log_dir, os.W_OK):
+    if not os.access(log_dir, os.R_OK | os.X_OK):
         raise HTTPException(
             status_code=422,
-            detail="Недостаточно прав на запись в /opt/miniden/logs",
+            detail="Недостаточно прав на чтение /opt/miniden/logs",
         )
+
+    if not DEPLOY_UNIT_PATH.exists():
+        raise HTTPException(
+            status_code=422,
+            detail="systemd unit miniden-deploy.service не установлен (скопируйте его в /etc/systemd/system)",
+        )
+
+
+def _parse_systemctl_show_output(raw_output: str) -> dict[str, Any]:
+    parsed: dict[str, Any] = {}
+    for line in raw_output.splitlines():
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        parsed[key.strip()] = value.strip()
+    return parsed
+
+
+def _read_deploy_unit_state() -> dict[str, Any]:
+    default_state = {
+        "active_state": "unknown",
+        "sub_state": None,
+        "result": None,
+        "exec_main_pid": None,
+        "main_pid": None,
+        "status_text": None,
+    }
+
+    result = subprocess.run(
+        [
+            *SYSTEMCTL_RUN,
+            "show",
+            DEPLOY_UNIT_NAME,
+            "--no-pager",
+            "--property=ActiveState,SubState,ExecMainPID,MainPID,Result,StatusText",
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    if result.returncode != 0:
+        logger.warning(
+            "Failed to read deploy unit state: %s", result.stderr.strip() or result.returncode
+        )
+        return default_state
+
+    parsed = _parse_systemctl_show_output(result.stdout)
+
+    def _parse_pid(raw_value: str | None) -> int | None:
+        try:
+            pid = int(raw_value or "0")
+        except (TypeError, ValueError):
+            return None
+        return pid or None
+
+    return {
+        "active_state": parsed.get("ActiveState", default_state["active_state"]),
+        "sub_state": parsed.get("SubState") or default_state["sub_state"],
+        "result": parsed.get("Result") or default_state["result"],
+        "exec_main_pid": _parse_pid(parsed.get("ExecMainPID")),
+        "main_pid": _parse_pid(parsed.get("MainPID")),
+        "status_text": parsed.get("StatusText") or default_state["status_text"],
+    }
+
+
+def _is_unit_running(state: dict[str, Any]) -> bool:
+    if not state:
+        return False
+
+    if state.get("active_state") in {"active", "activating"}:
+        return True
+
+    if state.get("sub_state") in {"running", "start-pre"}:
+        return True
+
+    return bool(state.get("exec_main_pid") or state.get("main_pid"))
 
 
 def _ensure_deploy_admin(request: Request, db: Session) -> None:
@@ -430,47 +490,45 @@ deploy_router = APIRouter(prefix="/admin/deploy", tags=["AdminDeploy"])
 async def run_deploy(request: Request, db: Session = Depends(get_db_session)):
     _ensure_deploy_admin(request, db)
 
-    current_pid = _read_deploy_pid()
-    if _is_process_running(current_pid):
-        return {"status": "already_running", "pid": current_pid}
-
     _ensure_deploy_prerequisites()
 
-    try:
-        with DEPLOY_LOG_PATH.open("a", encoding="utf-8") as log_file:
-            timestamp = datetime.utcnow().isoformat()
-            log_file.write(f"=== DEPLOY START {timestamp} ===\n")
-            log_file.flush()
-            process = subprocess.Popen(
-                [str(DEPLOY_SCRIPT_PATH)],
-                stdout=log_file,
-                stderr=subprocess.STDOUT,
-                close_fds=True,
-            )
-    except FileNotFoundError:
-        raise HTTPException(status_code=422, detail="Файл логов недоступен")
-    except PermissionError:
-        raise HTTPException(status_code=422, detail="Недостаточно прав для записи логов")
-    except HTTPException:
-        raise
-    except Exception:
-        logger.exception("Failed to start deploy process")
-        raise HTTPException(status_code=500, detail="Не удалось запустить деплой")
+    current_state = _read_deploy_unit_state()
+    if _is_unit_running(current_state):
+        return {
+            "status": "already_running",
+            "pid": current_state.get("exec_main_pid") or current_state.get("main_pid"),
+            "active_state": current_state.get("active_state"),
+        }
 
     try:
-        DEPLOY_PID_PATH.write_text(str(process.pid), encoding="utf-8")
-    except Exception:
-        logger.exception("Failed to persist deploy PID")
+        subprocess.run(
+            [*SYSTEMCTL_RUN, "start", DEPLOY_UNIT_NAME],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        logger.exception("Failed to start deploy unit: %s", exc.stderr)
+        raise HTTPException(
+            status_code=500,
+            detail="Не удалось запустить деплой через systemd",
+        )
 
-    return {"status": "started", "pid": process.pid}
+    updated_state = _read_deploy_unit_state()
+    return {
+        "status": "started",
+        "pid": updated_state.get("exec_main_pid") or updated_state.get("main_pid"),
+        "active_state": updated_state.get("active_state"),
+    }
 
 
 @deploy_router.get("/status", response_class=JSONResponse)
 async def deploy_status(request: Request, db: Session = Depends(get_db_session)):
     _ensure_deploy_admin(request, db)
 
-    pid = _read_deploy_pid()
-    running = _is_process_running(pid)
+    unit_state = _read_deploy_unit_state()
+    running = _is_unit_running(unit_state)
+    pid = unit_state.get("exec_main_pid") or unit_state.get("main_pid")
 
     lines, not_found = read_tail(DEPLOY_LOG_PATH, limit=DEPLOY_LOG_LIMIT)
     last_lines = [] if not_found else lines
@@ -479,6 +537,10 @@ async def deploy_status(request: Request, db: Session = Depends(get_db_session))
         "running": running,
         "pid": pid,
         "last_lines": last_lines,
+        "active_state": unit_state.get("active_state"),
+        "sub_state": unit_state.get("sub_state"),
+        "result": unit_state.get("result"),
+        "status_text": unit_state.get("status_text"),
     }
 
 # Keep admin/site routers below static mounts so catch-all paths never override /static.
