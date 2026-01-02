@@ -1,16 +1,11 @@
-import datetime
 import logging
-import os
-import subprocess
-from collections import deque
-from pathlib import Path
 
 from aiogram import Router, types, F
 from aiogram.filters import Command
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 
-from config import ADMIN_IDS, ADMIN_IDS_SET
+from config import ADMIN_IDS_SET
 from services import admin_notes as admin_notes_service
 from services import bans as bans_service
 from services import orders as orders_service
@@ -35,11 +30,6 @@ from utils.texts import (
 router = Router()
 logger = logging.getLogger(__name__)
 
-DEPLOY_SCRIPT_PATH = "/opt/miniden/deploy.sh"
-DEPLOY_LOG_PATH = "/opt/miniden/logs/deploy.log"
-DEPLOY_PID_PATH = "/opt/miniden/logs/deploy.pid"
-DEPLOY_LOG_DIR = Path(DEPLOY_LOG_PATH).parent
-
 WEB_ADMIN_REDIRECT_TEXT = (
     "Управление каталогом, промокодами и статистикой теперь доступно в веб-админке.\n"
     "Откройте админку через кнопку «⚙️ Админка (WebApp)» в главном меню бота."
@@ -53,125 +43,6 @@ def _is_admin(user_id: int | None) -> bool:
 def _get_reply_menu():
     return get_main_menu(load_menu_buttons(), include_fallback=True)
 
-
-def read_pid() -> int | None:
-    try:
-        with open(DEPLOY_PID_PATH, "r") as pid_file:
-            raw_pid = pid_file.read().strip().splitlines()[0]
-        return int(raw_pid)
-    except FileNotFoundError:
-        return None
-    except (ValueError, IndexError, OSError):
-        return None
-
-
-def is_pid_running(pid: int | None) -> bool:
-    if not pid:
-        return False
-
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True
-    except OSError:
-        return False
-
-    return True
-
-
-def is_running() -> bool:
-    pid = read_pid()
-    return is_pid_running(pid)
-
-
-def tail_log(n: int = 60) -> list[str]:
-    try:
-        with open(DEPLOY_LOG_PATH, "r") as log_file:
-            lines = deque(log_file, maxlen=n)
-        return [line.rstrip("\n") for line in lines]
-    except FileNotFoundError:
-        return []
-    except OSError:
-        return []
-
-
-def _deploy_paths_ok() -> tuple[bool, str | None]:
-    if not DEPLOY_LOG_DIR.exists():
-        return False, "Папка логов /opt/miniden/logs отсутствует. Создайте её и повторите попытку."
-
-    if not Path(DEPLOY_SCRIPT_PATH).exists():
-        return False, "Не найден скрипт деплоя /opt/miniden/deploy.sh."
-
-    return True, None
-
-
-def start_deploy_process() -> tuple[bool, str]:
-    if is_running():
-        return False, "⏳ Деплой уже выполняется"
-
-    paths_ok, paths_error = _deploy_paths_ok()
-    if not paths_ok:
-        return False, paths_error or "Путь к деплою недоступен"
-
-    try:
-        with open(DEPLOY_LOG_PATH, "a") as log_file:
-            log_file.write(f"=== DEPLOY START {datetime.datetime.now().isoformat()} ===\n")
-            log_file.flush()
-            process = subprocess.Popen(
-                [DEPLOY_SCRIPT_PATH],
-                stdout=log_file,
-                stderr=subprocess.STDOUT,
-                close_fds=True,
-            )
-    except OSError:
-        logger.exception("Failed to open deploy log file")
-        return False, "Не удалось открыть лог деплоя. Проверьте права на /opt/miniden/logs/."
-    except Exception:
-        logger.exception("Failed to start deploy script")
-        return False, "Не удалось запустить деплой. Проверьте логи."
-
-    pid_written = True
-    try:
-        with open(DEPLOY_PID_PATH, "w") as pid_file:
-            pid_file.write(str(process.pid))
-    except OSError:
-        pid_written = False
-        logger.exception("Failed to write deploy pid file")
-
-    response = f"✅ Деплой запущен. PID: {process.pid}"
-    if not pid_written:
-        response += "\n⚠️ Не удалось записать PID-файл (/opt/miniden/logs/deploy.pid)."
-    return True, response
-
-
-def build_deploy_status_text(max_lines: int = 60) -> str:
-    pid = read_pid()
-    running = is_pid_running(pid)
-    log_lines = tail_log(max_lines)
-
-    lines = [
-        f"running: {'да' if running else 'нет'}",
-        f"pid: {pid if pid is not None else '—'}",
-    ]
-
-    if not DEPLOY_LOG_DIR.exists():
-        lines.append("папка логов: отсутствует (/opt/miniden/logs)")
-        return "\n".join(lines)
-
-    if log_lines:
-        log_text = "\n".join(log_lines)
-        max_len = 3500
-        if len(log_text) > max_len:
-            log_text = log_text[-max_len:]
-            lines.append("(лог обрезан до последних строк)")
-        lines.append("последние строки лога:")
-        lines.append(log_text)
-    else:
-        lines.append("последние строки лога: (нет данных)")
-
-    return "\n".join(lines)
 
 
 def _build_order_actions_kb(order_id: int, user_id: int) -> types.InlineKeyboardMarkup:
@@ -347,26 +218,6 @@ async def admin_notes_menu_hint(message: types.Message):
         "• <code>/note &lt;user_id&gt; &lt;текст&gt;</code> — добавить заметку\n"
         "• <code>/notes &lt;user_id&gt;</code> — посмотреть заметки"
     )
-
-
-# ---------------- ДЕПЛОЙ ----------------
-
-
-@router.message(F.text == "🚀 Deploy")
-async def admin_deploy_start(message: types.Message):
-    if not _is_admin(message.from_user.id):
-        return
-
-    _, response = start_deploy_process()
-    await message.answer(response)
-
-
-@router.message(F.text == "📄 Deploy статус")
-async def admin_deploy_status(message: types.Message):
-    if not _is_admin(message.from_user.id):
-        return
-
-    await message.answer(build_deploy_status_text())
 
 
 @router.message(F.text.in_({"📋 Товары: корзинки", "📋 Товары: курсы"}))

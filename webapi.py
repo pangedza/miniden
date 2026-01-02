@@ -94,7 +94,6 @@ from services import user_admin as user_admin_service
 from services import user_stats as user_stats_service
 from services import users as users_service
 from services import webchat_service
-from utils.log_reader import read_tail
 from utils import site_chat_storage
 from utils.logging_config import API_LOG_FILE, setup_logging
 from services.telegram_webapp_auth import authenticate_telegram_webapp_user
@@ -144,7 +143,6 @@ DEPLOY_UNIT_PATH = Path("/etc/systemd/system/miniden-deploy.service")
 DEPLOY_UNIT_NAME = "miniden-deploy.service"
 SYSTEMCTL_PATH = "/bin/systemctl"
 SYSTEMCTL_RUN = ["sudo", SYSTEMCTL_PATH]
-DEPLOY_LOG_LIMIT = 120
 DEPLOY_ROLES = (AdminRole.superadmin, AdminRole.admin_bot)
 
 
@@ -477,6 +475,30 @@ def _is_unit_running(state: dict[str, Any]) -> bool:
     return bool(state.get("exec_main_pid") or state.get("main_pid"))
 
 
+def _read_deploy_status_output() -> str:
+    try:
+        result = subprocess.run(
+            [*SYSTEMCTL_RUN, "status", DEPLOY_UNIT_NAME, "--no-pager", "--lines", "80"],
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError:
+        logger.exception("systemctl is not available for deploy status")
+        return "systemctl недоступен"
+
+    output = (result.stdout or "").strip()
+    stderr = (result.stderr or "").strip()
+
+    if result.returncode not in {0, 3}:
+        logger.warning(
+            "systemctl status returned %s: %s",
+            result.returncode,
+            stderr or output,
+        )
+
+    return output or stderr or "Статус деплоя недоступен"
+
+
 def _ensure_deploy_admin(request: Request, db: Session) -> None:
     user = require_admin(request, db, roles=DEPLOY_ROLES)
     if not user:
@@ -498,6 +520,7 @@ async def run_deploy(request: Request, db: Session = Depends(get_db_session)):
             "status": "already_running",
             "pid": current_state.get("exec_main_pid") or current_state.get("main_pid"),
             "active_state": current_state.get("active_state"),
+            "status_output": _read_deploy_status_output(),
         }
 
     try:
@@ -515,10 +538,12 @@ async def run_deploy(request: Request, db: Session = Depends(get_db_session)):
         )
 
     updated_state = _read_deploy_unit_state()
+    status_output = _read_deploy_status_output()
     return {
         "status": "started",
         "pid": updated_state.get("exec_main_pid") or updated_state.get("main_pid"),
         "active_state": updated_state.get("active_state"),
+        "status_output": status_output,
     }
 
 
@@ -530,17 +555,16 @@ async def deploy_status(request: Request, db: Session = Depends(get_db_session))
     running = _is_unit_running(unit_state)
     pid = unit_state.get("exec_main_pid") or unit_state.get("main_pid")
 
-    lines, not_found = read_tail(DEPLOY_LOG_PATH, limit=DEPLOY_LOG_LIMIT)
-    last_lines = [] if not_found else lines
+    status_output = _read_deploy_status_output()
 
     return {
         "running": running,
         "pid": pid,
-        "last_lines": last_lines,
         "active_state": unit_state.get("active_state"),
         "sub_state": unit_state.get("sub_state"),
         "result": unit_state.get("result"),
         "status_text": unit_state.get("status_text"),
+        "status_output": status_output,
     }
 
 # Keep admin/site routers below static mounts so catch-all paths never override /static.
