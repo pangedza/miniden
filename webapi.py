@@ -24,6 +24,7 @@ import urllib.request
 from uuid import uuid4
 
 from fastapi import (
+    APIRouter,
     Body,
     Cookie,
     Depends,
@@ -52,6 +53,7 @@ from admin_panel.adminsite import (
     router as adminsite_api_router,
 )
 from admin_panel.adminsite import service as adminsite_service
+from admin_panel.dependencies import get_db_session, require_admin
 from admin_panel.routes import adminbot, adminsite
 from admin_panel.routes import auth as admin_auth
 from admin_panel.routes import users as admin_users
@@ -64,6 +66,7 @@ from media_paths import (
     ensure_media_dirs,
 )
 from models import AuthSession, User
+from models.admin_user import AdminRole
 from models.support import (
     SupportMessage,
     SupportMessageList,
@@ -90,6 +93,7 @@ from services import user_admin as user_admin_service
 from services import user_stats as user_stats_service
 from services import users as users_service
 from services import webchat_service
+from utils.log_reader import read_tail
 from utils import site_chat_storage
 from utils.logging_config import API_LOG_FILE, setup_logging
 from services.telegram_webapp_auth import authenticate_telegram_webapp_user
@@ -132,6 +136,12 @@ def _detect_git_commit() -> str:
 BUILD_COMMIT = _detect_git_commit()
 BUILD_TIME = os.getenv("BUILD_TIME") or datetime.utcnow().isoformat() + "Z"
 SERVICE_NAME = os.getenv("SERVICE_NAME", "miniden-webapi")
+
+DEPLOY_SCRIPT_PATH = Path("/opt/miniden/deploy.sh")
+DEPLOY_LOG_PATH = Path("/opt/miniden/logs/deploy.log")
+DEPLOY_PID_PATH = Path("/opt/miniden/logs/deploy.pid")
+DEPLOY_LOG_LIMIT = 120
+DEPLOY_ROLES = (AdminRole.superadmin, AdminRole.admin_bot)
 
 
 class VersionInfo(BaseModel):
@@ -349,12 +359,135 @@ else:  # pragma: no cover - defensive
     logger.warning(
         "Admin static will not be served because the directory is missing or unreadable."
     )
+
+
+def _read_deploy_pid() -> int | None:
+    try:
+        raw_value = DEPLOY_PID_PATH.read_text().strip()
+        return int(raw_value)
+    except FileNotFoundError:
+        return None
+    except Exception:
+        logger.exception("Failed to read deploy PID file")
+        return None
+
+
+def _is_process_running(pid: int | None) -> bool:
+    if not pid:
+        return False
+
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return False
+    except Exception:
+        logger.exception("Unexpected error while checking deploy pid=%s", pid)
+        return False
+
+
+def _ensure_deploy_prerequisites() -> None:
+    if not DEPLOY_SCRIPT_PATH.exists():
+        raise HTTPException(status_code=422, detail="Скрипт деплоя не найден")
+
+    if not os.access(DEPLOY_SCRIPT_PATH, os.X_OK):
+        raise HTTPException(
+            status_code=422, detail="Скрипт деплоя не исполняемый (chmod +x)"
+        )
+
+    log_dir = DEPLOY_LOG_PATH.parent
+    if not log_dir.exists():
+        raise HTTPException(
+            status_code=422,
+            detail="Папка /opt/miniden/logs отсутствует. Создайте её вручную и дайте права",
+        )
+
+    if not log_dir.is_dir():
+        raise HTTPException(
+            status_code=422,
+            detail="Путь для логов деплоя должен быть папкой /opt/miniden/logs",
+        )
+
+    if not os.access(log_dir, os.W_OK):
+        raise HTTPException(
+            status_code=422,
+            detail="Недостаточно прав на запись в /opt/miniden/logs",
+        )
+
+
+def _ensure_deploy_admin(request: Request, db: Session) -> None:
+    user = require_admin(request, db, roles=DEPLOY_ROLES)
+    if not user:
+        raise HTTPException(status_code=403, detail="Требуется авторизация администратора")
+
+
+deploy_router = APIRouter(prefix="/admin/deploy", tags=["AdminDeploy"])
+
+
+@deploy_router.post("/run")
+async def run_deploy(request: Request, db: Session = Depends(get_db_session)):
+    _ensure_deploy_admin(request, db)
+
+    current_pid = _read_deploy_pid()
+    if _is_process_running(current_pid):
+        return {"status": "already_running", "pid": current_pid}
+
+    _ensure_deploy_prerequisites()
+
+    try:
+        with DEPLOY_LOG_PATH.open("a", encoding="utf-8") as log_file:
+            timestamp = datetime.utcnow().isoformat()
+            log_file.write(f"=== DEPLOY START {timestamp} ===\n")
+            log_file.flush()
+            process = subprocess.Popen(
+                [str(DEPLOY_SCRIPT_PATH)],
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+                close_fds=True,
+            )
+    except FileNotFoundError:
+        raise HTTPException(status_code=422, detail="Файл логов недоступен")
+    except PermissionError:
+        raise HTTPException(status_code=422, detail="Недостаточно прав для записи логов")
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Failed to start deploy process")
+        raise HTTPException(status_code=500, detail="Не удалось запустить деплой")
+
+    try:
+        DEPLOY_PID_PATH.write_text(str(process.pid), encoding="utf-8")
+    except Exception:
+        logger.exception("Failed to persist deploy PID")
+
+    return {"status": "started", "pid": process.pid}
+
+
+@deploy_router.get("/status")
+async def deploy_status(request: Request, db: Session = Depends(get_db_session)):
+    _ensure_deploy_admin(request, db)
+
+    pid = _read_deploy_pid()
+    running = _is_process_running(pid)
+
+    lines, not_found = read_tail(DEPLOY_LOG_PATH, limit=DEPLOY_LOG_LIMIT)
+    last_lines = [] if not_found else lines
+
+    return {
+        "running": running,
+        "pid": pid,
+        "last_lines": last_lines,
+    }
+
 # Keep admin/site routers below static mounts so catch-all paths never override /static.
 app.include_router(admin_auth.router)
 app.include_router(adminbot.router)
 app.include_router(adminsite.router)
 app.include_router(admin_users.router)
 app.include_router(adminsite_api_router)
+app.include_router(deploy_router)
 
 
 class WebChatStartPayload(BaseModel):
