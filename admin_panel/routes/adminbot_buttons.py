@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from admin_panel import TEMPLATES
 from admin_panel.dependencies import get_db_session, require_admin
-from models import BotButton, BotNode
+from models import BotButton, BotNode, BotRuntime
 from models.admin_user import AdminRole
 
 router = APIRouter(tags=["AdminBot"])
@@ -67,6 +67,15 @@ def _login_redirect(next_url: str | None = None) -> RedirectResponse:
 def _next_from_request(request: Request) -> str:
     query = f"?{request.url.query}" if request.url.query else ""
     return f"{request.url.path}{query}"
+
+
+def _bump_runtime(db: Session) -> None:
+    runtime = db.query(BotRuntime).first()
+    if not runtime:
+        runtime = BotRuntime(config_version=1, start_node_code="MAIN_MENU")
+    runtime.config_version = (runtime.config_version or 1) + 1
+    db.add(runtime)
+    db.commit()
 
 
 def _normalize_int(value: str | None, default: int = 0) -> int:
@@ -563,6 +572,7 @@ async def create_button(
         )
     )
     db.commit()
+    _bump_runtime(db)
 
     return RedirectResponse(url=f"/adminbot/nodes/{node.id}/buttons", status_code=303)
 
@@ -684,6 +694,7 @@ async def update_button(
 
     db.add(button)
     db.commit()
+    _bump_runtime(db)
 
     return RedirectResponse(
         url=f"/adminbot/nodes/{button.node_id}/buttons", status_code=303
@@ -719,6 +730,7 @@ async def quick_create_node(
     db.add(node)
     db.commit()
     db.refresh(node)
+    _bump_runtime(db)
 
     return {"ok": True, "node": {"id": node.id, "code": node.code, "title": node.title}}
 
@@ -812,6 +824,7 @@ async def api_save_button(
     db.add(button)
     db.commit()
     db.refresh(button)
+    _bump_runtime(db)
 
     return {"ok": True, "button_id": button.id}
 
@@ -832,6 +845,7 @@ async def api_delete_button(
 
     db.delete(button)
     db.commit()
+    _bump_runtime(db)
 
     return {"ok": True}
 
@@ -920,6 +934,7 @@ async def create_submenu(
             db.add(back_btn)
 
     db.commit()
+    _bump_runtime(db)
 
     return {
         "ok": True,
@@ -968,6 +983,7 @@ async def move_button(
         db.add(button)
         db.add(swap_with)
         db.commit()
+        _bump_runtime(db)
 
     return RedirectResponse(
         url=f"/adminbot/nodes/{button.node_id}/buttons", status_code=303

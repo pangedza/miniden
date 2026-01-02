@@ -43,12 +43,24 @@ def get_main_menu(
         text = (_extract_button_field(button, "text") or "").strip()
         row = _extract_button_field(button, "row", 0) or 0
         position = _extract_button_field(button, "position", 0) or 0
+        action_type = (_extract_button_field(button, "action_type", "") or "").upper()
+        action_payload = _extract_button_field(button, "action_payload") or ""
+        action_url = (
+            action_payload
+            or _extract_button_field(button, "webapp_url", "")
+            or _extract_button_field(button, "url", "")
+        ).strip()
 
         if not text:
             continue
 
+        if action_type in {"WEBAPP", "URL"} and action_url:
+            kb_button = KeyboardButton(text=text, web_app=WebAppInfo(url=action_url))
+        else:
+            kb_button = KeyboardButton(text=text)
+
         prepared_rows.setdefault(row, []).append(
-            (position, KeyboardButton(text=text))
+            (position, kb_button)
         )
 
     if not prepared_rows:
