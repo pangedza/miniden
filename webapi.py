@@ -142,7 +142,7 @@ DEPLOY_LOG_PATH = Path("/opt/miniden/logs/deploy.log")
 DEPLOY_UNIT_PATH = Path("/etc/systemd/system/miniden-deploy.service")
 DEPLOY_UNIT_NAME = "miniden-deploy.service"
 SYSTEMCTL_PATH = "/bin/systemctl"
-SYSTEMCTL_RUN = ["sudo", SYSTEMCTL_PATH]
+SYSTEMCTL_RUN = [SYSTEMCTL_PATH]
 DEPLOY_ROLES = (AdminRole.superadmin, AdminRole.admin_bot)
 
 
@@ -405,6 +405,23 @@ def _ensure_deploy_prerequisites() -> None:
         )
 
 
+def _read_deploy_log_tail(max_lines: int = 80) -> tuple[list[str], str | None]:
+    if not DEPLOY_LOG_PATH.exists():
+        return [], None
+
+    try:
+        content = DEPLOY_LOG_PATH.read_text(encoding="utf-8", errors="ignore")
+        stat_result = DEPLOY_LOG_PATH.stat()
+    except OSError:
+        logger.exception("Failed to read deploy log")
+        return [], None
+
+    lines = content.splitlines()
+    tail = lines[-max_lines:]
+    last_run = datetime.utcfromtimestamp(stat_result.st_mtime).isoformat() + "Z"
+    return tail, last_run
+
+
 def _parse_systemctl_show_output(raw_output: str) -> dict[str, Any]:
     parsed: dict[str, Any] = {}
     for line in raw_output.splitlines():
@@ -425,17 +442,27 @@ def _read_deploy_unit_state() -> dict[str, Any]:
         "status_text": None,
     }
 
-    result = subprocess.run(
-        [
-            *SYSTEMCTL_RUN,
-            "show",
-            DEPLOY_UNIT_NAME,
-            "--no-pager",
-            "--property=ActiveState,SubState,ExecMainPID,MainPID,Result,StatusText",
-        ],
-        capture_output=True,
-        text=True,
-    )
+    try:
+        result = subprocess.run(
+            [
+                *SYSTEMCTL_RUN,
+                "show",
+                DEPLOY_UNIT_NAME,
+                "--no-pager",
+                "--property=ActiveState,SubState,ExecMainPID,MainPID,Result,StatusText",
+            ],
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError:
+        logger.exception("systemctl is not available for deploy status")
+        return default_state
+    except PermissionError:
+        logger.exception("systemctl permissions error for deploy status")
+        return {
+            **default_state,
+            "status_text": "Недостаточно прав для чтения статуса systemd",
+        }
 
     if result.returncode != 0:
         logger.warning(
@@ -485,6 +512,9 @@ def _read_deploy_status_output() -> str:
     except FileNotFoundError:
         logger.exception("systemctl is not available for deploy status")
         return "systemctl недоступен"
+    except PermissionError:
+        logger.exception("systemctl permissions error for deploy status output")
+        return "Недостаточно прав для чтения статуса systemd"
 
     output = (result.stdout or "").strip()
     stderr = (result.stderr or "").strip()
@@ -515,12 +545,15 @@ async def run_deploy(request: Request, db: Session = Depends(get_db_session)):
     _ensure_deploy_prerequisites()
 
     current_state = _read_deploy_unit_state()
+    tail_lines, last_run = _read_deploy_log_tail()
     if _is_unit_running(current_state):
         return {
             "status": "already_running",
             "pid": current_state.get("exec_main_pid") or current_state.get("main_pid"),
             "active_state": current_state.get("active_state"),
             "status_output": _read_deploy_status_output(),
+            "last_log_lines": tail_lines,
+            "last_run": last_run,
         }
 
     try:
@@ -530,20 +563,31 @@ async def run_deploy(request: Request, db: Session = Depends(get_db_session)):
             capture_output=True,
             text=True,
         )
-    except subprocess.CalledProcessError as exc:
-        logger.exception("Failed to start deploy unit: %s", exc.stderr)
+    except PermissionError:
+        logger.exception("Permission denied while starting deploy unit")
         raise HTTPException(
-            status_code=500,
-            detail="Не удалось запустить деплой через systemd",
+            status_code=403,
+            detail="Недостаточно прав для запуска деплоя через systemd",
+        )
+    except subprocess.CalledProcessError as exc:
+        detail = (exc.stderr or exc.stdout or "").strip()
+        logger.exception("Failed to start deploy unit: %s", detail)
+        status_code = 403 if "permission" in detail.lower() or "access" in detail.lower() else 500
+        raise HTTPException(
+            status_code=status_code,
+            detail=detail or "Не удалось запустить деплой через systemd",
         )
 
     updated_state = _read_deploy_unit_state()
     status_output = _read_deploy_status_output()
+    log_lines, last_run = _read_deploy_log_tail()
     return {
         "status": "started",
         "pid": updated_state.get("exec_main_pid") or updated_state.get("main_pid"),
         "active_state": updated_state.get("active_state"),
         "status_output": status_output,
+        "last_log_lines": log_lines,
+        "last_run": last_run,
     }
 
 
@@ -556,6 +600,7 @@ async def deploy_status(request: Request, db: Session = Depends(get_db_session))
     pid = unit_state.get("exec_main_pid") or unit_state.get("main_pid")
 
     status_output = _read_deploy_status_output()
+    log_lines, last_run = _read_deploy_log_tail()
 
     return {
         "running": running,
@@ -565,6 +610,8 @@ async def deploy_status(request: Request, db: Session = Depends(get_db_session))
         "result": unit_state.get("result"),
         "status_text": unit_state.get("status_text"),
         "status_output": status_output,
+        "last_log_lines": log_lines,
+        "last_run": last_run,
     }
 
 # Keep admin/site routers below static mounts so catch-all paths never override /static.

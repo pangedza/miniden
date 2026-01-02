@@ -50,7 +50,7 @@
 
 <div class="card" style="margin-top:16px;">
     <h2>Deploy проекта</h2>
-    <p class="muted">Deploy запускается только через systemd-юнит <code>miniden-deploy.service</code> (root → <code>/opt/miniden/deploy.sh</code>).</p>
+    <p class="muted">Deploy запускается только через systemd-юнит <code>miniden-deploy.service</code>, который вызывает <code>/opt/miniden/deploy.sh</code>. Никаких sudo/tty в веб-приложении.</p>
     <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:8px;">
         <button type="button" id="deploy-run" class="button">🚀 Запустить Deploy</button>
         <button type="button" id="deploy-status" class="button" style="background:#475569;">📄 Статус (systemd)</button>
@@ -80,29 +80,66 @@
             }
         }
 
+        function isRunning(data) {
+            const activeState = (data?.active_state || '').toLowerCase();
+            const subState = (data?.sub_state || '').toLowerCase();
+            if (typeof data?.running === 'boolean') {
+                return data.running;
+            }
+            return ['active', 'activating'].includes(activeState) || ['running', 'start-pre'].includes(subState);
+        }
+
+        function formatLastRun(value) {
+            if (!value) return 'нет данных';
+            const parsed = new Date(value);
+            return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString('ru-RU');
+        }
+
         function renderStatus(data) {
-            const running = Boolean(data?.running);
+            const running = isRunning(data);
             const pidText = data?.pid ? `PID ${data.pid}` : 'PID не найден';
             const activeState = data?.active_state || 'unknown';
+            const subState = data?.sub_state || 'unknown';
             const result = data?.result || 'unknown';
             const statusOutput = data?.status_output || 'Статус systemd недоступен.';
+            const lastRun = formatLastRun(data?.last_run);
+            const logLines = Array.isArray(data?.last_log_lines) ? data.last_log_lines : [];
 
             runningLabel.textContent = running ? 'Статус: выполняется' : 'Статус: не запущен';
-            meta.textContent = `systemd: ${activeState} / ${result} (${pidText})`;
+            meta.textContent = `systemd: ${activeState} / ${result} (${pidText}, sub=${subState}). Последний запуск: ${lastRun}`;
 
-            logBox.textContent = statusOutput;
+            const logText = logLines.length ? logLines.join('\n') : statusOutput;
+            logBox.textContent = logText || 'Статус ещё не загружен.';
 
             scheduleRefresh(running);
         }
 
+        async function requestJson(url, options = {}) {
+            const response = await fetch(url, {
+                headers: { 'Accept': 'application/json' },
+                ...options,
+            });
+            const rawText = await response.text();
+            let payload = {};
+            if (rawText) {
+                try {
+                    payload = JSON.parse(rawText);
+                } catch (error) {
+                    throw new Error(rawText.slice(0, 300) || `Некорректный ответ (${response.status})`);
+                }
+            }
+
+            if (!response.ok) {
+                const detail = payload?.detail || payload?.error || payload?.message || rawText || `HTTP ${response.status}`;
+                throw new Error(detail);
+            }
+
+            return payload;
+        }
+
         async function fetchStatus(showToast = true) {
             try {
-                const response = await fetch('/admin/deploy/status');
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(errorText || 'Не удалось получить статус');
-                }
-                const payload = await response.json();
+                const payload = await requestJson('/admin/deploy/status');
                 renderStatus(payload);
                 if (showToast) {
                     alert(`Статус: ${payload.running ? 'идёт' : 'нет'}${payload.pid ? ` (pid ${payload.pid})` : ''}`);
@@ -115,13 +152,7 @@
 
         async function runDeploy() {
             try {
-                const response = await fetch('/admin/deploy/run', { method: 'POST' });
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(errorText || 'Не удалось запустить deploy');
-                }
-
-                const payload = await response.json();
+                const payload = await requestJson('/admin/deploy/run', { method: 'POST' });
 
                 if (payload.status === 'already_running') {
                     alert(`⏳ Deploy уже выполняется (pid ${payload.pid || 'неизвестен'})`);

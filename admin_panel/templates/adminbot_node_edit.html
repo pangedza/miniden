@@ -387,6 +387,7 @@
         { value: 'REQUEST_CONTACT', label: 'Запросить контакт' },
         { value: 'REQUEST_LOCATION', label: 'Запросить геолокацию' },
     ];
+    const UNKNOWN_ACTION_LABEL = 'Удалено или недоступно';
 
     function setSectionEnabled(section, enabled, clearValues = false) {
         if (!section) return;
@@ -653,13 +654,17 @@
         const payload = data.action_payload || data.payload || {};
         const index = actionsContainer.querySelectorAll('.action-card').length;
         const selectedType = (data.action_type || data.actionType || 'SET_VAR').toUpperCase();
+        const options = [...ACTION_OPTIONS];
+        if (selectedType && !options.some((opt) => opt.value === selectedType)) {
+            options.push({ value: selectedType, label: `${UNKNOWN_ACTION_LABEL} (${selectedType})` });
+        }
         const html = `
             <div class="action-card">
                 <div class="action-header">
                     <div style="flex:1;">
                         <label>Тип действия</label>
                         <select name="action_type" class="action-type">
-                            ${ACTION_OPTIONS.map((opt) => `<option value="${opt.value}" ${opt.value === selectedType ? 'selected' : ''}>${opt.label}</option>`).join('')}
+                            ${options.map((opt) => `<option value="${opt.value}" ${opt.value === selectedType ? 'selected' : ''}>${opt.label}</option>`).join('')}
                         </select>
                         <input type="number" name="action_sort" class="action-sort" value="${index}" style="display:none;">
                         <input type="hidden" name="action_enabled" class="action-enabled-value" value="${data.is_enabled === false ? '0' : '1'}">
