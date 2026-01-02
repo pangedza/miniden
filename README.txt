@@ -144,8 +144,11 @@ Production деплой одной командой
 --------------------------------
 - Контракт: `deploy/DEPLOY_CONTRACT.md` описывает, что именно обновляет `deploy.sh` и какие каталоги запрещено трогать.
 - Эталонные конфиги для прод-сервера лежат в `deploy/nginx/miniden.conf` и `deploy/systemd/*.service`; скрипт деплоя копирует их в `/etc/nginx/` и `/etc/systemd/system/`.
-- Ожидаемая команда на сервере: `sudo /opt/miniden/deploy.sh` (обновляет код, зависимости, webapp и перезапускает сервисы по контракту).
+- Ожидаемая команда на сервере: `sudo /opt/miniden/deploy.sh` (обновляет код, webapp и перезапускает сервисы по контракту).
+- Перед запуском деплоя администратор сам обновляет зависимости внутри `venv` (например, `source venv/bin/activate && pip install -r requirements.txt`, если менялся `requirements.txt`).
+- Пользователь/группа `miniden` и права на `/opt/miniden` настраиваются заранее (deploy.sh больше не создаёт пользователя и не делает `chown -R`).
 - Защищённые пути (деплой не трогает): `/opt/miniden/.env`, `/opt/miniden/media/`, `/opt/miniden/data/`.
+- Deploy должен выполняться от root (через systemd юнит или `sudo`), чтобы перезаписывать конфиги nginx/systemd и рестартовать сервисы.
 - Быстрый чек после деплоя: `curl http://127.0.0.1:8000/api/health`.
 
 Deploy через systemd (root)

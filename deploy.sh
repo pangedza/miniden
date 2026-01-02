@@ -91,36 +91,14 @@ ensure_js_content_type() {
   fi
 }
 
-ensure_system_user() {
-  if ! getent group "$SERVICE_GROUP" >/dev/null 2>&1; then
-    log "-> Creating system group $SERVICE_GROUP"
-    groupadd --system "$SERVICE_GROUP"
-  fi
-
-  if ! id -u "$SERVICE_USER" >/dev/null 2>&1; then
-    log "-> Creating system user $SERVICE_USER"
-    useradd --system --home-dir "$PROJECT_DIR" --shell /usr/sbin/nologin --gid "$SERVICE_GROUP" "$SERVICE_USER"
-  fi
-
-  usermod -g "$SERVICE_GROUP" "$SERVICE_USER"
-}
-
 ensure_permissions() {
-  chown -R "$SERVICE_USER:$SERVICE_GROUP" "$PROJECT_DIR"
-
   for path in "$PROJECT_DIR/logs" "$PROJECT_DIR/media" "$PROJECT_DIR/uploads"; do
-    mkdir -p "$path"
-    chown -R "$SERVICE_USER:$SERVICE_GROUP" "$path"
-    find "$path" -type d -exec chmod 775 {} +
-    find "$path" -type f -exec chmod 664 {} +
+    install -d -m 775 -o "$SERVICE_USER" -g "$SERVICE_GROUP" "$path"
   done
 
-  touch "$PROJECT_DIR/logs/bot.log"
-  touch "$PROJECT_DIR/logs/api.log"
-  chown "$SERVICE_USER:$SERVICE_GROUP" "$PROJECT_DIR/logs/bot.log"
-  chown "$SERVICE_USER:$SERVICE_GROUP" "$PROJECT_DIR/logs/api.log"
-  chmod 664 "$PROJECT_DIR/logs/bot.log"
-  chmod 664 "$PROJECT_DIR/logs/api.log"
+  touch "$PROJECT_DIR/logs/bot.log" "$PROJECT_DIR/logs/api.log"
+  chown "$SERVICE_USER:$SERVICE_GROUP" "$PROJECT_DIR/logs/bot.log" "$PROJECT_DIR/logs/api.log"
+  chmod 664 "$PROJECT_DIR/logs/bot.log" "$PROJECT_DIR/logs/api.log"
 }
 
 install_nginx_config() {
@@ -199,23 +177,15 @@ apply_migrations() {
 
 setup_logging
 
-log "-> Ensuring system user and permissions"
-ensure_system_user
+log "-> Ensuring permissions for runtime dirs"
 ensure_permissions
 
 log "-> Updating repository"
 current_branch=$(git -C "$PROJECT_DIR" rev-parse --abbrev-ref HEAD)
 git -C "$PROJECT_DIR" fetch --all
 git -C "$PROJECT_DIR" reset --hard "origin/${current_branch}"
-log "-> Cleaning working tree (preserving .env, logs, media, uploads, backups)"
-git -C "$PROJECT_DIR" clean -fd -e .env -e logs -e media -e uploads -e backups || warn "git clean reported issues"
-
-if [ -x "$PIP_BIN" ]; then
-  log "-> Installing Python dependencies"
-  "$PIP_BIN" install -r "$PROJECT_DIR/requirements.txt"
-else
-  warn "Python virtualenv not found at $PIP_BIN; skipping pip install"
-fi
+log "-> Cleaning working tree (preserving .env, data, logs, media, uploads, backups)"
+git -C "$PROJECT_DIR" clean -fd -e .env -e data -e logs -e media -e uploads -e backups || warn "git clean reported issues"
 
 apply_migrations
 
@@ -250,3 +220,5 @@ check_head_ok "https://miniden.ru/js/site_app.js"
 ensure_js_content_type "https://miniden.ru/js/site_app.js"
 
 log "-> Healthchecks succeeded"
+
+exit 0
