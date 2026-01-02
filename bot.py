@@ -14,7 +14,8 @@ from aiogram.exceptions import TelegramNetworkError
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.client.default import DefaultBotProperties  # 👈 ДОБАВИЛИ ЭТОТ ИМПОРТ
-from aiohttp import ClientError
+from aiogram.client.session.aiohttp import AiohttpSession
+from aiohttp import ClientError, ClientTimeout
 from aiohttp.client_exceptions import ServerDisconnectedError
 
 from config import get_settings
@@ -38,9 +39,11 @@ async def main() -> None:
 
     # Инициализация бота
     # В aiogram 3.7.0+ parse_mode нужно передавать через DefaultBotProperties
+    session = AiohttpSession(timeout=ClientTimeout(total=60))
     bot = Bot(
         token=settings.bot_token,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
+        session=session,
     )
 
     # FSM-хранилище в памяти (для состояний при оформлении заказа и т.п.)

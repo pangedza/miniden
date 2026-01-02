@@ -358,3 +358,39 @@ def load_menu_buttons() -> list[MenuButtonView]:
             _reload_cache(session, runtime.config_version, runtime.start_node_code)
 
         return list(_cache.get("menu_buttons", []))  # type: ignore[list-item]
+
+
+def cache_node_image_file_id(node_code: str, file_id: str) -> None:
+    nodes: Dict[str, NodeView] = _cache.get("nodes", {})  # type: ignore[assignment]
+    node_view = nodes.get(node_code)
+    if not node_view:
+        return
+
+    updated_config = dict(node_view.config_json or {})
+    updated_config["image_file_id"] = file_id
+    node_view.config_json = updated_config
+
+
+def persist_node_image_file_id(node_code: str, file_id: str) -> None:
+    with get_session() as session:
+        node: BotNode | None = (
+            session.query(BotNode).filter(BotNode.code == node_code).first()
+        )
+        if not node:
+            return
+
+        config: dict = node.config_json if isinstance(node.config_json, dict) else {}
+        if config.get("image_file_id") == file_id:
+            return
+
+        config["image_file_id"] = file_id
+        node.config_json = config
+
+        runtime = _get_runtime(session)
+        runtime.config_version = (runtime.config_version or 1) + 1
+
+        session.add_all([node, runtime])
+        session.commit()
+
+        _reload_cache(session, runtime.config_version, runtime.start_node_code)
+        cache_node_image_file_id(node_code, file_id)

@@ -25,10 +25,12 @@ from services.bot_config import (
     BotTriggerView,
     NodeButtonView,
     NodeView,
+    cache_node_image_file_id,
     get_start_node_code,
     load_button,
     load_node,
     load_triggers,
+    persist_node_image_file_id,
 )
 from services.bot_logging import (
     log_action_event,
@@ -80,14 +82,42 @@ async def _safe_answer(message: types.Message, text: str, **kwargs) -> types.Mes
         return None
 
 
-async def _safe_answer_photo(message: types.Message, **kwargs) -> types.Message | None:
-    try:
-        return await message.answer_photo(**kwargs)
-    except (TelegramNetworkError, ClientError, asyncio.TimeoutError):
+async def _safe_answer_photo(
+    message: types.Message,
+    *,
+    fallback_text: str | None = None,
+    retry_delays: tuple[float, ...] = (0.5, 1.5),
+    **kwargs,
+) -> types.Message | None:
+    last_exception: Exception | None = None
+
+    for attempt, delay in enumerate((0.0, *retry_delays), start=1):
+        if delay:
+            await asyncio.sleep(delay)
+        try:
+            return await message.answer_photo(**kwargs)
+        except (TelegramNetworkError, ClientError, asyncio.TimeoutError) as exc:
+            last_exception = exc
+            logger.warning(
+                "Не удалось отправить фото из-за сетевой ошибки Telegram (попытка %s)",
+                attempt,
+                exc_info=True,
+            )
+            continue
+
+    if fallback_text is not None:
         logger.warning(
-            "Не удалось отправить фото из-за сетевой ошибки Telegram", exc_info=True
+            "Переключаемся на текстовый ответ из-за ошибки отправки фото: %s",
+            last_exception,
         )
-        return None
+        return await _safe_answer(
+            message,
+            fallback_text,
+            reply_markup=kwargs.get("reply_markup"),
+            parse_mode=kwargs.get("parse_mode"),
+        )
+
+    return None
 
 
 def _get_tracked_messages(user_id: int) -> list[dict[str, int]]:
@@ -281,7 +311,12 @@ async def _send_message_node(
 ) -> None:
     settings = get_settings()
     keyboard = reply_markup if reply_markup is not None else node.keyboard
-    photo = _to_absolute_media(node.image_url) or settings.banner_start or settings.start_banner_id
+    photo = (
+        (node.config_json or {}).get("image_file_id")
+        or _to_absolute_media(node.image_url)
+        or settings.banner_start
+        or settings.start_banner_id
+    )
     context_vars = _build_template_context(message.from_user, user_vars)
     rendered_text = _apply_variables(node.message_text, context_vars)
 
@@ -294,8 +329,13 @@ async def _send_message_node(
             caption=rendered_text,
             parse_mode=node.parse_mode,
             reply_markup=keyboard,
+            fallback_text=rendered_text,
         )
         if sent_message:
+            if sent_message.photo:
+                photo_id = sent_message.photo[-1].file_id
+                cache_node_image_file_id(node.code, photo_id)
+                persist_node_image_file_id(node.code, photo_id)
             _remember_bot_message(message.from_user.id, sent_message)
             return
         # Fallback to text if Telegram rejects the image URL or network error occurred
@@ -1141,9 +1181,13 @@ async def _send_start_screen(message: types.Message, is_admin: bool) -> None:
             message,
             photo=banner,
             caption=format_start_text(),
+            fallback_text=format_start_text(),
         )
         if not sent:
             return
+        if sent.photo:
+            settings.start_banner_id = sent.photo[-1].file_id
+            settings.banner_start = settings.start_banner_id
         _remember_bot_message(message.from_user.id, sent)
     else:
         await _answer_and_track(
