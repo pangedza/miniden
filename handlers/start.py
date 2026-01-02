@@ -23,11 +23,13 @@ from models import AuthSession, User, UserState, UserTag, UserVar
 from services import users as users_service
 from services.bot_config import (
     BotTriggerView,
+    MenuButtonView,
     NodeButtonView,
     NodeView,
     cache_node_image_file_id,
     get_start_node_code,
     load_button,
+    load_menu_buttons,
     load_node,
     load_triggers,
     persist_node_image_file_id,
@@ -44,6 +46,7 @@ from services.subscription import (
     check_channels_subscription,
     is_user_subscribed,
 )
+from keyboards.main_menu import get_main_menu
 from utils.texts import format_start_text, format_subscription_required_text
 
 
@@ -255,6 +258,42 @@ async def _dispatch_button_action(message: types.Message, button: NodeButtonView
     await _answer_and_track(message, "Действие временно недоступно.")
 
 
+async def _dispatch_menu_button(message: types.Message, button: MenuButtonView) -> bool:
+    action_type = (button.action_type or "").upper()
+    payload = (button.action_payload or "").strip()
+
+    if action_type == "NODE":
+        if payload:
+            await _open_node_with_fallback(message, payload)
+        else:
+            await _answer_and_track(message, "Узел для перехода не настроен.")
+        return True
+
+    if action_type == "COMMAND":
+        if payload:
+            handled = await _process_triggers(message, text_override=payload)
+            if handled:
+                return True
+        await _answer_and_track(message, "Команда недоступна или не настроена.")
+        return True
+
+    if action_type in {"URL", "WEBAPP"}:
+        if not payload:
+            await _answer_and_track(message, "Ссылка недоступна.")
+            return True
+        inline_button = (
+            InlineKeyboardButton(text=button.text, url=payload)
+            if action_type == "URL"
+            else InlineKeyboardButton(text=button.text, web_app=WebAppInfo(url=payload))
+        )
+        markup = InlineKeyboardMarkup(inline_keyboard=[[inline_button]])
+        await _answer_and_track(message, "Открыть ссылку", reply_markup=markup)
+        return True
+
+    await _answer_and_track(message, "Действие временно недоступно.")
+    return True
+
+
 async def _send_subscription_invite(target_message) -> None:
     await _answer_and_track(
         target_message,
@@ -360,7 +399,7 @@ async def _send_node(message: types.Message, node: NodeView, *, remove_reply_key
         node_code=node.code,
     )
     _remember_current_node(message.from_user.id, node.code)
-    reply_keyboard = _build_reply_keyboard(node)
+    reply_keyboard = _build_reply_keyboard(node) or _build_global_reply_keyboard()
     if node.clear_chat:
         await _clear_previous_bot_messages(message)
     if reply_keyboard:
@@ -799,12 +838,29 @@ def _build_reply_keyboard(node: NodeView) -> ReplyKeyboardMarkup | None:
     return ReplyKeyboardMarkup(keyboard=keyboard_rows, resize_keyboard=True)
 
 
+def _build_global_reply_keyboard() -> ReplyKeyboardMarkup | None:
+    menu_buttons = load_menu_buttons()
+    return get_main_menu(menu_buttons, include_fallback=False)
+
+
 def _find_reply_button_by_text(node: NodeView, text_value: str | None) -> NodeButtonView | None:
     normalized = (text_value or "").strip().lower()
     if not normalized:
         return None
 
     for button in node.reply_buttons:
+        if (button.text or "").strip().lower() == normalized:
+            return button
+
+    return None
+
+
+def _find_menu_button_by_text(text_value: str | None) -> MenuButtonView | None:
+    normalized = (text_value or "").strip().lower()
+    if not normalized:
+        return None
+
+    for button in load_menu_buttons():
         if (button.text or "").strip().lower() == normalized:
             return button
 
@@ -1399,5 +1455,10 @@ async def handle_reply_buttons_or_triggers(message: types.Message):
             if reply_button:
                 await _dispatch_button_action(message, reply_button)
                 return
+
+    menu_button = _find_menu_button_by_text(message.text)
+    if menu_button:
+        await _dispatch_menu_button(message, menu_button)
+        return
 
     await _process_triggers(message)

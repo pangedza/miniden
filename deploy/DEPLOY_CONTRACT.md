@@ -9,7 +9,7 @@
 - единый deploy.sh, который **не** порождает альтернативных конфигов
 
 ## Одна команда деплоя на сервере
-sudo /opt/miniden/deploy.sh
+systemctl start miniden-deploy.service
 
 ## Что деплой ОБЯЗАН обновлять
 -- git reset --hard origin/<branch> в /opt/miniden
@@ -37,4 +37,4 @@ sudo /opt/miniden/deploy.sh
 ## Предварительные условия (делаются вручную до запуска deploy.sh)
 - Python-зависимости устанавливаются вручную в `venv` (если менялся `requirements.txt`).
 - Системный пользователь/группа `miniden` и права на каталоги `/opt/miniden`, `/opt/miniden/logs`, `/opt/miniden/media`, `/opt/miniden/uploads`, `/opt/miniden/data` подготовлены заранее.
-- deploy.sh запускается от root (systemd юнит или `sudo`), чтобы обновлять конфиги и перезапускать сервисы.
+- deploy.sh запускается через systemd-юнит `miniden-deploy.service` (User=root), который дергает `/opt/miniden/deploy.sh` без sudo/tty со стороны webapi.
