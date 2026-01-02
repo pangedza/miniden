@@ -15,6 +15,7 @@ from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.client.default import DefaultBotProperties  # 👈 ДОБАВИЛИ ЭТОТ ИМПОРТ
 from aiohttp import ClientError
+from aiohttp.client_exceptions import ServerDisconnectedError
 
 from config import get_settings
 from database import init_db
@@ -66,9 +67,15 @@ async def main() -> None:
         try:
             await dp.start_polling(bot)
             break
-        except (TelegramNetworkError, ClientError) as exc:
-            logging.warning("Polling interrupted due to network error: %s", exc)
-            await asyncio.sleep(3)
+        except (TelegramNetworkError, ClientError, asyncio.TimeoutError, ServerDisconnectedError) as exc:
+            logging.warning(
+                "Polling interrupted due to network error: %s. Restarting soon", exc
+            )
+            await asyncio.sleep(5)
+            continue
+        except Exception as exc:  # pragma: no cover - unexpected errors
+            logging.exception("Unexpected error during polling: %s", exc)
+            await asyncio.sleep(5)
             continue
 
 

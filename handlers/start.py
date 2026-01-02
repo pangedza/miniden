@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import re
@@ -14,6 +15,7 @@ from aiogram.types import (
     ReplyKeyboardRemove,
     WebAppInfo,
 )
+from aiohttp import ClientError
 
 from config import ADMIN_IDS, ADMIN_IDS_SET, get_settings
 from database import get_session
@@ -66,6 +68,26 @@ VAR_PATTERN = re.compile(r"{{\s*([a-zA-Z0-9_]+)\s*}}")
 logger = logging.getLogger(__name__)
 
 BOT_MESSAGE_LIMIT = 50
+
+
+async def _safe_answer(message: types.Message, text: str, **kwargs) -> types.Message | None:
+    try:
+        return await message.answer(text, **kwargs)
+    except (TelegramNetworkError, ClientError, asyncio.TimeoutError):
+        logger.warning(
+            "Не удалось отправить сообщение из-за сетевой ошибки Telegram", exc_info=True
+        )
+        return None
+
+
+async def _safe_answer_photo(message: types.Message, **kwargs) -> types.Message | None:
+    try:
+        return await message.answer_photo(**kwargs)
+    except (TelegramNetworkError, ClientError, asyncio.TimeoutError):
+        logger.warning(
+            "Не удалось отправить фото из-за сетевой ошибки Telegram", exc_info=True
+        )
+        return None
 
 
 def _get_tracked_messages(user_id: int) -> list[dict[str, int]]:
@@ -147,10 +169,8 @@ async def _clear_previous_bot_messages(message: types.Message) -> None:
 
 
 async def _answer_and_track(message: types.Message, text: str, **kwargs):
-    try:
-        sent = await message.answer(text, **kwargs)
-    except TelegramNetworkError:
-        logger.warning("Не удалось отправить сообщение из-за сетевой ошибки Telegram", exc_info=True)
+    sent = await _safe_answer(message, text, **kwargs)
+    if not sent:
         return None
 
     _remember_bot_message(message.from_user.id, sent)
@@ -268,30 +288,25 @@ async def _send_message_node(
     sent_message: types.Message | None = None
 
     if photo:
-        try:
-            sent_message = await message.answer_photo(
-                photo=photo,
-                caption=rendered_text,
-                parse_mode=node.parse_mode,
-                reply_markup=keyboard,
-            )
-            _remember_bot_message(message.from_user.id, sent_message)
-            return
-        except TelegramNetworkError:
-            logger.warning("Сетевая ошибка при отправке фото для узла %s", node.code, exc_info=True)
-            return
-        except Exception:
-            # Fallback to text if Telegram rejects the image URL
-            pass
-
-    try:
-        sent_message = await message.answer(
-            rendered_text,
+        sent_message = await _safe_answer_photo(
+            message,
+            photo=photo,
+            caption=rendered_text,
             parse_mode=node.parse_mode,
             reply_markup=keyboard,
         )
-    except TelegramNetworkError:
-        logger.warning("Сетевая ошибка при отправке узла %s", node.code, exc_info=True)
+        if sent_message:
+            _remember_bot_message(message.from_user.id, sent_message)
+            return
+        # Fallback to text if Telegram rejects the image URL or network error occurred
+
+    sent_message = await _safe_answer(
+        message,
+        rendered_text,
+        parse_mode=node.parse_mode,
+        reply_markup=keyboard,
+    )
+    if not sent_message:
         return
 
     _remember_bot_message(message.from_user.id, sent_message)
@@ -1122,10 +1137,13 @@ async def _send_start_screen(message: types.Message, is_admin: bool) -> None:
     banner = settings.banner_start or settings.start_banner_id
 
     if banner:
-        sent = await message.answer_photo(
+        sent = await _safe_answer_photo(
+            message,
             photo=banner,
             caption=format_start_text(),
         )
+        if not sent:
+            return
         _remember_bot_message(message.from_user.id, sent)
     else:
         await _answer_and_track(
