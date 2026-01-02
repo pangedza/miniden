@@ -3,6 +3,7 @@ import logging
 import os
 import subprocess
 from collections import deque
+from pathlib import Path
 
 from aiogram import Router, types, F
 from aiogram.filters import Command
@@ -32,10 +33,12 @@ from utils.texts import (
 )
 
 router = Router()
+logger = logging.getLogger(__name__)
 
 DEPLOY_SCRIPT_PATH = "/opt/miniden/deploy.sh"
 DEPLOY_LOG_PATH = "/opt/miniden/logs/deploy.log"
 DEPLOY_PID_PATH = "/opt/miniden/logs/deploy.pid"
+DEPLOY_LOG_DIR = Path(DEPLOY_LOG_PATH).parent
 
 WEB_ADMIN_REDIRECT_TEXT = (
     "Управление каталогом, промокодами и статистикой теперь доступно в веб-админке.\n"
@@ -92,6 +95,83 @@ def tail_log(n: int = 60) -> list[str]:
         return []
     except OSError:
         return []
+
+
+def _deploy_paths_ok() -> tuple[bool, str | None]:
+    if not DEPLOY_LOG_DIR.exists():
+        return False, "Папка логов /opt/miniden/logs отсутствует. Создайте её и повторите попытку."
+
+    if not Path(DEPLOY_SCRIPT_PATH).exists():
+        return False, "Не найден скрипт деплоя /opt/miniden/deploy.sh."
+
+    return True, None
+
+
+def start_deploy_process() -> tuple[bool, str]:
+    if is_running():
+        return False, "⏳ Деплой уже выполняется"
+
+    paths_ok, paths_error = _deploy_paths_ok()
+    if not paths_ok:
+        return False, paths_error or "Путь к деплою недоступен"
+
+    try:
+        with open(DEPLOY_LOG_PATH, "a") as log_file:
+            log_file.write(f"=== DEPLOY START {datetime.datetime.now().isoformat()} ===\n")
+            log_file.flush()
+            process = subprocess.Popen(
+                [DEPLOY_SCRIPT_PATH],
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+                close_fds=True,
+            )
+    except OSError:
+        logger.exception("Failed to open deploy log file")
+        return False, "Не удалось открыть лог деплоя. Проверьте права на /opt/miniden/logs/."
+    except Exception:
+        logger.exception("Failed to start deploy script")
+        return False, "Не удалось запустить деплой. Проверьте логи."
+
+    pid_written = True
+    try:
+        with open(DEPLOY_PID_PATH, "w") as pid_file:
+            pid_file.write(str(process.pid))
+    except OSError:
+        pid_written = False
+        logger.exception("Failed to write deploy pid file")
+
+    response = f"✅ Деплой запущен. PID: {process.pid}"
+    if not pid_written:
+        response += "\n⚠️ Не удалось записать PID-файл (/opt/miniden/logs/deploy.pid)."
+    return True, response
+
+
+def build_deploy_status_text(max_lines: int = 60) -> str:
+    pid = read_pid()
+    running = is_pid_running(pid)
+    log_lines = tail_log(max_lines)
+
+    lines = [
+        f"running: {'да' if running else 'нет'}",
+        f"pid: {pid if pid is not None else '—'}",
+    ]
+
+    if not DEPLOY_LOG_DIR.exists():
+        lines.append("папка логов: отсутствует (/opt/miniden/logs)")
+        return "\n".join(lines)
+
+    if log_lines:
+        log_text = "\n".join(log_lines)
+        max_len = 3500
+        if len(log_text) > max_len:
+            log_text = log_text[-max_len:]
+            lines.append("(лог обрезан до последних строк)")
+        lines.append("последние строки лога:")
+        lines.append(log_text)
+    else:
+        lines.append("последние строки лога: (нет данных)")
+
+    return "\n".join(lines)
 
 
 def _build_order_actions_kb(order_id: int, user_id: int) -> types.InlineKeyboardMarkup:
@@ -277,60 +357,7 @@ async def admin_deploy_start(message: types.Message):
     if not _is_admin(message.from_user.id):
         return
 
-    if is_running():
-        await message.answer("Деплой уже выполняется")
-        return
-
-    try:
-        log_file = open(DEPLOY_LOG_PATH, "a")
-    except OSError:
-        logging.exception("Failed to open deploy log file")
-        await message.answer(
-            "Не удалось открыть лог деплоя. Проверьте права на /opt/miniden/logs/."
-        )
-        return
-
-    try:
-        log_file.write(
-            f"=== DEPLOY START {datetime.datetime.now().isoformat()} ===\n"
-        )
-        log_file.flush()
-    except Exception:
-        logging.exception("Failed to write deploy start marker")
-
-    try:
-        process = subprocess.Popen(
-            [DEPLOY_SCRIPT_PATH],
-            stdout=log_file,
-            stderr=subprocess.STDOUT,
-            close_fds=True,
-        )
-    except Exception:
-        logging.exception("Failed to start deploy script")
-        try:
-            log_file.close()
-        except Exception:
-            logging.exception("Failed to close deploy log after start failure")
-        await message.answer("Не удалось запустить деплой. Проверьте логи.")
-        return
-
-    pid_written = True
-    try:
-        with open(DEPLOY_PID_PATH, "w") as pid_file:
-            pid_file.write(str(process.pid))
-    except OSError:
-        pid_written = False
-        logging.exception("Failed to write deploy pid file")
-
-    try:
-        log_file.flush()
-        log_file.close()
-    except Exception:
-        logging.exception("Failed to close deploy log file after start")
-
-    response = f"✅ Деплой запущен. PID: {process.pid}"
-    if not pid_written:
-        response += "\n⚠️ Не удалось записать PID-файл (/opt/miniden/logs/deploy.pid)."
+    _, response = start_deploy_process()
     await message.answer(response)
 
 
@@ -339,27 +366,7 @@ async def admin_deploy_status(message: types.Message):
     if not _is_admin(message.from_user.id):
         return
 
-    pid = read_pid()
-    running = is_pid_running(pid)
-    log_lines = tail_log(60)
-
-    lines = [
-        f"running: {'да' if running else 'нет'}",
-        f"pid: {pid if pid is not None else '—'}",
-    ]
-
-    if log_lines:
-        log_text = "\n".join(log_lines)
-        max_len = 3500
-        if len(log_text) > max_len:
-            log_text = log_text[-max_len:]
-            lines.append("(лог обрезан до последних строк)")
-        lines.append("последние строки лога:")
-        lines.append(log_text)
-    else:
-        lines.append("последние строки лога: (нет данных)")
-
-    await message.answer("\n".join(lines))
+    await message.answer(build_deploy_status_text())
 
 
 @router.message(F.text.in_({"📋 Товары: корзинки", "📋 Товары: курсы"}))
