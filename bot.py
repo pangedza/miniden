@@ -25,11 +25,7 @@ from utils.logging_config import BOT_LOG_FILE, setup_logging
 from handlers import admin, baskets, cart, courses, start, webapp
 from handlers import faq, site_chat, support
 from middlewares.user_registration import EnsureUserMiddleware
-from aiohttp import ClientTimeout
 
-# FIX: aiogram пытается сложить bot.session.timeout + int, а timeout может быть ClientTimeout
-if isinstance(getattr(bot.session, "timeout", None), ClientTimeout):
-    bot.session.timeout = int(bot.session.timeout.total or 60)
 
 
 async def main() -> None:
@@ -50,7 +46,11 @@ async def main() -> None:
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
         session=session,
     )
+    from aiohttp import ClientTimeout
 
+    # FIX: aiogram пытается сложить bot.session.timeout + int, а timeout может быть ClientTimeout
+    if isinstance(getattr(bot.session, "timeout", None), ClientTimeout):
+    bot.session.timeout = int(bot.session.timeout.total or 60)
     # FSM-хранилище в памяти (для состояний при оформлении заказа и т.п.)
     dp = Dispatcher(storage=MemoryStorage())
 
