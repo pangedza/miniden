@@ -302,11 +302,34 @@ tr:nth-child(even) {
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
 }
 
+
 .modal header {
     position: static;
     background: none;
     color: var(--text);
     padding: 0 0 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.modal .modal-close {
+    border: none;
+    background: none;
+    color: var(--text);
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 4px 8px;
+    margin: -4px -4px -4px 0;
+    pointer-events: auto;
+    z-index: 1;
+}
+
+.modal .modal-close:focus-visible {
+    outline: 2px solid var(--border);
+    outline-offset: 2px;
 }
 
 .modal h3 {

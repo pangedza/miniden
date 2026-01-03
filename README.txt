@@ -910,6 +910,7 @@ Front reset: theme-only + constructor-driven site
 - Removed unused placeholder `admin_panel/static/.keep` to avoid duplicate sentinel files.
 - Documented unified structure, run commands, and deploy expectations.
 - Fixed AdminSite constructor modals so category/product dialogs close on Отмена, Esc, and backdrop clicks without page reloads; touched `admin_panel/adminsite/static/adminsite/modals.js`, verify with the constructor smoke steps.
+- Fixed AdminSite constructor block picker: окно «Добавить блок» закрывается по крестику, клику на фон и клавише Esc без нарушения истории браузера.
 - Unified бот-кнопки: у BotButton добавлены поля render/action_payload, поддержка REPLY-кнопок по узлам, новые API `/adminbot/api/buttons`, `/adminbot/api/buttons/save`, `/adminbot/api/buttons/delete`.
 - Устойчивость стартовых фото бота: добавлены ретраи/фолбэки для answer_photo, кэширование file_id после первой загрузки и увеличен HTTP-timeout сессии.
 - Восстановлена обработка OPEN_NODE: кнопки CONTACT/ABOUT с payload вида `OPEN_NODE CONTACT` корректно открывают узлы и логируют причины ошибок.
