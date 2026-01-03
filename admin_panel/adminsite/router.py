@@ -266,6 +266,13 @@ def adminsite_publish_page(page_key: str, request: Request, db: Session = Depend
         raise
 
 
+@router.get("/health/page/{page_key}", response_model=dict)
+def adminsite_page_health(page_key: str, request: Request, db: Session = Depends(get_db_session)):
+    service.ensure_admin(request, db)
+    slug = _safe_slug(page_key)
+    return adminsite_pages.get_page_health(slug)
+
+
 @router.post("/theme/apply", response_model=ThemeApplyResponse)
 def adminsite_apply_theme(
     payload: ThemeApplyPayload, request: Request, db: Session = Depends(get_db_session)
