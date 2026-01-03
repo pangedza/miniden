@@ -200,6 +200,21 @@ async def _clear_previous_bot_messages(message: types.Message) -> None:
     _save_tracked_messages(message.from_user.id, [])
 
 
+def _extract_node_code_from_payload(raw_payload: str | None) -> tuple[str | None, str]:
+    if not raw_payload:
+        return None, "payload_is_empty"
+
+    normalized = raw_payload.strip()
+    if not normalized.upper().startswith("OPEN_NODE"):
+        return None, "payload_not_open_node"
+
+    parts = re.split(r"[:\s]+", normalized, maxsplit=1)
+    if len(parts) < 2 or not parts[1].strip():
+        return None, "node_code_missing"
+
+    return parts[1].strip(), ""
+
+
 async def _answer_and_track(message: types.Message, text: str, **kwargs):
     sent = await _safe_answer(message, text, **kwargs)
     if not sent:
@@ -255,6 +270,16 @@ async def _dispatch_button_action(message: types.Message, button: NodeButtonView
         await _answer_and_track(message, "Возврат невозможен из этого раздела.")
         return
 
+    logger.warning(
+        "Unknown node button action",
+        extra={
+            "user_id": message.from_user.id if message.from_user else None,
+            "button_id": button.id,
+            "button_text": button.text,
+            "action_type": action_type,
+            "payload": payload,
+        },
+    )
     await _answer_and_track(message, "Действие временно недоступно.")
 
 
@@ -290,6 +315,15 @@ async def _dispatch_menu_button(message: types.Message, button: MenuButtonView) 
         await _answer_and_track(message, "Открыть ссылку", reply_markup=markup)
         return True
 
+    logger.warning(
+        "Unknown menu button action",
+        extra={
+            "user_id": message.from_user.id if message.from_user else None,
+            "button_text": button.text,
+            "action_type": action_type,
+            "payload": payload,
+        },
+    )
     await _answer_and_track(message, "Действие временно недоступно.")
     return True
 
@@ -1320,22 +1354,36 @@ async def _open_start_node(message: types.Message, is_admin: bool) -> bool:
     return True
 
 
-@router.callback_query(F.data.startswith("OPEN_NODE:"))
+@router.callback_query(F.data.startswith("OPEN_NODE"))
 async def handle_open_node(callback: CallbackQuery):
-    _, node_code = callback.data.split(":", maxsplit=1)
-    node = load_node(node_code)
+    payload = callback.data or ""
+    node_code, error = _extract_node_code_from_payload(payload)
 
-    if not node:
-        await callback.answer("Раздел временно недоступен", show_alert=True)
-        log_error_event(
-            user_id=callback.from_user.id,
-            username=callback.from_user.username,
-            node_code=node_code,
-            details="Узел не найден при переходе по кнопке",
+    if not node_code:
+        logger.warning(
+            "Malformed OPEN_NODE payload",
+            extra={
+                "user_id": callback.from_user.id if callback.from_user else None,
+                "username": callback.from_user.username if callback.from_user else None,
+                "payload": payload,
+                "reason": error,
+            },
+        )
+        await callback.answer(
+            "Кнопка настроена некорректно, сообщите администратору.", show_alert=True
         )
         return
 
-    await _send_node(callback.message, node)
+    logger.info(
+        "Opening node from callback",
+        extra={
+            "user_id": callback.from_user.id if callback.from_user else None,
+            "username": callback.from_user.username if callback.from_user else None,
+            "node_code": node_code,
+            "payload": payload,
+        },
+    )
+    await _open_node_with_fallback(callback.message, node_code)
     await callback.answer()
 
 
