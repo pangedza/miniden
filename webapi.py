@@ -13,7 +13,6 @@ import json
 import mimetypes
 import logging
 import os
-import stat
 import subprocess
 import time
 from datetime import datetime, timedelta
@@ -25,7 +24,6 @@ import urllib.request
 from uuid import uuid4
 
 from fastapi import (
-    APIRouter,
     Body,
     Cookie,
     Depends,
@@ -136,14 +134,6 @@ def _detect_git_commit() -> str:
 BUILD_COMMIT = _detect_git_commit()
 BUILD_TIME = os.getenv("BUILD_TIME") or datetime.utcnow().isoformat() + "Z"
 SERVICE_NAME = os.getenv("SERVICE_NAME", "miniden-webapi")
-
-DEPLOY_SCRIPT_PATH = Path("/opt/miniden/deploy.sh")
-DEPLOY_LOG_PATH = Path("/opt/miniden/logs/deploy.log")
-DEPLOY_UNIT_PATH = Path("/etc/systemd/system/miniden-deploy.service")
-DEPLOY_UNIT_NAME = "miniden-deploy.service"
-SYSTEMCTL_PATH = "/bin/systemctl"
-SYSTEMCTL_RUN = [SYSTEMCTL_PATH]
-DEPLOY_ROLES = (AdminRole.superadmin, AdminRole.admin_bot)
 
 
 class VersionInfo(BaseModel):
@@ -363,256 +353,6 @@ else:  # pragma: no cover - defensive
     )
 
 
-def _ensure_deploy_prerequisites() -> None:
-    if not DEPLOY_SCRIPT_PATH.exists():
-        raise HTTPException(status_code=422, detail="Скрипт деплоя не найден")
-
-    try:
-        script_mode = DEPLOY_SCRIPT_PATH.stat().st_mode
-    except FileNotFoundError:
-        raise HTTPException(status_code=422, detail="Скрипт деплоя не найден")
-    except OSError:
-        raise HTTPException(status_code=422, detail="Нет доступа к файлу deploy.sh")
-
-    if not script_mode & (stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH):
-        raise HTTPException(
-            status_code=422, detail="Скрипт деплоя не исполняемый (chmod +x)"
-        )
-
-    log_dir = DEPLOY_LOG_PATH.parent
-    if not log_dir.exists():
-        raise HTTPException(
-            status_code=422,
-            detail="Папка /opt/miniden/logs отсутствует. Создайте её вручную и дайте права",
-        )
-
-    if not log_dir.is_dir():
-        raise HTTPException(
-            status_code=422,
-            detail="Путь для логов деплоя должен быть папкой /opt/miniden/logs",
-        )
-
-    if not os.access(log_dir, os.R_OK | os.X_OK):
-        raise HTTPException(
-            status_code=422,
-            detail="Недостаточно прав на чтение /opt/miniden/logs",
-        )
-
-    if not DEPLOY_UNIT_PATH.exists():
-        raise HTTPException(
-            status_code=422,
-            detail="systemd unit miniden-deploy.service не установлен (скопируйте его в /etc/systemd/system)",
-        )
-
-
-def _read_deploy_log_tail(max_lines: int = 80) -> tuple[list[str], str | None]:
-    if not DEPLOY_LOG_PATH.exists():
-        return [], None
-
-    try:
-        content = DEPLOY_LOG_PATH.read_text(encoding="utf-8", errors="ignore")
-        stat_result = DEPLOY_LOG_PATH.stat()
-    except OSError:
-        logger.exception("Failed to read deploy log")
-        return [], None
-
-    lines = content.splitlines()
-    tail = lines[-max_lines:]
-    last_run = datetime.utcfromtimestamp(stat_result.st_mtime).isoformat() + "Z"
-    return tail, last_run
-
-
-def _parse_systemctl_show_output(raw_output: str) -> dict[str, Any]:
-    parsed: dict[str, Any] = {}
-    for line in raw_output.splitlines():
-        if "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        parsed[key.strip()] = value.strip()
-    return parsed
-
-
-def _read_deploy_unit_state() -> dict[str, Any]:
-    default_state = {
-        "active_state": "unknown",
-        "sub_state": None,
-        "result": None,
-        "exec_main_pid": None,
-        "main_pid": None,
-        "status_text": None,
-    }
-
-    try:
-        result = subprocess.run(
-            [
-                *SYSTEMCTL_RUN,
-                "show",
-                DEPLOY_UNIT_NAME,
-                "--no-pager",
-                "--property=ActiveState,SubState,ExecMainPID,MainPID,Result,StatusText",
-            ],
-            capture_output=True,
-            text=True,
-        )
-    except FileNotFoundError:
-        logger.exception("systemctl is not available for deploy status")
-        return default_state
-    except PermissionError:
-        logger.exception("systemctl permissions error for deploy status")
-        return {
-            **default_state,
-            "status_text": "Недостаточно прав для чтения статуса systemd",
-        }
-
-    if result.returncode != 0:
-        logger.warning(
-            "Failed to read deploy unit state: %s", result.stderr.strip() or result.returncode
-        )
-        return default_state
-
-    parsed = _parse_systemctl_show_output(result.stdout)
-
-    def _parse_pid(raw_value: str | None) -> int | None:
-        try:
-            pid = int(raw_value or "0")
-        except (TypeError, ValueError):
-            return None
-        return pid or None
-
-    return {
-        "active_state": parsed.get("ActiveState", default_state["active_state"]),
-        "sub_state": parsed.get("SubState") or default_state["sub_state"],
-        "result": parsed.get("Result") or default_state["result"],
-        "exec_main_pid": _parse_pid(parsed.get("ExecMainPID")),
-        "main_pid": _parse_pid(parsed.get("MainPID")),
-        "status_text": parsed.get("StatusText") or default_state["status_text"],
-    }
-
-
-def _is_unit_running(state: dict[str, Any]) -> bool:
-    if not state:
-        return False
-
-    if state.get("active_state") in {"active", "activating"}:
-        return True
-
-    if state.get("sub_state") in {"running", "start-pre"}:
-        return True
-
-    return bool(state.get("exec_main_pid") or state.get("main_pid"))
-
-
-def _read_deploy_status_output() -> str:
-    try:
-        result = subprocess.run(
-            [*SYSTEMCTL_RUN, "status", DEPLOY_UNIT_NAME, "--no-pager", "--lines", "80"],
-            capture_output=True,
-            text=True,
-        )
-    except FileNotFoundError:
-        logger.exception("systemctl is not available for deploy status")
-        return "systemctl недоступен"
-    except PermissionError:
-        logger.exception("systemctl permissions error for deploy status output")
-        return "Недостаточно прав для чтения статуса systemd"
-
-    output = (result.stdout or "").strip()
-    stderr = (result.stderr or "").strip()
-
-    if result.returncode not in {0, 3}:
-        logger.warning(
-            "systemctl status returned %s: %s",
-            result.returncode,
-            stderr or output,
-        )
-
-    return output or stderr or "Статус деплоя недоступен"
-
-
-def _ensure_deploy_admin(request: Request, db: Session) -> None:
-    user = require_admin(request, db, roles=DEPLOY_ROLES)
-    if not user:
-        raise HTTPException(status_code=403, detail="Forbidden")
-
-
-deploy_router = APIRouter(prefix="/admin/deploy", tags=["AdminDeploy"])
-
-
-@deploy_router.post("/run", response_class=JSONResponse)
-async def run_deploy(request: Request, db: Session = Depends(get_db_session)):
-    _ensure_deploy_admin(request, db)
-
-    _ensure_deploy_prerequisites()
-
-    current_state = _read_deploy_unit_state()
-    tail_lines, last_run = _read_deploy_log_tail()
-    if _is_unit_running(current_state):
-        return {
-            "status": "already_running",
-            "pid": current_state.get("exec_main_pid") or current_state.get("main_pid"),
-            "active_state": current_state.get("active_state"),
-            "status_output": _read_deploy_status_output(),
-            "last_log_lines": tail_lines,
-            "last_run": last_run,
-        }
-
-    try:
-        subprocess.run(
-            [*SYSTEMCTL_RUN, "start", DEPLOY_UNIT_NAME],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-    except PermissionError:
-        logger.exception("Permission denied while starting deploy unit")
-        raise HTTPException(
-            status_code=403,
-            detail="Недостаточно прав для запуска деплоя через systemd",
-        )
-    except subprocess.CalledProcessError as exc:
-        detail = (exc.stderr or exc.stdout or "").strip()
-        logger.exception("Failed to start deploy unit: %s", detail)
-        status_code = 403 if "permission" in detail.lower() or "access" in detail.lower() else 500
-        raise HTTPException(
-            status_code=status_code,
-            detail=detail or "Не удалось запустить деплой через systemd",
-        )
-
-    updated_state = _read_deploy_unit_state()
-    status_output = _read_deploy_status_output()
-    log_lines, last_run = _read_deploy_log_tail()
-    return {
-        "status": "started",
-        "pid": updated_state.get("exec_main_pid") or updated_state.get("main_pid"),
-        "active_state": updated_state.get("active_state"),
-        "status_output": status_output,
-        "last_log_lines": log_lines,
-        "last_run": last_run,
-    }
-
-
-@deploy_router.get("/status", response_class=JSONResponse)
-async def deploy_status(request: Request, db: Session = Depends(get_db_session)):
-    _ensure_deploy_admin(request, db)
-
-    unit_state = _read_deploy_unit_state()
-    running = _is_unit_running(unit_state)
-    pid = unit_state.get("exec_main_pid") or unit_state.get("main_pid")
-
-    status_output = _read_deploy_status_output()
-    log_lines, last_run = _read_deploy_log_tail()
-
-    return {
-        "running": running,
-        "pid": pid,
-        "active_state": unit_state.get("active_state"),
-        "sub_state": unit_state.get("sub_state"),
-        "result": unit_state.get("result"),
-        "status_text": unit_state.get("status_text"),
-        "status_output": status_output,
-        "last_log_lines": log_lines,
-        "last_run": last_run,
-    }
 
 # Keep admin/site routers below static mounts so catch-all paths never override /static.
 app.include_router(admin_auth.router)
@@ -620,7 +360,6 @@ app.include_router(adminbot.router)
 app.include_router(adminsite.router)
 app.include_router(admin_users.router)
 app.include_router(adminsite_api_router)
-app.include_router(deploy_router)
 
 
 class WebChatStartPayload(BaseModel):
