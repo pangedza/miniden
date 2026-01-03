@@ -673,7 +673,9 @@ class AdminSitePage(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     slug = Column(String(64), nullable=False, unique=True)
-    template_id = Column(String(64), nullable=False, default="services", server_default="services")
+    template_id = Column(
+        String(64), nullable=False, default="linen-sage", server_default="linen-sage"
+    )
     blocks = Column(JSONB, nullable=False, default=list, server_default="[]")
     theme = Column(JSONB, nullable=False, default=dict, server_default="{}")
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
