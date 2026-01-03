@@ -110,8 +110,23 @@ def _serialize(page: AdminSitePage | None, slug: str = DEFAULT_SLUG) -> dict[str
         "draft": draft,
         "published": published,
         "templateId": (page.template_id if page else None) or DEFAULT_TEMPLATE_ID,
+        "theme": page.theme if page and isinstance(page.theme, dict) else {},
     }
     return payload
+
+
+def _summarize_state(entry: dict[str, Any] | None, *, fallback_template: str) -> dict[str, Any]:
+    blocks = entry.get("blocks") if isinstance(entry, dict) else []
+    template_id = (entry or {}).get("templateId") or fallback_template
+    version = (entry or {}).get("version") or None
+    updated_at = (entry or {}).get("updatedAt") or version
+    return {
+        "templateId": template_id,
+        "version": version,
+        "updatedAt": updated_at,
+        "blocksCount": len(blocks) if isinstance(blocks, list) else 0,
+        "hasContent": bool(blocks),
+    }
 
 
 def get_page(slug: str = DEFAULT_SLUG, *, raise_on_error: bool = False) -> dict[str, Any]:
@@ -257,13 +272,31 @@ def get_published_page(slug: str = DEFAULT_SLUG) -> dict[str, Any]:
             "version": published.get("version") or page.updated_at.isoformat(),
             "updatedAt": published.get("updatedAt") or published.get("version"),
             "blocks": published.get("blocks") or _default_blocks(),
+            "theme": page.theme if isinstance(page.theme, dict) else {},
         }
         return payload
+
+
+def get_page_health(slug: str = DEFAULT_SLUG) -> dict[str, Any]:
+    payload = get_page(slug)
+    draft_state = payload.get("draft") or {}
+    published_state = payload.get("published") or {}
+    template_id = payload.get("templateId") or DEFAULT_TEMPLATE_ID
+    draft_summary = _summarize_state(draft_state, fallback_template=template_id)
+    published_summary = _summarize_state(published_state, fallback_template=template_id)
+    return {
+        "pageKey": payload.get("pageKey") or slug or DEFAULT_SLUG,
+        "draft": draft_summary,
+        "published": published_summary,
+        "hasUnpublishedChanges": draft_summary != published_summary,
+        "theme": payload.get("theme") or {},
+    }
 
 
 __all__ = [
     "get_page",
     "get_published_page",
+    "get_page_health",
     "publish_page",
     "update_page",
     "DEFAULT_TEMPLATE_ID",

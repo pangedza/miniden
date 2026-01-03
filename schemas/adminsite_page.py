@@ -80,8 +80,26 @@ class SocialBlock(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class CategoryRef(BaseModel):
+    title: str | None = None
+    slug: str | None = None
+    type: Literal["product", "course"] | None = "product"
+    url: str | None = None
+
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+
+class CategoriesBlock(BaseModel):
+    type: Literal["categories"] = "categories"
+    title: str | None = None
+    subtitle: str | None = None
+    items: list[CategoryRef] = Field(default_factory=list)
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 PageBlock = Annotated[
-    Union[HeroBlock, CardsBlock, TextBlock, SocialBlock],
+    Union[HeroBlock, CardsBlock, TextBlock, SocialBlock, CategoriesBlock],
     Field(discriminator="type"),
 ]
 

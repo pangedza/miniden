@@ -4,6 +4,7 @@ MiniDeN — Telegram-бот и веб-магазин
 Changelog / История изменений
 -----------------------------
 - 2026-05-XX: Палитра витрины хранится в `/api/site-settings` (activePalette + cssVars); конструктор AdminSite сохраняет черновик страницы через `PUT /api/adminsite/pages/{pageKey}` и публикует через `POST /api/adminsite/pages/{pageKey}/publish`, а витрина читает опубликованные блоки по `GET /api/site/pages/{pageKey}`. Кнопка «➕» на карточке отображается только при количестве > 0 (stock/quantity/count).
+- 2026-05-XX: Добавлен health-эндпоинт `/api/adminsite/health/page/{key}` и строгий контракт черновик/публикация: сохраняем блоки через `PUT /api/adminsite/pages/{key}` (draft), публикуем через `POST /api/adminsite/pages/{key}/publish` (published), публичная витрина читает только `/api/site/pages/{key}` и `/api/site/home` (published). Публичный ответ теперь содержит `theme`, а конструктор и витрина поддерживают блок `categories` без ошибок валидации.
 - 2026-05-XX: Legacy `webapp/admin.html` удалена; управление витриной и главной страницей ведётся только через AdminSite (`/adminsite`, конструктор страниц/блоков/шаблонов).
 - 2026-05-XX: Deploy управляется только вручную через `systemctl start miniden-deploy.service` (без вызовов из adminbot/adminsite). UI и API для запуска деплоя удалены; неизвестные action_type показываются как «Удалено», постоянное Reply-меню использует меню из `/adminbot/menu-buttons` (кнопки «Написать»/«О проекте» работают).
 - 2026-04-XX: Обновление товара допускает `slug=null` — API сохраняет текущий slug в БД и не возвращает 422.
