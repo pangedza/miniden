@@ -68,7 +68,11 @@ async def main() -> None:
     await bot.delete_webhook(drop_pending_updates=True)
     while True:
         try:
-            await dp.start_polling(bot)
+            await dp.start_polling(
+                bot,
+                polling_timeout=30,
+                request_timeout=60
+            )    
             break
         except (TelegramNetworkError, ClientError, asyncio.TimeoutError, ServerDisconnectedError) as exc:
             logging.warning(
