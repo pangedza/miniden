@@ -76,7 +76,7 @@ async def main() -> None:
             await dp.start_polling(
                 bot,
                 polling_timeout=30,
-                timeout=60
+                request_timeout=60
             )    
             break
         except (TelegramNetworkError, ClientError, asyncio.TimeoutError, ServerDisconnectedError) as exc:
