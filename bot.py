@@ -46,11 +46,12 @@ async def main() -> None:
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
         session=session,
     )
-    from aiohttp import ClientTimeout
 
-    # FIX: aiogram пытается сложить bot.session.timeout + int, а timeout может быть ClientTimeout
+    # FIX: aiogram может пытаться сложить bot.session.timeout + int
+    # если timeout — ClientTimeout, приводим к секундам
     if isinstance(getattr(bot.session, "timeout", None), ClientTimeout):
     bot.session.timeout = int(bot.session.timeout.total or 60)
+    
     # FSM-хранилище в памяти (для состояний при оформлении заказа и т.п.)
     dp = Dispatcher(storage=MemoryStorage())
 
