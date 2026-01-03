@@ -30,7 +30,14 @@ export class BaseModal {
             }
         };
         this.backdrop.addEventListener('click', this.handleBackdropClick);
-        this.closeButton.addEventListener('click', () => this.requestClose('button'));
+        if (this.closeButton) {
+            this.closeButton.addEventListener('click', () => {
+                console.debug('[AdminSite] close button clicked');
+                this.requestClose('button');
+            });
+        } else {
+            console.warn('[AdminSite] modal close button not found');
+        }
 
         this.handleEscape = (event) => {
             if (event.key === 'Escape') {
