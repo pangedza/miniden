@@ -3,6 +3,7 @@ MiniDeN — Telegram-бот и веб-магазин
 
 Changelog / История изменений
 -----------------------------
+- 2026-06-XX: Публичная витрина читает только опубликованные данные конструктора: тема (/api/site/theme), меню (/api/site/menu) и страницы (/api/site/pages/{key}) возвращают version/updated_at; публикация копирует draft → published и обновляет version. Тема по умолчанию Linen & Sage, webapp применяет её через CSS variables без перекомпиляции.
 - 2026-05-XX: Палитра витрины хранится в `/api/site-settings` (activePalette + cssVars); конструктор AdminSite сохраняет черновик страницы через `PUT /api/adminsite/pages/{pageKey}` и публикует через `POST /api/adminsite/pages/{pageKey}/publish`, а витрина читает опубликованные блоки по `GET /api/site/pages/{pageKey}`. Кнопка «➕» на карточке отображается только при количестве > 0 (stock/quantity/count).
 - 2026-05-XX: Добавлен health-эндпоинт `/api/adminsite/health/page/{key}` и строгий контракт черновик/публикация: сохраняем блоки через `PUT /api/adminsite/pages/{key}` (draft), публикуем через `POST /api/adminsite/pages/{key}/publish` (published), публичная витрина читает только `/api/site/pages/{key}` и `/api/site/home` (published). Публичный ответ теперь содержит `theme`, а конструктор и витрина поддерживают блок `categories` без ошибок валидации.
 - 2026-05-XX: Legacy `webapp/admin.html` удалена; управление витриной и главной страницей ведётся только через AdminSite (`/adminsite`, конструктор страниц/блоков/шаблонов).
@@ -53,6 +54,12 @@ Smoke test
 - Категории на главной отображаются только через блок `categories`: добавьте этот блок в списке блоков, если нужна сетка разделов; без него рендерятся только сохранённые блоки.
 
 Legacy WebApp-админка (`webapp/admin.html`) удалена; витрина и главная страница редактируются только через AdminSite (constructor + /c/:slug).
+
+Связка AdminSite → webapp (published only)
+-----------------------------------------
+- Черновик страницы сохраняется через `PUT /api/adminsite/pages/{key}` (PageConfig c блоками и темой), публикация — `POST /api/adminsite/pages/{key}/publish` (копирует draft → published и обновляет version/updatedAt). Тема хранится в page.theme как draft/published.
+- Публичные данные читаются только из опубликованных источников: тема — `GET /api/site/theme`, меню — `GET /api/site/menu`, страницы — `GET /api/site/pages/{key}`. Ответы содержат `version` и `updated_at`, чтобы webapp мог принудительно обновлять кэш.
+- Webapp при загрузке тянет тему и меню, затем страницу по роуту (`home` по умолчанию), применяет CSS variables (Linen & Sage по умолчанию) и рендерит блоки без хардкода каталога. Повторная публикация в AdminSite сразу видна без npm build — достаточно обновить страницу.
 
 Архитектура проекта
 -------------------

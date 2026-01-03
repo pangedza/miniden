@@ -1818,7 +1818,16 @@ def _normalize_adminsite_type(type_value: str | None) -> str | None:
 @app.get("/api/site/menu")
 def site_menu(type: str | None = "product"):
     normalized_type = _normalize_adminsite_type(type) or "product"
-    return {"items": adminsite_public.list_menu(normalized_type)}
+    return adminsite_public.build_menu_payload(normalized_type)
+
+
+@app.get("/api/site/theme")
+def site_theme():
+    payload = adminsite_public.get_published_theme()
+    response = JSONResponse(content=payload)
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+    return response
 
 
 @app.get("/api/site-settings")

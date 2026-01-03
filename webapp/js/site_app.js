@@ -1,14 +1,12 @@
 import {
   fetchCategory,
-  fetchHome,
   fetchPageByKey,
   fetchMasterclass,
   fetchMenu,
   fetchProduct,
   fetchItems,
-  fetchSiteSettings,
+  fetchTheme,
 } from './site_api.js';
-import { getTemplateById, templatesRegistry } from './templates_registry.js';
 
 const queryParams = new URLSearchParams(window.location.search);
 const DEBUG_MODE = queryParams.get('debug') === '1';
@@ -25,10 +23,6 @@ const navMenu = document.getElementById('nav-menu');
 const navLinks = document.getElementById('nav-links');
 const sidebarOverlay = document.querySelector('.app-sidebar-overlay');
 const sidebarClose = document.querySelector('.menu-close');
-const templateName = document.getElementById('template-name');
-const categoriesSection = document.getElementById('home-categories');
-const categoriesGrid = document.getElementById('categories-grid');
-const categoriesRefresh = document.getElementById('categories-refresh');
 const debugStrip = document.getElementById('debug-strip');
 const homeBlocksContainer = document.getElementById('home-blocks');
 const debugState = {
@@ -37,15 +31,15 @@ const debugState = {
   lastError: '',
   receivedVersion: '—',
   updatedAt: '—',
-  appliedTemplateId: '—',
-  themeLoadedUrl: '—',
+  themeId: '—',
+  themeVersion: '—',
   blocksCount: 0,
   blockTypes: '',
 };
 let debugPanel = null;
 let lastHomeConfig = null;
 let cachedCategories = [];
-let activePalette = null;
+let currentTheme = null;
 
 function normalizeMediaUrl(url, { absolute = false } = {}) {
   if (!url) return '';
@@ -128,8 +122,8 @@ function ensureDebugOverlay() {
     ['lastError', 'lastError'],
     ['receivedVersion', 'receivedVersion'],
     ['updatedAt', 'updatedAt'],
-    ['appliedTemplateId', 'appliedTemplateId'],
-    ['themeLoadedUrl', 'themeLoadedUrl'],
+    ['themeId', 'themeId'],
+    ['themeVersion', 'themeVersion'],
     ['blocksCount', 'blocksCount'],
     ['blockTypes', 'blockTypes'],
   ];
@@ -196,43 +190,21 @@ function updateDebugOverlay(partial = {}) {
 
 function updateDebugStrip() {
   if (!debugStrip) return;
-  const templateId = debugState.appliedTemplateId || lastHomeConfig?.templateId || '—';
   const blocksCount = debugState.blocksCount ?? lastHomeConfig?.blocksCount ?? 0;
   const updatedAt = debugState.updatedAt || lastHomeConfig?.updatedAt || '—';
+  const themeLabel = debugState.themeId || currentTheme?.appliedTemplateId || '—';
 
   if (DEBUG_MODE) {
     debugStrip.hidden = false;
-    debugStrip.textContent = `debug: template=${templateId} • blocks=${blocksCount} • updated=${updatedAt}`;
+    debugStrip.textContent = `debug: theme=${themeLabel} • blocks=${blocksCount} • updated=${updatedAt}`;
   } else {
     debugStrip.hidden = true;
     debugStrip.textContent = '';
   }
 }
 
-function ensureThemeStylesheet() {
-  const link = document.getElementById('theme-stylesheet');
-  if (link && !link.getAttribute('href')) {
-    link.setAttribute('href', '/css/theme.css');
-  }
-}
-
-async function loadSiteSettings() {
-  try {
-    const settings = await fetchSiteSettings();
-    activePalette = settings?.activePalette || 'services';
-    const applied = applyThemeVariables(settings?.theme || {}, activePalette);
-    applyTemplate(applied || activePalette || 'services');
-    updateDebugOverlay({ appliedTemplateId: applied || activePalette || 'services' });
-  } catch (error) {
-    console.warn('Failed to load site settings, falling back to default palette', error);
-    activePalette = activePalette || 'services';
-    applyTemplate(activePalette);
-  }
-}
-
-function applyThemeVariables(theme, fallbackTemplateId) {
+function applyThemeVariables(theme) {
   const cssVars = theme?.cssVars || {};
-  const appliedTemplateId = theme?.appliedTemplateId || fallbackTemplateId || null;
   const target = document.documentElement;
 
   Object.entries(cssVars).forEach(([key, value]) => {
@@ -241,18 +213,21 @@ function applyThemeVariables(theme, fallbackTemplateId) {
     }
   });
 
-  if (appliedTemplateId) {
-    document.documentElement.dataset.template = appliedTemplateId;
-    document.body.dataset.template = appliedTemplateId;
-  }
-
   updateDebugOverlay({
-    themeLoadedUrl: theme?.updatedAt
-      ? `api/theme @ ${theme.updatedAt}`
-      : appliedTemplateId || '—',
+    themeId: theme?.appliedTemplateId || '—',
+    themeVersion: theme?.version || theme?.timestamp || theme?.updatedAt || '—',
   });
+}
 
-  return appliedTemplateId;
+async function loadPublishedTheme() {
+  try {
+    const themePayload = await fetchTheme();
+    currentTheme = themePayload || {};
+    applyThemeVariables(currentTheme);
+  } catch (error) {
+    console.warn('Failed to load published theme, using defaults', error);
+    currentTheme = currentTheme || {};
+  }
 }
 
 function renderHomeMessage(title, description = 'Настройте главную страницу в AdminSite.') {
@@ -458,7 +433,7 @@ function buildCategoryLink(category) {
   return link;
 }
 
-function renderCategories(categories = [], { target = categoriesGrid, section = categoriesSection } = {}) {
+function renderCategories(categories = [], { target = null, section = null } = {}) {
   const normalized = mapCategories(categories);
   cachedCategories = normalized;
   if (!target) return normalized;
@@ -487,15 +462,6 @@ async function refreshCategoriesFromApi({ renderPanel = false } = {}) {
     console.warn('Failed to refresh categories', error);
     return cachedCategories;
   }
-}
-
-function applyTemplate(templateId) {
-  const resolvedTemplate = getTemplateById(templateId);
-  const appliedId = resolvedTemplate?.id || templateId || '—';
-  document.documentElement.dataset.template = appliedId;
-  if (templateName) templateName.textContent = resolvedTemplate?.name || templateId || '—';
-  updateDebugOverlay({ appliedTemplateId: appliedId });
-  return appliedId;
 }
 
 function buildHeroSection(block) {
@@ -822,18 +788,17 @@ function renderHomeBlocks(blocks, data, { categories = [] } = {}) {
 function normalizeHomeResponse(data) {
   const page = data?.page ?? data?.config ?? (data?.blocks ? data : null);
   const blocks = data?.blocks ?? page?.blocks ?? [];
-  const templateId =
-    page?.templateId ||
-    page?.template_id ||
-    data?.templateId ||
-    data?.template_id ||
-    'services';
-  const version = data?.version ?? page?.version ?? data?.updatedAt ?? page?.updatedAt ?? '—';
-  const updatedAt = page?.updatedAt ?? data?.updatedAt ?? version ?? '—';
-  const theme = data?.theme || {};
+  const version =
+    data?.version ??
+    page?.version ??
+    data?.updatedAt ??
+    page?.updatedAt ??
+    data?.updated_at ??
+    '—';
+  const updatedAt = page?.updatedAt ?? data?.updatedAt ?? data?.updated_at ?? version ?? '—';
+  const theme = data?.theme || page?.theme || currentTheme || {};
   const themeVersion =
-    data?.themeVersion || theme?.timestamp || theme?.updatedAt || theme?.generatedAt || null;
-  const themeTemplate = theme?.appliedTemplateId || templateId;
+    theme?.version || theme?.timestamp || theme?.updatedAt || theme?.generatedAt || null;
   const blockTypes = Array.isArray(blocks)
     ? blocks.map((block) => block?.type || 'unknown').filter(Boolean)
     : [];
@@ -844,14 +809,12 @@ function normalizeHomeResponse(data) {
 
   return {
     __normalized: true,
-    page,
+    page: page || null,
     blocks: Array.isArray(blocks) ? blocks : [],
-    templateId,
     version,
     updatedAt,
     theme,
     themeVersion,
-    themeTemplate,
     blocksCount: Array.isArray(blocks) ? blocks.length : 0,
     blockTypes,
     categories,
@@ -867,21 +830,20 @@ async function renderHome(data) {
   }
 
   console.debug('[site] Loaded home config', normalized);
-  const appliedThemeTemplate = applyThemeVariables(
-    normalized.theme,
-    activePalette || normalized.templateId || 'services',
-  );
-  const paletteToApply =
-    appliedThemeTemplate ||
-    normalized.themeTemplate ||
-    normalized.templateId ||
-    activePalette ||
-    'services';
-  const appliedTemplate = applyTemplate(paletteToApply);
+  if (normalized.theme) {
+    currentTheme = normalized.theme;
+    applyThemeVariables(normalized.theme);
+  }
   updateDebugOverlay({
-    appliedTemplateId: appliedTemplate,
     receivedVersion: normalized.version || '—',
     updatedAt: normalized.updatedAt || normalized.version || '—',
+    themeId: normalized.theme?.appliedTemplateId || currentTheme?.appliedTemplateId || '—',
+    themeVersion:
+      normalized.themeVersion ||
+      normalized.theme?.version ||
+      normalized.theme?.updatedAt ||
+      normalized.theme?.timestamp ||
+      '—',
     blocksCount: normalized.blocksCount || 0,
     blockTypes: normalized.blockTypes?.join(', ') || '—',
   });
@@ -891,10 +853,6 @@ async function renderHome(data) {
   let categoriesForBlocks = hasCategoriesBlock ? normalized.categories || cachedCategories : [];
   if (hasCategoriesBlock && (!categoriesForBlocks || !categoriesForBlocks.length)) {
     categoriesForBlocks = await refreshCategoriesFromApi();
-  }
-
-  if (!hasCategoriesBlock && categoriesSection) {
-    categoriesSection.hidden = true;
   }
 
   renderHomeBlocks(normalized.blocks, normalized.raw || normalized.page || {}, {
@@ -1095,8 +1053,7 @@ function setupMenuToggle() {
 }
 
 async function loadHomeConfig({ reason = 'initial' } = {}) {
-  const cacheBust = Date.now().toString();
-  const fetchUrl = `/api/site/home?limit=6&t=${cacheBust}`;
+  const fetchUrl = `/api/site/pages/home?_=${Date.now().toString()}&reason=${encodeURIComponent(reason)}`;
   updateDebugOverlay({
     lastFetchUrl: fetchUrl,
     lastFetchStatus: 'loading',
@@ -1104,17 +1061,16 @@ async function loadHomeConfig({ reason = 'initial' } = {}) {
   });
 
   try {
-    const { payload: homeData, status, statusText, url } = await fetchHome(6, cacheBust, { reason });
+    const homeData = await fetchPageByKey('home');
     const normalized = normalizeHomeResponse(homeData);
     lastHomeConfig = normalized;
 
     updateDebugOverlay({
-      lastFetchUrl: url || fetchUrl,
-      lastFetchStatus: `${status || 200} ${statusText || 'OK'}`.trim(),
+      lastFetchUrl: fetchUrl,
+      lastFetchStatus: '200 OK',
       lastError: '',
       receivedVersion: normalized.version || '—',
       updatedAt: normalized.updatedAt || '—',
-      appliedTemplateId: normalized.templateId || '—',
       blocksCount: normalized.blocksCount || 0,
       blockTypes: normalized.blockTypes?.join(', ') || '—',
     });
@@ -1123,19 +1079,10 @@ async function loadHomeConfig({ reason = 'initial' } = {}) {
     await renderHome(normalized);
   } catch (error) {
     console.error('Failed to load home', error);
-    try {
-      const pageOnly = await fetchPageByKey('home');
-      const normalized = normalizeHomeResponse(pageOnly);
-      lastHomeConfig = normalized;
-      await renderHome(normalized);
-    } catch (fallbackError) {
-      console.warn('Fallback page fetch failed', fallbackError);
-    }
     updateDebugOverlay({
       lastFetchStatus: error?.status ? `error ${error.status}` : 'error',
       lastError: error?.message || String(error),
       lastFetchUrl: fetchUrl,
-      appliedTemplateId: '—',
       blocksCount: 0,
       blockTypes: '',
     });
@@ -1148,9 +1095,7 @@ async function bootstrap() {
   setupMenuToggle();
   bindRouterLinks();
   ensureDebugOverlay();
-  ensureThemeStylesheet();
-  await loadSiteSettings();
-  categoriesRefresh?.addEventListener('click', () => refreshCategoriesFromApi({ renderPanel: true }));
+  await loadPublishedTheme();
 
   try {
     const menu = await fetchMenu('product');

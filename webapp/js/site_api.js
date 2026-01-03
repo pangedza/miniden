@@ -60,22 +60,12 @@ export function fetchMenu(type = 'product') {
   return request('/api/site/menu', { type });
 }
 
-export function fetchHome(limit = 6, version = null, extraParams = {}) {
-  const params = {
-    limit,
-    v: version || Date.now().toString(),
-    t: Date.now().toString(),
-    ...extraParams,
-  };
-  return requestWithStatus('/api/site/home', params);
+export function fetchTheme() {
+  return request('/api/site/theme');
 }
 
 export function fetchPageByKey(pageKey) {
   return request(`/api/site/pages/${encodeURIComponent(pageKey)}`);
-}
-
-export function fetchSiteSettings() {
-  return request('/api/site-settings');
 }
 
 export function fetchCategories(type = null) {

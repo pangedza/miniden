@@ -109,6 +109,26 @@ def list_menu(type_value: str | None = "product") -> list[dict[str, Any]]:
     return [_serialize_category(item) for item in categories]
 
 
+def build_menu_payload(type_value: str | None = "product") -> dict[str, Any]:
+    items = list_menu(type_value)
+    latest = None
+    timestamps = [item.get("created_at") for item in items if item.get("created_at")]
+    for value in timestamps:
+        try:
+            parsed = datetime.fromisoformat(str(value))
+            latest = parsed if latest is None or parsed > latest else latest
+        except Exception:
+            continue
+
+    updated_at = (latest or datetime.utcnow()).isoformat()
+    return {
+        "items": items,
+        "version": updated_at,
+        "updated_at": updated_at,
+        "updatedAt": updated_at,
+    }
+
+
 def list_categories(type_value: str | None = None) -> list[dict[str, Any]]:
     normalized = normalize_type(type_value)
     with get_session() as session:
@@ -255,6 +275,8 @@ def get_home_summary(limit: int = 6) -> dict[str, Any]:
         page = fallback.get("published") or fallback
     meta = _extract_page_meta(page)
     theme_meta = theme_service.get_theme_metadata()
+    if "updated_at" not in theme_meta:
+        theme_meta["updated_at"] = theme_meta.get("updatedAt")
     with get_session() as session:
         categories_product = session.execute(
             _category_query(session, "product")
@@ -290,3 +312,18 @@ def get_home_summary(limit: int = 6) -> dict[str, Any]:
 
 def get_public_page(page_key: str) -> dict[str, Any]:
     return adminsite_pages.get_published_page(page_key)
+
+
+def get_published_theme() -> dict[str, Any]:
+    theme_meta = theme_service.get_theme_metadata()
+    version = (
+        theme_meta.get("version")
+        or theme_meta.get("updatedAt")
+        or theme_meta.get("timestamp")
+        or datetime.utcnow().isoformat()
+    )
+    payload = dict(theme_meta)
+    payload["version"] = version
+    payload["updated_at"] = payload.get("updatedAt") or version
+    payload["updatedAt"] = payload.get("updatedAt") or payload["updated_at"]
+    return payload

@@ -16,13 +16,13 @@ from services.theme_templates import (
 )
 
 DEFAULT_VARS: dict[str, str] = {
-    "bg": "#f5f6fb",
-    "text": "#1f2937",
-    "muted": "#6b7280",
-    "card-bg": "#ffffff",
-    "accent": "#2563eb",
+    "bg": "linear-gradient(180deg, #f7f3ec 0%, #edf0e6 100%)",
+    "text": "#1f2a20",
+    "muted": "#5f6b5f",
+    "card-bg": "rgba(255, 255, 255, 0.92)",
+    "accent": "#7a8c70",
     "radius": "16px",
-    "shadow": "0 16px 40px rgba(15, 23, 42, 0.12)",
+    "shadow": "0 16px 44px rgba(47, 63, 47, 0.14)",
     "font": '"Inter", system-ui, sans-serif',
 }
 
@@ -107,11 +107,8 @@ def _persist_theme_state(template: ThemeTemplate, theme_state: dict[str, Any]) -
         page = _ensure_home_page(session)
         page.template_id = template.id
         page.theme = {
-            "appliedTemplateId": template.id,
-            "timestamp": theme_state.get("timestamp"),
-            "updatedAt": theme_state.get("updatedAt"),
-            "cssVars": theme_state.get("cssVars", {}),
-            "stylePreset": theme_state.get("stylePreset", {}),
+            "draft": theme_state,
+            "published": theme_state,
         }
         page.updated_at = datetime.utcnow()
         session.add(page)
@@ -127,6 +124,7 @@ def _build_theme_state(template: ThemeTemplate, *, existing: dict[str, Any] | No
         "appliedTemplateId": template.id,
         "timestamp": timestamp,
         "updatedAt": updated_at,
+        "version": updated_at,
         "cssVars": css_vars,
         "stylePreset": template.style_preset or {},
     }
@@ -146,7 +144,11 @@ def apply_theme(template_id: str | None) -> dict[str, Any]:
 def get_theme_metadata() -> dict[str, Any]:
     with get_session() as session:
         page = _ensure_home_page(session)
-        theme_data = page.theme or {}
+        raw_theme = page.theme or {}
+        if isinstance(raw_theme, dict) and ("draft" in raw_theme or "published" in raw_theme):
+            theme_data = raw_theme.get("published") or raw_theme.get("draft") or {}
+        else:
+            theme_data = raw_theme
 
     template_id = (
         theme_data.get("appliedTemplateId")
@@ -169,6 +171,7 @@ def get_theme_metadata() -> dict[str, Any]:
         merged["timestamp"] = int(datetime.utcnow().timestamp())
     if not merged.get("updatedAt"):
         merged["updatedAt"] = datetime.utcnow().isoformat()
+    merged["version"] = theme_data.get("version") or merged.get("updatedAt")
 
     return merged
 

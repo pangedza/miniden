@@ -11,9 +11,10 @@ from sqlalchemy.orm import Session
 
 from database import get_session
 from models import AdminSitePage
-from schemas.adminsite_page import PageConfig
+from services.theme_templates import DEFAULT_TEMPLATE_ID as THEME_DEFAULT_TEMPLATE_ID
+from schemas.adminsite_page import PageConfig, ThemeConfig
 
-DEFAULT_TEMPLATE_ID = "services"
+DEFAULT_TEMPLATE_ID = THEME_DEFAULT_TEMPLATE_ID
 DEFAULT_SLUG = "home"
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,56 @@ def _wrap_state(blocks: list[dict[str, Any]] | None, *, template_id: str) -> dic
         "version": timestamp,
         "updatedAt": timestamp,
     }
+
+
+def _normalize_theme_entry(
+    entry: dict[str, Any] | ThemeConfig | None, *, fallback_template: str
+) -> dict[str, Any]:
+    try:
+        theme_model = (
+            entry
+            if isinstance(entry, ThemeConfig)
+            else ThemeConfig.model_validate(
+                entry or {"appliedTemplateId": fallback_template}
+            )
+        )
+    except ValidationError:
+        logger.exception("Failed to normalize AdminSite theme entry, using fallback")
+        theme_model = ThemeConfig(applied_template_id=fallback_template)
+
+    payload = theme_model.model_dump(by_alias=True)
+    payload["appliedTemplateId"] = payload.get("appliedTemplateId") or fallback_template
+    payload["cssVars"] = payload.get("cssVars") or {}
+    payload["stylePreset"] = payload.get("stylePreset") or {}
+    payload["updatedAt"] = payload.get("updatedAt") or _now_iso()
+    payload["version"] = payload.get("version") or payload["updatedAt"]
+    if payload.get("timestamp") is None:
+        payload["timestamp"] = int(datetime.utcnow().timestamp())
+    return payload
+
+
+def _extract_theme_states(
+    theme: dict[str, Any] | None, *, fallback_template: str
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    draft_raw: dict[str, Any] | None
+    published_raw: dict[str, Any] | None
+
+    draft_raw = None
+    published_raw = None
+
+    if isinstance(theme, dict):
+        if "draft" in theme or "published" in theme:
+            draft_raw = theme.get("draft") if isinstance(theme.get("draft"), dict) else None
+            published_raw = (
+                theme.get("published") if isinstance(theme.get("published"), dict) else None
+            )
+        else:
+            draft_raw = theme
+            published_raw = theme
+
+    draft = _normalize_theme_entry(draft_raw, fallback_template=fallback_template)
+    published = _normalize_theme_entry(published_raw, fallback_template=fallback_template)
+    return draft, published
 
 
 def _extract_states(page: AdminSitePage | None, slug: str) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -105,12 +156,19 @@ def _normalize_page(page: AdminSitePage | None) -> PageConfig:
 
 def _serialize(page: AdminSitePage | None, slug: str = DEFAULT_SLUG) -> dict[str, Any]:
     draft, published = _extract_states(page, slug)
+    base_template = (page.template_id if page else None) or DEFAULT_TEMPLATE_ID
+    theme_draft, theme_published = _extract_theme_states(
+        page.theme if page and isinstance(page.theme, dict) else {},
+        fallback_template=base_template,
+    )
     payload = {
         "pageKey": slug,
         "draft": draft,
         "published": published,
-        "templateId": (page.template_id if page else None) or DEFAULT_TEMPLATE_ID,
-        "theme": page.theme if page and isinstance(page.theme, dict) else {},
+        "templateId": base_template,
+        "theme": theme_draft,
+        "themeDraft": theme_draft,
+        "themePublished": theme_published,
     }
     return payload
 
@@ -184,10 +242,19 @@ def update_page(payload: dict[str, Any], slug: str = DEFAULT_SLUG) -> dict[str, 
                 .first()
             )
 
+            existing_theme_draft, existing_theme_published = _extract_theme_states(
+                page.theme if page else {}, fallback_template=data.template_id
+            )
             draft_state = _wrap_state(
                 data.model_dump(by_alias=True).get("blocks", _default_blocks()),
                 template_id=data.template_id or DEFAULT_TEMPLATE_ID,
             )
+            draft_theme = (
+                _normalize_theme_entry(theme_data, fallback_template=data.template_id)
+                if theme_payload is not None
+                else existing_theme_draft
+            )
+            published_theme = existing_theme_published or draft_theme
 
             if not page:
                 page = AdminSitePage(
@@ -197,7 +264,7 @@ def update_page(payload: dict[str, Any], slug: str = DEFAULT_SLUG) -> dict[str, 
                         "draft": draft_state,
                         "published": draft_state,
                     },
-                    theme=theme_data,
+                    theme={"draft": draft_theme, "published": published_theme},
                 )
                 session.add(page)
             else:
@@ -208,8 +275,7 @@ def update_page(payload: dict[str, Any], slug: str = DEFAULT_SLUG) -> dict[str, 
                     "draft": draft_state,
                     "published": published_state or draft_state,
                 }
-                if theme_payload is not None:
-                    page.theme = theme_data
+                page.theme = {"draft": draft_theme, "published": published_theme}
                 page.updated_at = datetime.utcnow()
 
             session.commit()
@@ -242,10 +308,15 @@ def publish_page(slug: str = DEFAULT_SLUG) -> dict[str, Any]:
                 raise HTTPException(status_code=404, detail="Page not found")
 
         draft, _published = _extract_states(page, safe_slug)
+        draft_theme, _published_theme = _extract_theme_states(
+            page.theme if isinstance(page.theme, dict) else {},
+            fallback_template=page.template_id or DEFAULT_TEMPLATE_ID,
+        )
         if not draft.get("blocks"):
             raise HTTPException(status_code=422, detail="Draft is empty")
 
         page.blocks = {"draft": draft, "published": draft}
+        page.theme = {"draft": draft_theme, "published": draft_theme}
         page.updated_at = datetime.utcnow()
         session.add(page)
         session.commit()
@@ -266,14 +337,20 @@ def get_published_page(slug: str = DEFAULT_SLUG) -> dict[str, Any]:
             raise HTTPException(status_code=404, detail="Page not found")
 
         _draft, published = _extract_states(page, safe_slug)
+        theme_draft, theme_published = _extract_theme_states(
+            page.theme if isinstance(page.theme, dict) else {},
+            fallback_template=published.get("templateId") or page.template_id,
+        )
         payload = {
             "pageKey": safe_slug,
             "templateId": published.get("templateId") or page.template_id or DEFAULT_TEMPLATE_ID,
             "version": published.get("version") or page.updated_at.isoformat(),
             "updatedAt": published.get("updatedAt") or published.get("version"),
             "blocks": published.get("blocks") or _default_blocks(),
-            "theme": page.theme if isinstance(page.theme, dict) else {},
+            "theme": theme_published,
+            "themeVersion": theme_published.get("version") or theme_published.get("updatedAt"),
         }
+        payload["updated_at"] = payload.get("updatedAt")
         return payload
 
 
@@ -284,12 +361,17 @@ def get_page_health(slug: str = DEFAULT_SLUG) -> dict[str, Any]:
     template_id = payload.get("templateId") or DEFAULT_TEMPLATE_ID
     draft_summary = _summarize_state(draft_state, fallback_template=template_id)
     published_summary = _summarize_state(published_state, fallback_template=template_id)
+    theme_draft = payload.get("themeDraft") or payload.get("theme") or {}
+    theme_published = payload.get("themePublished") or payload.get("theme") or {}
     return {
         "pageKey": payload.get("pageKey") or slug or DEFAULT_SLUG,
         "draft": draft_summary,
         "published": published_summary,
         "hasUnpublishedChanges": draft_summary != published_summary,
-        "theme": payload.get("theme") or {},
+        "theme": theme_draft,
+        "themeDraft": theme_draft,
+        "themePublished": theme_published,
+        "themeHasUnpublishedChanges": theme_draft != theme_published,
     }
 
 

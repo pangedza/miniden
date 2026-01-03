@@ -169,7 +169,7 @@ class ThemeConfig(BaseModel):
 
 
 class PageConfig(BaseModel):
-    template_id: str = Field(default="services", alias="templateId")
+    template_id: str = Field(default="linen-sage", alias="templateId")
     blocks: list[PageBlock] = Field(default_factory=list)
     theme: ThemeConfig = Field(default_factory=ThemeConfig)
 

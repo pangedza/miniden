@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping
 
-DEFAULT_TEMPLATE_ID = "services"
+DEFAULT_TEMPLATE_ID = "linen-sage"
 
 
 @dataclass(frozen=True)
@@ -16,6 +16,22 @@ class ThemeTemplate:
 
 
 TEMPLATES: tuple[ThemeTemplate, ...] = (
+    ThemeTemplate(
+        id="linen-sage",
+        name="Linen & Sage",
+        description="Спокойная натуральная палитра в льняных и шалфейных тонах.",
+        css_vars={
+            "bg": "linear-gradient(180deg, #f7f3ec 0%, #edf0e6 100%)",
+            "text": "#1f2a20",
+            "muted": "#5f6b5f",
+            "card-bg": "rgba(255, 255, 255, 0.92)",
+            "accent": "#7a8c70",
+            "radius": "16px",
+            "shadow": "0 16px 44px rgba(47, 63, 47, 0.14)",
+            "font": '"Inter", system-ui, sans-serif',
+        },
+        style_preset={"buttonStyle": "solid", "cardBorder": False},
+    ),
     ThemeTemplate(
         id="baskets",
         name="Baskets",
