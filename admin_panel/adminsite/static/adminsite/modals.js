@@ -11,6 +11,7 @@ export class BaseModal {
         this.title = title;
         this.status = createElement('<div class="status"></div>');
         this.onCloseHandlers = [];
+        this.isOpen = false;
         this.requestClose = (reason = 'manual') => this.close(reason);
         const header = createElement(
             '<header><h3></h3><button class="modal-close" type="button" aria-label="Закрыть">×</button></header>',
@@ -23,7 +24,12 @@ export class BaseModal {
         document.body.appendChild(this.backdrop);
 
         this.modal.addEventListener('click', (event) => event.stopPropagation());
-        this.backdrop.addEventListener('click', () => this.requestClose('backdrop'));
+        this.handleBackdropClick = (event) => {
+            if (event.target === this.backdrop) {
+                this.requestClose('backdrop');
+            }
+        };
+        this.backdrop.addEventListener('click', this.handleBackdropClick);
         this.closeButton.addEventListener('click', () => this.requestClose('button'));
 
         this.handleEscape = (event) => {
@@ -41,11 +47,15 @@ export class BaseModal {
     }
 
     open() {
+        if (this.isOpen) return;
+        this.isOpen = true;
         this.backdrop.hidden = false;
         document.addEventListener('keydown', this.handleEscape);
     }
 
     close(reason = 'manual') {
+        if (!this.isOpen) return;
+        this.isOpen = false;
         this.backdrop.hidden = true;
         this.showMessage('');
         document.removeEventListener('keydown', this.handleEscape);
