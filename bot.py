@@ -70,7 +70,7 @@ async def main() -> None:
         try:
             await dp.start_polling(
                 bot,
-                polling_timeout=30,
+                polling_timeout=30
                 request_timeout=60
             )    
             break
