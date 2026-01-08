@@ -38,7 +38,7 @@ from fastapi import (
     UploadFile,
 )
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 from starlette.routing import NoMatchFound
@@ -108,6 +108,10 @@ setup_logging(log_file=API_LOG_FILE)
 app = FastAPI(title="MiniDeN Web API", version="1.0.0")
 
 logger = logging.getLogger(__name__)
+
+
+def _serve_webapp_index() -> FileResponse:
+    return FileResponse(WEBAPP_DIR / "index.html", media_type="text/html")
 
 
 def _detect_git_commit() -> str:
@@ -3580,5 +3584,9 @@ def categories_page():
 
 @app.get("/category/{slug}", include_in_schema=False)
 def category_page(slug: str):
-    target = f"/webapp/category.html?slug={slug}"
-    return RedirectResponse(url=target, status_code=302)
+    return RedirectResponse(url=f"/c/{slug}", status_code=302)
+
+
+@app.get("/c/{slug}", include_in_schema=False)
+def category_slug_page(slug: str):
+    return _serve_webapp_index()

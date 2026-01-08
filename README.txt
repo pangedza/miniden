@@ -4,6 +4,7 @@ MiniDeN — Telegram-бот и веб-магазин
 Changelog / История изменений
 -----------------------------
 - 2026-06-XX: Витрина и AdminSite переведены на menu-driven модель: таблицы `menu_categories`, `menu_items`, `site_settings`; публичные данные отдаются через `/public/*`, админка управляет меню через `/api/admin/menu/*` и настройками через `/api/admin/site-settings`. Старые темы/шаблоны/блоки отключены для витрины (рендер больше не зависит от `/api/site/theme` и `/api/site/pages/*`).
+- 2026-06-XX: Вернули совместимость со старыми ссылками PROD_MENU `/c/<slug>`: сервер отдаёт `webapp/index.html` для `/c/{slug}`, фронтенд берёт категории из БД меню (`/public/menu`) и показывает 404-экран при неизвестном slug.
 - 2026-06-XX: Публичная витрина читает только опубликованные данные конструктора: тема (/api/site/theme), меню (/api/site/menu) и страницы (/api/site/pages/{key}) возвращают version/updated_at; публикация копирует draft → published и обновляет version. Тема по умолчанию Linen & Sage, webapp применяет её через CSS variables без перекомпиляции.
 - 2026-05-XX: Палитра витрины хранится в `/api/site-settings` (activePalette + cssVars); конструктор AdminSite сохраняет черновик страницы через `PUT /api/adminsite/pages/{pageKey}` и публикует через `POST /api/adminsite/pages/{pageKey}/publish`, а витрина читает опубликованные блоки по `GET /api/site/pages/{pageKey}`. Кнопка «➕» на карточке отображается только при количестве > 0 (stock/quantity/count).
 - 2026-05-XX: Добавлен health-эндпоинт `/api/adminsite/health/page/{key}` и строгий контракт черновик/публикация: сохраняем блоки через `PUT /api/adminsite/pages/{key}` (draft), публикуем через `POST /api/adminsite/pages/{key}/publish` (published), публичная витрина читает только `/api/site/pages/{key}` и `/api/site/home` (published). Публичный ответ теперь содержит `theme`, а конструктор и витрина поддерживают блок `categories` без ошибок валидации.
@@ -73,6 +74,7 @@ Menu-driven витрина (iiko-like)
 - `GET /public/menu`
 - `GET /public/menu/categories`
 - `GET /public/menu/items?category=slug|id`
+- WebApp-роут `/c/<slug>` использует эти публичные эндпоинты и ищет категорию по `menu_categories.slug`.
 
 Админские (для AdminSite):
 - `GET/POST/PUT/DELETE /api/admin/menu/categories`
