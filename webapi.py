@@ -58,7 +58,7 @@ from admin_panel.routes import adminbot, adminsite
 from admin_panel.routes import auth as admin_auth
 from admin_panel.routes import users as admin_users
 from config import get_settings
-from database import get_session, init_db
+from database import get_db, get_session, init_db
 from media_paths import (
     ADMIN_BOT_MEDIA_ROOT,
     ADMIN_SITE_MEDIA_ROOT,
@@ -1935,7 +1935,7 @@ def site_settings():
 
 
 @app.put("/api/site-settings")
-def update_site_settings(payload: SiteSettingsPayload, request: Request, db: Session = Depends(get_session)):
+def update_site_settings(payload: SiteSettingsPayload, request: Request, db: Session = Depends(get_db)):
     adminsite_service.ensure_admin(request, db)
     return menu_catalog.update_site_settings(payload.model_dump())
 
@@ -2471,7 +2471,7 @@ def admin_update_branding(
 
 
 @app.get("/api/admin/site-settings")
-def admin_get_site_settings(request: Request, db: Session = Depends(get_session)):
+def admin_get_site_settings(request: Request, db: Session = Depends(get_db)):
     adminsite_service.ensure_admin(request, db)
     return menu_catalog.get_site_settings()
 
@@ -2480,7 +2480,7 @@ def admin_get_site_settings(request: Request, db: Session = Depends(get_session)
 def admin_update_site_settings(
     payload: SiteSettingsPayload,
     request: Request,
-    db: Session = Depends(get_session),
+    db: Session = Depends(get_db),
 ):
     adminsite_service.ensure_admin(request, db)
     return menu_catalog.update_site_settings(payload.model_dump())
@@ -2490,7 +2490,7 @@ def admin_update_site_settings(
 def admin_menu_categories(
     request: Request,
     include_inactive: bool = True,
-    db: Session = Depends(get_session),
+    db: Session = Depends(get_db),
 ):
     adminsite_service.ensure_admin(request, db)
     return {"items": menu_catalog.list_categories(include_inactive=include_inactive)}
@@ -2500,7 +2500,7 @@ def admin_menu_categories(
 def admin_menu_create_category(
     payload: MenuCategoryPayload,
     request: Request,
-    db: Session = Depends(get_session),
+    db: Session = Depends(get_db),
 ):
     adminsite_service.ensure_admin(request, db)
     try:
@@ -2514,7 +2514,7 @@ def admin_menu_update_category(
     category_id: int,
     payload: MenuCategoryUpdatePayload,
     request: Request,
-    db: Session = Depends(get_session),
+    db: Session = Depends(get_db),
 ):
     adminsite_service.ensure_admin(request, db)
     try:
@@ -2529,7 +2529,7 @@ def admin_menu_update_category(
 def admin_menu_delete_category(
     category_id: int,
     request: Request,
-    db: Session = Depends(get_session),
+    db: Session = Depends(get_db),
 ):
     adminsite_service.ensure_admin(request, db)
     try:
@@ -2547,7 +2547,7 @@ def admin_menu_items(
     category_id: int | None = None,
     type: str | None = None,
     include_inactive: bool = True,
-    db: Session = Depends(get_session),
+    db: Session = Depends(get_db),
 ):
     adminsite_service.ensure_admin(request, db)
     try:
@@ -2566,7 +2566,7 @@ def admin_menu_items(
 def admin_menu_create_item(
     payload: MenuItemPayload,
     request: Request,
-    db: Session = Depends(get_session),
+    db: Session = Depends(get_db),
 ):
     adminsite_service.ensure_admin(request, db)
     try:
@@ -2582,7 +2582,7 @@ def admin_menu_update_item(
     item_id: int,
     payload: MenuItemUpdatePayload,
     request: Request,
-    db: Session = Depends(get_session),
+    db: Session = Depends(get_db),
 ):
     adminsite_service.ensure_admin(request, db)
     try:
@@ -2597,7 +2597,7 @@ def admin_menu_update_item(
 def admin_menu_delete_item(
     item_id: int,
     request: Request,
-    db: Session = Depends(get_session),
+    db: Session = Depends(get_db),
 ):
     adminsite_service.ensure_admin(request, db)
     try:
@@ -2611,7 +2611,7 @@ def admin_menu_delete_item(
 def admin_menu_reorder(
     payload: MenuReorderPayload,
     request: Request,
-    db: Session = Depends(get_session),
+    db: Session = Depends(get_db),
 ):
     adminsite_service.ensure_admin(request, db)
     menu_catalog.reorder_entities(payload.model_dump())

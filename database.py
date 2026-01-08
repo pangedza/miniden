@@ -50,6 +50,14 @@ def get_session() -> Iterator[Session]:
         session.close()
 
 
+def get_db() -> Iterator[Session]:
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
 def init_db() -> None:
     from config import ADMIN_IDS_SET  # noqa: WPS433
     from models import Base, HomeBanner, User  # noqa: WPS433
