@@ -546,6 +546,78 @@ class HomePost(Base):
     sort_order = Column(Integer, default=0, nullable=False)
 
 
+class MenuCategory(Base):
+    __tablename__ = "menu_categories"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    title = Column(Text, nullable=False)
+    slug = Column(String(150), nullable=False, unique=True)
+    description = Column(Text, nullable=True)
+    order_index = Column(Integer, nullable=False, default=0, server_default="0")
+    is_active = Column(Boolean, nullable=False, default=True, server_default="true")
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=func.now(), nullable=False)
+
+    items = relationship(
+        "MenuItem",
+        back_populates="category",
+        cascade="all, delete-orphan",
+        order_by="(MenuItem.order_index, MenuItem.id)",
+    )
+
+
+class MenuItem(Base):
+    __tablename__ = "menu_items"
+    __table_args__ = (
+        CheckConstraint(
+            "type IN ('product', 'course', 'service')",
+            name="ck_menu_items_type",
+        ),
+        UniqueConstraint(
+            "category_id",
+            "slug",
+            name="uq_menu_items_category_slug",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    category_id = Column(Integer, ForeignKey("menu_categories.id"), nullable=False)
+    title = Column(Text, nullable=False)
+    subtitle = Column(Text, nullable=True)
+    slug = Column(String(150), nullable=False)
+    description = Column(Text, nullable=True)
+    price = Column(Numeric(12, 2), nullable=True)
+    currency = Column(String(8), nullable=True)
+    images = Column(JSONB, nullable=False, default=list, server_default="[]")
+    image_url = Column(Text, nullable=True)
+    order_index = Column(Integer, nullable=False, default=0, server_default="0")
+    is_active = Column(Boolean, nullable=False, default=True, server_default="true")
+    type = Column(String(32), nullable=False, default="product", server_default="product")
+    meta = Column(JSONB, nullable=False, default=dict, server_default="{}")
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=func.now(), nullable=False)
+
+    category = relationship("MenuCategory", back_populates="items")
+
+
+class SiteSettings(Base):
+    __tablename__ = "site_settings"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    brand_name = Column(String(255), nullable=True)
+    logo_url = Column(Text, nullable=True)
+    primary_color = Column(String(32), nullable=True)
+    secondary_color = Column(String(32), nullable=True)
+    background_color = Column(String(32), nullable=True)
+    contacts = Column(JSONB, nullable=False, default=dict, server_default="{}")
+    social_links = Column(JSONB, nullable=False, default=dict, server_default="{}")
+    hero_title = Column(String(255), nullable=True)
+    hero_subtitle = Column(Text, nullable=True)
+    hero_image_url = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=func.now(), nullable=False)
+
+
 class FaqItem(Base):
     __tablename__ = "faq"
 
@@ -708,6 +780,9 @@ __all__ = [
     "HomeBanner",
     "HomeSection",
     "HomePost",
+    "MenuCategory",
+    "MenuItem",
+    "SiteSettings",
     "FaqItem",
     "WebChatSession",
     "WebChatMessage",

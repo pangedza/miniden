@@ -1,21 +1,9 @@
-import {
-  fetchCategory,
-  fetchPageByKey,
-  fetchMasterclass,
-  fetchMenu,
-  fetchProduct,
-  fetchItems,
-  fetchTheme,
-} from './site_api.js';
-
-const queryParams = new URLSearchParams(window.location.search);
-const DEBUG_MODE = queryParams.get('debug') === '1';
+import { fetchMenu, fetchSiteSettings } from './site_api.js';
 
 const views = {
   home: document.getElementById('view-home'),
   category: document.getElementById('view-category'),
-  product: document.getElementById('view-product'),
-  masterclass: document.getElementById('view-masterclass'),
+  item: document.getElementById('view-product'),
   notFound: document.getElementById('view-not-found'),
 };
 
@@ -23,276 +11,155 @@ const navMenu = document.getElementById('nav-menu');
 const navLinks = document.getElementById('nav-links');
 const sidebarOverlay = document.querySelector('.app-sidebar-overlay');
 const sidebarClose = document.querySelector('.menu-close');
-const debugStrip = document.getElementById('debug-strip');
-const homeBlocksContainer = document.getElementById('home-blocks');
-const debugState = {
-  lastFetchUrl: '—',
-  lastFetchStatus: '—',
-  lastError: '',
-  receivedVersion: '—',
-  updatedAt: '—',
-  themeId: '—',
-  themeVersion: '—',
-  blocksCount: 0,
-  blockTypes: '',
-};
-let debugPanel = null;
-let lastHomeConfig = null;
-let cachedCategories = [];
-let currentTheme = null;
 
-function normalizeMediaUrl(url, { absolute = false } = {}) {
+const heroTitle = document.getElementById('hero-title');
+const heroSubtitle = document.getElementById('hero-subtitle');
+const heroImage = document.getElementById('hero-image');
+const heroSection = document.getElementById('hero-section');
+
+const homeCategories = document.getElementById('home-categories');
+const homeItems = document.getElementById('home-items');
+const homeEmpty = document.getElementById('home-empty');
+
+const categoryTitle = document.getElementById('category-title');
+const categoryMeta = document.getElementById('category-meta');
+const categoryType = document.getElementById('category-type');
+const categoryItems = document.getElementById('category-items');
+const categoryEmpty = document.getElementById('category-empty');
+const categoryDescription = document.getElementById('category-description');
+
+const itemTitle = document.getElementById('product-title');
+const itemDescription = document.getElementById('product-description');
+const itemPrice = document.getElementById('product-price');
+const itemCategory = document.getElementById('product-category');
+const itemImage = document.getElementById('product-image');
+const itemSubtitle = document.getElementById('product-subtitle');
+
+const footerContacts = document.getElementById('footer-contacts');
+const footerSocial = document.getElementById('footer-social');
+
+let menuData = null;
+let settingsData = null;
+
+function normalizeMediaUrl(url) {
   if (!url) return '';
-
   const raw = String(url).trim();
   if (!raw) return '';
-
-  const isAbsolute = /^(https?:)?\/\//i.test(raw) || raw.startsWith('data:');
-  let normalized = raw;
-
-  if (!isAbsolute) {
-    if (raw.startsWith('/static/')) {
-      normalized = raw;
-    } else if (raw.startsWith('/')) {
-      normalized = raw;
-    } else {
-      normalized = `/static/uploads/${raw}`;
-    }
-  }
-
-  if (absolute) {
-    try {
-      normalized = new URL(normalized, window.location.origin).href;
-    } catch (error) {
-      console.warn('Failed to build absolute media URL', raw, error);
-    }
-  }
-
-  return normalized;
+  if (/^(https?:)?\/\//i.test(raw) || raw.startsWith('data:')) return raw;
+  if (raw.startsWith('/')) return raw;
+  return `/media/${raw}`;
 }
 
-function appendImageWithFallback(container, url, alt, { onFallback, absolute = true } = {}) {
-  if (!container) return null;
-
-  const normalizedUrl = normalizeMediaUrl(url, { absolute });
-  if (!normalizedUrl) {
-    onFallback?.();
-    return null;
-  }
-
-  const img = document.createElement('img');
-  img.alt = alt || '';
-  img.src = normalizedUrl;
-  img.onerror = () => {
-    img.remove();
-    onFallback?.();
-  };
-  container.appendChild(img);
-  return img;
-}
-
-function ensureDebugOverlay() {
-  if (!DEBUG_MODE || debugPanel) return debugPanel;
-
-  const overlay = document.createElement('div');
-  overlay.id = 'site-debug-overlay';
-  overlay.style.position = 'fixed';
-  overlay.style.bottom = '12px';
-  overlay.style.right = '12px';
-  overlay.style.zIndex = '9999';
-  overlay.style.background = 'rgba(15,23,42,0.9)';
-  overlay.style.color = '#e5e7eb';
-  overlay.style.padding = '12px';
-  overlay.style.borderRadius = '12px';
-  overlay.style.width = '320px';
-  overlay.style.boxShadow = '0 10px 30px rgba(0,0,0,0.3)';
-  overlay.style.fontSize = '12px';
-  overlay.style.lineHeight = '1.5';
-
-  const title = document.createElement('div');
-  title.textContent = 'Home debug overlay';
-  title.style.fontWeight = '700';
-  title.style.marginBottom = '8px';
-  overlay.appendChild(title);
-
-  const rows = {};
-  const rowKeys = [
-    ['lastFetchUrl', 'lastFetchUrl'],
-    ['lastFetchStatus', 'lastFetchStatus'],
-    ['lastError', 'lastError'],
-    ['receivedVersion', 'receivedVersion'],
-    ['updatedAt', 'updatedAt'],
-    ['themeId', 'themeId'],
-    ['themeVersion', 'themeVersion'],
-    ['blocksCount', 'blocksCount'],
-    ['blockTypes', 'blockTypes'],
-  ];
-
-  rowKeys.forEach(([label, key]) => {
-    const row = document.createElement('div');
-    row.style.display = 'flex';
-    row.style.justifyContent = 'space-between';
-    row.style.gap = '6px';
-    row.style.marginBottom = '4px';
-
-    const labelEl = document.createElement('span');
-    labelEl.textContent = `${label}:`;
-    labelEl.style.color = '#9ca3af';
-
-    const valueEl = document.createElement('span');
-    valueEl.dataset.debugKey = key;
-    valueEl.style.textAlign = 'right';
-    valueEl.style.flex = '1';
-    valueEl.textContent = '—';
-
-    row.append(labelEl, valueEl);
-    overlay.appendChild(row);
-    rows[key] = valueEl;
-  });
-
-  const actions = document.createElement('div');
-  actions.style.display = 'flex';
-  actions.style.justifyContent = 'flex-end';
-  actions.style.gap = '8px';
-  actions.style.marginTop = '8px';
-
-  const reloadButton = document.createElement('button');
-  reloadButton.textContent = 'Reload config';
-  reloadButton.style.background = '#22c55e';
-  reloadButton.style.color = '#0b1727';
-  reloadButton.style.border = 'none';
-  reloadButton.style.padding = '6px 10px';
-  reloadButton.style.borderRadius = '6px';
-  reloadButton.style.cursor = 'pointer';
-  reloadButton.style.fontWeight = '700';
-  reloadButton.addEventListener('click', () => loadHomeConfig({ reason: 'manual-reload' }));
-
-  actions.appendChild(reloadButton);
-  overlay.appendChild(actions);
-
-  document.body.appendChild(overlay);
-  debugPanel = { overlay, rows, reloadButton };
-  return debugPanel;
-}
-
-function updateDebugOverlay(partial = {}) {
-  if (!DEBUG_MODE) return;
-  if (!debugPanel) ensureDebugOverlay();
-  Object.assign(debugState, partial);
-
-  if (!debugPanel) return;
-  Object.entries(debugPanel.rows).forEach(([key, el]) => {
-    el.textContent = debugState[key] ?? '—';
-  });
-
-  debugPanel.overlay.style.border = debugState.lastError ? '1px solid #fca5a5' : '1px solid transparent';
-}
-
-function updateDebugStrip() {
-  if (!debugStrip) return;
-  const blocksCount = debugState.blocksCount ?? lastHomeConfig?.blocksCount ?? 0;
-  const updatedAt = debugState.updatedAt || lastHomeConfig?.updatedAt || '—';
-  const themeLabel = debugState.themeId || currentTheme?.appliedTemplateId || '—';
-
-  if (DEBUG_MODE) {
-    debugStrip.hidden = false;
-    debugStrip.textContent = `debug: theme=${themeLabel} • blocks=${blocksCount} • updated=${updatedAt}`;
-  } else {
-    debugStrip.hidden = true;
-    debugStrip.textContent = '';
-  }
-}
-
-function applyThemeVariables(theme) {
-  const cssVars = theme?.cssVars || {};
-  const target = document.documentElement;
-
-  Object.entries(cssVars).forEach(([key, value]) => {
-    if (value !== undefined && value !== null) {
-      target.style.setProperty(`--${key}`, value);
-    }
-  });
-
-  updateDebugOverlay({
-    themeId: theme?.appliedTemplateId || '—',
-    themeVersion: theme?.version || theme?.timestamp || theme?.updatedAt || '—',
-  });
-}
-
-async function loadPublishedTheme() {
-  try {
-    const themePayload = await fetchTheme();
-    currentTheme = themePayload || {};
-    applyThemeVariables(currentTheme);
-  } catch (error) {
-    console.warn('Failed to load published theme, using defaults', error);
-    currentTheme = currentTheme || {};
-  }
-}
-
-function renderHomeMessage(title, description = 'Настройте главную страницу в AdminSite.') {
-  if (!homeBlocksContainer) return;
-  homeBlocksContainer.innerHTML = '';
-
-  const notice = document.createElement('div');
-  notice.className = 'notice';
-
-  const heading = document.createElement('h2');
-  heading.textContent = title;
-  notice.appendChild(heading);
-
-  if (description) {
-    const text = document.createElement('p');
-    text.className = 'muted';
-    text.textContent = description;
-    notice.appendChild(text);
-  }
-
-  homeBlocksContainer.appendChild(notice);
+function formatPrice(value, currency = '₽') {
+  if (value === null || value === undefined || value === '') return 'Цена по запросу';
+  const number = Number(value);
+  if (!Number.isFinite(number)) return 'Цена по запросу';
+  if (number === 0) return 'Бесплатно';
+  return `${number.toLocaleString('ru-RU')} ${currency}`;
 }
 
 function hideAllViews() {
-  Object.values(views).forEach((view) => {
-    if (view) view.setAttribute('hidden', '');
-  });
+  Object.values(views).forEach((view) => view?.setAttribute('hidden', ''));
 }
 
 function showView(name) {
   hideAllViews();
-  const target = views[name];
-  if (target) target.removeAttribute('hidden');
-  document.body.dataset.view = name || '';
+  views[name]?.removeAttribute('hidden');
+  document.body.dataset.view = name;
 }
 
-function formatPrice(value) {
-  const number = Number(value) || 0;
-  if (number === 0) return 'Бесплатно';
-  return `${number.toLocaleString('ru-RU')} ₽`;
+function applyColors(settings) {
+  if (!settings) return;
+  const root = document.documentElement;
+  if (settings.primary_color) {
+    root.style.setProperty('--color-accent-primary', settings.primary_color);
+    root.style.setProperty('--color-accent-primary-strong', settings.primary_color);
+  }
+  if (settings.secondary_color) {
+    root.style.setProperty('--color-accent-secondary', settings.secondary_color);
+    root.style.setProperty('--color-accent-secondary-strong', settings.secondary_color);
+  }
+  if (settings.background_color) {
+    root.style.setProperty('--color-bg', settings.background_color);
+  }
 }
 
-function buildCategoryCard(category) {
-  const card = document.createElement('article');
-  card.className = 'catalog-card hover-lift';
-  const body = document.createElement('div');
-  body.className = 'catalog-card-body';
+function applyBranding(settings) {
+  const brandName = settings?.brand_name || 'MiniDeN';
+  document.querySelectorAll('.brand__title').forEach((el) => {
+    el.textContent = brandName;
+  });
 
-  const title = document.createElement('h3');
-  title.className = 'catalog-card-title';
-  title.textContent = category?.title || 'Категория';
+  const logoUrl = normalizeMediaUrl(settings?.logo_url);
+  document.querySelectorAll('[data-brand-logo]').forEach((img) => {
+    if (logoUrl) {
+      img.src = logoUrl;
+      img.style.display = 'block';
+      img.alt = brandName;
+      img.closest('[data-branding-block]')?.classList.add('has-logo');
+    } else {
+      img.style.display = 'none';
+      img.closest('[data-branding-block]')?.classList.remove('has-logo');
+    }
+  });
+}
 
-  const subtitle = document.createElement('p');
-  subtitle.className = 'catalog-card-description';
-  subtitle.textContent = category?.type === 'course' ? 'Мастер-классы' : 'Товары';
+function renderHero(settings) {
+  if (!heroSection) return;
+  const title = settings?.hero_title || 'Меню и витрина';
+  const subtitle = settings?.hero_subtitle || 'Добавляйте категории и позиции через AdminSite.';
+  const imageUrl = normalizeMediaUrl(settings?.hero_image_url);
 
-  const action = document.createElement('a');
-  action.className = 'btn secondary';
-  action.href = category?.url || '/';
-  action.textContent = 'Открыть';
-  action.setAttribute('data-router-link', '');
+  if (heroTitle) heroTitle.textContent = title;
+  if (heroSubtitle) heroSubtitle.textContent = subtitle;
+  if (heroImage) {
+    if (imageUrl) {
+      heroImage.src = imageUrl;
+      heroImage.style.display = 'block';
+    } else {
+      heroImage.style.display = 'none';
+    }
+  }
+}
 
-  body.append(title, subtitle, action);
-  card.append(body);
-  return card;
+function renderFooter(settings) {
+  if (footerContacts) {
+    footerContacts.innerHTML = '';
+    const contacts = settings?.contacts || {};
+    Object.entries(contacts).forEach(([key, value]) => {
+      if (!value) return;
+      const line = document.createElement('div');
+      line.className = 'muted';
+      line.textContent = `${key}: ${value}`;
+      footerContacts.appendChild(line);
+    });
+  }
+
+  if (footerSocial) {
+    footerSocial.innerHTML = '';
+    const links = settings?.social_links || {};
+    Object.entries(links).forEach(([key, value]) => {
+      if (!value) return;
+      const link = document.createElement('a');
+      link.href = value;
+      link.target = '_blank';
+      link.rel = 'noopener';
+      link.textContent = key;
+      footerSocial.appendChild(link);
+    });
+  }
+}
+
+function buildCategoryButton(category) {
+  const button = document.createElement('button');
+  button.className = 'pill-button';
+  button.type = 'button';
+  button.textContent = category.title;
+  button.addEventListener('click', () => {
+    window.history.pushState({}, '', `/c/${encodeURIComponent(category.slug)}`);
+    route();
+  });
+  return button;
 }
 
 function buildItemCard(item) {
@@ -302,23 +169,17 @@ function buildItemCard(item) {
   const imageWrapper = document.createElement('div');
   imageWrapper.className = 'catalog-card-image';
 
-  const showPlaceholder = () => {
-    if (imageWrapper.querySelector('.catalog-card-meta')) return;
+  const imageUrl = normalizeMediaUrl(item.image_url || (item.images || [])[0]);
+  if (imageUrl) {
+    const img = document.createElement('img');
+    img.src = imageUrl;
+    img.alt = item.title || '';
+    imageWrapper.appendChild(img);
+  } else {
     const placeholder = document.createElement('div');
     placeholder.className = 'catalog-card-meta';
-    placeholder.textContent = 'Изображение появится позже';
+    placeholder.textContent = 'Фото скоро появится';
     imageWrapper.appendChild(placeholder);
-  };
-
-  const itemImage = appendImageWithFallback(
-    imageWrapper,
-    item?.image_url || item?.imageUrl,
-    item.title || 'Элемент витрины',
-    { onFallback: showPlaceholder }
-  );
-
-  if (!itemImage) {
-    showPlaceholder();
   }
 
   const body = document.createElement('div');
@@ -326,33 +187,31 @@ function buildItemCard(item) {
 
   const meta = document.createElement('div');
   meta.className = 'catalog-card-meta';
-  meta.textContent = item?.category_title || '';
+  meta.textContent = item.category_title || '';
 
   const title = document.createElement('h3');
   title.className = 'catalog-card-title';
-  title.textContent = item?.title || 'Элемент';
+  title.textContent = item.title || 'Позиция';
 
   const description = document.createElement('p');
   description.className = 'catalog-card-description';
-  description.textContent = item?.short_text || item?.description || '';
+  description.textContent = item.subtitle || item.description || '';
 
   const footer = document.createElement('div');
   footer.className = 'product-card__actions';
 
   const price = document.createElement('div');
   price.className = 'price';
-  price.textContent = formatPrice(item?.price);
+  price.textContent = formatPrice(item.price, item.currency || '₽');
 
   const more = document.createElement('a');
   more.className = 'btn secondary';
-  more.href = item?.url || '#';
+  more.href = `/i/${encodeURIComponent(item.slug)}`;
   more.textContent = 'Подробнее';
   more.setAttribute('data-router-link', '');
 
   const canUseTelegram = !!(window.isTelegramWebApp && window.Telegram?.WebApp);
-  const canAddToCart = canUseTelegram && item?.id !== undefined;
-
-  if (canAddToCart) {
+  if (canUseTelegram && item?.id !== undefined) {
     const addButton = document.createElement('button');
     addButton.className = 'btn secondary';
     addButton.type = 'button';
@@ -360,27 +219,33 @@ function buildItemCard(item) {
     addButton.addEventListener('click', () => {
       try {
         window.Telegram.WebApp.sendData(
-          JSON.stringify({ action: 'add_to_cart', product_id: item.id, qty: 1 })
+          JSON.stringify({
+            action: 'add_to_cart',
+            product_id: item.id,
+            qty: 1,
+            type: item.type,
+            source: 'menu',
+          })
         );
         window.Telegram.WebApp.close();
       } catch (error) {
         console.error('Не удалось отправить данные в Telegram WebApp', error);
       }
     });
-
     footer.append(price, addButton, more);
   } else {
     footer.append(price, more);
   }
+
   body.append(meta, title, description, footer);
   card.append(imageWrapper, body);
   return card;
 }
 
-function renderMenu(menu) {
+function renderMenuNavigation(categories) {
   if (!navMenu) return;
   navMenu.innerHTML = '';
-  if (!menu?.items?.length) {
+  if (!categories.length) {
     const muted = document.createElement('span');
     muted.className = 'muted';
     muted.textContent = 'Категорий нет';
@@ -388,724 +253,158 @@ function renderMenu(menu) {
     return;
   }
 
-  menu.items.forEach((item) => {
+  categories.forEach((category) => {
     const link = document.createElement('a');
-    link.href = item.url || `/c/${encodeURIComponent(item.slug)}`;
-    link.textContent = item.title || 'Категория';
+    link.href = `/c/${encodeURIComponent(category.slug)}`;
+    link.textContent = category.title;
     link.dataset.routerLink = '';
     navMenu.appendChild(link);
   });
 }
 
-function mapCategories(rawCategories = []) {
-  if (!Array.isArray(rawCategories)) return [];
-  return rawCategories
-    .filter((item) => item && item.slug)
-    .map((item) => ({
-      ...item,
-      url: item.url || `/c/${encodeURIComponent(item.slug)}`,
-      type: item.type || 'product',
-    }));
-}
+function renderHome(categories) {
+  if (!homeCategories || !homeItems) return;
+  homeCategories.innerHTML = '';
+  homeItems.innerHTML = '';
 
-function buildCategoryLink(category) {
-  const link = document.createElement('a');
-  link.className = 'category-card hover-lift';
-  link.href = category.url;
-  link.dataset.routerLink = '';
-
-  const icon = document.createElement('div');
-  icon.className = 'category-icon';
-  icon.textContent = (category.title || '?').slice(0, 1).toUpperCase();
-
-  const meta = document.createElement('div');
-  meta.className = 'category-meta';
-
-  const title = document.createElement('div');
-  title.textContent = category.title || 'Категория';
-
-  const type = document.createElement('span');
-  type.className = 'muted';
-  type.textContent = category.type === 'course' ? 'Мастер-классы' : 'Товары';
-
-  meta.append(title, type);
-  link.append(icon, meta);
-  return link;
-}
-
-function renderCategories(categories = [], { target = null, section = null } = {}) {
-  const normalized = mapCategories(categories);
-  cachedCategories = normalized;
-  if (!target) return normalized;
-
-  target.innerHTML = '';
-  if (section) section.hidden = !normalized.length;
-  if (!normalized.length) return normalized;
-
-  normalized.forEach((category) => {
-    target.appendChild(buildCategoryLink(category));
-  });
-
-  return normalized;
-}
-
-async function refreshCategoriesFromApi({ renderPanel = false } = {}) {
-  try {
-    const payload = await fetchCategories();
-    const items = Array.isArray(payload?.items) ? payload.items : payload;
-    const normalized = renderCategories(items || [], renderPanel ? {} : { target: null, section: null });
-    if (!renderPanel) {
-      cachedCategories = normalized;
-    }
-    return normalized;
-  } catch (error) {
-    console.warn('Failed to refresh categories', error);
-    return cachedCategories;
-  }
-}
-
-function buildHeroSection(block) {
-  const section = document.createElement('section');
-  section.className = 'page-hero reveal';
-
-  if (block?.background?.value) {
-    const bgValue =
-      block?.background?.type === 'image'
-        ? `url(${block.background.value}) center/cover no-repeat`
-        : block.background.value;
-    section.style.background = bgValue;
-  }
-
-  const content = document.createElement('div');
-  content.className = 'page-hero__content';
-
-  const eyebrow = document.createElement('span');
-  eyebrow.className = 'hero-eyebrow muted';
-  eyebrow.textContent = 'AdminSite';
-  content.appendChild(eyebrow);
-
-  const title = document.createElement('h1');
-  title.className = 'hero-title';
-  title.textContent = block?.title || 'Витрина';
-  content.appendChild(title);
-
-  if (block?.subtitle) {
-    const subtitle = document.createElement('p');
-    subtitle.className = 'hero-subtitle';
-    subtitle.textContent = block.subtitle;
-    content.appendChild(subtitle);
-  }
-
-  const actions = document.createElement('div');
-  actions.className = 'hero-actions';
-  const buttons = Array.isArray(block?.buttons) ? block.buttons : [];
-  buttons.forEach((button) => {
-    const link = document.createElement('a');
-    const isSecondary = button?.variant === 'secondary';
-    link.className = isSecondary ? 'btn secondary' : 'btn';
-    link.href = button?.href || '#';
-    link.textContent = button?.label || 'Подробнее';
-
-    if (link.href.startsWith('/') && !link.href.startsWith('//')) {
-      link.dataset.routerLink = '';
-    } else {
-      link.target = '_blank';
-      link.rel = 'noopener';
-    }
-
-    actions.appendChild(link);
-  });
-
-  if (actions.childElementCount) {
-    content.appendChild(actions);
-  }
-
-  const visual = document.createElement('div');
-  visual.className = 'page-hero__visual';
-
-  const createPlaceholder = () => {
-    const placeholder = document.createElement('div');
-    placeholder.className = 'page-hero__placeholder';
-    placeholder.setAttribute('aria-hidden', 'true');
-    return placeholder;
-  };
-
-  const ensurePlaceholder = () => {
-    if (!visual.querySelector('.page-hero__placeholder')) {
-      visual.appendChild(createPlaceholder());
-    }
-  };
-
-  const heroImage = appendImageWithFallback(
-    visual,
-    block?.imageUrl || block?.image_url,
-    block?.title || 'Hero',
-    { onFallback: ensurePlaceholder }
-  );
-
-  if (!heroImage) {
-    ensurePlaceholder();
-  }
-
-  section.append(content, visual);
-  return section;
-}
-
-function buildCard(item) {
-  const card = document.createElement('article');
-  card.className = 'page-card hover-lift';
-
-  appendImageWithFallback(
-    card,
-    item?.imageUrl || item?.image_url,
-    item?.title || 'Изображение'
-  );
-
-  const body = document.createElement('div');
-  body.className = 'page-card__body';
-
-  const title = document.createElement('h3');
-  title.textContent = item?.title || 'Карточка';
-  body.appendChild(title);
-
-  if (item?.description) {
-    const desc = document.createElement('p');
-    desc.className = 'muted';
-    desc.textContent = item.description;
-    body.appendChild(desc);
-  }
-
-  if (item?.href) {
-    const link = document.createElement('a');
-    link.href = item.href;
-    link.textContent = 'Открыть';
-    link.className = 'btn secondary';
-    link.dataset.routerLink = '';
-    body.appendChild(link);
-  }
-
-  card.appendChild(body);
-  return card;
-}
-
-function buildCardsSection(block) {
-  const section = document.createElement('section');
-  section.className = 'page-section reveal';
-
-  if (block?.title || block?.subtitle) {
-    const header = document.createElement('div');
-    header.className = 'section__header';
-    if (block?.title) {
-      const title = document.createElement('h2');
-      title.textContent = block.title;
-      header.appendChild(title);
-    }
-    if (block?.subtitle) {
-      const subtitle = document.createElement('p');
-      subtitle.className = 'muted';
-      subtitle.textContent = block.subtitle;
-      header.appendChild(subtitle);
-    }
-    section.appendChild(header);
-  }
-
-  const grid = document.createElement('div');
-  grid.className = 'cards-grid';
-  grid.style.setProperty('--columns', block?.layout?.columns || 2);
-
-  // Cards render only explicitly configured items to avoid implicit category fallbacks.
-  const items = Array.isArray(block?.items) ? block.items : [];
-  if (!items.length) {
-    const empty = document.createElement('div');
-    empty.className = 'muted';
-    empty.textContent = 'Карточки появятся после добавления элементов в AdminSite.';
-    section.appendChild(empty);
-  } else {
-    items.forEach((item) => grid.appendChild(buildCard(item)));
-    section.appendChild(grid);
-  }
-
-  return section;
-}
-
-function buildTextSection(block) {
-  const section = document.createElement('section');
-  section.className = 'page-section reveal';
-
-  if (block?.title) {
-    const title = document.createElement('h2');
-    title.textContent = block.title;
-    section.appendChild(title);
-  }
-
-  if (block?.text) {
-    const text = document.createElement('p');
-    text.className = 'muted';
-    text.textContent = block.text;
-    section.appendChild(text);
-  }
-
-  return section;
-}
-
-function buildSocialSection(block) {
-  const section = document.createElement('section');
-  section.className = 'page-section reveal';
-
-  const title = document.createElement('h2');
-  title.textContent = 'Связаться';
-  section.appendChild(title);
-
-  const list = document.createElement('div');
-  list.className = 'social-grid';
-  const items = block?.items || [];
-  if (!items.length) {
-    const muted = document.createElement('div');
-    muted.className = 'muted';
-    muted.textContent = 'Добавьте ссылки в админке AdminSite.';
-    section.appendChild(muted);
-  } else {
-    items.forEach((item) => {
-      const link = document.createElement('a');
-      link.href = item.href;
-      link.target = '_blank';
-      link.rel = 'noopener';
-      link.className = 'social-chip';
-      link.textContent = item.label || item.type;
-      list.appendChild(link);
-    });
-    section.appendChild(list);
-  }
-
-  return section;
-}
-
-function buildCategoriesSection(block, categories = []) {
-  const section = document.createElement('section');
-  section.className = 'page-section reveal categories-section';
-
-  const header = document.createElement('div');
-  header.className = 'section__header';
-
-  const heading = document.createElement('h2');
-  heading.textContent = block?.title || 'Категории';
-  header.appendChild(heading);
-
-  if (block?.subtitle) {
-    const subtitle = document.createElement('p');
-    subtitle.className = 'muted';
-    subtitle.textContent = block.subtitle;
-    header.appendChild(subtitle);
-  }
-
-  section.appendChild(header);
-
-  const grid = document.createElement('div');
-  grid.className = 'categories-grid categories-grid--cards';
-  const normalized = block?.items?.length ? mapCategories(block.items) : mapCategories(categories);
-
-  if (!normalized.length) {
-    const empty = document.createElement('div');
-    empty.className = 'muted';
-    empty.textContent = 'Добавьте категории или карточки в админке.';
-    section.appendChild(empty);
-    return section;
-  }
-
-  normalized.forEach((category) => {
-    grid.appendChild(buildCategoryLink(category));
-  });
-
-  section.appendChild(grid);
-  return section;
-}
-
-function appendBlockFallback(block, errorMessage = 'Блок не отобразился') {
-  if (!homeBlocksContainer) return;
-  const notice = document.createElement('div');
-  notice.className = 'notice';
-
-  const title = document.createElement('h3');
-  title.textContent = block?.title || `Блок ${block?.type || ''}` || 'Блок';
-  notice.appendChild(title);
-
-  const text = document.createElement('p');
-  text.className = 'muted';
-  text.textContent = errorMessage;
-  notice.appendChild(text);
-
-  homeBlocksContainer.appendChild(notice);
-}
-
-function renderHomeBlocks(blocks, data, { categories = [] } = {}) {
-  if (!homeBlocksContainer) return;
-  homeBlocksContainer.innerHTML = '';
-
-  const normalizedBlocks = Array.isArray(blocks) ? blocks : [];
-  if (!normalizedBlocks.length) {
-    renderHomeMessage('Блоки отсутствуют', 'Сохраните блоки в AdminSite и обновите страницу.');
+  if (!categories.length) {
+    homeEmpty?.classList.remove('hidden');
     return;
   }
 
-  const blockErrors = [];
-
-  normalizedBlocks.forEach((block, index) => {
-    try {
-      if (block?.type === 'hero') {
-        homeBlocksContainer.appendChild(buildHeroSection(block));
-        return;
-      }
-      if (block?.type === 'cards') {
-        homeBlocksContainer.appendChild(buildCardsSection(block));
-        return;
-      }
-      if (block?.type === 'text') {
-        homeBlocksContainer.appendChild(buildTextSection(block));
-        return;
-      }
-      if (block?.type === 'social') {
-        homeBlocksContainer.appendChild(buildSocialSection(block));
-        return;
-      }
-      if (block?.type === 'categories') {
-        homeBlocksContainer.appendChild(buildCategoriesSection(block, categories));
-        return;
-      }
-
-      appendBlockFallback(block, 'Тип блока не поддерживается.');
-      blockErrors.push(`block #${index + 1}: unsupported type ${block?.type || 'unknown'}`);
-    } catch (error) {
-      console.error('Failed to render block', block, error);
-      const message = error?.message || String(error);
-      blockErrors.push(`block #${index + 1} (${block?.type || 'unknown'}): ${message}`);
-      appendBlockFallback(block, message);
-    }
+  homeEmpty?.classList.add('hidden');
+  categories.forEach((category) => {
+    homeCategories.appendChild(buildCategoryButton(category));
   });
 
-  updateDebugOverlay({ lastError: blockErrors.join(' | ') });
+  const firstCategory = categories[0];
+  const items = firstCategory.items || [];
+  items.forEach((item) => homeItems.appendChild(buildItemCard(item)));
 }
 
-function normalizeHomeResponse(data) {
-  const page = data?.page ?? data?.config ?? (data?.blocks ? data : null);
-  const blocks = data?.blocks ?? page?.blocks ?? [];
-  const version =
-    data?.version ??
-    page?.version ??
-    data?.updatedAt ??
-    page?.updatedAt ??
-    data?.updated_at ??
-    '—';
-  const updatedAt = page?.updatedAt ?? data?.updatedAt ?? data?.updated_at ?? version ?? '—';
-  const theme = data?.theme || page?.theme || currentTheme || {};
-  const themeVersion =
-    theme?.version || theme?.timestamp || theme?.updatedAt || theme?.generatedAt || null;
-  const blockTypes = Array.isArray(blocks)
-    ? blocks.map((block) => block?.type || 'unknown').filter(Boolean)
-    : [];
-  const categories = mapCategories([
-    ...(Array.isArray(data?.product_categories) ? data.product_categories : []),
-    ...(Array.isArray(data?.course_categories) ? data.course_categories : []),
-  ]);
+function renderCategoryView(category) {
+  if (!categoryItems) return;
+  categoryTitle.textContent = category.title || 'Категория';
+  categoryMeta.textContent = 'Категория меню';
+  categoryType.textContent = category.type || 'product';
+  categoryDescription.textContent = category.description || '';
 
-  return {
-    __normalized: true,
-    page: page || null,
-    blocks: Array.isArray(blocks) ? blocks : [],
-    version,
-    updatedAt,
-    theme,
-    themeVersion,
-    blocksCount: Array.isArray(blocks) ? blocks.length : 0,
-    blockTypes,
-    categories,
-    raw: data,
-  };
-}
-
-async function renderHome(data) {
-  const normalized = data?.__normalized ? data : normalizeHomeResponse(data);
-  if (!normalized.page && !normalized.blocks.length) {
-    renderHomeMessage('Главная не настроена');
-    return;
-  }
-
-  console.debug('[site] Loaded home config', normalized);
-  if (normalized.theme) {
-    currentTheme = normalized.theme;
-    applyThemeVariables(normalized.theme);
-  }
-  updateDebugOverlay({
-    receivedVersion: normalized.version || '—',
-    updatedAt: normalized.updatedAt || normalized.version || '—',
-    themeId: normalized.theme?.appliedTemplateId || currentTheme?.appliedTemplateId || '—',
-    themeVersion:
-      normalized.themeVersion ||
-      normalized.theme?.version ||
-      normalized.theme?.updatedAt ||
-      normalized.theme?.timestamp ||
-      '—',
-    blocksCount: normalized.blocksCount || 0,
-    blockTypes: normalized.blockTypes?.join(', ') || '—',
-  });
-  updateDebugStrip();
-
-  const hasCategoriesBlock = normalized.blocks.some((block) => block?.type === 'categories');
-  let categoriesForBlocks = hasCategoriesBlock ? normalized.categories || cachedCategories : [];
-  if (hasCategoriesBlock && (!categoriesForBlocks || !categoriesForBlocks.length)) {
-    categoriesForBlocks = await refreshCategoriesFromApi();
-  }
-
-  renderHomeBlocks(normalized.blocks, normalized.raw || normalized.page || {}, {
-    categories: categoriesForBlocks || [],
-  });
-}
-
-function renderBreadcrumbs(target, parts) {
-  if (!target) return;
-  target.innerHTML = '';
-  parts.forEach((part, index) => {
-    if (index > 0) {
-      const divider = document.createElement('span');
-      divider.textContent = ' / ';
-      target.appendChild(divider);
-    }
-    if (part.href) {
-      const link = document.createElement('a');
-      link.href = part.href;
-      link.textContent = part.title;
-      link.dataset.routerLink = '';
-      target.appendChild(link);
-    } else {
-      const span = document.createElement('span');
-      span.textContent = part.title;
-      target.appendChild(span);
-    }
-  });
-}
-
-function renderCategory(category) {
-  const itemsWrap = document.getElementById('category-items');
-  const empty = document.getElementById('category-empty');
-  const title = document.getElementById('category-title');
-  const meta = document.getElementById('category-meta');
-  const typeTag = document.getElementById('category-type');
-  const breadcrumbs = document.getElementById('category-breadcrumbs');
-
-  title.textContent = category?.category?.title || 'Категория';
-  meta.textContent = `Тип: ${category?.category?.type || 'не указан'}`;
-  typeTag.textContent = category?.category?.type === 'course' ? 'Мастер-классы' : 'Товары';
-
-  renderBreadcrumbs(breadcrumbs, [
-    { title: 'Главная', href: '/' },
-    { title: category?.category?.title || 'Категория' },
-  ]);
-
-  itemsWrap.innerHTML = '';
-  const items = category?.items || [];
+  categoryItems.innerHTML = '';
+  const items = category.items || [];
   if (!items.length) {
-    empty?.removeAttribute('style');
+    categoryEmpty.style.display = 'block';
   } else {
-    empty?.setAttribute('style', 'display:none;');
-    items.forEach((item) => itemsWrap.appendChild(buildItemCard(item)));
+    categoryEmpty.style.display = 'none';
+    items.forEach((item) => categoryItems.appendChild(buildItemCard(item)));
   }
 }
 
-function mergeItems(primary = [], secondary = []) {
-  const map = new Map();
-  [...secondary, ...primary].forEach((item) => {
-    if (!item || item.id === undefined || item.id === null) return;
-    map.set(item.id, item);
-  });
-  return Array.from(map.values());
-}
-
-function renderProduct(item, targetPrefix = 'product') {
-  const breadcrumbs = document.getElementById(`${targetPrefix}-breadcrumbs`);
-  const image = document.getElementById(`${targetPrefix}-image`);
-  const title = document.getElementById(`${targetPrefix}-title`);
-  const price = document.getElementById(`${targetPrefix}-price`);
-  const description = document.getElementById(`${targetPrefix}-description`);
-  const category = document.getElementById(`${targetPrefix}-category`);
-
-  renderBreadcrumbs(breadcrumbs, [
-    { title: 'Главная', href: '/' },
-    item?.category_slug ? { title: item.category_title || 'Категория', href: `/c/${item.category_slug}` } : null,
-    { title: item?.title || 'Элемент' },
-  ].filter(Boolean));
-
-  if (image) {
-    if (item?.image_url) {
-      image.src = item.image_url;
-      image.removeAttribute('hidden');
-    } else {
-      image.setAttribute('hidden', '');
-    }
+function renderItemView(item) {
+  const imageUrl = normalizeMediaUrl(item.image_url || (item.images || [])[0]);
+  if (itemImage) {
+    itemImage.src = imageUrl || '';
+    itemImage.style.display = imageUrl ? 'block' : 'none';
   }
-
-  if (title) title.textContent = item?.title || 'Элемент';
-  if (price) price.textContent = formatPrice(item?.price);
-  if (description) description.textContent = item?.description || item?.short_text || '';
-  if (category) category.textContent = item?.category_title || '';
+  itemTitle.textContent = item.title || 'Позиция';
+  itemSubtitle.textContent = item.subtitle || '';
+  itemDescription.textContent = item.description || '';
+  itemPrice.textContent = formatPrice(item.price, item.currency || '₽');
+  itemCategory.textContent = item.category_title || '';
 }
 
-function parseRoute() {
-  const path = window.location.pathname.replace(/\/+$/, '') || '/';
-  if (path === '/' || path === '/index.html') return { view: 'home' };
+function findCategory(slug) {
+  return menuData?.categories?.find((category) => category.slug === slug) || null;
+}
 
-  const categoryMatch = path.match(/^\/(c|category)\/([^/]+)$/);
-  if (categoryMatch) {
-    return { view: 'category', slug: decodeURIComponent(categoryMatch[2]) };
+function findItem(slug) {
+  const categories = menuData?.categories || [];
+  for (const category of categories) {
+    const item = (category.items || []).find((entry) => entry.slug === slug);
+    if (item) return item;
   }
-
-  const productMatch = path.match(/^\/(p|product)\/([^/]+)$/);
-  if (productMatch) {
-    return { view: 'product', slug: decodeURIComponent(productMatch[2]) };
-  }
-
-  const masterclassMatch = path.match(/^\/(m|course)\/([^/]+)$/);
-  if (masterclassMatch) {
-    return { view: 'masterclass', slug: decodeURIComponent(masterclassMatch[2]) };
-  }
-
-  return { view: 'notFound' };
-}
-
-async function handleRoute() {
-  try {
-    const route = parseRoute();
-    if (route.view === 'home') {
-      await loadHomeConfig();
-      showView('home');
-      return;
-    }
-
-    if (route.view === 'category' && route.slug) {
-      const category = await fetchCategory(route.slug);
-      let items = category?.items || [];
-      if (category?.category?.id) {
-        try {
-          const response = await fetchItems({
-            type: category?.category?.type,
-            category_id: category.category.id,
-          });
-          items = mergeItems(response?.items || [], items);
-        } catch (error) {
-          console.error('Failed to load category items', error);
-        }
-      }
-      renderCategory({ ...category, items });
-      showView('category');
-      return;
-    }
-
-    if (route.view === 'product' && route.slug) {
-      const product = await fetchProduct(route.slug);
-      renderProduct(product, 'product');
-      showView('product');
-      return;
-    }
-
-    if (route.view === 'masterclass' && route.slug) {
-      const masterclass = await fetchMasterclass(route.slug);
-      renderProduct(masterclass, 'masterclass');
-      showView('masterclass');
-      return;
-    }
-
-    showView('notFound');
-  } catch (error) {
-    console.error('Routing failed', error);
-    showView('notFound');
-  }
-}
-
-function navigate(url) {
-  window.history.pushState({}, '', url);
-  closeSidebar();
-  handleRoute();
-}
-
-function bindRouterLinks() {
-  document.addEventListener('click', (event) => {
-    const link = event.target.closest('a[data-router-link]');
-    if (link && link.href.startsWith(window.location.origin)) {
-      event.preventDefault();
-      navigate(link.getAttribute('href'));
-    }
-  });
-}
-
-function openSidebar() {
-  navLinks?.classList.add('open');
-  sidebarOverlay?.classList.add('active');
+  return null;
 }
 
 function closeSidebar() {
-  navLinks?.classList.remove('open');
-  sidebarOverlay?.classList.remove('active');
+  navLinks?.classList.remove('app-sidebar--open');
+  sidebarOverlay?.classList.remove('is-visible');
 }
 
-function setupMenuToggle() {
+function route() {
+  const path = window.location.pathname.replace(/\/+$/, '') || '/';
+  const parts = path.split('/').filter(Boolean);
+
+  if (path === '/' || parts.length === 0) {
+    renderHome(menuData?.categories || []);
+    showView('home');
+    return;
+  }
+
+  if (parts[0] === 'c' && parts[1]) {
+    const category = findCategory(decodeURIComponent(parts[1]));
+    if (!category) {
+      showView('notFound');
+      return;
+    }
+    renderCategoryView(category);
+    showView('category');
+    return;
+  }
+
+  if ((parts[0] === 'i' || parts[0] === 'p' || parts[0] === 'm') && parts[1]) {
+    const item = findItem(decodeURIComponent(parts[1]));
+    if (!item) {
+      showView('notFound');
+      return;
+    }
+    renderItemView(item);
+    showView('item');
+    return;
+  }
+
+  showView('notFound');
+}
+
+function bindNavigation() {
+  document.addEventListener('click', (event) => {
+    const link = event.target.closest('[data-router-link]');
+    if (!link || !link.getAttribute('href')) return;
+    const href = link.getAttribute('href');
+    if (!href.startsWith('/')) return;
+    event.preventDefault();
+    window.history.pushState({}, '', href);
+    closeSidebar();
+    route();
+  });
+
+  window.addEventListener('popstate', route);
+
   const toggle = document.querySelector('.menu-toggle');
-  toggle?.addEventListener('click', openSidebar);
+  toggle?.addEventListener('click', () => {
+    navLinks?.classList.toggle('app-sidebar--open');
+    sidebarOverlay?.classList.toggle('is-visible');
+  });
   sidebarOverlay?.addEventListener('click', closeSidebar);
   sidebarClose?.addEventListener('click', closeSidebar);
 }
 
-async function loadHomeConfig({ reason = 'initial' } = {}) {
-  const fetchUrl = `/api/site/pages/home?_=${Date.now().toString()}&reason=${encodeURIComponent(reason)}`;
-  updateDebugOverlay({
-    lastFetchUrl: fetchUrl,
-    lastFetchStatus: 'loading',
-    lastError: '',
-  });
-
-  try {
-    const homeData = await fetchPageByKey('home');
-    const normalized = normalizeHomeResponse(homeData);
-    lastHomeConfig = normalized;
-
-    updateDebugOverlay({
-      lastFetchUrl: fetchUrl,
-      lastFetchStatus: '200 OK',
-      lastError: '',
-      receivedVersion: normalized.version || '—',
-      updatedAt: normalized.updatedAt || '—',
-      blocksCount: normalized.blocksCount || 0,
-      blockTypes: normalized.blockTypes?.join(', ') || '—',
-    });
-    updateDebugStrip();
-
-    await renderHome(normalized);
-  } catch (error) {
-    console.error('Failed to load home', error);
-    updateDebugOverlay({
-      lastFetchStatus: error?.status ? `error ${error.status}` : 'error',
-      lastError: error?.message || String(error),
-      lastFetchUrl: fetchUrl,
-      blocksCount: 0,
-      blockTypes: '',
-    });
-    updateDebugStrip();
-    renderHomeMessage('Не удалось загрузить главную', 'Попробуйте обновить страницу позже.');
-  }
-}
-
 async function bootstrap() {
-  setupMenuToggle();
-  bindRouterLinks();
-  ensureDebugOverlay();
-  await loadPublishedTheme();
-
   try {
-    const menu = await fetchMenu('product');
-    renderMenu(menu);
+    const [settings, menu] = await Promise.all([fetchSiteSettings(), fetchMenu()]);
+    settingsData = settings;
+    menuData = menu;
   } catch (error) {
-    console.error('Failed to load menu', error);
+    console.error('Не удалось загрузить данные витрины', error);
+    menuData = { categories: [] };
   }
 
-  window.addEventListener('popstate', handleRoute);
-  handleRoute();
+  applyColors(settingsData);
+  applyBranding(settingsData);
+  renderHero(settingsData);
+  renderFooter(settingsData);
+  renderMenuNavigation(menuData?.categories || []);
+  route();
 }
 
+bindNavigation();
 bootstrap();

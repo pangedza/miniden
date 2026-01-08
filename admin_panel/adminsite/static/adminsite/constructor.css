@@ -489,6 +489,10 @@ tr:nth-child(even) {
     box-shadow: 0 0 0 1px var(--primary);
 }
 
+.block-row.is-muted {
+    opacity: 0.6;
+}
+
 .block-row .meta {
     display: flex;
     gap: 6px;

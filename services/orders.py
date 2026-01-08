@@ -7,6 +7,7 @@ from sqlalchemy import select
 
 from database import get_session
 from models import Order, OrderItem
+from services import menu_catalog
 from services import products as products_service
 from services import stats as stats_service
 from services import users as users_service
@@ -55,7 +56,20 @@ def _normalize_order_items(items: list[dict[str, Any]]) -> tuple[list[dict[str, 
         if qty <= 0:
             continue
 
-        product_data = products_service.get_product_by_id(product_id) or {}
+        raw_type = item.get("type")
+        product_data = (
+            menu_catalog.get_item_by_id(
+                product_id, include_inactive=True, item_type=raw_type
+            )
+            if raw_type in menu_catalog.MENU_ITEM_TYPES
+            else None
+        )
+        if not product_data and raw_type == "course":
+            product_data = products_service.get_course_by_id(product_id)
+        if not product_data and raw_type == "basket":
+            product_data = products_service.get_basket_by_id(product_id)
+        if not product_data:
+            product_data = products_service.get_product_by_id(product_id) or {}
 
         price_raw = item.get("price")
         try:
@@ -63,11 +77,9 @@ def _normalize_order_items(items: list[dict[str, Any]]) -> tuple[list[dict[str, 
         except (TypeError, ValueError):
             price = int(product_data.get("price") or 0)
 
-        product_type = (
-            item.get("type")
-            or product_data.get("type")
-            or ("basket" if product_data else "basket")
-        )
+        product_type = item.get("type") or product_data.get("type") or "product"
+        if product_type not in menu_catalog.MENU_ITEM_TYPES and product_type not in {"basket", "course"}:
+            product_type = "product"
 
         normalized.append(
             {
@@ -152,18 +164,33 @@ def _course_item_available(status: str | None, price: int) -> bool:
 
 
 def _serialize_order_item(item: OrderItem, order_status: str | None = None) -> dict[str, Any]:
-    product = products_service.get_product_by_id(item.product_id, include_inactive=True)
+    product = None
+    if item.type in menu_catalog.MENU_ITEM_TYPES:
+        product = menu_catalog.get_item_by_id(
+            int(item.product_id),
+            include_inactive=True,
+            item_type=item.type,
+        )
+    if not product and item.type == "course":
+        product = products_service.get_course_by_id(item.product_id, include_inactive=True)
+    if not product and item.type == "basket":
+        product = products_service.get_basket_by_id(item.product_id, include_inactive=True)
+    if not product:
+        product = products_service.get_product_by_id(item.product_id, include_inactive=True)
     price = int(item.price or 0)
     status = order_status or STATUS_NEW
+    name = (product or {}).get("name") if isinstance(product, dict) else None
+    if not name and isinstance(product, dict):
+        name = product.get("title")
     return {
         "product_id": item.product_id,
         "qty": item.qty,
         "price": price,
         "type": item.type,
         "product": product,
-        "name": (product or {}).get("name"),
-        "detail_url": (product or {}).get("detail_url"),
-        "masterclass_url": (product or {}).get("masterclass_url"),
+        "name": name,
+        "detail_url": (product or {}).get("detail_url") if isinstance(product, dict) else None,
+        "masterclass_url": (product or {}).get("masterclass_url") if isinstance(product, dict) else None,
         "can_access": item.type == "course" and _course_item_available(status, price),
     }
 

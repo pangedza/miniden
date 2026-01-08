@@ -15,6 +15,7 @@ import logging
 import os
 import subprocess
 import time
+from decimal import Decimal
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
@@ -75,15 +76,13 @@ from models.support import (
     WebChatMessagesResponse,
 )
 from services import admin_notes as admin_notes_service
-from services import adminsite_pages
-from services import adminsite_public
 from services import cart as cart_service
-from services import theme_service
 from services import favorites as favorites_service
 from services import home as home_service
 from services import faq_service
 from services import branding as branding_service
 from services import orders as orders_service
+from services import menu_catalog
 from services import products as products_service
 from services import promocodes as promocodes_service
 from services import reviews as reviews_service
@@ -396,6 +395,83 @@ class AdminWebChatSendPayload(BaseModel):
 
 class AdminWebChatClosePayload(BaseModel):
     session_id: int
+
+
+class MenuCategoryPayload(BaseModel):
+    title: str
+    slug: str | None = None
+    description: str | None = None
+    order_index: int = 0
+    is_active: bool = True
+
+
+class MenuCategoryUpdatePayload(BaseModel):
+    title: str | None = None
+    slug: str | None = None
+    description: str | None = None
+    order_index: int | None = None
+    is_active: bool | None = None
+
+    class Config:
+        extra = "ignore"
+
+
+class MenuItemPayload(BaseModel):
+    category_id: int
+    title: str
+    slug: str | None = None
+    subtitle: str | None = None
+    description: str | None = None
+    price: Decimal | None = None
+    currency: str | None = None
+    images: list[str] = []
+    image_url: str | None = None
+    order_index: int = 0
+    is_active: bool = True
+    type: str = "product"
+    meta: dict[str, Any] = {}
+
+
+class MenuItemUpdatePayload(BaseModel):
+    category_id: int | None = None
+    title: str | None = None
+    slug: str | None = None
+    subtitle: str | None = None
+    description: str | None = None
+    price: Decimal | None = None
+    currency: str | None = None
+    images: list[str] | None = None
+    image_url: str | None = None
+    order_index: int | None = None
+    is_active: bool | None = None
+    type: str | None = None
+    meta: dict[str, Any] | None = None
+
+    class Config:
+        extra = "ignore"
+
+
+class MenuReorderEntry(BaseModel):
+    id: int
+    order_index: int
+
+
+class MenuReorderPayload(BaseModel):
+    categories: list[MenuReorderEntry] = []
+    items: list[MenuReorderEntry] = []
+
+
+class SiteSettingsPayload(BaseModel):
+    brand_name: str | None = None
+    logo_url: str | None = None
+    primary_color: str | None = None
+    secondary_color: str | None = None
+    background_color: str | None = None
+    contacts: dict[str, Any] = {}
+    social_links: dict[str, Any] = {}
+    hero_title: str | None = None
+    hero_subtitle: str | None = None
+    hero_image_url: str | None = None
 
 
 class AdminWebChatReadPayload(BaseModel):
@@ -1808,63 +1884,70 @@ def archive_order(order_id: int, request: Request):
     return {"ok": True}
 
 
-def _normalize_adminsite_type(type_value: str | None) -> str | None:
-    try:
-        return adminsite_public.normalize_type(type_value)
-    except ValueError as exc:  # pragma: no cover - defensive
-        raise HTTPException(status_code=400, detail=str(exc))
+@app.get("/public/site-settings")
+def public_site_settings():
+    return menu_catalog.get_site_settings()
+
+
+@app.get("/public/menu")
+def public_menu():
+    return menu_catalog.build_public_menu()
+
+
+@app.get("/public/menu/categories")
+def public_menu_categories():
+    return {"items": menu_catalog.list_categories(include_inactive=False)}
+
+
+@app.get("/public/menu/items")
+def public_menu_items(category: str | None = None):
+    if category:
+        if category.isdigit():
+            return {
+                "items": menu_catalog.list_items(
+                    include_inactive=False, category_id=int(category)
+                )
+            }
+        category_record = menu_catalog.get_category_by_slug(category, include_inactive=False)
+        if not category_record:
+            raise HTTPException(status_code=404, detail="Category not found")
+        return {
+            "items": menu_catalog.list_items(
+                include_inactive=False, category_id=int(category_record.id)
+            )
+        }
+    return {"items": menu_catalog.list_items(include_inactive=False)}
 
 
 @app.get("/api/site/menu")
-def site_menu(type: str | None = "product"):
-    normalized_type = _normalize_adminsite_type(type) or "product"
-    return adminsite_public.build_menu_payload(normalized_type)
+def site_menu():
+    return menu_catalog.build_public_menu()
 
 
 @app.get("/api/site/theme")
 def site_theme():
-    payload = adminsite_public.get_published_theme()
-    response = JSONResponse(content=payload)
-    response.headers["Cache-Control"] = "no-store"
-    response.headers["Pragma"] = "no-cache"
-    return response
+    raise HTTPException(status_code=410, detail="Theme constructor disabled")
 
 
 @app.get("/api/site-settings")
 def site_settings():
-    theme_meta = theme_service.get_theme_metadata()
-    return {
-        "activePalette": theme_meta.get("appliedTemplateId") or theme_service.DEFAULT_TEMPLATE_ID,
-        "theme": theme_meta,
-    }
+    return menu_catalog.get_site_settings()
 
 
 @app.put("/api/site-settings")
-def update_site_settings(payload: dict, request: Request, db: Session = Depends(get_session)):
+def update_site_settings(payload: SiteSettingsPayload, request: Request, db: Session = Depends(get_session)):
     adminsite_service.ensure_admin(request, db)
-    palette = (payload or {}).get("activePalette") or (payload or {}).get("palette")
-    if not palette:
-        raise HTTPException(status_code=422, detail="activePalette is required")
-    theme = theme_service.apply_theme(palette)
-    return {
-        "activePalette": theme.get("appliedTemplateId") or palette,
-        "theme": theme,
-    }
+    return menu_catalog.update_site_settings(payload.model_dump())
 
 
 @app.get("/api/site/categories")
-def site_categories(type: str | None = None):
-    normalized_type = _normalize_adminsite_type(type)
-    return {"items": adminsite_public.list_categories(normalized_type)}
+def site_categories():
+    return {"items": menu_catalog.list_categories(include_inactive=False)}
 
 
 @app.get("/api/site/categories/{slug}")
-def site_category(slug: str, type: str | None = None):
-    normalized_type = _normalize_adminsite_type(type)
-    try:
-        category = adminsite_public.get_category_with_items(slug, type_value=normalized_type)
-    except ValueError as exc:  # pragma: no cover - defensive
-        raise HTTPException(status_code=400, detail=str(exc))
+def site_category(slug: str):
+    category = menu_catalog.get_category_details(slug, include_inactive=False)
     if not category:
         raise HTTPException(status_code=404, detail="Category not found")
     return category
@@ -1872,52 +1955,40 @@ def site_category(slug: str, type: str | None = None):
 
 @app.get("/api/site/products/{slug}")
 def site_product(slug: str):
-    product = adminsite_public.get_item_by_slug(slug, type_value="product")
-    if not product:
+    item = menu_catalog.get_item_by_slug(slug, include_inactive=False)
+    if not item or item.get("type") != "product":
         raise HTTPException(status_code=404, detail="Product not found")
-    return product
+    return item
 
 
 @app.get("/api/site/masterclasses/{slug}")
 def site_masterclass(slug: str):
-    masterclass = adminsite_public.get_item_by_slug(slug, type_value="course")
-    if not masterclass:
+    item = menu_catalog.get_item_by_slug(slug, include_inactive=False)
+    if not item or item.get("type") != "course":
         raise HTTPException(status_code=404, detail="Masterclass not found")
-    return masterclass
+    return item
 
 
 @app.get("/api/site/items")
-def site_items(type: str | None = None, category_id: int | None = None):
-    normalized_type = _normalize_adminsite_type(type)
-    try:
-        return {
-            "items": adminsite_public.list_items(
-                type_value=normalized_type, category_id=category_id
-            )
-        }
-    except ValueError as exc:  # pragma: no cover - defensive
-        raise HTTPException(status_code=400, detail=str(exc))
+def site_items(category_id: int | None = None, type: str | None = None):
+    return {
+        "items": menu_catalog.list_items(
+            include_inactive=False, category_id=category_id, item_type=type
+        )
+    }
 
 
 @app.get("/api/site/home")
-def site_home(limit: int = 6):
-    payload = adminsite_public.get_home_summary(limit=limit)
-    response = JSONResponse(content=payload)
-    response.headers["Cache-Control"] = "no-store"
-    response.headers["Pragma"] = "no-cache"
-    return response
+def site_home():
+    return {
+        "settings": menu_catalog.get_site_settings(),
+        "menu": menu_catalog.build_public_menu(),
+    }
 
 
 @app.get("/api/site/pages/{page_key}")
 def site_page(page_key: str):
-    slug = (page_key or "").strip() or adminsite_pages.DEFAULT_SLUG
-    try:
-        return adminsite_public.get_public_page(slug)
-    except HTTPException:
-        raise
-    except Exception as exc:  # pragma: no cover - defensive
-        logger.exception("Failed to load public page %s", slug)
-        raise HTTPException(status_code=500, detail=str(exc))
+    raise HTTPException(status_code=410, detail="Page constructor disabled")
 
 
 @app.get("/api/categories")
@@ -2396,7 +2467,155 @@ def admin_update_branding(
         )
         session.add(branding)
         session.flush()
-        return branding_service.serialize_branding(branding)
+    return branding_service.serialize_branding(branding)
+
+
+@app.get("/api/admin/site-settings")
+def admin_get_site_settings(request: Request, db: Session = Depends(get_session)):
+    adminsite_service.ensure_admin(request, db)
+    return menu_catalog.get_site_settings()
+
+
+@app.put("/api/admin/site-settings")
+def admin_update_site_settings(
+    payload: SiteSettingsPayload,
+    request: Request,
+    db: Session = Depends(get_session),
+):
+    adminsite_service.ensure_admin(request, db)
+    return menu_catalog.update_site_settings(payload.model_dump())
+
+
+@app.get("/api/admin/menu/categories")
+def admin_menu_categories(
+    request: Request,
+    include_inactive: bool = True,
+    db: Session = Depends(get_session),
+):
+    adminsite_service.ensure_admin(request, db)
+    return {"items": menu_catalog.list_categories(include_inactive=include_inactive)}
+
+
+@app.post("/api/admin/menu/categories")
+def admin_menu_create_category(
+    payload: MenuCategoryPayload,
+    request: Request,
+    db: Session = Depends(get_session),
+):
+    adminsite_service.ensure_admin(request, db)
+    try:
+        return menu_catalog.create_category(payload.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+@app.put("/api/admin/menu/categories/{category_id}")
+def admin_menu_update_category(
+    category_id: int,
+    payload: MenuCategoryUpdatePayload,
+    request: Request,
+    db: Session = Depends(get_session),
+):
+    adminsite_service.ensure_admin(request, db)
+    try:
+        return menu_catalog.update_category(category_id, payload.model_dump(exclude_unset=True))
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+@app.delete("/api/admin/menu/categories/{category_id}")
+def admin_menu_delete_category(
+    category_id: int,
+    request: Request,
+    db: Session = Depends(get_session),
+):
+    adminsite_service.ensure_admin(request, db)
+    try:
+        menu_catalog.delete_category(category_id)
+        return {"status": "ok"}
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+
+
+@app.get("/api/admin/menu/items")
+def admin_menu_items(
+    request: Request,
+    category_id: int | None = None,
+    type: str | None = None,
+    include_inactive: bool = True,
+    db: Session = Depends(get_session),
+):
+    adminsite_service.ensure_admin(request, db)
+    try:
+        return {
+            "items": menu_catalog.list_items(
+                include_inactive=include_inactive,
+                category_id=category_id,
+                item_type=type,
+            )
+        }
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+@app.post("/api/admin/menu/items")
+def admin_menu_create_item(
+    payload: MenuItemPayload,
+    request: Request,
+    db: Session = Depends(get_session),
+):
+    adminsite_service.ensure_admin(request, db)
+    try:
+        return menu_catalog.create_item(payload.model_dump())
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+@app.put("/api/admin/menu/items/{item_id}")
+def admin_menu_update_item(
+    item_id: int,
+    payload: MenuItemUpdatePayload,
+    request: Request,
+    db: Session = Depends(get_session),
+):
+    adminsite_service.ensure_admin(request, db)
+    try:
+        return menu_catalog.update_item(item_id, payload.model_dump(exclude_unset=True))
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+@app.delete("/api/admin/menu/items/{item_id}")
+def admin_menu_delete_item(
+    item_id: int,
+    request: Request,
+    db: Session = Depends(get_session),
+):
+    adminsite_service.ensure_admin(request, db)
+    try:
+        menu_catalog.delete_item(item_id)
+        return {"status": "ok"}
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@app.post("/api/admin/menu/reorder")
+def admin_menu_reorder(
+    payload: MenuReorderPayload,
+    request: Request,
+    db: Session = Depends(get_session),
+):
+    adminsite_service.ensure_admin(request, db)
+    menu_catalog.reorder_entities(payload.model_dump())
+    return {"status": "ok"}
 
 
 # ----------------------------
@@ -3363,4 +3582,3 @@ def categories_page():
 def category_page(slug: str):
     target = f"/webapp/category.html?slug={slug}"
     return RedirectResponse(url=target, status_code=302)
-

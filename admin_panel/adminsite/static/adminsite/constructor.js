@@ -1,2317 +1,550 @@
 import { apiRequest } from './apiClient.js';
-import { BaseModal, CategoryModal, ItemModal } from './modals.js';
 
-console.log('[AdminSite] constructor.js loaded');
-document.documentElement.setAttribute('data-adminsite-js', 'loaded');
+const statusMenu = document.getElementById('status-menu');
+const statusSettings = document.getElementById('status-settings');
+const statusMedia = document.getElementById('status-media');
+const globalStatus = document.getElementById('global-status');
 
-// AdminSite home constructor writes to /api/adminsite/pages/home, index.html reads from /api/site/home (public).
-const API_BASE = '/api/adminsite';
-const HOMEPAGE_SOURCE_API = `${API_BASE}/pages/home`;
-const HOMEPAGE_PUBLIC_API = '/api/site/pages/home';
-const HOMEPAGE_PUBLISH_API = `${API_BASE}/pages/home/publish`;
-const THEME_APPLY_API = `${API_BASE}/theme/apply`;
-const HOMEPAGE_PAGE_KEY = 'home';
-const diagnosticState = {
-    jsLoaded: true,
-    apiStatus: 'pending',
-    apiMessage: 'Проверка API...',
-};
+const categoryList = document.getElementById('category-list');
+const categoryForm = document.getElementById('category-form');
+const categoryAdd = document.getElementById('category-add');
+const itemList = document.getElementById('item-list');
+const itemForm = document.getElementById('item-form');
+const itemAdd = document.getElementById('item-add');
+const itemsCaption = document.getElementById('items-caption');
+const menuRefresh = document.getElementById('menu-refresh');
 
-const DEFAULT_TYPES = ['product', 'course'];
+const settingsSave = document.getElementById('settings-save');
+const settingsBrand = document.getElementById('settings-brand');
+const settingsLogo = document.getElementById('settings-logo');
+const settingsPrimary = document.getElementById('settings-primary');
+const settingsSecondary = document.getElementById('settings-secondary');
+const settingsBackground = document.getElementById('settings-background');
+const settingsHeroTitle = document.getElementById('settings-hero-title');
+const settingsHeroSubtitle = document.getElementById('settings-hero-subtitle');
+const settingsHeroImage = document.getElementById('settings-hero-image');
+const settingsContacts = document.getElementById('settings-contacts');
+const settingsSocial = document.getElementById('settings-social');
 
-const statusBanner = document.getElementById('constructor-status-bar') || (() => {
-    const banner = document.createElement('div');
-    banner.id = 'constructor-status-bar';
-    document.body.prepend(banner);
-    return banner;
-})();
+const mediaUploadInput = document.getElementById('media-upload-input');
+const mediaUploadBtn = document.getElementById('media-upload-btn');
+const mediaRefreshBtn = document.getElementById('media-refresh');
+const mediaSearch = document.getElementById('media-search');
+const mediaList = document.getElementById('media-list');
+const mediaUploadStatus = document.getElementById('media-upload-status');
 
-function renderDiagnostics() {
-    if (!statusBanner) return;
-    statusBanner.innerHTML = '';
+const API_MENU_CATEGORIES = '/api/admin/menu/categories';
+const API_MENU_ITEMS = '/api/admin/menu/items';
+const API_MENU_REORDER = '/api/admin/menu/reorder';
+const API_SITE_SETTINGS = '/api/admin/site-settings';
+const API_MEDIA = '/api/adminsite/media';
+const API_MEDIA_UPLOAD = '/api/adminsite/media/upload';
 
-    const pillRow = document.createElement('div');
-    pillRow.className = 'diag-pills';
+let categories = [];
+let items = [];
+let selectedCategory = null;
 
-    const jsPill = document.createElement('span');
-    jsPill.className = `diag-pill ${diagnosticState.jsLoaded ? 'ok' : 'error'}`;
-    jsPill.textContent = diagnosticState.jsLoaded ? 'JS: LOADED' : 'JS: ERROR';
-    pillRow.appendChild(jsPill);
-
-    const apiPill = document.createElement('span');
-    const apiOk = diagnosticState.apiStatus === 'ok';
-    apiPill.className = `diag-pill ${apiOk ? 'ok' : diagnosticState.apiStatus === 'pending' ? 'muted' : 'error'}`;
-    apiPill.textContent = apiOk ? 'API: OK' : diagnosticState.apiStatus === 'pending' ? 'API: CHECKING' : 'API: ERROR';
-    pillRow.appendChild(apiPill);
-
-    statusBanner.appendChild(pillRow);
-
-    if (diagnosticState.apiMessage) {
-        const text = document.createElement('div');
-        text.className = `diag-message ${diagnosticState.apiStatus === 'ok' ? 'ok' : 'error'}`;
-        text.textContent = diagnosticState.apiMessage;
-        statusBanner.appendChild(text);
-    }
+function setStatus(target, message = '', tone = 'muted') {
+  if (!target) return;
+  target.textContent = message;
+  target.className = `status ${tone}`.trim();
 }
 
-function setApiStatus(status, message) {
-    diagnosticState.apiStatus = status;
-    diagnosticState.apiMessage = message;
-    renderDiagnostics();
+function parseJsonInput(value, fallback = {}) {
+  if (!value || !value.trim()) return fallback;
+  return JSON.parse(value);
 }
 
-function reportApiFailure(error) {
-    if (!error) return;
-    if (error.status === 401) {
-        setApiStatus('error', `API вернул 401: ${error.message}`);
+function parseImages(value) {
+  if (!value) return [];
+  return value
+    .split(/\n|,/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function buildRow({ title, subtitle, meta, isActive, onSelect, onEdit, onDelete, onMoveUp, onMoveDown }) {
+  const row = document.createElement('div');
+  row.className = 'block-row';
+
+  const main = document.createElement('div');
+  const heading = document.createElement('div');
+  heading.textContent = title || 'Без названия';
+  heading.style.fontWeight = '700';
+  const sub = document.createElement('div');
+  sub.className = 'muted meta';
+  sub.textContent = subtitle || meta || '';
+  main.append(heading, sub);
+
+  const actions = document.createElement('div');
+  actions.className = 'actions';
+
+  const selectButton = document.createElement('button');
+  selectButton.className = 'btn-secondary';
+  selectButton.type = 'button';
+  selectButton.textContent = 'Открыть';
+  selectButton.addEventListener('click', onSelect);
+
+  const editButton = document.createElement('button');
+  editButton.className = 'btn-secondary';
+  editButton.type = 'button';
+  editButton.textContent = 'Редактировать';
+  editButton.addEventListener('click', onEdit);
+
+  const upButton = document.createElement('button');
+  upButton.className = 'btn-ghost';
+  upButton.type = 'button';
+  upButton.textContent = '↑';
+  upButton.addEventListener('click', onMoveUp);
+
+  const downButton = document.createElement('button');
+  downButton.className = 'btn-ghost';
+  downButton.type = 'button';
+  downButton.textContent = '↓';
+  downButton.addEventListener('click', onMoveDown);
+
+  const deleteButton = document.createElement('button');
+  deleteButton.className = 'btn-danger';
+  deleteButton.type = 'button';
+  deleteButton.textContent = 'Удалить';
+  deleteButton.addEventListener('click', onDelete);
+
+  if (isActive === false) {
+    row.classList.add('is-muted');
+  }
+
+  actions.append(selectButton, editButton, upButton, downButton, deleteButton);
+  row.append(main, actions);
+  return row;
+}
+
+function renderCategoryForm(category = null) {
+  if (!categoryForm) return;
+  categoryForm.style.display = 'block';
+  categoryForm.innerHTML = `
+    <label>Название<input id="category-title" /></label>
+    <label>Slug<input id="category-slug" placeholder="optional" /></label>
+    <label>Описание<textarea id="category-description" rows="2"></textarea></label>
+    <label>Порядок<input id="category-order" type="number" value="0" /></label>
+    <label><input id="category-active" type="checkbox" /> Активна</label>
+    <div class="actions">
+      <button class="btn-primary" type="button" id="category-save">Сохранить</button>
+      <button class="btn-ghost" type="button" id="category-cancel">Отмена</button>
+    </div>
+  `;
+
+  const titleInput = document.getElementById('category-title');
+  const slugInput = document.getElementById('category-slug');
+  const descriptionInput = document.getElementById('category-description');
+  const orderInput = document.getElementById('category-order');
+  const activeInput = document.getElementById('category-active');
+
+  titleInput.value = category?.title || '';
+  slugInput.value = category?.slug || '';
+  descriptionInput.value = category?.description || '';
+  orderInput.value = category?.order_index ?? 0;
+  activeInput.checked = category?.is_active ?? true;
+
+  document.getElementById('category-cancel').addEventListener('click', () => {
+    categoryForm.style.display = 'none';
+    categoryForm.innerHTML = '';
+  });
+
+  document.getElementById('category-save').addEventListener('click', async () => {
+    try {
+      const payload = {
+        title: titleInput.value.trim(),
+        slug: slugInput.value.trim() || null,
+        description: descriptionInput.value.trim() || null,
+        order_index: Number(orderInput.value || 0),
+        is_active: activeInput.checked,
+      };
+
+      if (!payload.title) {
+        setStatus(statusMenu, 'Название категории обязательно', 'error');
         return;
+      }
+
+      if (category?.id) {
+        await apiRequest(`${API_MENU_CATEGORIES}/${category.id}`, { method: 'PUT', body: payload });
+      } else {
+        await apiRequest(API_MENU_CATEGORIES, { method: 'POST', body: payload });
+      }
+
+      setStatus(statusMenu, 'Категория сохранена', 'ok');
+      categoryForm.style.display = 'none';
+      categoryForm.innerHTML = '';
+      await loadCategories();
+    } catch (error) {
+      setStatus(statusMenu, error.message || 'Не удалось сохранить категорию', 'error');
     }
-    if (error.status) {
-        const message = formatErrorMessage(error, error.message || 'Ошибка API');
-        setApiStatus('error', `API недоступен: HTTP ${error.status} ${message || ''}`.trim());
+  });
+}
+
+function renderItemForm(item = null) {
+  if (!itemForm) return;
+  if (!selectedCategory) {
+    setStatus(statusMenu, 'Сначала выберите категорию', 'error');
+    return;
+  }
+
+  itemForm.style.display = 'block';
+  itemForm.innerHTML = `
+    <label>Название<input id="item-title" /></label>
+    <label>Подзаголовок<input id="item-subtitle" /></label>
+    <label>Slug<input id="item-slug" placeholder="optional" /></label>
+    <label>Описание<textarea id="item-description" rows="3"></textarea></label>
+    <label>Цена<input id="item-price" type="number" min="0" step="0.01" /></label>
+    <label>Валюта<input id="item-currency" placeholder="RUB" /></label>
+    <label>Тип<select id="item-type">
+      <option value="product">product</option>
+      <option value="course">course</option>
+      <option value="service">service</option>
+    </select></label>
+    <label>Image URL<input id="item-image" placeholder="/media/adminsite/..." /></label>
+    <label>Images (через запятую или новую строку)<textarea id="item-images" rows="2"></textarea></label>
+    <label>Meta (JSON)<textarea id="item-meta" rows="3"></textarea></label>
+    <label>Порядок<input id="item-order" type="number" value="0" /></label>
+    <label><input id="item-active" type="checkbox" /> Активна</label>
+    <div class="actions">
+      <button class="btn-primary" type="button" id="item-save">Сохранить</button>
+      <button class="btn-ghost" type="button" id="item-cancel">Отмена</button>
+    </div>
+  `;
+
+  const titleInput = document.getElementById('item-title');
+  const subtitleInput = document.getElementById('item-subtitle');
+  const slugInput = document.getElementById('item-slug');
+  const descriptionInput = document.getElementById('item-description');
+  const priceInput = document.getElementById('item-price');
+  const currencyInput = document.getElementById('item-currency');
+  const typeInput = document.getElementById('item-type');
+  const imageInput = document.getElementById('item-image');
+  const imagesInput = document.getElementById('item-images');
+  const metaInput = document.getElementById('item-meta');
+  const orderInput = document.getElementById('item-order');
+  const activeInput = document.getElementById('item-active');
+
+  titleInput.value = item?.title || '';
+  subtitleInput.value = item?.subtitle || '';
+  slugInput.value = item?.slug || '';
+  descriptionInput.value = item?.description || '';
+  priceInput.value = item?.price ?? '';
+  currencyInput.value = item?.currency || '';
+  typeInput.value = item?.type || 'product';
+  imageInput.value = item?.image_url || '';
+  imagesInput.value = (item?.images || []).join('\n');
+  metaInput.value = item?.meta ? JSON.stringify(item.meta, null, 2) : '';
+  orderInput.value = item?.order_index ?? 0;
+  activeInput.checked = item?.is_active ?? true;
+
+  document.getElementById('item-cancel').addEventListener('click', () => {
+    itemForm.style.display = 'none';
+    itemForm.innerHTML = '';
+  });
+
+  document.getElementById('item-save').addEventListener('click', async () => {
+    try {
+      const payload = {
+        category_id: selectedCategory.id,
+        title: titleInput.value.trim(),
+        subtitle: subtitleInput.value.trim() || null,
+        slug: slugInput.value.trim() || null,
+        description: descriptionInput.value.trim() || null,
+        price: priceInput.value ? Number(priceInput.value) : null,
+        currency: currencyInput.value.trim() || null,
+        type: typeInput.value,
+        image_url: imageInput.value.trim() || null,
+        images: parseImages(imagesInput.value),
+        meta: parseJsonInput(metaInput.value, {}),
+        order_index: Number(orderInput.value || 0),
+        is_active: activeInput.checked,
+      };
+
+      if (!payload.title) {
+        setStatus(statusMenu, 'Название позиции обязательно', 'error');
         return;
-    }
-    if (error.message) {
-        const message = formatErrorMessage(error, error.message);
-        setApiStatus('error', message);
-    }
-}
+      }
 
-async function checkApiHealth() {
-    try {
-        setApiStatus('pending', 'Проверка API...');
-        const response = await fetch(`${API_BASE}/health`, { credentials: 'include' });
-        const text = await response.text();
+      if (item?.id) {
+        await apiRequest(`${API_MENU_ITEMS}/${item.id}`, { method: 'PUT', body: payload });
+      } else {
+        await apiRequest(API_MENU_ITEMS, { method: 'POST', body: payload });
+      }
 
-        let payload = null;
-        if (text) {
-            try {
-                payload = JSON.parse(text);
-            } catch (error) {
-                setApiStatus('error', `API ответил не-JSON (${response.status}): ${text}`);
-                return;
-            }
-        }
-
-        if (!response.ok) {
-            setApiStatus('error', `API недоступен: HTTP ${response.status} ${text}`.trim());
-            return;
-        }
-
-        if (!payload?.ok) {
-            setApiStatus('error', `API ответил без ok=true: ${text || 'пустой ответ'}`);
-            return;
-        }
-
-        setApiStatus('ok', 'API: OK');
+      setStatus(statusMenu, 'Позиция сохранена', 'ok');
+      itemForm.style.display = 'none';
+      itemForm.innerHTML = '';
+      await loadItems(selectedCategory.id);
     } catch (error) {
-        const prefix = error?.status ? `HTTP ${error.status} ` : '';
-        const message = error?.message || 'API недоступен';
-        setApiStatus('error', `API недоступен: ${prefix}${message}`.trim());
+      setStatus(statusMenu, error.message || 'Не удалось сохранить позицию', 'error');
     }
+  });
 }
 
-renderDiagnostics();
-checkApiHealth();
+function renderCategories() {
+  if (!categoryList) return;
+  categoryList.innerHTML = '';
+  if (!categories.length) {
+    categoryList.innerHTML = '<p class="muted">Категории не созданы.</p>';
+    return;
+  }
 
-const state = {
-    types: [],
-    categories: {},
-    items: {},
-    filters: {},
-    ui: {
-        tabsContainer: null,
-        panelsContainer: null,
-    },
-    activeTab: null,
-};
+  categories.forEach((category, index) => {
+    const row = buildRow({
+      title: category.title,
+      subtitle: category.slug,
+      meta: category.description,
+      isActive: category.is_active,
+      onSelect: () => {
+        selectedCategory = category;
+        renderCategories();
+        loadItems(category.id);
+      },
+      onEdit: () => renderCategoryForm(category),
+      onDelete: async () => {
+        if (!confirm('Удалить категорию?')) return;
+        try {
+          await apiRequest(`${API_MENU_CATEGORIES}/${category.id}`, { method: 'DELETE' });
+          setStatus(statusMenu, 'Категория удалена', 'ok');
+          await loadCategories();
+        } catch (error) {
+          setStatus(statusMenu, error.message || 'Не удалось удалить категорию', 'error');
+        }
+      },
+      onMoveUp: () => reorderCategory(index, -1),
+      onMoveDown: () => reorderCategory(index, 1),
+    });
 
-const HERO_PLACEHOLDER_IMAGE =
-    "data:image/svg+xml;utf8," +
-    "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 360'>" +
-    "<defs><linearGradient id='g' x1='0' x2='1' y1='0' y2='1'>" +
-    "<stop offset='0%' stop-color='%23f3e7e9'/><stop offset='100%' stop-color='%23e3eeff'/>" +
-    "</linearGradient></defs>" +
-    "<rect width='600' height='360' rx='24' fill='url(%23g)'/>" +
-    "<rect x='160' y='120' width='280' height='120' rx='18' fill='rgba(0,0,0,0.05)'/>" +
-    "<rect x='200' y='150' width='200' height='12' rx='6' fill='rgba(0,0,0,0.16)'/>" +
-    "<rect x='200' y='170' width='160' height='12' rx='6' fill='rgba(0,0,0,0.12)'/>" +
-    "<rect x='200' y='190' width='120' height='12' rx='6' fill='rgba(0,0,0,0.08)'/>" +
-    "</svg>";
-
-function buildPortfolioPresetBlocks() {
-    return [
-        {
-            type: 'hero',
-            title: 'Творческий портфель',
-            subtitle: 'Покажите товары, мастер-классы и откройте удобные контакты.',
-            imageUrl: HERO_PLACEHOLDER_IMAGE,
-            background: {
-                type: 'gradient',
-                value: 'linear-gradient(135deg, rgba(255,255,255,0.2), rgba(76,106,255,0.08))',
-            },
-            buttons: [
-                { label: 'Товары', href: '/catalog', variant: 'primary' },
-                { label: 'Мастер-классы', href: '/courses', variant: 'secondary' },
-            ],
-        },
-        {
-            type: 'cards',
-            title: 'Главные разделы',
-            subtitle: 'Быстрые ссылки на ключевые направления.',
-            layout: { columns: 3 },
-            items: [
-                { title: 'Товары', href: '/catalog', imageUrl: HERO_PLACEHOLDER_IMAGE },
-                { title: 'Мастер-классы', href: '/courses', imageUrl: HERO_PLACEHOLDER_IMAGE },
-                { title: 'Связаться', href: 'https://t.me/', imageUrl: HERO_PLACEHOLDER_IMAGE },
-            ],
-        },
-        {
-            type: 'social',
-            items: [
-                { type: 'telegram', label: 'Telegram', href: 'https://t.me/' },
-                { type: 'whatsapp', label: 'WhatsApp', href: 'https://wa.me/7' },
-                { type: 'vk', label: 'VK', href: 'https://vk.com/' },
-            ],
-        },
-    ];
-}
-
-function buildDefaultBlocks() {
-    return buildPortfolioPresetBlocks();
-}
-
-const homepageDefaults = {
-    templateId: 'services',
-    blocks: buildDefaultBlocks(),
-};
-
-let homepageConfig = homepageDefaults;
-let homepageSelectedIndex = 0;
-let developerMode = false;
-
-function copyToClipboard(value, fallbackMessage = 'Скопировано') {
-    if (!value) return;
-    if (navigator.clipboard?.writeText) {
-        navigator.clipboard.writeText(value).then(
-            () => showToast(fallbackMessage),
-            () => {
-                showToast('Не удалось скопировать', 'error');
-            },
-        );
-        return;
+    if (selectedCategory?.id === category.id) {
+      row.classList.add('active');
     }
-
-    const input = document.createElement('input');
-    input.value = value;
-    document.body.appendChild(input);
-    input.select();
-    document.execCommand('copy');
-    document.body.removeChild(input);
-    showToast(fallbackMessage);
+    categoryList.appendChild(row);
+  });
 }
 
-function normalizeBackground(background = {}) {
-    const type = ['color', 'gradient', 'image'].includes(background?.type) ? background.type : 'color';
-    return {
-        type,
-        value: background?.value || null,
+function renderItems() {
+  if (!itemList) return;
+  itemList.innerHTML = '';
+  if (!selectedCategory) {
+    itemsCaption.textContent = 'Выберите категорию слева.';
+    return;
+  }
+  itemsCaption.textContent = `Категория: ${selectedCategory.title}`;
+
+  if (!items.length) {
+    itemList.innerHTML = '<p class="muted">В категории пока нет позиций.</p>';
+    return;
+  }
+
+  items.forEach((item, index) => {
+    const row = buildRow({
+      title: item.title,
+      subtitle: item.slug,
+      meta: item.type,
+      isActive: item.is_active,
+      onSelect: () => {},
+      onEdit: () => renderItemForm(item),
+      onDelete: async () => {
+        if (!confirm('Удалить позицию?')) return;
+        try {
+          await apiRequest(`${API_MENU_ITEMS}/${item.id}`, { method: 'DELETE' });
+          setStatus(statusMenu, 'Позиция удалена', 'ok');
+          await loadItems(selectedCategory.id);
+        } catch (error) {
+          setStatus(statusMenu, error.message || 'Не удалось удалить позицию', 'error');
+        }
+      },
+      onMoveUp: () => reorderItem(index, -1),
+      onMoveDown: () => reorderItem(index, 1),
+    });
+    itemList.appendChild(row);
+  });
+}
+
+async function reorderCategory(index, delta) {
+  const targetIndex = index + delta;
+  if (targetIndex < 0 || targetIndex >= categories.length) return;
+  const next = [...categories];
+  [next[index], next[targetIndex]] = [next[targetIndex], next[index]];
+  categories = next.map((category, idx) => ({ ...category, order_index: idx }));
+  renderCategories();
+  await apiRequest(API_MENU_REORDER, {
+    method: 'POST',
+    body: { categories: categories.map((category) => ({ id: category.id, order_index: category.order_index })) },
+  });
+}
+
+async function reorderItem(index, delta) {
+  const targetIndex = index + delta;
+  if (targetIndex < 0 || targetIndex >= items.length) return;
+  const next = [...items];
+  [next[index], next[targetIndex]] = [next[targetIndex], next[index]];
+  items = next.map((item, idx) => ({ ...item, order_index: idx }));
+  renderItems();
+  await apiRequest(API_MENU_REORDER, {
+    method: 'POST',
+    body: { items: items.map((entry) => ({ id: entry.id, order_index: entry.order_index })) },
+  });
+}
+
+async function loadCategories() {
+  try {
+    const response = await apiRequest(API_MENU_CATEGORIES, { method: 'GET' });
+    categories = response.items || [];
+    if (selectedCategory) {
+      selectedCategory = categories.find((cat) => cat.id === selectedCategory.id) || null;
+    }
+    renderCategories();
+    if (selectedCategory) {
+      await loadItems(selectedCategory.id);
+    }
+  } catch (error) {
+    setStatus(statusMenu, error.message || 'Не удалось загрузить категории', 'error');
+  }
+}
+
+async function loadItems(categoryId) {
+  if (!categoryId) return;
+  try {
+    const response = await apiRequest(`${API_MENU_ITEMS}?category_id=${categoryId}&include_inactive=true`, { method: 'GET' });
+    items = response.items || [];
+    renderItems();
+  } catch (error) {
+    setStatus(statusMenu, error.message || 'Не удалось загрузить позиции', 'error');
+  }
+}
+
+async function loadSettings() {
+  try {
+    const data = await apiRequest(API_SITE_SETTINGS, { method: 'GET' });
+    settingsBrand.value = data?.brand_name || '';
+    settingsLogo.value = data?.logo_url || '';
+    settingsPrimary.value = data?.primary_color || '';
+    settingsSecondary.value = data?.secondary_color || '';
+    settingsBackground.value = data?.background_color || '';
+    settingsHeroTitle.value = data?.hero_title || '';
+    settingsHeroSubtitle.value = data?.hero_subtitle || '';
+    settingsHeroImage.value = data?.hero_image_url || '';
+    settingsContacts.value = JSON.stringify(data?.contacts || {}, null, 2);
+    settingsSocial.value = JSON.stringify(data?.social_links || {}, null, 2);
+  } catch (error) {
+    setStatus(statusSettings, error.message || 'Не удалось загрузить настройки', 'error');
+  }
+}
+
+async function saveSettings() {
+  try {
+    const payload = {
+      brand_name: settingsBrand.value.trim() || null,
+      logo_url: settingsLogo.value.trim() || null,
+      primary_color: settingsPrimary.value.trim() || null,
+      secondary_color: settingsSecondary.value.trim() || null,
+      background_color: settingsBackground.value.trim() || null,
+      hero_title: settingsHeroTitle.value.trim() || null,
+      hero_subtitle: settingsHeroSubtitle.value.trim() || null,
+      hero_image_url: settingsHeroImage.value.trim() || null,
+      contacts: parseJsonInput(settingsContacts.value, {}),
+      social_links: parseJsonInput(settingsSocial.value, {}),
     };
-}
-
-function normalizeLayout(layout = {}) {
-    const columns = Number(layout?.columns) || 2;
-    const safeColumns = Math.min(3, Math.max(1, columns));
-    return { columns: safeColumns };
-}
-
-function slugifyTitle(text) {
-    return (text || '')
-        .toString()
-        .trim()
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/(^-|-$)+/g, '')
-        .slice(0, 120);
-}
-
-function normalizeButton(button = {}) {
-    const variant = button?.variant === 'secondary' ? 'secondary' : 'primary';
-    return {
-        label: button?.label || 'Подробнее',
-        href: button?.href || '',
-        variant,
-    };
-}
-
-function normalizeCardItem(item = {}) {
-    return {
-        title: item?.title || 'Карточка',
-        imageUrl: item?.imageUrl || item?.image_url || null,
-        href: item?.href || '',
-        icon: item?.icon || null,
-    };
-}
-
-function normalizeCategoryItem(item = {}) {
-    const rawHref = item?.href || item?.url || '';
-    const slugFromHref = rawHref?.match(/\/(?:c|category)\/([^/?#]+)/i)?.[1] || '';
-    const title = item?.title || 'Категория';
-    const slug = item?.slug || slugFromHref || slugifyTitle(title) || 'category';
-    return {
-        title,
-        slug,
-        href: rawHref || `/c/${slug}`,
-        type: item?.type === 'course' ? 'course' : 'product',
-    };
-}
-
-function normalizeSocialItem(item = {}) {
-    const allowed = ['telegram', 'whatsapp', 'vk', 'instagram', 'website', 'phone', 'email'];
-    const type = allowed.includes(item?.type) ? item.type : 'telegram';
-    return {
-        type,
-        label: item?.label || 'Связаться',
-        href: item?.href || '',
-        icon: item?.icon || null,
-    };
-}
-
-function normalizeBlock(block = {}) {
-    if (!block?.type) return null;
-    if (block.type === 'hero') {
-        return {
-            type: 'hero',
-            title: block.title || 'Витрина AdminSite',
-            subtitle: block.subtitle || '',
-            imageUrl: block.imageUrl || block.image_url || '',
-            background: normalizeBackground(block.background),
-            buttons: Array.isArray(block.buttons) ? block.buttons.map(normalizeButton) : [],
-        };
-    }
-    if (block.type === 'cards') {
-        const items = Array.isArray(block.items) ? block.items.map(normalizeCardItem) : [];
-        return {
-            type: 'cards',
-            title: block.title || '',
-            subtitle: block.subtitle || '',
-            items,
-            layout: normalizeLayout(block.layout),
-        };
-    }
-    if (block.type === 'text') {
-        return {
-            type: 'text',
-            title: block.title || '',
-            text: block.text || '',
-        };
-    }
-    if (block.type === 'social') {
-        const items = Array.isArray(block.items) ? block.items.map(normalizeSocialItem) : [];
-        return {
-            type: 'social',
-            items,
-        };
-    }
-    if (block.type === 'categories') {
-        const items = Array.isArray(block.items) ? block.items.map(normalizeCategoryItem) : [];
-        return {
-            type: 'categories',
-            title: block.title || 'Категории',
-            subtitle: block.subtitle || '',
-            items,
-        };
-    }
-    return null;
-}
-
-function normalizeHomepageConfig(data = homepageDefaults) {
-    const draft = data?.draft || data?.page?.draft;
-    const published = data?.published || data?.page?.published;
-    const source = draft?.blocks?.length ? draft : published || data || {};
-    const templateId = source?.templateId || source?.template_id || data?.templateId || 'services';
-    const blocksRaw = Array.isArray(source?.blocks) ? source.blocks : [];
-    const normalizedBlocks = blocksRaw.map(normalizeBlock).filter(Boolean);
-    const safeBlocks = normalizedBlocks.length ? normalizedBlocks : buildDefaultBlocks();
-    const updatedAt =
-        source?.updatedAt ||
-        source?.updated_at ||
-        data?.updatedAt ||
-        data?.updated_at ||
-        source?.version ||
-        data?.version ||
-        null;
-    return {
-        templateId,
-        blocks: safeBlocks,
-        draft,
-        published,
-        pageKey: source?.pageKey || data?.pageKey || HOMEPAGE_PAGE_KEY,
-        version: source?.version || data?.version || null,
-        updatedAt,
-    };
-}
-
-function getElementOrWarn(id) {
-    const el = document.getElementById(id);
-    if (!el) {
-        console.warn(`[AdminSite constructor] Элемент #${id} не найден, часть UI может не работать корректно.`);
-    }
-    return el;
-}
-
-function bindElement(id, event, handler) {
-    const el = getElementOrWarn(id);
-    if (!el) return null;
-    el.addEventListener(event, handler);
-    return el;
-}
-
-const modalHistory = [];
-let handlingPopState = false;
-
-if (!window.history.state || !window.history.state.adminsiteRoot) {
-    window.history.replaceState(
-        { ...(window.history.state || {}), adminsiteRoot: true },
-        '',
-        window.location.pathname + window.location.search,
-    );
-}
-
-function registerModal(modal) {
-    modal.setCloseHandler((reason) => closeTrackedModal(modal, reason));
-    modal.onClose(() => {
-        const idx = modalHistory.lastIndexOf(modal);
-        if (idx !== -1) {
-            modalHistory.splice(idx, 1);
-        }
-    });
-}
-
-function closeTrackedModal(modal, reason = 'manual', { skipHistory = false } = {}) {
-    if (!modal) return;
-    const idx = modalHistory.lastIndexOf(modal);
-    if (idx !== -1) {
-        modalHistory.splice(idx, 1);
-    }
-    modal.close(reason);
-
-    const currentState = window.history.state;
-    if (
-        !skipHistory &&
-        !handlingPopState &&
-        currentState?.adminsiteModal === modal.__adminsiteStateId
-    ) {
-        handlingPopState = true;
-        window.history.back();
-        handlingPopState = false;
-    }
-}
-
-function openTrackedModal(modal, stateId) {
-    if (!modal?.backdrop?.hidden) return;
-    modal.__adminsiteStateId = stateId;
-    modalHistory.push(modal);
-    window.history.pushState({ adminsiteModal: stateId }, '', window.location.pathname + window.location.search);
-    modal.open();
-}
-
-function closeTopModal(reason = 'manual', { skipHistory = false } = {}) {
-    const modal = modalHistory.pop();
-    if (modal) {
-        closeTrackedModal(modal, reason, { skipHistory });
-        return true;
-    }
-    return false;
-}
-
-window.addEventListener('popstate', () => {
-    handlingPopState = true;
-    try {
-        if (closeTopModal('history', { skipHistory: true })) return;
-        if (window.history.state?.adminsiteTab) {
-            setActiveTab(window.history.state.adminsiteTab, { pushHistory: false });
-            return;
-        }
-        if (!window.history.state?.adminsiteRoot) return;
-        // Ensure there is always at least one state entry to prevent empty history stack
-        window.history.replaceState(
-            { ...(window.history.state || {}), adminsiteRoot: true },
-            '',
-            window.location.pathname + window.location.search,
-        );
-    } finally {
-        handlingPopState = false;
-    }
-});
-
-document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') {
-        closeTopModal('escape');
-    }
-});
-
-const toastContainer = document.createElement('div');
-toastContainer.className = 'toast-container';
-document.body.appendChild(toastContainer);
-
-function showToast(message, type = 'info') {
-    const toast = document.createElement('div');
-    toast.className = `toast ${type === 'error' ? 'error' : type === 'success' ? 'success' : ''}`;
-    toast.textContent = message;
-    toastContainer.appendChild(toast);
-    setTimeout(() => toast.remove(), 4000);
-}
-
-const translitMap = {
-    'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'e', 'ж': 'zh', 'з': 'z', 'и': 'i',
-    'й': 'i', 'к': 'k', 'л': 'l', 'м': 'm', 'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't',
-    'у': 'u', 'ф': 'f', 'х': 'h', 'ц': 'c', 'ч': 'ch', 'ш': 'sh', 'щ': 'sch', 'ы': 'y', 'э': 'e', 'ю': 'yu', 'я': 'ya',
-    'ъ': '', 'ь': ''
-};
-
-const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-
-function transliterate(value) {
-    return value
-        .split('')
-        .map((ch) => {
-            const lower = ch.toLowerCase();
-            const mapped = translitMap[lower];
-            if (mapped === undefined) return ch;
-            return ch === lower ? mapped : mapped.toUpperCase();
-        })
-        .join('');
-}
-
-function slugify(value) {
-    const transliterated = transliterate(value);
-    const normalized = transliterated.normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
-    return normalized
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/(^-|-$)/g, '')
-        .replace(/-{2,}/g, '-');
-}
-
-function normalizeSlugInput(value) {
-    return slugify(value || '');
-}
-
-function normalizeSlugForSubmit(rawValue) {
-    const trimmed = (rawValue || '').trim();
-    if (!trimmed) return { value: '', error: '' };
-
-    const normalized = normalizeSlugInput(trimmed);
-    if (!normalized || !SLUG_PATTERN.test(normalized)) {
-        return { value: '', error: 'Slug может содержать только латиницу, цифры и дефисы.' };
-    }
-
-    return { value: normalized, error: '' };
-}
-
-function ensureTypeState(type) {
-    if (!state.types.includes(type)) {
-        state.types.push(type);
-    }
-    if (!state.categories[type]) {
-        state.categories[type] = [];
-    }
-    if (!state.items[type]) {
-        state.items[type] = [];
-    }
-    if (!state.filters[type]) {
-        state.filters[type] = { categoryId: '', search: '' };
-    }
-}
-
-function setStatus(targetId, message, isError = false) {
-    const el = document.getElementById(targetId);
-    if (!el) return;
-    el.textContent = message || '';
-    el.classList.remove('error', 'success');
-    if (message) {
-        el.classList.add(isError ? 'error' : 'success');
-    }
-}
-
-function attachSlugHelpers(modal) {
-    if (!modal?.form) return;
-
-    const titleInput = modal.form.querySelector('input[name="title"]');
-    const slugInput = modal.form.querySelector('input[name="slug"]');
-    if (!titleInput || !slugInput) return;
-
-    let slugTouched = false;
-
-    if (!slugInput.nextElementSibling?.classList?.contains('slug-hint')) {
-        const hint = document.createElement('p');
-        hint.className = 'muted slug-hint';
-        hint.textContent = 'Slug: латиница, цифры и дефисы. Можно оставить пустым для автогенерации.';
-        slugInput.insertAdjacentElement('afterend', hint);
-    }
-
-    titleInput.addEventListener('input', () => {
-        const currentSlug = slugInput.value.trim();
-        if (!slugTouched || !currentSlug) {
-            slugInput.value = normalizeSlugInput(titleInput.value);
-        }
-    });
-
-    slugInput.addEventListener('input', () => {
-        slugTouched = true;
-        const normalized = normalizeSlugInput(slugInput.value);
-        if (slugInput.value !== normalized) {
-            slugInput.value = normalized;
-        }
-    });
-
-    slugInput.addEventListener('blur', () => {
-        const normalized = normalizeSlugInput(slugInput.value);
-        if (slugInput.value !== normalized) {
-            slugInput.value = normalized;
-        }
-    });
-
-    modal.onClose(() => {
-        slugTouched = false;
-    });
-}
-
-async function callApi(path, options) {
-    try {
-        return await apiRequest(`${API_BASE}${path}`, options);
-    } catch (error) {
-        reportApiFailure(error);
-        throw error;
-    }
-}
-
-function categoryOptions(type) {
-    return state.categories[type] || [];
-}
-
-async function loadCategories(type) {
-    ensureTypeState(type);
-    const target = `status-categories-${type}`;
-    setStatus(target, 'Загрузка...');
-    try {
-        const data = await callApi(`/categories?type=${type}`);
-        state.categories[type] = data;
-        renderCategoryTable(type);
-        renderCategorySelects(type);
-        setStatus(target, `Загружено: ${data.length}`);
-    } catch (error) {
-        setStatus(target, error.message, true);
-        showToast(error.message, 'error');
-    }
-}
-
-function renderCategoryTable(type) {
-    const tbody = document.getElementById(`categories-list-${type}`);
-    tbody.innerHTML = '';
-    state.categories[type].forEach((category) => {
-        const tr = document.createElement('tr');
-        const publicUrl = category.slug ? `/c/${category.slug}` : '';
-        const publicLink = publicUrl
-            ? `<a href="${publicUrl}" class="link" target="_blank" rel="noopener">${publicUrl}</a>`
-            : '<span class="muted">—</span>';
-        const itemsLabel = type === 'course' ? 'Мастер-классы' : 'Товары';
-        tr.innerHTML = `
-            <td>${category.id}</td>
-            <td>${category.title}</td>
-            <td>${category.slug || ''}</td>
-            <td>${publicLink}</td>
-            <td>${category.is_active ? 'Да' : 'Нет'}</td>
-            <td>${category.sort ?? ''}</td>
-            <td>${category.created_at ? new Date(category.created_at).toLocaleString() : ''}</td>
-            <td>
-                <div class="table-actions">
-                    <button class="btn-secondary" data-action="open-page" ${publicUrl ? '' : 'disabled'}>Страница</button>
-                    <button class="btn-secondary" data-action="items">${itemsLabel}</button>
-                    <button class="btn-secondary" data-action="edit">Редактировать</button>
-                    <button class="btn-danger" data-action="delete">Удалить</button>
-                </div>
-            </td>
-        `;
-        tr.querySelector('[data-action="open-page"]')?.addEventListener('click', () => {
-            if (publicUrl) window.open(publicUrl, '_blank', 'noopener');
-        });
-        tr.querySelector('[data-action="items"]')?.addEventListener('click', () => {
-            const filter = document.getElementById(`items-filter-${type}`);
-            if (filter) {
-                filter.value = String(category.id);
-            }
-            state.filters[type].categoryId = String(category.id);
-            loadItems(type);
-            setActiveTab(`panel-${type}`);
-        });
-        tr.querySelector('[data-action="edit"]').addEventListener('click', () => openCategoryModal(type, category));
-        tr.querySelector('[data-action="delete"]').addEventListener('click', () => deleteCategory(type, category.id));
-        tbody.appendChild(tr);
-    });
-}
-
-function renderCategorySelects(type) {
-    ensureTypeState(type);
-    if (!type || !state.categories[type]) {
-        console.warn(`[AdminSite constructor] Неизвестный тип для категорий: ${type}`);
-        return;
-    }
-
-    const filter = getElementOrWarn(`items-filter-${type}`);
-    const selects = [];
-    if (filter) {
-        selects.push(filter);
-    }
-
-    selects.forEach((select) => {
-        select.innerHTML = '';
-        if (select === filter) {
-            const allOption = document.createElement('option');
-            allOption.value = '';
-            allOption.textContent = 'Все категории';
-            select.appendChild(allOption);
-        }
-        state.categories[type].forEach((cat) => {
-            const option = document.createElement('option');
-            option.value = cat.id;
-            option.textContent = cat.title;
-            select.appendChild(option);
-        });
-    });
-}
-
-async function deleteCategory(type, id) {
-    if (!confirm('Удалить категорию?')) return;
-    try {
-        await callApi(`/categories/${id}`, { method: 'DELETE' });
-        showToast('Категория удалена', 'success');
-        await loadCategories(type);
-    } catch (error) {
-        setStatus(`status-categories-${type}`, error.message, true);
-        showToast(error.message, 'error');
-    }
-}
-
-async function upsertCategory(type, payload) {
-    const { value: normalizedSlug, error: slugError } = normalizeSlugForSubmit(payload.slug);
-    if (slugError) throw new Error(slugError);
-
-    const body = {
-        type,
-        title: payload.title,
-        slug: normalizedSlug || null,
-        is_active: payload.is_active,
-        sort: payload.sort ?? 0,
-    };
-    const method = payload.id ? 'PUT' : 'POST';
-    const url = payload.id ? `/categories/${payload.id}` : '/categories';
-    await callApi(url, { method, body });
-    await loadCategories(type);
-    showToast('Категория сохранена', 'success');
-}
-
-async function loadItems(type) {
-    ensureTypeState(type);
-    const filter = state.filters[type];
-    const params = new URLSearchParams({ type });
-    if (filter.categoryId) {
-        params.append('category_id', filter.categoryId);
-    }
-    const target = `status-items-${type}`;
-    setStatus(target, 'Загрузка...');
-    try {
-        const data = await callApi(`/items?${params.toString()}`);
-        if (!Array.isArray(data)) {
-            console.warn('[AdminSite constructor] /items returned non-array payload', data);
-            state.items[type] = [];
-        } else {
-            state.items[type] = data;
-        }
-        renderItemsTable(type);
-        setStatus(target, `Загружено: ${state.items[type].length}`);
-    } catch (error) {
-        state.items[type] = [];
-        renderItemsTable(type);
-        setStatus(target, error.message, true);
-        showToast(error.message, 'error');
-    }
-}
-
-function renderItemsTable(type) {
-    const tbody = document.getElementById(`items-list-${type}`);
-    tbody.innerHTML = '';
-    const filter = state.filters[type];
-    const search = filter.search.toLowerCase();
-    const items = Array.isArray(state.items[type]) ? state.items[type] : [];
-    const categories = Array.isArray(state.categories[type]) ? state.categories[type] : [];
-    const rows = items.filter((item) => {
-        const title = item.title || '';
-        return !search || title.toLowerCase().includes(search);
-    });
-    rows.forEach((item) => {
-        const categoryTitle = categories.find((c) => c.id === item.category_id)?.title || '';
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${item.id}</td>
-                <td>${item.title}</td>
-                <td>${categoryTitle}</td>
-                <td>${item.price ?? ''}</td>
-                <td>${item.stock ?? 0}</td>
-                <td>${item.is_active ? 'Да' : 'Нет'}</td>
-                <td>${item.sort ?? ''}</td>
-                <td>
-                <div class="table-actions">
-                    <button class="btn-secondary" data-action="edit">Редактировать</button>
-                    <button class="btn-danger" data-action="delete">Удалить</button>
-                </div>
-            </td>
-        `;
-        tr.querySelector('[data-action="edit"]').addEventListener('click', () => openItemModal(type, item));
-        tr.querySelector('[data-action="delete"]').addEventListener('click', () => deleteItem(type, item.id));
-        tbody.appendChild(tr);
-    });
-}
-
-async function deleteItem(type, id) {
-    if (!confirm('Удалить элемент?')) return;
-    try {
-        await callApi(`/items/${id}`, { method: 'DELETE' });
-        await loadItems(type);
-        showToast('Элемент удалён', 'success');
-    } catch (error) {
-        setStatus(`status-items-${type}`, error.message, true);
-        showToast(error.message, 'error');
-    }
-}
-
-async function upsertItem(type, payload) {
-    const { value: normalizedSlug, error: slugError } = normalizeSlugForSubmit(payload.slug);
-    if (slugError) throw new Error(slugError);
-
-    const body = {
-        type,
-        category_id: payload.category_id,
-        title: payload.title,
-        slug: normalizedSlug || null,
-        price: payload.price ?? 0,
-        stock: payload.stock ?? 0,
-        image_url: payload.image_url,
-        short_text: payload.short_text,
-        description: payload.description,
-        is_active: payload.is_active,
-        sort: payload.sort ?? 0,
-    };
-    const method = payload.id ? 'PUT' : 'POST';
-    const url = payload.id ? `/items/${payload.id}` : '/items';
-    await callApi(url, { method, body });
-    await loadItems(type);
-    showToast('Элемент сохранён', 'success');
-}
-
-function humanizeType(type) {
-    if (!type) return 'Раздел';
-    return type.charAt(0).toUpperCase() + type.slice(1);
-}
-
-function createTypeTab(type) {
-    const tab = document.createElement('button');
-    tab.className = 'tab';
-    tab.dataset.target = `panel-${type}`;
-    tab.textContent = humanizeType(type);
-    tab.addEventListener('click', () => setActiveTab(tab.dataset.target));
-    return tab;
-}
-
-function createTypePanel(type) {
-    const panel = document.createElement('section');
-    panel.className = 'panel';
-    panel.id = `panel-${type}`;
-    const label = humanizeType(type);
-    panel.innerHTML = `
-        <div class="card">
-            <div class="table-top">
-                <div>
-                    <h3 style="margin:0;">Категории (${label})</h3>
-                    <p class="muted">Slug можно оставить пустым — сервер сгенерирует его.</p>
-                </div>
-                <button id="category-create-${type}" class="btn-primary" type="button">Создать</button>
-            </div>
-            <div class="status" id="status-categories-${type}"></div>
-            <div class="table-wrapper">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Title</th>
-                            <th>Slug</th>
-                            <th>Страница</th>
-                            <th>Active</th>
-                            <th>Sort</th>
-                            <th>Created</th>
-                            <th>Действия</th>
-                        </tr>
-                    </thead>
-                    <tbody id="categories-list-${type}"></tbody>
-                </table>
-            </div>
-        </div>
-        <div class="card">
-            <div class="table-top">
-                <div>
-                    <h3 style="margin:0;">Элементы (${label})</h3>
-                    <p class="muted">CRUD для элементов типа ${type}.</p>
-                </div>
-                <div class="action-links">
-                    <input type="search" id="items-search-${type}" class="search-input" placeholder="Поиск по названию">
-                    <select id="items-filter-${type}"></select>
-                    <button id="item-create-${type}" class="btn-primary" type="button">Создать</button>
-                </div>
-            </div>
-            <div class="status" id="status-items-${type}"></div>
-            <div class="table-wrapper">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Title</th>
-                            <th>Category</th>
-                            <th>Price</th>
-                            <th>Stock</th>
-                            <th>Active</th>
-                            <th>Sort</th>
-                            <th>Действия</th>
-                        </tr>
-                    </thead>
-                    <tbody id="items-list-${type}"></tbody>
-                </table>
-            </div>
-        </div>
-    `;
-    return panel;
-}
-
-function setActiveTab(panelId, { pushHistory = true } = {}) {
-    if (!panelId) return;
-    const panel = document.getElementById(panelId);
-    if (!panel) return;
-    state.activeTab = panelId;
-    document.querySelectorAll('.tab').forEach((tab) => {
-        tab.classList.toggle('active', tab.dataset.target === panelId);
-    });
-    document.querySelectorAll('.panel').forEach((el) => {
-        el.classList.toggle('active', el.id === panelId);
-    });
-
-    if (pushHistory) {
-        const url = new URL(window.location.href);
-        url.searchParams.set('tab', panelId);
-        window.history.pushState(
-            { ...(window.history.state || {}), adminsiteTab: panelId, adminsiteRoot: true },
-            '',
-            url.toString(),
-        );
-    }
-}
-
-function getInitialTab() {
-    const url = new URL(window.location.href);
-    const requested = url.searchParams.get('tab');
-    if (requested && document.getElementById(requested)) {
-        return requested;
-    }
-    if (state.types[0]) {
-        return `panel-${state.types[0]}`;
-    }
-    if (document.getElementById('panel-homepage')) {
-        return 'panel-homepage';
-    }
-    if (document.getElementById('panel-media')) {
-        return 'panel-media';
-    }
-    return null;
-}
-
-function renderTypeTabs() {
-    const tabs = state.ui.tabsContainer;
-    const panels = state.ui.panelsContainer;
-    if (!tabs || !panels) return;
-
-    tabs.innerHTML = '';
-    panels.innerHTML = '';
-
-    state.types.forEach((type) => {
-        ensureTypeState(type);
-        tabs.appendChild(createTypeTab(type));
-        panels.appendChild(createTypePanel(type));
-        bindTypeButtons(type);
-    });
-
-    const homepagePanel = document.getElementById('panel-homepage');
-    if (homepagePanel) {
-        homepagePanel.classList.remove('active');
-        panels.appendChild(homepagePanel);
-        const homepageTab = document.createElement('button');
-        homepageTab.className = 'tab';
-        homepageTab.dataset.target = 'panel-homepage';
-        homepageTab.textContent = 'Главная';
-        homepageTab.addEventListener('click', () => setActiveTab('panel-homepage'));
-        tabs.appendChild(homepageTab);
-    }
-
-    const mediaPanel = document.getElementById('panel-media');
-    if (mediaPanel) {
-        mediaPanel.classList.remove('active');
-        panels.appendChild(mediaPanel);
-        const mediaTab = document.createElement('button');
-        mediaTab.className = 'tab';
-        mediaTab.dataset.target = 'panel-media';
-        mediaTab.textContent = 'Медиа';
-        mediaTab.addEventListener('click', () => setActiveTab('panel-media'));
-        tabs.appendChild(mediaTab);
-    }
-
-    const initialTab = getInitialTab();
-    setActiveTab(initialTab, { pushHistory: false });
-}
-
-const categoryModals = {};
-const itemModals = {};
-
-function ensureCategoryModal(type) {
-    if (!categoryModals[type]) {
-        categoryModals[type] = new CategoryModal({
-            title: `Категория (${humanizeType(type)})`,
-            onSubmit: (payload) => upsertCategory(type, payload),
-        });
-        attachSlugHelpers(categoryModals[type]);
-        registerModal(categoryModals[type]);
-    }
-    return categoryModals[type];
-}
-
-function ensureItemModal(type) {
-    if (!itemModals[type]) {
-        itemModals[type] = new ItemModal({
-            title: humanizeType(type),
-            categoriesProvider: (t) => categoryOptions(t),
-            onSubmit: (payload) => upsertItem(type, payload),
-        });
-        attachSlugHelpers(itemModals[type]);
-        registerModal(itemModals[type]);
-    }
-    return itemModals[type];
-}
-
-function openCategoryModal(type, category = null) {
-    const modal = ensureCategoryModal(type);
-    modal.setData(category);
-    openTrackedModal(modal, `category-${type}-${category?.id || 'new'}`);
-}
-
-function openItemModal(type, item = null) {
-    const modal = ensureItemModal(type);
-    modal.setData(item, type);
-    openTrackedModal(modal, `item-${type}-${item?.id || 'new'}`);
-}
-
-function bindTypeButtons(type) {
-    ensureTypeState(type);
-    bindElement(`category-create-${type}`, 'click', () => openCategoryModal(type));
-    bindElement(`item-create-${type}`, 'click', () => openItemModal(type));
-    bindElement(`items-filter-${type}`, 'change', (event) => {
-        state.filters[type].categoryId = event.target.value;
-        loadItems(type);
-    });
-    bindElement(`items-search-${type}`, 'input', (event) => {
-        state.filters[type].search = event.target.value;
-        renderItemsTable(type);
-    });
-}
-
-const homepageTemplateCards = Array.from(document.querySelectorAll('#homepage-template .template-card'));
-const homepageBlocksField = getElementOrWarn('homepage-blocks');
-const homepageSaveButton = getElementOrWarn('homepage-save');
-const homepagePublishButton = getElementOrWarn('homepage-publish');
-const homepageResetButton = getElementOrWarn('homepage-reset');
-const homepagePresetButton = getElementOrWarn('homepage-preset');
-const homepageStatus = getElementOrWarn('status-homepage');
-const homepagePreviewLink = getElementOrWarn('homepage-preview');
-const homepageBlocksList = getElementOrWarn('homepage-blocks-list');
-const homepageBlockEditor = getElementOrWarn('homepage-block-editor');
-const homepageEditorTitle = getElementOrWarn('homepage-editor-title');
-const homepageEditorSubtitle = getElementOrWarn('homepage-editor-subtitle');
-const homepageBlockMeta = getElementOrWarn('homepage-block-meta');
-const homepageDevToggle = getElementOrWarn('homepage-dev-toggle');
-const homepageDevTools = getElementOrWarn('homepage-devtools');
-const homepageDevStatus = getElementOrWarn('homepage-dev-status');
-const homepageDevApply = getElementOrWarn('homepage-dev-apply');
-const homepageDevHide = getElementOrWarn('homepage-dev-hide');
-const homepageAddBlockButton = getElementOrWarn('homepage-add-block');
-const homepageDiagnosticCard = getElementOrWarn('homepage-diagnostics');
-const homepageDiagnosticSave = getElementOrWarn('homepage-diagnostic-save');
-const homepageDiagnosticPublic = getElementOrWarn('homepage-diagnostic-public');
-const homepageDiagnosticSource = getElementOrWarn('homepage-diagnostic-source');
-const homepageDiagnosticPublicUrl = getElementOrWarn('homepage-diagnostic-public-url');
-const homepageDiagnosticPage = getElementOrWarn('homepage-diagnostic-page');
-const homepageDiagnosticVersion = getElementOrWarn('homepage-diagnostic-version');
-
-let homepageLoadedConfig = normalizeHomepageConfig(homepageDefaults);
-let lastAppliedTheme = null;
-let blockPickerModal = null;
-const homepageDiagnostics = {
-    source: HOMEPAGE_SOURCE_API,
-    publicSource: HOMEPAGE_PUBLIC_API,
-    pageKey: HOMEPAGE_PAGE_KEY,
-    version: null,
-    lastSave: '—',
-    publicStatus: '—',
-    themeVersion: null,
-    themeTemplate: '—',
-};
-renderHomepageDiagnostics();
-
-function setHomepageStatus(message, isError = false) {
-    if (!homepageStatus) return;
-    if (!message) {
-        homepageStatus.textContent = '';
-        homepageStatus.classList.remove('error');
-        homepageStatus.style.display = 'none';
-        return;
-    }
-    homepageStatus.textContent = message;
-    homepageStatus.classList.toggle('error', isError);
-    homepageStatus.style.display = 'block';
-}
-
-function formatErrorMessage(error, fallback) {
-    const message = (error && error.message) || fallback;
-    if (error && error.errorId) {
-        return `${message} (error_id: ${error.errorId})`;
-    }
-    return message;
-}
-
-function updateDiagnosticTag(el, text, isError = false) {
-    if (!el) return;
-    el.textContent = text || '—';
-    el.classList.toggle('error', Boolean(text && isError));
-    el.classList.toggle('ok', Boolean(text && !isError));
-}
-
-function renderHomepageDiagnostics() {
-    if (homepageDiagnosticSource) homepageDiagnosticSource.textContent = homepageDiagnostics.source;
-    if (homepageDiagnosticPublicUrl) homepageDiagnosticPublicUrl.textContent = homepageDiagnostics.publicSource;
-    if (homepageDiagnosticPage) homepageDiagnosticPage.textContent = homepageDiagnostics.pageKey;
-    if (homepageDiagnosticVersion) homepageDiagnosticVersion.textContent = homepageDiagnostics.version || '—';
-    updateDiagnosticTag(homepageDiagnosticSave, homepageDiagnostics.lastSave, homepageDiagnostics.lastSave?.toLowerCase().includes('ошибка'));
-    updateDiagnosticTag(homepageDiagnosticPublic, `Публичный: ${homepageDiagnostics.publicStatus}`, homepageDiagnostics.publicStatus?.toLowerCase().includes('ошибка'));
-}
-
-function setHomepageVersion(version) {
-    homepageDiagnostics.version = version || '—';
-    renderHomepageDiagnostics();
-}
-
-function openHomepagePreview(event) {
-    if (event) event.preventDefault();
-    const cacheBust = Date.now().toString();
-    const previewUrl = `/?debug=1&_=${cacheBust}`;
-    if (homepagePreviewLink) homepagePreviewLink.href = previewUrl;
-    window.open(previewUrl, '_blank', 'noopener');
-}
-
-function setHomepageSaveState(label, isError = false) {
-    homepageDiagnostics.lastSave = label || '—';
-    updateDiagnosticTag(homepageDiagnosticSave, homepageDiagnostics.lastSave, isError);
-}
-
-function setPublicAvailability(label, isError = false) {
-    homepageDiagnostics.publicStatus = label || '—';
-    updateDiagnosticTag(homepageDiagnosticPublic, `Публичный: ${homepageDiagnostics.publicStatus}`, isError);
-}
-
-function setDevStatus(message, isError = false) {
-    if (!homepageDevStatus) return;
-    homepageDevStatus.textContent = message || '';
-    homepageDevStatus.classList.toggle('error', Boolean(message && isError));
-    homepageDevStatus.style.display = message ? 'block' : 'none';
-}
-
-function syncDevTextarea() {
-    if (homepageBlocksField) {
-        homepageBlocksField.value = JSON.stringify(homepageConfig.blocks || [], null, 2);
-    }
-}
-
-function setTemplateActive(templateId) {
-    homepageTemplateCards.forEach((card) => {
-        card.classList.toggle('active', card.dataset.template === templateId);
-    });
-}
-
-function setTemplate(templateId) {
-    homepageConfig = { ...homepageConfig, templateId: templateId || 'services' };
-    setTemplateActive(homepageConfig.templateId);
-}
-
-async function applyThemeFromAdmin(templateId) {
-    if (!templateId) {
-        throw new Error('Не указан templateId для применения темы');
-    }
-
-    const payload = { templateId };
-    const response = await apiRequest(THEME_APPLY_API, { method: 'POST', body: payload, credentials: 'include' });
-    lastAppliedTheme = response;
-    homepageDiagnostics.themeVersion = response?.timestamp || homepageDiagnostics.themeVersion;
-    homepageDiagnostics.themeTemplate = response?.appliedTemplateId || homepageDiagnostics.themeTemplate;
-    renderHomepageDiagnostics();
-    return response;
-}
-
-function createBlockOfType(type) {
-    if (type === 'cards') {
-        return normalizeBlock({ type: 'cards', title: 'Подборка', subtitle: '', items: [], layout: { columns: 2 } });
-    }
-    if (type === 'text') {
-        return normalizeBlock({ type: 'text', title: 'Текстовый блок', text: '' });
-    }
-    if (type === 'social') {
-        return normalizeBlock({ type: 'social', items: [] });
-    }
-    if (type === 'categories') {
-        return normalizeBlock({ type: 'categories', title: 'Категории', subtitle: '', items: [] });
-    }
-    const presetHero = buildPortfolioPresetBlocks()?.[0];
-    return normalizeBlock(
-        presetHero || {
-            type: 'hero',
-            title: 'Витрина AdminSite',
-            subtitle: 'Добавьте описание и картинку',
-            imageUrl: HERO_PLACEHOLDER_IMAGE,
-            background: { type: 'gradient', value: 'linear-gradient(135deg, rgba(255,255,255,0.12), rgba(0,0,0,0.04))' },
-            buttons: [
-                { label: 'Товары', href: '/catalog' },
-                { label: 'Мастер-классы', href: '/courses', variant: 'secondary' },
-            ],
-        },
-    );
-}
-
-function ensureBlocksPresent() {
-    if (!Array.isArray(homepageConfig.blocks) || !homepageConfig.blocks.length) {
-        homepageConfig.blocks = buildDefaultBlocks();
-        homepageSelectedIndex = 0;
-    }
-}
-
-function selectBlock(index = 0) {
-    ensureBlocksPresent();
-    const safeIndex = Math.min(Math.max(0, index), homepageConfig.blocks.length - 1);
-    homepageSelectedIndex = safeIndex;
-    renderBlocksList();
-    renderBlockEditor();
-}
-
-function moveBlock(index, delta) {
-    const targetIndex = index + delta;
-    if (targetIndex < 0 || targetIndex >= homepageConfig.blocks.length) return;
-    const [item] = homepageConfig.blocks.splice(index, 1);
-    homepageConfig.blocks.splice(targetIndex, 0, item);
-    selectBlock(targetIndex);
-    syncDevTextarea();
-}
-
-function deleteBlock(index) {
-    if (!homepageConfig.blocks[index]) return;
-    homepageConfig.blocks.splice(index, 1);
-    if (!homepageConfig.blocks.length) {
-        homepageConfig.blocks = buildDefaultBlocks();
-    }
-    selectBlock(Math.max(0, index - 1));
-    syncDevTextarea();
-}
-
-function addBlock(type) {
-    const block = createBlockOfType(type);
-    if (!block) return;
-    homepageConfig.blocks.push(block);
-    selectBlock(homepageConfig.blocks.length - 1);
-    syncDevTextarea();
-    showToast('Блок добавлен');
-}
-
-function ensureBlockPicker() {
-    if (blockPickerModal) return blockPickerModal;
-    blockPickerModal = new BaseModal('Добавить блок');
-    const wrapper = document.createElement('div');
-    wrapper.className = 'block-list';
-    [
-        { type: 'hero', title: 'Hero', text: 'Крупный блок с заголовком и картинкой' },
-        { type: 'cards', title: 'Карточки', text: 'Сетка карточек с картинками' },
-        { type: 'text', title: 'Текст', text: 'Абзац текста и заголовок' },
-        { type: 'categories', title: 'Категории', text: 'Список категорий витрины' },
-        { type: 'social', title: 'Социальные ссылки', text: 'Ссылки и контакты' },
-    ].forEach((item) => {
-        const row = document.createElement('div');
-        row.className = 'block-row';
-        const info = document.createElement('div');
-        const title = document.createElement('div');
-        title.textContent = item.title;
-        const meta = document.createElement('div');
-        meta.className = 'meta';
-        meta.textContent = item.text;
-        info.append(title, meta);
-        const btn = document.createElement('button');
-        btn.className = 'btn-primary';
-        btn.type = 'button';
-        btn.textContent = 'Добавить';
-        btn.addEventListener('click', () => {
-            addBlock(item.type);
-            closeTrackedModal(blockPickerModal, 'block-added');
-        });
-        row.append(info, btn);
-        wrapper.appendChild(row);
-    });
-    blockPickerModal.modal.appendChild(wrapper);
-    registerModal(blockPickerModal);
-    return blockPickerModal;
-}
-
-function openBlockPicker() {
-    const modal = ensureBlockPicker();
-    openTrackedModal(modal, 'block-picker');
-}
-
-function renderBlocksList() {
-    if (!homepageBlocksList) return;
-    homepageBlocksList.innerHTML = '';
-    ensureBlocksPresent();
-
-    homepageConfig.blocks.forEach((block, index) => {
-        const row = document.createElement('div');
-        row.className = 'block-row';
-        if (index === homepageSelectedIndex) {
-            row.classList.add('active');
-        }
-        row.addEventListener('click', () => selectBlock(index));
-
-        const info = document.createElement('div');
-        const title = document.createElement('div');
-        title.textContent = block.title || block.type;
-        const meta = document.createElement('div');
-        meta.className = 'meta';
-        meta.textContent = block.type;
-        info.append(title, meta);
-
-        const actions = document.createElement('div');
-        actions.className = 'actions';
-
-        const up = document.createElement('button');
-        up.className = 'btn-ghost';
-        up.type = 'button';
-        up.textContent = '↑';
-        up.title = 'Вверх';
-        up.addEventListener('click', (event) => {
-            event.stopPropagation();
-            moveBlock(index, -1);
-        });
-
-        const down = document.createElement('button');
-        down.className = 'btn-ghost';
-        down.type = 'button';
-        down.textContent = '↓';
-        down.title = 'Вниз';
-        down.addEventListener('click', (event) => {
-            event.stopPropagation();
-            moveBlock(index, 1);
-        });
-
-        const remove = document.createElement('button');
-        remove.className = 'btn-danger';
-        remove.type = 'button';
-        remove.textContent = 'Удалить';
-        remove.addEventListener('click', (event) => {
-            event.stopPropagation();
-            deleteBlock(index);
-        });
-
-        actions.append(up, down, remove);
-        row.append(info, actions);
-        homepageBlocksList.appendChild(row);
-    });
-}
-
-function createInput(labelText, value, onChange, { type = 'text', placeholder = '', textarea = false } = {}) {
-    const label = document.createElement('label');
-    label.textContent = labelText;
-    const input = textarea ? document.createElement('textarea') : document.createElement('input');
-    if (!textarea) {
-        input.type = type;
-    }
-    input.placeholder = placeholder;
-    if (value !== undefined && value !== null) input.value = value;
-    input.addEventListener('input', (event) => {
-        onChange(event.target.value);
-    });
-    label.appendChild(input);
-    return { label, input };
-}
-
-function renderHeroEditor(block, index) {
-    const container = document.createElement('div');
-    const titleField = createInput('Заголовок', block.title, (val) => updateBlock(index, { ...block, title: val || 'Hero' }));
-    const subtitleField = createInput('Подзаголовок', block.subtitle || '', (val) => updateBlock(index, { ...block, subtitle: val }));
-    const imageField = createInput('Картинка (URL)', block.imageUrl || '', (val) => updateBlock(index, { ...block, imageUrl: val }));
-    const imageActions = document.createElement('div');
-    imageActions.className = 'inline-actions';
-    const pickBtn = document.createElement('button');
-    pickBtn.className = 'btn-secondary';
-    pickBtn.type = 'button';
-    pickBtn.textContent = 'Выбрать из медиа';
-    pickBtn.addEventListener('click', async (event) => {
-        event.preventDefault();
-        await openMediaPicker((url) => {
-            imageField.input.value = url;
-            updateBlock(index, { ...block, imageUrl: url });
-        });
-    });
-    imageActions.appendChild(pickBtn);
-
-    const bgTypeWrapper = document.createElement('div');
-    bgTypeWrapper.className = 'field-row';
-    const bgTypeLabel = document.createElement('label');
-    bgTypeLabel.textContent = 'Фон';
-    const bgTypeSelect = document.createElement('select');
-    ['gradient', 'color', 'image'].forEach((option) => {
-        const opt = document.createElement('option');
-        opt.value = option;
-        opt.textContent = option;
-        bgTypeSelect.appendChild(opt);
-    });
-    bgTypeSelect.value = block.background?.type || 'gradient';
-
-    const bgValueField = createInput('Значение фона', block.background?.value || '', (val) => {
-        updateBlock(index, { ...block, background: { type: bgTypeSelect.value, value: val } });
-    });
-
-    bgTypeSelect.addEventListener('change', (event) => {
-        const nextType = event.target.value;
-        updateBlock(index, { ...block, background: { type: nextType, value: bgValueField.input.value } });
-    });
-    bgTypeLabel.appendChild(bgTypeSelect);
-    bgTypeWrapper.append(bgTypeLabel, bgValueField.label);
-
-    container.append(
-        titleField.label,
-        subtitleField.label,
-        imageField.label,
-        imageActions,
-        bgTypeWrapper,
-        renderHeroButtons(block, index),
-    );
-    return container;
-}
-
-function renderCardItems(block, index) {
-    const wrapper = document.createElement('div');
-    wrapper.className = 'block-list';
-
-    const addBtn = document.createElement('button');
-    addBtn.className = 'btn-secondary';
-    addBtn.type = 'button';
-    addBtn.textContent = '+ Добавить карточку';
-    addBtn.addEventListener('click', () => {
-        const nextItems = [...(block.items || []), normalizeCardItem({ title: 'Карточка', href: '' })];
-        updateBlock(index, { ...block, items: nextItems });
-    });
-
-    (block.items || []).forEach((item, itemIndex) => {
-        const row = document.createElement('div');
-        row.className = 'list-item';
-
-        const body = document.createElement('div');
-        const titleField = createInput('Заголовок', item.title, (val) => {
-            const next = [...block.items];
-            next[itemIndex] = { ...item, title: val };
-            updateBlock(index, { ...block, items: next });
-        });
-        const hrefField = createInput('Ссылка', item.href || '', (val) => {
-            const next = [...block.items];
-            next[itemIndex] = { ...item, href: val };
-            updateBlock(index, { ...block, items: next });
-        });
-        const imageField = createInput('Картинка', item.imageUrl || '', (val) => {
-            const next = [...block.items];
-            next[itemIndex] = { ...item, imageUrl: val };
-            updateBlock(index, { ...block, items: next });
-        });
-        const mediaBtn = document.createElement('button');
-        mediaBtn.className = 'btn-secondary';
-        mediaBtn.type = 'button';
-        mediaBtn.textContent = 'Медиа';
-        mediaBtn.addEventListener('click', async () => {
-            await openMediaPicker((url) => {
-                imageField.input.value = url;
-                const next = [...block.items];
-                next[itemIndex] = { ...item, imageUrl: url };
-                updateBlock(index, { ...block, items: next });
-            });
-        });
-
-        body.append(titleField.label, hrefField.label, imageField.label, mediaBtn);
-
-        const actions = document.createElement('div');
-        actions.className = 'actions';
-        const up = document.createElement('button');
-        up.className = 'btn-ghost';
-        up.type = 'button';
-        up.textContent = '↑';
-        up.addEventListener('click', () => {
-            if (itemIndex === 0) return;
-            const next = [...block.items];
-            next.splice(itemIndex, 1);
-            next.splice(itemIndex - 1, 0, item);
-            updateBlock(index, { ...block, items: next });
-        });
-        const down = document.createElement('button');
-        down.className = 'btn-ghost';
-        down.type = 'button';
-        down.textContent = '↓';
-        down.addEventListener('click', () => {
-            const next = [...block.items];
-            if (itemIndex >= next.length - 1) return;
-            next.splice(itemIndex, 1);
-            next.splice(itemIndex + 1, 0, item);
-            updateBlock(index, { ...block, items: next });
-        });
-        const remove = document.createElement('button');
-        remove.className = 'btn-danger';
-        remove.type = 'button';
-        remove.textContent = 'Удалить';
-        remove.addEventListener('click', () => {
-            const next = [...block.items];
-            next.splice(itemIndex, 1);
-            updateBlock(index, { ...block, items: next });
-        });
-        actions.append(up, down, remove);
-
-        row.append(body, actions);
-        wrapper.appendChild(row);
-    });
-
-    wrapper.appendChild(addBtn);
-    return wrapper;
-}
-
-function renderCategoryItems(block, index) {
-    const wrapper = document.createElement('div');
-    wrapper.className = 'block-list';
-
-    const addBtn = document.createElement('button');
-    addBtn.className = 'btn-secondary';
-    addBtn.type = 'button';
-    addBtn.textContent = '+ Добавить категорию';
-    addBtn.addEventListener('click', () => {
-        const nextItems = [...(block.items || []), normalizeCategoryItem({ title: 'Категория', href: '/catalog' })];
-        updateBlock(index, { ...block, items: nextItems });
-    });
-
-    (block.items || []).forEach((item, itemIndex) => {
-        const row = document.createElement('div');
-        row.className = 'list-item';
-
-        const body = document.createElement('div');
-        const titleField = createInput('Заголовок', item.title || '', (val) => {
-            const next = [...block.items];
-            next[itemIndex] = { ...item, title: val };
-            updateBlock(index, { ...block, items: next });
-        });
-        const slugField = createInput('Slug / ссылка', item.slug || '', (val) => {
-            const next = [...block.items];
-            next[itemIndex] = { ...item, slug: val, href: item.href || `/c/${val}` };
-            updateBlock(index, { ...block, items: next });
-        });
-        const hrefField = createInput('URL', item.href || '', (val) => {
-            const next = [...block.items];
-            next[itemIndex] = { ...item, href: val };
-            updateBlock(index, { ...block, items: next });
-        });
-
-        const typeLabel = document.createElement('label');
-        typeLabel.textContent = 'Тип';
-        const select = document.createElement('select');
-        ['product', 'course'].forEach((type) => {
-            const opt = document.createElement('option');
-            opt.value = type;
-            opt.textContent = type;
-            select.appendChild(opt);
-        });
-        select.value = item.type || 'product';
-        select.addEventListener('change', (event) => {
-            const next = [...block.items];
-            next[itemIndex] = { ...item, type: event.target.value };
-            updateBlock(index, { ...block, items: next });
-        });
-        typeLabel.appendChild(select);
-
-        body.append(titleField.label, slugField.label, hrefField.label, typeLabel);
-
-        const actions = document.createElement('div');
-        actions.className = 'actions';
-        const remove = document.createElement('button');
-        remove.className = 'btn-danger';
-        remove.type = 'button';
-        remove.textContent = 'Удалить';
-        remove.addEventListener('click', () => {
-            const next = [...block.items];
-            next.splice(itemIndex, 1);
-            updateBlock(index, { ...block, items: next });
-        });
-        actions.appendChild(remove);
-
-        row.append(body, actions);
-        wrapper.appendChild(row);
-    });
-
-    wrapper.appendChild(addBtn);
-    return wrapper;
-}
-
-function renderSocialItems(block, index) {
-    const wrapper = document.createElement('div');
-    wrapper.className = 'block-list';
-
-    const addBtn = document.createElement('button');
-    addBtn.className = 'btn-secondary';
-    addBtn.type = 'button';
-    addBtn.textContent = '+ Добавить ссылку';
-    addBtn.addEventListener('click', () => {
-        const nextItems = [...(block.items || []), normalizeSocialItem({ href: '' })];
-        updateBlock(index, { ...block, items: nextItems });
-    });
-
-    (block.items || []).forEach((item, itemIndex) => {
-        const row = document.createElement('div');
-        row.className = 'list-item';
-        const body = document.createElement('div');
-
-        const typeLabel = document.createElement('label');
-        typeLabel.textContent = 'Тип';
-        const typeSelect = document.createElement('select');
-        ['telegram', 'whatsapp', 'vk', 'instagram', 'website', 'phone', 'email'].forEach((value) => {
-            const opt = document.createElement('option');
-            opt.value = value;
-            opt.textContent = value;
-            typeSelect.appendChild(opt);
-        });
-        typeSelect.value = item.type;
-        typeSelect.addEventListener('change', (event) => {
-            const next = [...block.items];
-            next[itemIndex] = { ...item, type: event.target.value };
-            updateBlock(index, { ...block, items: next });
-        });
-        typeLabel.appendChild(typeSelect);
-
-        const labelField = createInput('Текст', item.label || '', (val) => {
-            const next = [...block.items];
-            next[itemIndex] = { ...item, label: val };
-            updateBlock(index, { ...block, items: next });
-        });
-        const hrefField = createInput('Ссылка', item.href || '', (val) => {
-            const next = [...block.items];
-            next[itemIndex] = { ...item, href: val };
-            updateBlock(index, { ...block, items: next });
-        });
-
-        body.append(typeLabel, labelField.label, hrefField.label);
-
-        const actions = document.createElement('div');
-        actions.className = 'actions';
-        const remove = document.createElement('button');
-        remove.className = 'btn-danger';
-        remove.type = 'button';
-        remove.textContent = 'Удалить';
-        remove.addEventListener('click', () => {
-            const next = [...block.items];
-            next.splice(itemIndex, 1);
-            updateBlock(index, { ...block, items: next });
-        });
-        actions.appendChild(remove);
-
-        row.append(body, actions);
-        wrapper.appendChild(row);
-    });
-
-    wrapper.appendChild(addBtn);
-    return wrapper;
-}
-
-function updateBlock(index, nextValue) {
-    const current = homepageConfig.blocks[index];
-    if (!current) return;
-    const updated = normalizeBlock(typeof nextValue === 'function' ? nextValue(current) : nextValue) || current;
-    homepageConfig.blocks[index] = updated;
-    renderBlocksList();
-    renderBlockEditor();
-    syncDevTextarea();
-}
-
-function renderBlockEditor() {
-    if (!homepageBlockEditor || !homepageEditorTitle || !homepageEditorSubtitle) {
-        console.warn('[AdminSite constructor] Редактор главной не инициализирован — пропускаем рендер');
-        return;
-    }
-    ensureBlocksPresent();
-    const block = homepageConfig.blocks[homepageSelectedIndex];
-    homepageBlockEditor.innerHTML = '';
-
-    if (!block) {
-        homepageBlockEditor.innerHTML = '<p class="muted">Добавьте блок, чтобы начать редактирование.</p>';
-        return;
-    }
-
-    homepageEditorTitle.textContent = block.title || 'Блок';
-    homepageEditorSubtitle.textContent = block.type === 'hero' ? 'Крупный блок с картинкой' : block.type;
-    if (homepageBlockMeta) {
-        homepageBlockMeta.innerHTML = '';
-        const pill = document.createElement('span');
-        pill.className = 'pill';
-        pill.textContent = block.type;
-        homepageBlockMeta.appendChild(pill);
-    }
-
-    let editorContent = document.createElement('div');
-    if (block.type === 'hero') {
-        editorContent = renderHeroEditor(block, homepageSelectedIndex);
-    } else if (block.type === 'cards') {
-        const header = new DocumentFragment();
-        const titleField = createInput('Заголовок', block.title || '', (val) => updateBlock(homepageSelectedIndex, { ...block, title: val }));
-        const subtitleField = createInput('Подзаголовок', block.subtitle || '', (val) => updateBlock(homepageSelectedIndex, { ...block, subtitle: val }));
-
-        const columnsLabel = document.createElement('label');
-        columnsLabel.textContent = 'Колонки';
-        const columns = document.createElement('select');
-        [1, 2, 3].forEach((col) => {
-            const opt = document.createElement('option');
-            opt.value = col;
-            opt.textContent = `${col}`;
-            columns.appendChild(opt);
-        });
-        columns.value = block.layout?.columns || 2;
-        columns.addEventListener('change', (event) => {
-            const nextColumns = Number(event.target.value) || 2;
-            updateBlock(homepageSelectedIndex, { ...block, layout: { columns: nextColumns } });
-        });
-        columnsLabel.appendChild(columns);
-
-        editorContent.append(titleField.label, subtitleField.label, columnsLabel, renderCardItems(block, homepageSelectedIndex));
-    } else if (block.type === 'categories') {
-        const titleField = createInput('Заголовок', block.title || '', (val) => updateBlock(homepageSelectedIndex, { ...block, title: val }));
-        const subtitleField = createInput('Подзаголовок', block.subtitle || '', (val) =>
-            updateBlock(homepageSelectedIndex, { ...block, subtitle: val }),
-        );
-        editorContent.append(titleField.label, subtitleField.label, renderCategoryItems(block, homepageSelectedIndex));
-    } else if (block.type === 'text') {
-        const titleField = createInput('Заголовок', block.title || '', (val) => updateBlock(homepageSelectedIndex, { ...block, title: val }));
-        const textField = createInput('Текст', block.text || '', (val) => updateBlock(homepageSelectedIndex, { ...block, text: val }), { textarea: true });
-        editorContent.append(titleField.label, textField.label);
-    } else if (block.type === 'social') {
-        editorContent.appendChild(renderSocialItems(block, homepageSelectedIndex));
-    }
-
-    homepageBlockEditor.appendChild(editorContent);
-}
-
-function renderHeroButtons(block, index) {
-    const wrapper = document.createElement('div');
-    wrapper.className = 'block-list';
-
-    const addBtn = document.createElement('button');
-    addBtn.className = 'btn-secondary';
-    addBtn.type = 'button';
-    addBtn.textContent = '+ Добавить кнопку';
-    addBtn.addEventListener('click', () => {
-        const nextItems = [...(block.buttons || []), normalizeButton({ label: 'Подробнее', href: '/' })];
-        updateBlock(index, { ...block, buttons: nextItems });
-    });
-
-    (block.buttons || []).forEach((button, buttonIndex) => {
-        const row = document.createElement('div');
-        row.className = 'list-item';
-
-        const body = document.createElement('div');
-        const labelField = createInput('Текст кнопки', button.label || '', (val) => {
-            const next = [...(block.buttons || [])];
-            next[buttonIndex] = { ...button, label: val };
-            updateBlock(index, { ...block, buttons: next });
-        });
-        const hrefField = createInput('Ссылка', button.href || '', (val) => {
-            const next = [...(block.buttons || [])];
-            next[buttonIndex] = { ...button, href: val };
-            updateBlock(index, { ...block, buttons: next });
-        });
-
-        const variantLabel = document.createElement('label');
-        variantLabel.textContent = 'Вариант';
-        const select = document.createElement('select');
-        ['primary', 'secondary'].forEach((variant) => {
-            const opt = document.createElement('option');
-            opt.value = variant;
-            opt.textContent = variant;
-            select.appendChild(opt);
-        });
-        select.value = button.variant || 'primary';
-        select.addEventListener('change', (event) => {
-            const next = [...(block.buttons || [])];
-            next[buttonIndex] = { ...button, variant: event.target.value };
-            updateBlock(index, { ...block, buttons: next });
-        });
-        variantLabel.appendChild(select);
-
-        body.append(labelField.label, hrefField.label, variantLabel);
-
-        const actions = document.createElement('div');
-        actions.className = 'actions';
-        const remove = document.createElement('button');
-        remove.className = 'btn-danger';
-        remove.type = 'button';
-        remove.textContent = 'Удалить';
-        remove.addEventListener('click', () => {
-            const next = [...(block.buttons || [])];
-            next.splice(buttonIndex, 1);
-            updateBlock(index, { ...block, buttons: next });
-        });
-        actions.appendChild(remove);
-
-        row.append(body, actions);
-        wrapper.appendChild(row);
-    });
-
-    wrapper.appendChild(addBtn);
-    return wrapper;
-}
-
-function toggleDeveloperMode(enabled) {
-    developerMode = enabled;
-    if (homepageDevToggle) homepageDevToggle.checked = enabled;
-    if (homepageDevTools) homepageDevTools.hidden = !enabled;
-    if (enabled) {
-        syncDevTextarea();
-    } else {
-        setDevStatus('');
-    }
-}
-
-function applyDevJson({ silent = false } = {}) {
-    if (!homepageBlocksField) return true;
-    try {
-        const raw = homepageBlocksField.value || '[]';
-        const parsed = JSON.parse(raw);
-        const normalized = Array.isArray(parsed) ? parsed.map(normalizeBlock).filter(Boolean) : [];
-        if (!normalized.length) {
-            throw new Error('JSON не содержит валидных блоков');
-        }
-        homepageConfig.blocks = normalized;
-        homepageSelectedIndex = 0;
-        renderBlocksList();
-        renderBlockEditor();
-        setDevStatus('JSON применён');
-        return true;
-    } catch (error) {
-        setDevStatus(error.message || 'Ошибка JSON', true);
-        if (!silent) setHomepageStatus('Исправьте JSON', true);
-        return false;
-    }
-}
-
-function renderHomepageForm(data = homepageDefaults) {
-    const payload = normalizeHomepageConfig(data);
-    homepageConfig = JSON.parse(JSON.stringify(payload));
-    lastAppliedTheme = null;
-    homepageSelectedIndex = 0;
-    setTemplateActive(homepageConfig.templateId);
-    syncDevTextarea();
-    toggleDeveloperMode(false);
-    renderBlocksList();
-    renderBlockEditor();
-}
-
-function resetHomepageForm() {
-    renderHomepageForm(homepageLoadedConfig);
-    setHomepageStatus('');
-    setDevStatus('');
-}
-
-function applyPortfolioPreset() {
-    const preset = normalizeHomepageConfig({
-        templateId: homepageConfig.templateId || 'services',
-        blocks: buildPortfolioPresetBlocks(),
-    });
-    homepageConfig = preset;
-    homepageSelectedIndex = 0;
-    renderBlocksList();
-    renderBlockEditor();
-    syncDevTextarea();
-    setHomepageStatus('Портфолио-пресет загружен');
-    setDevStatus('');
-}
-
-async function fetchPublicHomepage() {
-    const url = new URL(HOMEPAGE_PUBLIC_API, window.location.origin);
-    url.searchParams.set('_', Date.now().toString());
-    const response = await fetch(url.toString(), { cache: 'no-store' });
-    const text = await response.text();
-    const isJson = text.trim().startsWith('{') || text.trim().startsWith('[');
-    const payload = isJson && text ? JSON.parse(text) : {};
-
-    if (!response.ok) {
-        const message = payload?.detail || payload?.message || `HTTP ${response.status}`;
-        const error = new Error(message);
-        error.status = response.status;
-        throw error;
-    }
-
-    return payload;
-}
-
-function isSameHomepageConfig(saved, publicPage) {
-    if (!saved || !publicPage) return false;
-    const templateMatch = (saved.templateId || 'services') === (publicPage.templateId || publicPage.template_id || 'services');
-    const savedBlocks = JSON.stringify(saved.blocks || []);
-    const publicBlocks = JSON.stringify(publicPage.blocks || []);
-    return templateMatch && savedBlocks === publicBlocks;
-}
-
-function extractPageVersion(page) {
-    if (!page) return null;
-    return (
-        page?.version ||
-        page?.updatedAt ||
-        page?.updated_at ||
-        page?.published?.version ||
-        page?.draft?.version ||
-        null
-    );
-}
-
-function extractPageUpdatedAt(page) {
-    if (!page) return null;
-    return (
-        page?.updatedAt ||
-        page?.updated_at ||
-        page?.version ||
-        page?.published?.updatedAt ||
-        page?.draft?.updatedAt ||
-        page?.published?.version ||
-        page?.draft?.version ||
-        null
-    );
-}
-
-function parseTimestamp(value) {
-    if (!value) return null;
-    const parsed = Date.parse(value);
-    return Number.isNaN(parsed) ? null : parsed;
-}
-
-async function refreshPublicDiagnostics() {
-    try {
-        setPublicAvailability('загрузка...');
-        const payload = await fetchPublicHomepage();
-        const normalized = normalizeHomepageConfig(payload?.page || payload || {});
-        setPublicAvailability('OK');
-        if (payload?.page?.slug) homepageDiagnostics.pageKey = payload.page.slug;
-        const version = extractPageVersion(payload?.page) || extractPageVersion(normalized);
-        if (version) setHomepageVersion(version);
-        if (payload?.theme?.timestamp) homepageDiagnostics.themeVersion = payload.theme.timestamp;
-        if (payload?.theme?.appliedTemplateId) homepageDiagnostics.themeTemplate = payload.theme.appliedTemplateId;
-        renderHomepageDiagnostics();
-        return normalized;
-    } catch (error) {
-        setPublicAvailability(error.message || 'Ошибка', true);
-        renderHomepageDiagnostics();
-        throw error;
-    }
-}
-
-async function verifyPublicHomepageFreshness({ savedVersion, savedUpdatedAt }) {
-    try {
-        const publicPayload = await refreshPublicDiagnostics();
-        const publicVersion = extractPageVersion(publicPayload);
-        const publicUpdatedAt = extractPageUpdatedAt(publicPayload) || publicVersion;
-        const savedTimestamp = parseTimestamp(savedUpdatedAt || savedVersion);
-        const publicTimestamp = parseTimestamp(publicUpdatedAt);
-
-        if (savedTimestamp && publicTimestamp && publicTimestamp < savedTimestamp) {
-            console.warn('[AdminSite constructor] Публичная витрина ответила устаревшими данными', {
-                savedUpdatedAt,
-                publicUpdatedAt,
-                savedVersion,
-                publicVersion,
-            });
-            setHomepageStatus('Публичная витрина обновляется, ответ устарел — повторите проверку позже');
-            return false;
-        }
-
-        setPublicAvailability('OK');
-        return true;
-    } catch (error) {
-        console.warn('[AdminSite constructor] Публичная витрина недоступна', error);
-        return false;
-    }
-}
-
-async function loadHomepageConfig() {
-    try {
-        setHomepageStatus('Загрузка страницы...');
-        const data = await apiRequest(HOMEPAGE_SOURCE_API, { credentials: 'include' });
-        homepageLoadedConfig = normalizeHomepageConfig(data || homepageDefaults);
-        renderHomepageForm(homepageLoadedConfig);
-        setHomepageVersion(extractPageVersion(data));
-        setHomepageSaveState('Загружено');
-        setPublicAvailability('—');
-        renderHomepageDiagnostics();
-        const payloadErrorId = data?.error_id || data?.errorId;
-        if (data?.fallback) {
-            setHomepageStatus(`Страница восстановлена по умолчанию${payloadErrorId ? ` (error_id: ${payloadErrorId})` : ''}`.trim(), true);
-        } else if (payloadErrorId) {
-            setHomepageStatus(`Страница загружена с предупреждением (error_id: ${payloadErrorId})`, true);
-        } else {
-            setHomepageStatus('Страница загружена');
-        }
-        refreshPublicDiagnostics().catch((error) => {
-            console.warn('[AdminSite constructor] Публичный ответ не получен', error);
-        });
-    } catch (error) {
-        const message = formatErrorMessage(error, 'Не удалось загрузить страницу');
-        setHomepageStatus(message, true);
-        setHomepageSaveState('Ошибка загрузки', true);
-        renderHomepageDiagnostics();
-    }
-}
-
-async function saveHomepageConfig() {
-    if (developerMode && !applyDevJson({ silent: true })) {
-        return;
-    }
-    try {
-        setHomepageStatus('Сохранение...');
-        setHomepageSaveState('Сохранение...');
-        const payload = {
-            templateId: homepageConfig.templateId || 'services',
-            blocks: homepageConfig.blocks || [],
-        };
-        console.debug('[AdminSite constructor] Отправка страницы', payload);
-        const data = await apiRequest(HOMEPAGE_SOURCE_API, {
-            method: 'PUT',
-            body: payload,
-            credentials: 'include',
-        });
-        if (!data || typeof data !== 'object') {
-            throw new Error('API вернул пустой ответ, страница не сохранена');
-        }
-
-        const normalizedSaved = normalizeHomepageConfig(data || payload);
-        homepageLoadedConfig = normalizedSaved;
-        renderHomepageForm(homepageLoadedConfig);
-        const version = extractPageVersion(data) || extractPageVersion(normalizedSaved);
-        const updatedAt = extractPageUpdatedAt(data) || extractPageUpdatedAt(normalizedSaved);
-        if (version) setHomepageVersion(version);
-        await applyThemeFromAdmin(payload.templateId || 'services');
-        setHomepageSaveState('Черновик сохранён');
-        setPublicAvailability('Требуется публикация');
-        setHomepageStatus('Черновик сохранён, опубликуйте для витрины');
-        verifyPublicHomepageFreshness({ savedVersion: version, savedUpdatedAt: updatedAt });
-        showToast('Черновик сохранён');
-        console.debug('[AdminSite constructor] Страница сохранена', homepageLoadedConfig);
-        openHomepagePreview();
-    } catch (error) {
-        console.error('[AdminSite constructor] Сохранение страницы не удалось', error);
-        const message = formatErrorMessage(error, 'Не удалось сохранить страницу');
-        setHomepageStatus(message, true);
-        setHomepageSaveState('Ошибка', true);
-        setPublicAvailability('Ошибка', true);
-        showToast(message, 'error');
-    }
-}
-
-async function publishHomepage() {
-    try {
-        setHomepageStatus('Публикация...');
-        const data = await apiRequest(HOMEPAGE_PUBLISH_API, {
-            method: 'POST',
-            credentials: 'include',
-        });
-        const normalized = normalizeHomepageConfig(data || {});
-        homepageLoadedConfig = normalized;
-        renderHomepageForm(normalized);
-        const version = extractPageVersion(data) || extractPageVersion(normalized);
-        const updatedAt = extractPageUpdatedAt(data) || extractPageUpdatedAt(normalized);
-        if (version) setHomepageVersion(version);
-        setHomepageSaveState('Опубликовано');
-        setPublicAvailability('OK');
-        setHomepageStatus('Опубликовано');
-        await verifyPublicHomepageFreshness({ savedVersion: version, savedUpdatedAt: updatedAt });
-        showToast('Черновик опубликован');
-    } catch (error) {
-        console.error('[AdminSite constructor] Публикация страницы не удалась', error);
-        const message = formatErrorMessage(error, 'Не удалось опубликовать страницу');
-        setHomepageStatus(message, true);
-        setHomepageSaveState('Ошибка публикации', true);
-        setPublicAvailability('Ошибка', true);
-        showToast(message, 'error');
-    }
-}
-
-function setupHomepageListeners() {
-    homepageSaveButton?.addEventListener('click', saveHomepageConfig);
-    homepagePublishButton?.addEventListener('click', publishHomepage);
-    homepageResetButton?.addEventListener('click', resetHomepageForm);
-    homepagePresetButton?.addEventListener('click', applyPortfolioPreset);
-    homepagePreviewLink?.addEventListener('click', openHomepagePreview);
-    homepageAddBlockButton?.addEventListener('click', openBlockPicker);
-    homepageTemplateCards.forEach((card) => {
-        card.addEventListener('click', () => setTemplate(card.dataset.template));
-    });
-    homepageDevToggle?.addEventListener('change', (event) => toggleDeveloperMode(event.target.checked));
-    homepageDevHide?.addEventListener('click', () => toggleDeveloperMode(false));
-    homepageDevApply?.addEventListener('click', () => applyDevJson());
-}
-
-const mediaStatus = getElementOrWarn('status-media');
-const mediaUploadStatus = getElementOrWarn('media-upload-status');
-const mediaUploadInput = getElementOrWarn('media-upload-input');
-const mediaUploadButton = getElementOrWarn('media-upload-btn');
-const mediaRefreshButton = getElementOrWarn('media-refresh');
-const mediaList = getElementOrWarn('media-list');
-const mediaSearch = getElementOrWarn('media-search');
-
-const mediaState = {
-    items: [],
-    filter: '',
-};
-
-let mediaPickerModal = null;
-
-function setMediaStatus(message, isError = false) {
-    if (!mediaStatus) return;
-    mediaStatus.textContent = message || '';
-    mediaStatus.classList.toggle('error', Boolean(message && isError));
-    mediaStatus.style.display = message ? 'block' : 'none';
-}
-
-function setMediaUploadStatus(message, isError = false) {
-    if (!mediaUploadStatus) return;
-    mediaUploadStatus.textContent = message || '';
-    mediaUploadStatus.classList.toggle('error', Boolean(message && isError));
-    mediaUploadStatus.style.display = message ? 'block' : 'none';
-}
-
-function formatFileSize(bytes = 0) {
-    if (!bytes) return '0 Б';
-    const kb = bytes / 1024;
-    if (kb < 1024) return `${kb.toFixed(1)} КБ`;
-    return `${(kb / 1024).toFixed(1)} МБ`;
-}
 
-function buildMediaCard(item, { selectable = false, onSelect } = {}) {
+    await apiRequest(API_SITE_SETTINGS, { method: 'PUT', body: payload });
+    setStatus(statusSettings, 'Настройки сохранены', 'ok');
+  } catch (error) {
+    setStatus(statusSettings, error.message || 'Не удалось сохранить настройки', 'error');
+  }
+}
+
+function renderMediaList(items) {
+  if (!mediaList) return;
+  mediaList.innerHTML = '';
+  if (!items.length) {
+    mediaList.innerHTML = '<p class="muted">Файлы не найдены.</p>';
+    return;
+  }
+  items.forEach((item) => {
     const card = document.createElement('div');
-    card.className = 'media-card';
+    card.className = 'media-item';
 
-    const preview = document.createElement('div');
     const img = document.createElement('img');
     img.src = item.url;
     img.alt = item.name;
-    preview.appendChild(img);
 
-    const body = document.createElement('div');
-    const title = document.createElement('h4');
-    title.style.margin = '0 0 6px';
-    title.textContent = item.name;
-    const meta = document.createElement('div');
-    meta.className = 'muted';
-    const updated = item.modified ? new Date(item.modified * 1000).toLocaleString('ru-RU') : '';
-    meta.textContent = `${formatFileSize(item.size)}${updated ? ` · ${updated}` : ''}`;
-
-    const urlInput = document.createElement('input');
-    urlInput.value = item.url;
-    urlInput.readOnly = true;
-    urlInput.addEventListener('focus', (event) => event.target.select());
+    const info = document.createElement('div');
+    info.className = 'media-info';
+    info.innerHTML = `<strong>${item.name}</strong><div class="muted">${item.url}</div>`;
 
     const actions = document.createElement('div');
     actions.className = 'actions';
+
     const copyBtn = document.createElement('button');
     copyBtn.className = 'btn-secondary';
     copyBtn.type = 'button';
-    copyBtn.textContent = 'Копировать';
-    copyBtn.addEventListener('click', () => copyToClipboard(item.url));
-    actions.appendChild(copyBtn);
-
-    if (selectable && typeof onSelect === 'function') {
-        const selectBtn = document.createElement('button');
-        selectBtn.className = 'btn-primary';
-        selectBtn.type = 'button';
-        selectBtn.textContent = 'Выбрать';
-        selectBtn.addEventListener('click', () => {
-            onSelect(item.url);
-            closeTrackedModal(mediaPickerModal, 'media-select');
-        });
-        actions.appendChild(selectBtn);
-    }
-
-    if (!selectable) {
-        const deleteBtn = document.createElement('button');
-        deleteBtn.className = 'btn-danger';
-        deleteBtn.type = 'button';
-        deleteBtn.textContent = 'Удалить';
-        deleteBtn.addEventListener('click', async () => {
-            if (!confirm('Удалить файл?')) return;
-            await deleteMediaFile(item.name);
-        });
-        actions.appendChild(deleteBtn);
-    }
-
-    body.append(title, meta, urlInput, actions);
-    card.append(preview, body);
-    return card;
-}
-
-function renderMediaList() {
-    if (!mediaList) return;
-    mediaList.innerHTML = '';
-    const filtered = mediaState.items.filter((item) =>
-        !mediaState.filter || item.name.toLowerCase().includes(mediaState.filter.toLowerCase()),
-    );
-    if (!filtered.length) {
-        const empty = document.createElement('div');
-        empty.className = 'muted';
-        empty.textContent = 'Файлы ещё не загружены.';
-        mediaList.appendChild(empty);
-        return;
-    }
-    filtered.forEach((item) => mediaList.appendChild(buildMediaCard(item)));
-}
-
-function ensureMediaPickerModal() {
-    if (mediaPickerModal) return mediaPickerModal;
-    mediaPickerModal = new BaseModal('Выбрать из медиа');
-    mediaPickerModal.listContainer = document.createElement('div');
-    mediaPickerModal.listContainer.className = 'media-list';
-    mediaPickerModal.modal.appendChild(mediaPickerModal.listContainer);
-    mediaPickerModal.onClose(() => {
-        if (mediaPickerModal?.listContainer) mediaPickerModal.listContainer.innerHTML = '';
+    copyBtn.textContent = 'Скопировать URL';
+    copyBtn.addEventListener('click', async () => {
+      await navigator.clipboard.writeText(item.url);
+      setStatus(statusMedia, 'URL скопирован', 'ok');
     });
-    registerModal(mediaPickerModal);
-    return mediaPickerModal;
-}
 
-async function openMediaPicker(onSelect) {
-    const modal = ensureMediaPickerModal();
-    await loadMediaLibrary({ silent: true });
-    if (modal.listContainer) {
-        modal.listContainer.innerHTML = '';
-        mediaState.items.forEach((item) => {
-            modal.listContainer.appendChild(buildMediaCard(item, { selectable: true, onSelect }));
-        });
-    }
-    openTrackedModal(modal, 'media-picker');
-}
-
-async function loadMediaLibrary({ silent = false } = {}) {
-    try {
-        if (!silent) setMediaStatus('Загрузка медиа...');
-        const query = mediaState.filter ? `?q=${encodeURIComponent(mediaState.filter)}` : '';
-        const items = await apiRequest(`${API_BASE}/media${query}`, { credentials: 'include' });
-        mediaState.items = Array.isArray(items) ? items : [];
-        renderMediaList();
-        if (!silent) setMediaStatus('Готово');
-    } catch (error) {
-        setMediaStatus(error.message || 'Не удалось загрузить медиа', true);
-    }
-}
-
-async function uploadMediaFile() {
-    const file = mediaUploadInput?.files?.[0];
-    if (!file) {
-        setMediaUploadStatus('Выберите файл', true);
-        return;
-    }
-    const formData = new FormData();
-    formData.append('file', file);
-    try {
-        setMediaUploadStatus('Загружаем...');
-        const result = await apiRequest(`${API_BASE}/media/upload`, {
-            method: 'POST',
-            body: formData,
-            credentials: 'include',
-        });
-        setMediaUploadStatus('Готово');
-        showToast('Файл загружен');
-        copyToClipboard(result?.url);
-        if (mediaUploadInput) mediaUploadInput.value = '';
-        await loadMediaLibrary();
-    } catch (error) {
-        setMediaUploadStatus(error.message || 'Не удалось загрузить файл', true);
-    }
-}
-
-async function deleteMediaFile(filename) {
-    try {
-        setMediaStatus('Удаляем...');
-        await apiRequest(`${API_BASE}/media/${encodeURIComponent(filename)}`, {
-            method: 'DELETE',
-            credentials: 'include',
-        });
-        await loadMediaLibrary({ silent: true });
-        setMediaStatus('Файл удалён');
-    } catch (error) {
-        setMediaStatus(error.message || 'Не удалось удалить', true);
-    }
-}
-
-function setupMediaListeners() {
-    mediaUploadButton?.addEventListener('click', uploadMediaFile);
-    mediaRefreshButton?.addEventListener('click', () => loadMediaLibrary());
-    mediaSearch?.addEventListener('input', (event) => {
-        mediaState.filter = event.target.value || '';
-        renderMediaList();
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'btn-danger';
+    deleteBtn.type = 'button';
+    deleteBtn.textContent = 'Удалить';
+    deleteBtn.addEventListener('click', async () => {
+      if (!confirm('Удалить файл?')) return;
+      try {
+        await apiRequest(`${API_MEDIA}/${item.name}`, { method: 'DELETE' });
+        await loadMedia();
+      } catch (error) {
+        setStatus(statusMedia, error.message || 'Не удалось удалить файл', 'error');
+      }
     });
+
+    actions.append(copyBtn, deleteBtn);
+    card.append(img, info, actions);
+    mediaList.appendChild(card);
+  });
 }
 
-async function loadTypesFromApi() {
-    setStatus('global-status', 'Загрузка разделов...');
-    try {
-        const types = await callApi('/types');
-        const normalized = Array.isArray(types) && types.length ? types : DEFAULT_TYPES;
-        normalized.forEach((type) => ensureTypeState(type));
-    } catch (error) {
-        DEFAULT_TYPES.forEach((type) => ensureTypeState(type));
-        setStatus('global-status', error.message || 'Не удалось загрузить типы', true);
-        showToast(error.message || 'Не удалось загрузить список разделов', 'error');
-    }
+async function loadMedia(query = '') {
+  try {
+    const url = query ? `${API_MEDIA}?q=${encodeURIComponent(query)}` : API_MEDIA;
+    const data = await apiRequest(url, { method: 'GET' });
+    renderMediaList(data || []);
+  } catch (error) {
+    setStatus(statusMedia, error.message || 'Не удалось загрузить медиа', 'error');
+  }
 }
+
+async function uploadMedia() {
+  if (!mediaUploadInput?.files?.length) {
+    setStatus(mediaUploadStatus, 'Выберите файл', 'error');
+    return;
+  }
+  const file = mediaUploadInput.files[0];
+  const formData = new FormData();
+  formData.append('file', file);
+  try {
+    await apiRequest(API_MEDIA_UPLOAD, { method: 'POST', body: formData });
+    setStatus(mediaUploadStatus, 'Файл загружен', 'ok');
+    await loadMedia();
+  } catch (error) {
+    setStatus(mediaUploadStatus, error.message || 'Не удалось загрузить файл', 'error');
+  }
+}
+
+categoryAdd?.addEventListener('click', () => renderCategoryForm());
+itemAdd?.addEventListener('click', () => renderItemForm());
+menuRefresh?.addEventListener('click', () => loadCategories());
+settingsSave?.addEventListener('click', saveSettings);
+mediaUploadBtn?.addEventListener('click', uploadMedia);
+mediaRefreshBtn?.addEventListener('click', () => loadMedia(mediaSearch?.value || ''));
+mediaSearch?.addEventListener('input', () => loadMedia(mediaSearch.value));
 
 async function bootstrap() {
-    state.ui.tabsContainer = getElementOrWarn('constructor-tabs');
-    state.ui.panelsContainer = getElementOrWarn('constructor-panels');
-    setupHomepageListeners();
-    setupMediaListeners();
-    try {
-        await loadTypesFromApi();
-        renderTypeTabs();
-        for (const type of state.types) {
-            await loadCategories(type);
-            await loadItems(type);
-        }
-        await loadHomepageConfig();
-        await loadMediaLibrary({ silent: true });
-        setStatus('global-status', 'Данные загружены');
-    } catch (error) {
-        setStatus('global-status', error.message, true);
-        showToast(error.message, 'error');
-    }
+  setStatus(globalStatus, 'Загрузка данных меню...', 'muted');
+  await Promise.all([loadCategories(), loadSettings(), loadMedia()]);
+  setStatus(globalStatus, 'Данные загружены', 'ok');
 }
 
-document.addEventListener('DOMContentLoaded', bootstrap);
+bootstrap();
