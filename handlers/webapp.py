@@ -11,6 +11,7 @@ from aiogram import F, Router
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, WebAppInfo
 
 from config import get_settings
+from services import menu_catalog
 from services.cart import add_to_cart
 from services.products import get_product_by_id
 
@@ -64,7 +65,7 @@ def _is_valid_adminsite_item(item: dict) -> bool:
 
 
 async def _handle_adminsite_payload(message: Message, payload: dict) -> None:
-    if payload.get("source") != "adminsite":
+    if payload.get("source") not in {"adminsite", "menu"}:
         return
 
     items = payload.get("items")
@@ -72,7 +73,8 @@ async def _handle_adminsite_payload(message: Message, payload: dict) -> None:
         logging.warning("Некорректный items в adminsite payload: %s", items)
         return
 
-    mapped_type = "course" if payload.get("type") == "course" else "basket"
+    payload_type = payload.get("type")
+    mapped_type = payload_type if payload_type in menu_catalog.MENU_ITEM_TYPES else "basket"
 
     added_count = 0
     for item in items:
@@ -86,11 +88,17 @@ async def _handle_adminsite_payload(message: Message, payload: dict) -> None:
             logging.warning("Некорректный item в adminsite payload: %s", item)
             continue
 
+        item_type = item.get("type") if item.get("type") in menu_catalog.MENU_ITEM_TYPES else mapped_type
+        if item_type in menu_catalog.MENU_ITEM_TYPES:
+            menu_item = menu_catalog.get_item_by_id(product_id, include_inactive=False, item_type=item_type)
+            if not menu_item:
+                logging.warning("Menu item not found for adminsite payload: %s", item)
+                continue
         try:
             add_to_cart(
                 user_id=message.from_user.id,
                 product_id=product_id,
-                product_type=mapped_type,
+                product_type=item_type,
                 qty=qty,
             )
         except Exception:
@@ -141,7 +149,7 @@ async def handle_webapp_data(message: Message) -> None:
         logging.warning("Некорректный qty в web_app_data: %s", qty_raw)
         qty_int = 1
 
-    if data.get("source") == "adminsite":
+    if data.get("source") in {"adminsite", "menu"}:
         await _handle_adminsite_payload(message, data)
         return
 
@@ -157,7 +165,14 @@ async def handle_webapp_data(message: Message) -> None:
         logging.warning("Некорректный product_id в web_app_data: %s", product_id)
         return
 
-    product = get_product_by_id(product_id_int)
+    product_type = data.get("type")
+    product = None
+    if product_type in menu_catalog.MENU_ITEM_TYPES:
+        product = menu_catalog.get_item_by_id(
+            product_id_int, include_inactive=False, item_type=product_type
+        )
+    if not product:
+        product = get_product_by_id(product_id_int)
     if not product:
         logging.warning("Товар с id=%s не найден для web_app_data", product_id_int)
         return
@@ -166,7 +181,7 @@ async def handle_webapp_data(message: Message) -> None:
         add_to_cart(
             user_id=message.from_user.id,
             product_id=product_id_int,
-            product_type=product.get("type") or "basket",
+            product_type=product_type or product.get("type") or "basket",
             qty=qty_int,
         )
     except Exception:

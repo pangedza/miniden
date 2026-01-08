@@ -1,5 +1,5 @@
 {% extends "base_adminsite.html" %}
-{% block title %}AdminSite Конструктор{% endblock %}
+{% block title %}AdminSite Конструктор меню{% endblock %}
 {% block head_extra %}
     <link rel="stylesheet" href="{{ url_for('static', path='adminsite/constructor.css') }}">
 {% endblock %}
@@ -7,127 +7,110 @@
 <div id="constructor-status-bar"></div>
 <div class="page-actions" style="justify-content: space-between; align-items:flex-start; gap:16px;">
     <div>
-        <h1>Категории и элементы</h1>
-        <p class="muted">Управляйте категориями и элементами витрины через единый конструктор.</p>
+        <h1>Меню витрины</h1>
+        <p class="muted">Управляйте категориями, позициями и настройками сайта. Всё работает через единый API меню.</p>
     </div>
     <div class="notice" style="max-width: 360px;">
         <div class="badge-list">
             <span class="tag">Категории</span>
-            <span class="tag">Товары</span>
-            <span class="tag">Мастер-классы</span>
+            <span class="tag">Позиции</span>
+            <span class="tag">Настройки</span>
         </div>
-        <p style="margin-top:10px;">Все изменения сохраняются через API AdminSite без перезагрузки страницы.</p>
+        <p style="margin-top:10px;">Изменения публикуются сразу после сохранения.</p>
     </div>
 </div>
 
 <div id="global-status" class="status"></div>
 
-<div class="tabs" id="constructor-tabs"></div>
-
-<div id="constructor-panels"></div>
-
-<section class="panel" id="panel-homepage">
+<section class="panel" id="panel-menu">
     <div class="card">
         <div class="table-top">
             <div>
-                <h3 style="margin:0;">Главная страница</h3>
-                <p class="muted">Визуальный редактор блоков для витрины AdminSite. Контент остаётся неизменным при смене шаблона.</p>
+                <h3 style="margin:0;">Категории и позиции</h3>
+                <p class="muted">Добавляйте категории, управляйте сортировкой и активностью. Позиции отображаются сразу на витрине и в боте.</p>
             </div>
-            <div class="badge-list">
-                <span class="tag">HeroBlock</span>
-                <span class="tag">CardsBlock</span>
-                <span class="tag">TextBlock</span>
-                <span class="tag">SocialBlock</span>
+            <div class="actions">
+                <button class="btn-secondary" type="button" id="menu-refresh">Обновить</button>
             </div>
         </div>
-        <div class="status" id="status-homepage"></div>
-        <div class="homepage-top">
-            <div class="template-picker" id="homepage-template">
-                <div class="template-card" data-template="baskets">
-                    <div class="template-preview baskets"></div>
-                    <div>
-                        <div class="template-title">Baskets</div>
-                        <p class="muted">Тёплая палитра и плавные карточки.</p>
-                    </div>
+        <div class="status" id="status-menu"></div>
+        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px;">
+            <div class="card" style="margin:0;">
+                <div class="card-header" style="align-items:center;">
+                    <h4 style="margin:0;">Категории</h4>
+                    <button class="btn-primary" type="button" id="category-add">+ Категория</button>
                 </div>
-                <div class="template-card" data-template="electronics">
-                    <div class="template-preview electronics"></div>
-                    <div>
-                        <div class="template-title">Electronics</div>
-                        <p class="muted">Контрастная тема и чёткие края.</p>
-                    </div>
-                </div>
-                <div class="template-card" data-template="services">
-                    <div class="template-preview services"></div>
-                    <div>
-                        <div class="template-title">Services</div>
-                        <p class="muted">Нейтральная тема по умолчанию.</p>
-                    </div>
-                </div>
+                <div id="category-form" class="card" style="margin:0 0 12px; display:none;"></div>
+                <div id="category-list" class="block-list"></div>
             </div>
-        <div class="homepage-actions">
-            <a class="btn-secondary" href="/?debug=1" target="_blank" rel="noopener" id="homepage-preview">Предпросмотр</a>
-            <button class="btn-primary" type="button" id="homepage-publish">Опубликовать</button>
-            <button class="btn-primary" type="button" id="homepage-save">Сохранить</button>
-        </div>
-    </div>
-
-    <div class="homepage-layout">
-        <div class="card" id="homepage-diagnostics" style="margin-bottom:16px;">
-            <div class="card-header" style="gap:8px; align-items:center;">
-                <h4 style="margin:0;">Диагностика</h4>
-                <span class="tag" id="homepage-diagnostic-save">—</span>
-                <span class="tag" id="homepage-diagnostic-public">Публичный: —</span>
-            </div>
-            <div class="muted" style="margin-bottom:8px;">Проверка доступности данных после сохранения.</div>
-            <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:8px;">
-                <div class="diag-row"><strong>Источник</strong><div id="homepage-diagnostic-source">/api/adminsite/pages/home</div></div>
-                <div class="diag-row"><strong>Публично</strong><div id="homepage-diagnostic-public-url">/api/site/home</div></div>
-                <div class="diag-row"><strong>Page key</strong><div id="homepage-diagnostic-page">home</div></div>
-                <div class="diag-row"><strong>Версия</strong><div id="homepage-diagnostic-version">—</div></div>
-            </div>
-        </div>
-        <div class="card block-list-card">
-            <div class="card-header">
-                <h4 style="margin:0;">Блоки страницы</h4>
-                <div class="actions" style="margin:0;">
-                    <button class="btn-secondary" type="button" id="homepage-add-block">+ Добавить блок</button>
-                    <button class="btn-primary" type="button" id="homepage-preset">Сделать главную портфолио</button>
-                    <button class="btn-ghost" type="button" id="homepage-reset">Сбросить</button>
-                </div>
-            </div>
-                <p class="muted" style="margin-top:4px;">Перетащите блоки вверх/вниз или редактируйте содержимое справа.</p>
-                <div id="homepage-blocks-list" class="block-list"></div>
-                <div class="developer-toggle">
-                    <label class="switch">
-                        <input type="checkbox" id="homepage-dev-toggle" />
-                        <span class="slider"></span>
-                    </label>
-                    <div>
-                        <div class="template-title">Режим разработчика</div>
-                        <p class="muted" style="margin:0;">Показать/скрыть JSON конфигурацию.</p>
-                    </div>
-                </div>
-                <div id="homepage-devtools" class="devtools" hidden>
-                    <p class="muted" style="margin:0 0 8px;">Измените JSON вручную или вставьте существующую конфигурацию. Сохранение поднимает валидные данные в визуальный редактор.</p>
-                    <textarea id="homepage-blocks" rows="14" style="width:100%; resize:vertical; font-family: monospace;"></textarea>
-                    <div class="actions" style="margin-top:12px; gap:8px;">
-                        <button class="btn-secondary" type="button" id="homepage-dev-apply">Применить JSON</button>
-                        <button class="btn-ghost" type="button" id="homepage-dev-hide">Скрыть</button>
-                    </div>
-                    <div class="status" id="homepage-dev-status"></div>
-                </div>
-            </div>
-            <div class="card block-editor-card">
+            <div class="card" style="margin:0;">
                 <div class="card-header" style="align-items:center;">
                     <div>
-                        <h4 style="margin:0;" id="homepage-editor-title">Редактор блока</h4>
-                        <p class="muted" id="homepage-editor-subtitle" style="margin:4px 0 0;">Выберите блок слева, чтобы отредактировать.</p>
+                        <h4 style="margin:0;">Позиции</h4>
+                        <p class="muted" style="margin:4px 0 0;" id="items-caption">Выберите категорию слева.</p>
                     </div>
-                    <div class="badge-list" id="homepage-block-meta"></div>
+                    <button class="btn-primary" type="button" id="item-add">+ Позиция</button>
                 </div>
-                <div id="homepage-block-editor" class="block-editor"></div>
+                <div id="item-form" class="card" style="margin:0 0 12px; display:none;"></div>
+                <div id="item-list" class="block-list"></div>
             </div>
+        </div>
+    </div>
+</section>
+
+<section class="panel" id="panel-settings">
+    <div class="card">
+        <div class="table-top">
+            <div>
+                <h3 style="margin:0;">Настройки сайта</h3>
+                <p class="muted">Бренд, цвета, контакты и hero блок для витрины.</p>
+            </div>
+            <div class="actions">
+                <button class="btn-primary" type="button" id="settings-save">Сохранить</button>
+            </div>
+        </div>
+        <div class="status" id="status-settings"></div>
+        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:12px;">
+            <label class="field">
+                <span>Бренд</span>
+                <input type="text" id="settings-brand" placeholder="Название бренда" />
+            </label>
+            <label class="field">
+                <span>Логотип (URL)</span>
+                <input type="text" id="settings-logo" placeholder="/media/adminsite/..." />
+            </label>
+            <label class="field">
+                <span>Primary color</span>
+                <input type="text" id="settings-primary" placeholder="#7a8c70" />
+            </label>
+            <label class="field">
+                <span>Secondary color</span>
+                <input type="text" id="settings-secondary" placeholder="#334155" />
+            </label>
+            <label class="field">
+                <span>Background</span>
+                <input type="text" id="settings-background" placeholder="linear-gradient(...) или #fff" />
+            </label>
+            <label class="field">
+                <span>Hero заголовок</span>
+                <input type="text" id="settings-hero-title" />
+            </label>
+            <label class="field">
+                <span>Hero подзаголовок</span>
+                <textarea id="settings-hero-subtitle" rows="3"></textarea>
+            </label>
+            <label class="field">
+                <span>Hero изображение (URL)</span>
+                <input type="text" id="settings-hero-image" />
+            </label>
+            <label class="field">
+                <span>Контакты (JSON)</span>
+                <textarea id="settings-contacts" rows="4" placeholder='{"phone": "+7...", "email": "hello@"}'></textarea>
+            </label>
+            <label class="field">
+                <span>Соцсети (JSON)</span>
+                <textarea id="settings-social" rows="4" placeholder='{"instagram": "https://..."}'></textarea>
+            </label>
         </div>
     </div>
 </section>
@@ -137,7 +120,7 @@
         <div class="table-top">
             <div>
                 <h3 style="margin:0;">Медиа-библиотека</h3>
-                <p class="muted">Загружайте изображения и копируйте URL. Подключено к тем же файлам, что использует AdminBot.</p>
+                <p class="muted">Загружайте изображения и копируйте URL. Файлы сохраняются в /media/adminsite/.</p>
             </div>
             <div class="badge-list">
                 <span class="tag">upload</span>

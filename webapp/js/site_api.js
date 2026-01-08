@@ -56,34 +56,18 @@ export async function requestWithStatus(path, params = null) {
   return { payload, status, statusText, url: url.toString() };
 }
 
-export function fetchMenu(type = 'product') {
-  return request('/api/site/menu', { type });
+export function fetchMenu() {
+  return request('/public/menu');
 }
 
-export function fetchTheme() {
-  return request('/api/site/theme');
+export function fetchSiteSettings() {
+  return request('/public/site-settings');
 }
 
-export function fetchPageByKey(pageKey) {
-  return request(`/api/site/pages/${encodeURIComponent(pageKey)}`);
+export function fetchCategories() {
+  return request('/public/menu/categories');
 }
 
-export function fetchCategories(type = null) {
-  return request('/api/site/categories', { type });
-}
-
-export function fetchCategory(slug, type = null) {
-  return request(`/api/site/categories/${encodeURIComponent(slug)}`, { type });
-}
-
-export function fetchProduct(slug) {
-  return request(`/api/site/products/${encodeURIComponent(slug)}`);
-}
-
-export function fetchMasterclass(slug) {
-  return request(`/api/site/masterclasses/${encodeURIComponent(slug)}`);
-}
-
-export function fetchItems(params = {}) {
-  return request('/api/site/items', params);
+export function fetchCategoryItems(category) {
+  return request('/public/menu/items', { category });
 }

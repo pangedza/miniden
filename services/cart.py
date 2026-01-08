@@ -6,28 +6,44 @@ from sqlalchemy import delete, select
 
 from database import get_session, init_db
 from models import CartItem
+from services import menu_catalog
 from services import products as products_service
 from services import users as users_service
 
 
 def _normalize_product(item: CartItem) -> tuple[dict[str, Any] | None, bool]:
-    product = (
-        products_service.get_basket_by_id(item.product_id)
-        if item.type == "basket"
-        else products_service.get_course_by_id(item.product_id)
-    )
+    product_type = item.type
+    product = None
+
+    if product_type in menu_catalog.MENU_ITEM_TYPES:
+        product = menu_catalog.get_item_by_id(
+            int(item.product_id),
+            include_inactive=True,
+            item_type=product_type,
+        )
+        if not product and product_type == "course":
+            product = products_service.get_course_by_id(item.product_id)
+    elif product_type == "basket":
+        product = products_service.get_basket_by_id(item.product_id)
+    else:
+        product = products_service.get_course_by_id(item.product_id)
+
     if not product:
         return None, True
+
+    name = product.get("name") if isinstance(product, dict) else None
+    if not name and isinstance(product, dict):
+        name = product.get("title")
 
     return (
         {
             "product_id": int(item.product_id),
-            "name": product.get("name"),
-            "price": int(product.get("price", 0)),
+            "name": name,
+            "price": int(product.get("price", 0) or 0),
             "qty": int(item.qty),
-            "type": item.type,
+            "type": product_type,
             "category_id": product.get("category_id"),
-            "category_name": product.get("category_name"),
+            "category_name": product.get("category_title") or product.get("category_name"),
         },
         False,
     )

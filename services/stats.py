@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 
 from database import get_session, init_db
 from models import Favorite, Order, OrderItem, User, UserStats
+from services import menu_catalog
 from services import products as products_service
 
 # NOTE: Этот модуль используется прежде всего для веб-админки
@@ -88,16 +89,26 @@ def get_orders_stats_by_day(limit_days: int = 7) -> List[dict]:
 
 def _serialize_top_item(row, product_type: str | None = None) -> dict:
     product_id = int(row.product_id)
-    if product_type:
+    resolved_type = product_type or getattr(row, "type", None)
+    if resolved_type and resolved_type in menu_catalog.MENU_ITEM_TYPES:
+        product = menu_catalog.get_item_by_id(
+            product_id,
+            include_inactive=True,
+            item_type=resolved_type,
+        )
+    elif resolved_type:
         loader = (
             products_service.get_basket_by_id
-            if product_type == "basket"
+            if resolved_type == "basket"
             else products_service.get_course_by_id
         )
         product = loader(product_id)
     else:
         product = products_service.get_product_by_id(product_id)
-    name = (product or {}).get("name") or f"Товар #{product_id}"
+    name = (product or {}).get("name") if isinstance(product, dict) else None
+    if not name and isinstance(product, dict):
+        name = product.get("title")
+    name = name or f"Товар #{product_id}"
     return {
         "product_id": product_id,
         "name": name,
@@ -114,15 +125,16 @@ def get_top_products(limit: int = 5) -> list[dict]:
         rows = session.execute(
             select(
                 OrderItem.product_id.label("product_id"),
+                OrderItem.type.label("type"),
                 func.sum(OrderItem.qty).label("total_qty"),
                 func.sum(OrderItem.qty * OrderItem.price).label("total_amount"),
             )
-            .where(OrderItem.type == "basket")
-            .group_by(OrderItem.product_id)
+            .where(OrderItem.type.in_(["basket", "product"]))
+            .group_by(OrderItem.product_id, OrderItem.type)
             .order_by(func.sum(OrderItem.qty * OrderItem.price).desc())
             .limit(limit)
         ).all()
-    return [_serialize_top_item(row, "basket") for row in rows]
+    return [_serialize_top_item(row) for row in rows]
 
 
 def get_top_courses(limit: int = 5) -> list[dict]:
