@@ -934,6 +934,7 @@ Front reset: theme-only + constructor-driven site
 - Unified бот-кнопки: у BotButton добавлены поля render/action_payload, поддержка REPLY-кнопок по узлам, новые API `/adminbot/api/buttons`, `/adminbot/api/buttons/save`, `/adminbot/api/buttons/delete`.
 - Устойчивость стартовых фото бота: добавлены ретраи/фолбэки для answer_photo, кэширование file_id после первой загрузки и увеличен HTTP-timeout сессии.
 - Восстановлена обработка OPEN_NODE: кнопки CONTACT/ABOUT с payload вида `OPEN_NODE CONTACT` корректно открывают узлы и логируют причины ошибок.
+- Исправлена зависимость DB для AdminSite API: в FastAPI используется `Depends(get_db)` (yield Session), а `database.get_session()` остаётся контекстным менеджером.
 
 Важно: AdminSite / Версии / Кэш
 - Публичный эндпоинт `/api/site/home` должен отдавать заголовок Cache-Control: no-store (плюс совместимый Pragma: no-cache).
