@@ -25,6 +25,16 @@
         </form>
     </nav>
 </header>
+{% if user %}
+<nav class="adminsite-subnav" aria-label="Разделы AdminSite">
+    <a href="/adminsite/constructor?section=products">Товары</a>
+    <a href="/adminsite/constructor?section=categories">Категории</a>
+    <a href="/adminsite/constructor?section=courses">Курсы</a>
+    <a href="/adminsite/constructor?section=masterclasses">Мастер-классы</a>
+    <a href="/adminsite/constructor?section=home">Главная</a>
+    <a class="subnav-secondary" href="/adminsite/constructor?section=menu">Меню витрины</a>
+</nav>
+{% endif %}
 <main class="page-container">
     {% block content %}{% endblock %}
 </main>

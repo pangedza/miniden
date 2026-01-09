@@ -33,6 +33,9 @@ const mediaSearch = document.getElementById('media-search');
 const mediaList = document.getElementById('media-list');
 const mediaUploadStatus = document.getElementById('media-upload-status');
 
+const panelTabs = document.querySelectorAll('[data-panel]');
+const panels = document.querySelectorAll('.panel');
+
 const API_MENU_CATEGORIES = '/api/admin/menu/categories';
 const API_MENU_ITEMS = '/api/admin/menu/items';
 const API_MENU_REORDER = '/api/admin/menu/reorder';
@@ -43,11 +46,57 @@ const API_MEDIA_UPLOAD = '/api/adminsite/media/upload';
 let categories = [];
 let items = [];
 let selectedCategory = null;
+let activeItemType = null;
+let activeItemLabel = null;
+
+const TYPE_LABELS = {
+  product: 'Товары',
+  course: 'Курсы',
+  service: 'Мастер-классы',
+};
+
+const SECTION_CONFIG = {
+  products: { panel: 'panel-menu', type: 'product', label: 'Товары' },
+  categories: { panel: 'panel-menu', type: null },
+  courses: { panel: 'panel-menu', type: 'course', label: 'Курсы' },
+  masterclasses: { panel: 'panel-menu', type: 'course', label: 'Мастер-классы' },
+  home: { panel: 'panel-settings', type: null },
+  menu: { panel: 'panel-menu', type: null },
+};
 
 function setStatus(target, message = '', tone = 'muted') {
   if (!target) return;
   target.textContent = message;
   target.className = `status ${tone}`.trim();
+}
+
+function setActivePanel(panelId) {
+  panels.forEach((panel) => {
+    panel.classList.toggle('active', panel.id === panelId);
+  });
+  panelTabs.forEach((tab) => {
+    tab.classList.toggle('active', tab.dataset.panel === panelId);
+  });
+}
+
+function setActiveItemType(type, label) {
+  activeItemType = type || null;
+  activeItemLabel = label || (activeItemType ? TYPE_LABELS[activeItemType] || activeItemType : null);
+  if (selectedCategory) {
+    loadItems(selectedCategory.id);
+  } else {
+    renderItems();
+  }
+}
+
+function applySectionFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const section = params.get('section') || 'menu';
+  const config = SECTION_CONFIG[section] || SECTION_CONFIG.menu;
+  if (config?.panel) {
+    setActivePanel(config.panel);
+  }
+  setActiveItemType(config?.type ?? null, config?.label ?? null);
 }
 
 function parseJsonInput(value, fallback = {}) {
@@ -231,7 +280,7 @@ function renderItemForm(item = null) {
   descriptionInput.value = item?.description || '';
   priceInput.value = item?.price ?? '';
   currencyInput.value = item?.currency || '';
-  typeInput.value = item?.type || 'product';
+  typeInput.value = item?.type || activeItemType || 'product';
   imageInput.value = item?.image_url || '';
   imagesInput.value = (item?.images || []).join('\n');
   metaInput.value = item?.meta ? JSON.stringify(item.meta, null, 2) : '';
@@ -330,7 +379,8 @@ function renderItems() {
     itemsCaption.textContent = 'Выберите категорию слева.';
     return;
   }
-  itemsCaption.textContent = `Категория: ${selectedCategory.title}`;
+  const labelSuffix = activeItemLabel ? ` • ${activeItemLabel}` : '';
+  itemsCaption.textContent = `Категория: ${selectedCategory.title}${labelSuffix}`;
 
   if (!items.length) {
     itemList.innerHTML = '<p class="muted">В категории пока нет позиций.</p>';
@@ -407,7 +457,8 @@ async function loadCategories() {
 async function loadItems(categoryId) {
   if (!categoryId) return;
   try {
-    const response = await apiRequest(`${API_MENU_ITEMS}?category_id=${categoryId}&include_inactive=true`, { method: 'GET' });
+    const typeParam = activeItemType ? `&type=${encodeURIComponent(activeItemType)}` : '';
+    const response = await apiRequest(`${API_MENU_ITEMS}?category_id=${categoryId}${typeParam}&include_inactive=true`, { method: 'GET' });
     items = response.items || [];
     renderItems();
   } catch (error) {
@@ -540,8 +591,17 @@ settingsSave?.addEventListener('click', saveSettings);
 mediaUploadBtn?.addEventListener('click', uploadMedia);
 mediaRefreshBtn?.addEventListener('click', () => loadMedia(mediaSearch?.value || ''));
 mediaSearch?.addEventListener('input', () => loadMedia(mediaSearch.value));
+panelTabs.forEach((tab) => {
+  tab.addEventListener('click', () => {
+    const panelId = tab.dataset.panel;
+    if (panelId) {
+      setActivePanel(panelId);
+    }
+  });
+});
 
 async function bootstrap() {
+  applySectionFromUrl();
   setStatus(globalStatus, 'Загрузка данных меню...', 'muted');
   await Promise.all([loadCategories(), loadSettings(), loadMedia()]);
   setStatus(globalStatus, 'Данные загружены', 'ok');
