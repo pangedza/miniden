@@ -553,6 +553,7 @@ class MenuCategory(Base):
     title = Column(Text, nullable=False)
     slug = Column(String(150), nullable=False, unique=True)
     description = Column(Text, nullable=True)
+    image_url = Column(Text, nullable=True)
     order_index = Column(Integer, nullable=False, default=0, server_default="0")
     is_active = Column(Boolean, nullable=False, default=True, server_default="true")
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -570,7 +571,7 @@ class MenuItem(Base):
     __tablename__ = "menu_items"
     __table_args__ = (
         CheckConstraint(
-            "type IN ('product', 'course', 'service')",
+            "type IN ('product', 'course', 'service', 'masterclass')",
             name="ck_menu_items_type",
         ),
         UniqueConstraint(
@@ -590,6 +591,7 @@ class MenuItem(Base):
     currency = Column(String(8), nullable=True)
     images = Column(JSONB, nullable=False, default=list, server_default="[]")
     image_url = Column(Text, nullable=True)
+    legacy_link = Column(Text, nullable=True)
     order_index = Column(Integer, nullable=False, default=0, server_default="0")
     is_active = Column(Boolean, nullable=False, default=True, server_default="true")
     type = Column(String(32), nullable=False, default="product", server_default="product")
@@ -611,9 +613,26 @@ class SiteSettings(Base):
     background_color = Column(String(32), nullable=True)
     contacts = Column(JSONB, nullable=False, default=dict, server_default="{}")
     social_links = Column(JSONB, nullable=False, default=dict, server_default="{}")
+    hero_enabled = Column(Boolean, nullable=False, default=True, server_default="true")
     hero_title = Column(String(255), nullable=True)
     hero_subtitle = Column(Text, nullable=True)
     hero_image_url = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=func.now(), nullable=False)
+
+
+class SiteBlock(Base):
+    __tablename__ = "site_blocks"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    page = Column(String(32), nullable=False, index=True)
+    type = Column(String(32), nullable=False)
+    title = Column(String(255), nullable=True)
+    subtitle = Column(Text, nullable=True)
+    image_url = Column(Text, nullable=True)
+    payload = Column(JSONB, nullable=False, default=dict, server_default="{}")
+    order_index = Column(Integer, nullable=False, default=0, server_default="0")
+    is_active = Column(Boolean, nullable=False, default=True, server_default="true")
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=func.now(), nullable=False)
 
@@ -783,6 +802,7 @@ __all__ = [
     "MenuCategory",
     "MenuItem",
     "SiteSettings",
+    "SiteBlock",
     "FaqItem",
     "WebChatSession",
     "WebChatMessage",

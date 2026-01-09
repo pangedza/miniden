@@ -57,17 +57,21 @@ export async function requestWithStatus(path, params = null) {
 }
 
 export function fetchMenu() {
-  return request('/public/menu');
+  return request('/api/public/menu');
 }
 
 export function fetchSiteSettings() {
-  return request('/public/site-settings');
+  return request('/api/public/site-settings');
 }
 
 export function fetchCategories() {
-  return request('/public/menu/categories');
+  return request('/api/public/menu/categories');
 }
 
 export function fetchCategoryItems(category) {
-  return request('/public/menu/items', { category });
+  return request('/api/public/menu/items', { category_slug: category });
+}
+
+export function fetchBlocks(page) {
+  return request('/api/public/blocks', { page });
 }

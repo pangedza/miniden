@@ -10,9 +10,11 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from database import get_session
-from models import MenuCategory, MenuItem, SiteSettings
+from models import MenuCategory, MenuItem, SiteBlock, SiteSettings
 
-MENU_ITEM_TYPES = {"product", "course", "service"}
+MENU_ITEM_TYPES = {"product", "course", "service", "masterclass"}
+BLOCK_PAGES = {"home", "category", "footer", "custom"}
+BLOCK_TYPES = {"banner", "text", "cta", "gallery", "features"}
 
 
 def normalize_menu_type(value: str | None) -> str | None:
@@ -21,6 +23,8 @@ def normalize_menu_type(value: str | None) -> str | None:
     candidate = value.strip().lower()
     if candidate and candidate not in MENU_ITEM_TYPES:
         raise ValueError("Unsupported menu item type")
+    if candidate == "masterclass":
+        return "masterclass"
     return candidate or None
 
 
@@ -109,6 +113,7 @@ def _serialize_category(category: MenuCategory) -> dict[str, Any]:
         "title": category.title,
         "slug": category.slug,
         "description": category.description,
+        "image_url": category.image_url,
         "order_index": int(category.order_index or 0),
         "is_active": bool(category.is_active),
         "created_at": category.created_at.isoformat() if category.created_at else None,
@@ -135,6 +140,7 @@ def _serialize_item(item: MenuItem, category: MenuCategory | None = None) -> dic
         "currency": item.currency,
         "images": images,
         "image_url": image_url,
+        "legacy_link": item.legacy_link,
         "order_index": int(item.order_index or 0),
         "is_active": bool(item.is_active),
         "type": item.type,
@@ -277,6 +283,7 @@ def _serialize_settings(settings: SiteSettings) -> dict[str, Any]:
         "background_color": settings.background_color,
         "contacts": settings.contacts or {},
         "social_links": settings.social_links or {},
+        "hero_enabled": bool(settings.hero_enabled),
         "hero_title": settings.hero_title,
         "hero_subtitle": settings.hero_subtitle,
         "hero_image_url": settings.hero_image_url,
@@ -300,6 +307,8 @@ def update_site_settings(payload: dict[str, Any]) -> dict[str, Any]:
         settings.background_color = (payload.get("background_color") or "").strip() or None
         settings.contacts = payload.get("contacts") or {}
         settings.social_links = payload.get("social_links") or {}
+        if payload.get("hero_enabled") is not None:
+            settings.hero_enabled = bool(payload.get("hero_enabled"))
         settings.hero_title = (payload.get("hero_title") or "").strip() or None
         settings.hero_subtitle = (payload.get("hero_subtitle") or "").strip() or None
         settings.hero_image_url = normalize_media_path(payload.get("hero_image_url"))
@@ -321,6 +330,7 @@ def create_category(payload: dict[str, Any]) -> dict[str, Any]:
             title=title,
             slug=slug,
             description=payload.get("description"),
+            image_url=normalize_media_path(payload.get("image_url")),
             order_index=int(payload.get("order_index") or 0),
             is_active=bool(payload.get("is_active", True)),
         )
@@ -343,6 +353,8 @@ def update_category(category_id: int, payload: dict[str, Any]) -> dict[str, Any]
             category.title = next_title
         if "description" in payload:
             category.description = payload.get("description")
+        if "image_url" in payload:
+            category.image_url = normalize_media_path(payload.get("image_url"))
         if "is_active" in payload:
             category.is_active = bool(payload.get("is_active"))
         if "order_index" in payload:
@@ -409,6 +421,7 @@ def create_item(payload: dict[str, Any]) -> dict[str, Any]:
             currency=payload.get("currency"),
             images=[item for item in images if item],
             image_url=normalize_media_path(payload.get("image_url")),
+            legacy_link=payload.get("legacy_link"),
             order_index=int(payload.get("order_index") or 0),
             is_active=bool(payload.get("is_active", True)),
             type=normalized_type,
@@ -452,6 +465,8 @@ def update_item(item_id: int, payload: dict[str, Any]) -> dict[str, Any]:
             item.images = [entry for entry in images if entry]
         if "image_url" in payload:
             item.image_url = normalize_media_path(payload.get("image_url"))
+        if "legacy_link" in payload:
+            item.legacy_link = payload.get("legacy_link")
         if "order_index" in payload:
             item.order_index = int(payload.get("order_index") or 0)
         if "is_active" in payload:
@@ -476,6 +491,121 @@ def update_item(item_id: int, payload: dict[str, Any]) -> dict[str, Any]:
         session.commit()
         session.refresh(item)
         return _serialize_item(item, category)
+
+
+def _block_query(session: Session, *, include_inactive: bool) -> Any:
+    query = session.query(SiteBlock)
+    if not include_inactive:
+        query = query.filter(SiteBlock.is_active.is_(True))
+    return query.order_by(SiteBlock.order_index, SiteBlock.id)
+
+
+def _serialize_block(block: SiteBlock) -> dict[str, Any]:
+    return {
+        "id": int(block.id),
+        "page": block.page,
+        "type": block.type,
+        "title": block.title,
+        "subtitle": block.subtitle,
+        "image_url": block.image_url,
+        "payload": block.payload or {},
+        "order_index": int(block.order_index or 0),
+        "is_active": bool(block.is_active),
+        "created_at": block.created_at.isoformat() if block.created_at else None,
+        "updated_at": block.updated_at.isoformat() if block.updated_at else None,
+    }
+
+
+def list_blocks(
+    *, include_inactive: bool = False, page: str | None = None
+) -> list[dict[str, Any]]:
+    with get_session() as session:
+        query = _block_query(session, include_inactive=include_inactive)
+        if page:
+            query = query.filter(SiteBlock.page == page)
+        blocks = query.all()
+    return [_serialize_block(block) for block in blocks]
+
+
+def create_block(payload: dict[str, Any]) -> dict[str, Any]:
+    with get_session() as session:
+        page = (payload.get("page") or "").strip().lower()
+        if not page or page not in BLOCK_PAGES:
+            raise ValueError("Invalid page")
+        block_type = (payload.get("type") or "").strip().lower()
+        if not block_type or block_type not in BLOCK_TYPES:
+            raise ValueError("Invalid block type")
+        block = SiteBlock(
+            page=page,
+            type=block_type,
+            title=(payload.get("title") or "").strip() or None,
+            subtitle=payload.get("subtitle"),
+            image_url=normalize_media_path(payload.get("image_url")),
+            payload=payload.get("payload") or {},
+            order_index=int(payload.get("order_index") or 0),
+            is_active=bool(payload.get("is_active", True)),
+        )
+        session.add(block)
+        session.commit()
+        session.refresh(block)
+        return _serialize_block(block)
+
+
+def update_block(block_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+    with get_session() as session:
+        block = session.get(SiteBlock, block_id)
+        if not block:
+            raise KeyError("Block not found")
+        if "page" in payload:
+            page = (payload.get("page") or "").strip().lower()
+            if not page or page not in BLOCK_PAGES:
+                raise ValueError("Invalid page")
+            block.page = page
+        if "type" in payload:
+            block_type = (payload.get("type") or "").strip().lower()
+            if not block_type or block_type not in BLOCK_TYPES:
+                raise ValueError("Invalid block type")
+            block.type = block_type
+        if "title" in payload:
+            block.title = (payload.get("title") or "").strip() or None
+        if "subtitle" in payload:
+            block.subtitle = payload.get("subtitle")
+        if "image_url" in payload:
+            block.image_url = normalize_media_path(payload.get("image_url"))
+        if "payload" in payload:
+            block.payload = payload.get("payload") or {}
+        if "order_index" in payload:
+            block.order_index = int(payload.get("order_index") or 0)
+        if "is_active" in payload:
+            block.is_active = bool(payload.get("is_active"))
+        block.updated_at = datetime.utcnow()
+        session.add(block)
+        session.commit()
+        session.refresh(block)
+        return _serialize_block(block)
+
+
+def delete_block(block_id: int) -> None:
+    with get_session() as session:
+        block = session.get(SiteBlock, block_id)
+        if not block:
+            raise KeyError("Block not found")
+        session.delete(block)
+        session.commit()
+
+
+def reorder_blocks(payload: dict[str, Any]) -> None:
+    with get_session() as session:
+        blocks = payload.get("blocks") or []
+        for entry in blocks:
+            block_id = entry.get("id")
+            order_index = entry.get("order_index")
+            if block_id is None or order_index is None:
+                continue
+            session.query(SiteBlock).filter(SiteBlock.id == block_id).update(
+                {"order_index": int(order_index), "updated_at": datetime.utcnow()}
+            )
+        session.commit()
 
 
 def delete_item(item_id: int) -> None:

@@ -405,6 +405,7 @@ class MenuCategoryPayload(BaseModel):
     title: str
     slug: str | None = None
     description: str | None = None
+    image_url: str | None = None
     order_index: int = 0
     is_active: bool = True
 
@@ -413,6 +414,7 @@ class MenuCategoryUpdatePayload(BaseModel):
     title: str | None = None
     slug: str | None = None
     description: str | None = None
+    image_url: str | None = None
     order_index: int | None = None
     is_active: bool | None = None
 
@@ -430,6 +432,7 @@ class MenuItemPayload(BaseModel):
     currency: str | None = None
     images: list[str] = []
     image_url: str | None = None
+    legacy_link: str | None = None
     order_index: int = 0
     is_active: bool = True
     type: str = "product"
@@ -446,6 +449,7 @@ class MenuItemUpdatePayload(BaseModel):
     currency: str | None = None
     images: list[str] | None = None
     image_url: str | None = None
+    legacy_link: str | None = None
     order_index: int | None = None
     is_active: bool | None = None
     type: str | None = None
@@ -473,9 +477,44 @@ class SiteSettingsPayload(BaseModel):
     background_color: str | None = None
     contacts: dict[str, Any] = {}
     social_links: dict[str, Any] = {}
+    hero_enabled: bool | None = None
     hero_title: str | None = None
     hero_subtitle: str | None = None
     hero_image_url: str | None = None
+
+
+class SiteBlockPayload(BaseModel):
+    page: str
+    type: str
+    title: str | None = None
+    subtitle: str | None = None
+    image_url: str | None = None
+    payload: dict[str, Any] = {}
+    order_index: int = 0
+    is_active: bool = True
+
+
+class SiteBlockUpdatePayload(BaseModel):
+    page: str | None = None
+    type: str | None = None
+    title: str | None = None
+    subtitle: str | None = None
+    image_url: str | None = None
+    payload: dict[str, Any] | None = None
+    order_index: int | None = None
+    is_active: bool | None = None
+
+    class Config:
+        extra = "ignore"
+
+
+class BlockReorderEntry(BaseModel):
+    id: int
+    order_index: int
+
+
+class BlockReorderPayload(BaseModel):
+    blocks: list[BlockReorderEntry] = []
 
 
 class AdminWebChatReadPayload(BaseModel):
@@ -1923,6 +1962,50 @@ def public_menu_items(category: str | None = None):
     return {"items": menu_catalog.list_items(include_inactive=False)}
 
 
+@app.get("/api/public/site-settings")
+def api_public_site_settings():
+    return menu_catalog.get_site_settings()
+
+
+@app.get("/api/public/menu")
+def api_public_menu():
+    return menu_catalog.build_public_menu()
+
+
+@app.get("/api/public/menu/categories")
+def api_public_menu_categories():
+    return {"items": menu_catalog.list_categories(include_inactive=False)}
+
+
+@app.get("/api/public/menu/category/{slug}")
+def api_public_menu_category(slug: str):
+    category = menu_catalog.get_category_details(slug, include_inactive=False)
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+    return category
+
+
+@app.get("/api/public/menu/items")
+def api_public_menu_items(category_slug: str | None = None):
+    if category_slug:
+        category_record = menu_catalog.get_category_by_slug(
+            category_slug, include_inactive=False
+        )
+        if not category_record:
+            raise HTTPException(status_code=404, detail="Category not found")
+        return {
+            "items": menu_catalog.list_items(
+                include_inactive=False, category_id=int(category_record.id)
+            )
+        }
+    return {"items": menu_catalog.list_items(include_inactive=False)}
+
+
+@app.get("/api/public/blocks")
+def api_public_blocks(page: str | None = None):
+    return {"items": menu_catalog.list_blocks(include_inactive=False, page=page)}
+
+
 @app.get("/api/site/menu")
 def site_menu():
     return menu_catalog.build_public_menu()
@@ -2488,6 +2571,71 @@ def admin_update_site_settings(
 ):
     adminsite_service.ensure_admin(request, db)
     return menu_catalog.update_site_settings(payload.model_dump())
+
+
+@app.get("/api/admin/blocks")
+def admin_blocks(
+    request: Request,
+    include_inactive: bool = True,
+    page: str | None = None,
+    db: Session = Depends(get_db),
+):
+    adminsite_service.ensure_admin(request, db)
+    return {"items": menu_catalog.list_blocks(include_inactive=include_inactive, page=page)}
+
+
+@app.post("/api/admin/blocks")
+def admin_create_block(
+    payload: SiteBlockPayload,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    adminsite_service.ensure_admin(request, db)
+    try:
+        return menu_catalog.create_block(payload.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+@app.put("/api/admin/blocks/{block_id}")
+def admin_update_block(
+    block_id: int,
+    payload: SiteBlockUpdatePayload,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    adminsite_service.ensure_admin(request, db)
+    try:
+        return menu_catalog.update_block(block_id, payload.model_dump(exclude_unset=True))
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+@app.delete("/api/admin/blocks/{block_id}")
+def admin_delete_block(
+    block_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    adminsite_service.ensure_admin(request, db)
+    try:
+        menu_catalog.delete_block(block_id)
+        return {"status": "ok"}
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@app.post("/api/admin/blocks/reorder")
+def admin_blocks_reorder(
+    payload: BlockReorderPayload,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    adminsite_service.ensure_admin(request, db)
+    menu_catalog.reorder_blocks(payload.model_dump())
+    return {"status": "ok"}
 
 
 @app.get("/api/admin/menu/categories")
@@ -3577,6 +3725,16 @@ def admin_delete_promocode(promocode_id: int, user_id: int):
     return {"ok": True}
 
 
+@app.get("/", include_in_schema=False)
+def webapp_home():
+    return _serve_webapp_index()
+
+
+@app.get("/cart", include_in_schema=False)
+def webapp_cart():
+    return FileResponse(WEBAPP_DIR / "cart.html", media_type="text/html")
+
+
 @app.get("/categories", include_in_schema=False)
 def categories_page():
     return RedirectResponse(url="/webapp/categories.html", status_code=302)
@@ -3589,4 +3747,24 @@ def category_page(slug: str):
 
 @app.get("/c/{slug}", include_in_schema=False)
 def category_slug_page(slug: str):
+    return _serve_webapp_index()
+
+
+@app.get("/i/{slug}", include_in_schema=False)
+def item_slug_page(slug: str):
+    return _serve_webapp_index()
+
+
+@app.get("/p/{slug}", include_in_schema=False)
+def product_slug_page(slug: str):
+    return _serve_webapp_index()
+
+
+@app.get("/m/{slug}", include_in_schema=False)
+def masterclass_slug_page(slug: str):
+    return _serve_webapp_index()
+
+
+@app.get("/item/{slug}", include_in_schema=False)
+def item_page(slug: str):
     return _serve_webapp_index()
