@@ -246,6 +246,10 @@ function buildItemCard(item) {
   if (outOfStock) {
     card.classList.add('is-out-of-stock');
   }
+  const descriptionText = item.subtitle || item.description || '';
+  if (descriptionText) {
+    card.classList.add('has-description');
+  }
 
   const imageWrapper = document.createElement('div');
   imageWrapper.className = 'catalog-card-image';
@@ -283,7 +287,10 @@ function buildItemCard(item) {
 
   const description = document.createElement('p');
   description.className = 'catalog-card-description';
-  description.textContent = item.subtitle || item.description || '';
+  description.textContent = descriptionText;
+  if (!descriptionText) {
+    description.classList.add('is-empty');
+  }
 
   const footer = document.createElement('div');
   footer.className = 'catalog-card-actions';
@@ -292,44 +299,52 @@ function buildItemCard(item) {
   price.className = 'price';
   price.textContent = formatPrice(item.price, item.currency || '₽');
 
+  const buttons = document.createElement('div');
+  buttons.className = 'catalog-card-buttons';
+
+  const more = document.createElement('button');
+  more.className = 'btn secondary';
+  more.type = 'button';
+  more.textContent = 'Подробнее';
+  more.setAttribute('aria-label', 'Открыть подробности товара');
+  more.addEventListener('click', (event) => {
+    event.preventDefault();
+    openItemModal(item, { pushHistory: true });
+  });
+
+  const addButton = document.createElement('button');
+  addButton.className = 'btn catalog-card-add';
+  addButton.type = 'button';
+  addButton.textContent = 'В корзину';
+  addButton.setAttribute('aria-label', 'Добавить в корзину');
+
   const canUseTelegram = !!(window.isTelegramWebApp && window.Telegram?.WebApp);
-  if (canUseTelegram && item?.id !== undefined) {
-    const addButton = document.createElement('button');
-    addButton.className = 'btn';
-    addButton.type = 'button';
-    addButton.textContent = 'В корзину';
-    addButton.disabled = outOfStock;
-    if (outOfStock) {
-      addButton.title = 'Нет в наличии';
-    }
-    addButton.addEventListener('click', () => {
-      if (outOfStock) return;
-      try {
-        window.Telegram.WebApp.sendData(
-          JSON.stringify({
-            action: 'add_to_cart',
-            product_id: item.id,
-            qty: 1,
-            type: item.type,
-            source: 'menu',
-          })
-        );
-        window.Telegram.WebApp.close();
-      } catch (error) {
-        console.error('Не удалось отправить данные в Telegram WebApp', error);
-      }
-    });
-    footer.append(price, addButton);
-  } else {
-    const more = document.createElement('a');
-    more.className = 'btn secondary';
-    more.textContent = 'Подробнее';
-    more.addEventListener('click', (event) => {
-      event.preventDefault();
-      openItemModal(item, { pushHistory: true });
-    });
-    footer.append(price, more);
+  addButton.disabled = outOfStock || !canUseTelegram;
+  if (outOfStock) {
+    addButton.title = 'Нет в наличии';
+  } else if (!canUseTelegram) {
+    addButton.title = 'Добавление доступно только в Telegram';
   }
+  addButton.addEventListener('click', () => {
+    if (outOfStock || !canUseTelegram || item?.id === undefined) return;
+    try {
+      window.Telegram.WebApp.sendData(
+        JSON.stringify({
+          action: 'add_to_cart',
+          product_id: item.id,
+          qty: 1,
+          type: item.type,
+          source: 'menu',
+        })
+      );
+      window.Telegram.WebApp.close();
+    } catch (error) {
+      console.error('Не удалось отправить данные в Telegram WebApp', error);
+    }
+  });
+
+  buttons.append(more, addButton);
+  footer.append(price, buttons);
 
   body.append(meta, title);
   if (stockBadge) body.appendChild(stockBadge);
