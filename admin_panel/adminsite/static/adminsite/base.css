@@ -85,6 +85,38 @@ a {
     padding: 24px 20px 36px;
 }
 
+.adminsite-subnav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 12px 20px;
+    background: #0f172a;
+    border-bottom: 1px solid var(--border);
+}
+
+.adminsite-subnav a {
+    text-decoration: none;
+    color: var(--text);
+    padding: 8px 12px;
+    border-radius: 10px;
+    border: 1px solid transparent;
+    background: #111827;
+    font-weight: 600;
+    transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.adminsite-subnav a:hover,
+.adminsite-subnav a:focus-visible {
+    border-color: var(--primary);
+    outline: none;
+}
+
+.adminsite-subnav .subnav-secondary {
+    background: transparent;
+    border-color: var(--border);
+    color: var(--muted);
+}
+
 .card {
     background: var(--card);
     border: 1px solid var(--border);

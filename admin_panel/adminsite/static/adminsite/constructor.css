@@ -291,6 +291,11 @@ tr:nth-child(even) {
     z-index: 30;
 }
 
+.modal-backdrop[hidden] {
+    display: none;
+    pointer-events: none;
+}
+
 .modal {
     background: var(--card);
     border: 1px solid var(--border);
