@@ -65,6 +65,7 @@ function initSidebar() {
   const sidebar = document.querySelector('.app-sidebar');
   const overlay = document.querySelector('.app-sidebar-overlay');
   const toggle = document.querySelector('.menu-toggle');
+  const closeBtn = document.querySelector('.menu-close');
   const sidebarLinks = document.querySelectorAll('.app-sidebar a');
 
   const openSidebar = () => {
@@ -88,6 +89,7 @@ function initSidebar() {
 
   toggle?.addEventListener('click', toggleSidebar);
   overlay?.addEventListener('click', closeSidebar);
+  closeBtn?.addEventListener('click', closeSidebar);
   sidebarLinks.forEach((link) => link.addEventListener('click', closeSidebar));
 }
 

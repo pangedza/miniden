@@ -3,6 +3,7 @@ MiniDeN — Telegram-бот и веб-магазин
 
 Changelog / История изменений
 -----------------------------
+- 2026-06-XX: WebApp витрина приведена к iiko-like layout: единый контейнер, sticky header, фиксированный sidebar и отдельный скролл для main/sidebar; карточки и кнопки приведены к единой сетке и design tokens.
 - 2026-06-XX: Витрина обновлена под iiko-like UX: единые design tokens, фиксированный header, левый сайдбар категорий, карточки позиций и единый стиль страниц. Контентные блоки вынесены в таблицу `site_blocks`, добавлены публичные `/api/public/*` и админские `/api/admin/blocks` эндпоинты. Добавлены поля `hero_enabled`, `menu_categories.image_url`, `menu_items.legacy_link`, а также авто-сид для slug `korzinki/basket/cradle/set` для back-compat `/c/<slug>`.
 - 2026-06-XX: AdminSite — восстановлены кликабельность конструктора и навигация старых разделов (товары/категории/курсы/мастер-классы/главная), отдельным пунктом оставлено «Меню витрины»; скрытые оверлеи больше не перекрывают клики.
 - 2026-06-XX: Витрина и AdminSite переведены на menu-driven модель: таблицы `menu_categories`, `menu_items`, `site_settings`; публичные данные отдаются через `/public/*`, админка управляет меню через `/api/admin/menu/*` и настройками через `/api/admin/site-settings`. Старые темы/шаблоны/блоки отключены для витрины (рендер больше не зависит от `/api/site/theme` и `/api/site/pages/*`).
@@ -58,6 +59,20 @@ Menu-driven витрина (iiko-like)
 - Блоки страницы выводятся из `site_blocks` через `/api/public/blocks?page=...` (home/category/footer/custom).
 - Порядок определяется `order_index` у категорий и позиций; флаг `is_active=false` скрывает записи на сайте и в боте.
 - AdminSite управляет меню через `/api/admin/menu/*`, блоками через `/api/admin/blocks` и настройками сайта через `/api/admin/site-settings`.
+
+WebApp layout и design tokens
+-----------------------------
+- Layout витрины реализован в `webapp/index.html` и `webapp/cart.html`: `header.site-header` + `div.site-layout` (grid: sidebar + main) + `aside.site-sidebar` и `main.site-content`.
+- Sticky header использует высоту `--headerH`, контейнер центруется через `--container`, а sidebar/main скроллятся независимо за счёт `height: calc(100vh - var(--headerH))` и `overflow: auto`.
+- Design tokens объявлены в `webapp/css/theme.css` и используются через CSS variables (`--font`, `--bg`, `--surface`, `--text`, `--primary`, `--radius*`, `--shadow*`, `--container`, `--sidebarW`, `--gap`, `--pad`).
+- Точки входа витрины: `/` и `/c/<slug>` (оба используют `webapp/index.html`), `/cart` использует `webapp/cart.html`, карточка позиции открывается во view `#view-product` внутри `index.html`.
+
+Как проверить верстку витрины
+-----------------------------
+1. Открыть `/` и убедиться, что header фиксирован, sidebar слева, main справа в контейнере 1200px.
+2. Перейти в `/c/korzinki` (или любой slug) и проверить сетку карточек: 4 колонки на desktop, 2 на tablet, 1 на mobile.
+3. Открыть `/cart` и проверить, что layout совпадает с главной страницей (тот же header/sidebar/main).
+4. На ширине <=1024px открыть меню через кнопку «Категории» и убедиться, что sidebar открывается как drawer.
 
 Архитектура проекта
 -------------------

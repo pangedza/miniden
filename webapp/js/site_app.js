@@ -324,8 +324,10 @@ function renderBlocks(blocks, container) {
 }
 
 function renderHome(categories) {
-  if (!homeCategories || !homeItems) return;
-  homeCategories.innerHTML = '';
+  if (!homeItems) return;
+  if (homeCategories) {
+    homeCategories.innerHTML = '';
+  }
   homeItems.innerHTML = '';
 
   if (!categories.length) {
@@ -336,10 +338,6 @@ function renderHome(categories) {
   }
 
   homeEmpty?.classList.add('hidden');
-  categories.forEach((category) => {
-    homeCategories.appendChild(buildCategoryButton(category));
-  });
-
   const firstCategory = categories[0];
   const items = firstCategory.items || [];
   items.forEach((item) => homeItems.appendChild(buildItemCard(item)));
