@@ -51,15 +51,14 @@ let activeItemLabel = null;
 
 const TYPE_LABELS = {
   product: 'Товары',
-  course: 'Курсы',
-  service: 'Мастер-классы',
+  masterclass: 'Мастер-классы',
 };
 
 const SECTION_CONFIG = {
   products: { panel: 'panel-menu', type: 'product', label: 'Товары' },
   categories: { panel: 'panel-menu', type: null },
-  courses: { panel: 'panel-menu', type: 'course', label: 'Курсы' },
-  masterclasses: { panel: 'panel-menu', type: 'course', label: 'Мастер-классы' },
+  courses: { panel: 'panel-menu', type: 'masterclass', label: 'Мастер-классы' },
+  masterclasses: { panel: 'panel-menu', type: 'masterclass', label: 'Мастер-классы' },
   home: { panel: 'panel-settings', type: null },
   menu: { panel: 'panel-menu', type: null },
 };
@@ -112,7 +111,30 @@ function parseImages(value) {
     .filter(Boolean);
 }
 
-function buildRow({ title, subtitle, meta, isActive, onSelect, onEdit, onDelete, onMoveUp, onMoveDown }) {
+async function copyToClipboard(value) {
+  if (!value) return false;
+  try {
+    await navigator.clipboard.writeText(value);
+    return true;
+  } catch (error) {
+    console.warn('Clipboard API недоступен', error);
+    return false;
+  }
+}
+
+function buildRow({
+  title,
+  subtitle,
+  meta,
+  isActive,
+  onSelect,
+  onEdit,
+  onDelete,
+  onMoveUp,
+  onMoveDown,
+  linkUrl,
+  selectLabel = 'Выбрать',
+}) {
   const row = document.createElement('div');
   row.className = 'block-row';
 
@@ -125,14 +147,29 @@ function buildRow({ title, subtitle, meta, isActive, onSelect, onEdit, onDelete,
   sub.textContent = subtitle || meta || '';
   main.append(heading, sub);
 
+  if (linkUrl) {
+    const linkRow = document.createElement('div');
+    linkRow.className = 'muted meta';
+    const link = document.createElement('a');
+    link.href = linkUrl;
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.textContent = linkUrl;
+    linkRow.appendChild(link);
+    main.appendChild(linkRow);
+  }
+
   const actions = document.createElement('div');
   actions.className = 'actions';
 
-  const selectButton = document.createElement('button');
-  selectButton.className = 'btn-secondary';
-  selectButton.type = 'button';
-  selectButton.textContent = 'Открыть';
-  selectButton.addEventListener('click', onSelect);
+  if (onSelect) {
+    const selectButton = document.createElement('button');
+    selectButton.className = 'btn-secondary';
+    selectButton.type = 'button';
+    selectButton.textContent = selectLabel;
+    selectButton.addEventListener('click', onSelect);
+    actions.appendChild(selectButton);
+  }
 
   const editButton = document.createElement('button');
   editButton.className = 'btn-secondary';
@@ -152,6 +189,31 @@ function buildRow({ title, subtitle, meta, isActive, onSelect, onEdit, onDelete,
   downButton.textContent = '↓';
   downButton.addEventListener('click', onMoveDown);
 
+  if (linkUrl) {
+    const openLinkButton = document.createElement('button');
+    openLinkButton.className = 'btn-secondary';
+    openLinkButton.type = 'button';
+    openLinkButton.textContent = 'Открыть';
+    openLinkButton.addEventListener('click', () => {
+      window.open(linkUrl, '_blank', 'noopener');
+    });
+
+    const copyButton = document.createElement('button');
+    copyButton.className = 'btn-ghost';
+    copyButton.type = 'button';
+    copyButton.textContent = 'Копировать';
+    copyButton.addEventListener('click', async () => {
+      const copied = await copyToClipboard(linkUrl);
+      if (copied) {
+        setStatus(globalStatus, 'Ссылка скопирована', 'ok');
+      } else {
+        setStatus(globalStatus, 'Не удалось скопировать ссылку', 'error');
+      }
+    });
+
+    actions.append(openLinkButton, copyButton);
+  }
+
   const deleteButton = document.createElement('button');
   deleteButton.className = 'btn-danger';
   deleteButton.type = 'button';
@@ -162,7 +224,7 @@ function buildRow({ title, subtitle, meta, isActive, onSelect, onEdit, onDelete,
     row.classList.add('is-muted');
   }
 
-  actions.append(selectButton, editButton, upButton, downButton, deleteButton);
+  actions.append(editButton, upButton, downButton, deleteButton);
   row.append(main, actions);
   return row;
 }
@@ -174,6 +236,11 @@ function renderCategoryForm(category = null) {
     <label>Название<input id="category-title" /></label>
     <label>Slug<input id="category-slug" placeholder="optional" /></label>
     <label>Описание<textarea id="category-description" rows="2"></textarea></label>
+    <label>Тип<select id="category-type">
+      <option value="product">Товары</option>
+      <option value="masterclass">Мастер-классы</option>
+    </select></label>
+    <label>Родительская категория<select id="category-parent"></select></label>
     <label>Порядок<input id="category-order" type="number" value="0" /></label>
     <label><input id="category-active" type="checkbox" /> Активна</label>
     <div class="actions">
@@ -185,14 +252,37 @@ function renderCategoryForm(category = null) {
   const titleInput = document.getElementById('category-title');
   const slugInput = document.getElementById('category-slug');
   const descriptionInput = document.getElementById('category-description');
+  const typeInput = document.getElementById('category-type');
+  const parentInput = document.getElementById('category-parent');
   const orderInput = document.getElementById('category-order');
   const activeInput = document.getElementById('category-active');
+
+  const renderParentOptions = (typeValue, selectedParentId = null) => {
+    parentInput.innerHTML = '<option value="">Без родителя</option>';
+    categories
+      .filter((entry) => entry.type === typeValue && entry.id !== category?.id)
+      .forEach((entry) => {
+        const option = document.createElement('option');
+        option.value = String(entry.id);
+        option.textContent = entry.title;
+        if (selectedParentId && Number(selectedParentId) === entry.id) {
+          option.selected = true;
+        }
+        parentInput.appendChild(option);
+      });
+  };
 
   titleInput.value = category?.title || '';
   slugInput.value = category?.slug || '';
   descriptionInput.value = category?.description || '';
+  typeInput.value = category?.type || activeItemType || 'product';
   orderInput.value = category?.order_index ?? 0;
   activeInput.checked = category?.is_active ?? true;
+  renderParentOptions(typeInput.value, category?.parent_id ?? null);
+
+  typeInput.addEventListener('change', () => {
+    renderParentOptions(typeInput.value);
+  });
 
   document.getElementById('category-cancel').addEventListener('click', () => {
     categoryForm.style.display = 'none';
@@ -205,6 +295,8 @@ function renderCategoryForm(category = null) {
         title: titleInput.value.trim(),
         slug: slugInput.value.trim() || null,
         description: descriptionInput.value.trim() || null,
+        type: typeInput.value,
+        parent_id: parentInput.value ? Number(parentInput.value) : null,
         order_index: Number(orderInput.value || 0),
         is_active: activeInput.checked,
       };
@@ -247,9 +339,9 @@ function renderItemForm(item = null) {
     <label>Валюта<input id="item-currency" placeholder="RUB" /></label>
     <label>Тип<select id="item-type">
       <option value="product">product</option>
-      <option value="course">course</option>
-      <option value="service">service</option>
+      <option value="masterclass">masterclass</option>
     </select></label>
+    <label>Остаток<input id="item-stock" type="number" min="0" step="1" placeholder="не учитывать" /></label>
     <label>Image URL<input id="item-image" placeholder="/media/adminsite/..." /></label>
     <label>Images (через запятую или новую строку)<textarea id="item-images" rows="2"></textarea></label>
     <label>Meta (JSON)<textarea id="item-meta" rows="3"></textarea></label>
@@ -268,6 +360,7 @@ function renderItemForm(item = null) {
   const priceInput = document.getElementById('item-price');
   const currencyInput = document.getElementById('item-currency');
   const typeInput = document.getElementById('item-type');
+  const stockInput = document.getElementById('item-stock');
   const imageInput = document.getElementById('item-image');
   const imagesInput = document.getElementById('item-images');
   const metaInput = document.getElementById('item-meta');
@@ -280,7 +373,9 @@ function renderItemForm(item = null) {
   descriptionInput.value = item?.description || '';
   priceInput.value = item?.price ?? '';
   currencyInput.value = item?.currency || '';
-  typeInput.value = item?.type || activeItemType || 'product';
+  typeInput.value = item?.type || selectedCategory?.type || activeItemType || 'product';
+  typeInput.disabled = Boolean(selectedCategory?.type);
+  stockInput.value = item?.stock_qty ?? '';
   imageInput.value = item?.image_url || '';
   imagesInput.value = (item?.images || []).join('\n');
   metaInput.value = item?.meta ? JSON.stringify(item.meta, null, 2) : '';
@@ -303,6 +398,7 @@ function renderItemForm(item = null) {
         price: priceInput.value ? Number(priceInput.value) : null,
         currency: currencyInput.value.trim() || null,
         type: typeInput.value,
+        stock_qty: stockInput.value !== '' ? Number(stockInput.value) : null,
         image_url: imageInput.value.trim() || null,
         images: parseImages(imagesInput.value),
         meta: parseJsonInput(metaInput.value, {}),
@@ -340,16 +436,22 @@ function renderCategories() {
   }
 
   categories.forEach((category, index) => {
+    const typeLabel = TYPE_LABELS[category.type] || category.type || '';
+    const metaParts = [];
+    if (typeLabel) metaParts.push(typeLabel);
+    if (category.description) metaParts.push(category.description);
     const row = buildRow({
       title: category.title,
       subtitle: category.slug,
-      meta: category.description,
+      meta: metaParts.join(' • '),
       isActive: category.is_active,
       onSelect: () => {
         selectedCategory = category;
         renderCategories();
         loadItems(category.id);
       },
+      selectLabel: 'Позиции',
+      linkUrl: category.public_url || (category.slug ? `/c/${category.slug}` : null),
       onEdit: () => renderCategoryForm(category),
       onDelete: async () => {
         if (!confirm('Удалить категорию?')) return;
@@ -379,7 +481,7 @@ function renderItems() {
     itemsCaption.textContent = 'Выберите категорию слева.';
     return;
   }
-  const labelSuffix = activeItemLabel ? ` • ${activeItemLabel}` : '';
+  const labelSuffix = selectedCategory?.type ? ` • ${TYPE_LABELS[selectedCategory.type] || selectedCategory.type}` : '';
   itemsCaption.textContent = `Категория: ${selectedCategory.title}${labelSuffix}`;
 
   if (!items.length) {
@@ -388,12 +490,14 @@ function renderItems() {
   }
 
   items.forEach((item, index) => {
+    const typeLabel = TYPE_LABELS[item.type] || item.type || '';
+    const stockLabel = item.stock_qty === null || item.stock_qty === undefined ? 'без учета остатка' : `остаток: ${item.stock_qty}`;
     const row = buildRow({
       title: item.title,
       subtitle: item.slug,
-      meta: item.type,
+      meta: [typeLabel, stockLabel].filter(Boolean).join(' • '),
       isActive: item.is_active,
-      onSelect: () => {},
+      linkUrl: item.public_url || (item.id ? `/i/${item.id}` : null),
       onEdit: () => renderItemForm(item),
       onDelete: async () => {
         if (!confirm('Удалить позицию?')) return;
@@ -457,8 +561,12 @@ async function loadCategories() {
 async function loadItems(categoryId) {
   if (!categoryId) return;
   try {
-    const typeParam = activeItemType ? `&type=${encodeURIComponent(activeItemType)}` : '';
-    const response = await apiRequest(`${API_MENU_ITEMS}?category_id=${categoryId}${typeParam}&include_inactive=true`, { method: 'GET' });
+    const typeValue = activeItemType || selectedCategory?.type || '';
+    const typeParam = typeValue ? `&type=${encodeURIComponent(typeValue)}` : '';
+    const response = await apiRequest(
+      `${API_MENU_ITEMS}?category_id=${categoryId}${typeParam}&include_inactive=true`,
+      { method: 'GET' }
+    );
     items = response.items || [];
     renderItems();
   } catch (error) {

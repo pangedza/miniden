@@ -404,6 +404,8 @@ class AdminWebChatClosePayload(BaseModel):
 class MenuCategoryPayload(BaseModel):
     title: str
     slug: str | None = None
+    type: str = "product"
+    parent_id: int | None = None
     description: str | None = None
     image_url: str | None = None
     order_index: int = 0
@@ -413,6 +415,8 @@ class MenuCategoryPayload(BaseModel):
 class MenuCategoryUpdatePayload(BaseModel):
     title: str | None = None
     slug: str | None = None
+    type: str | None = None
+    parent_id: int | None = None
     description: str | None = None
     image_url: str | None = None
     order_index: int | None = None
@@ -435,6 +439,7 @@ class MenuItemPayload(BaseModel):
     legacy_link: str | None = None
     order_index: int = 0
     is_active: bool = True
+    stock_qty: int | None = None
     type: str = "product"
     meta: dict[str, Any] = {}
 
@@ -452,6 +457,7 @@ class MenuItemUpdatePayload(BaseModel):
     legacy_link: str | None = None
     order_index: int | None = None
     is_active: bool | None = None
+    stock_qty: int | None = None
     type: str | None = None
     meta: dict[str, Any] | None = None
 
@@ -1933,33 +1939,58 @@ def public_site_settings():
 
 
 @app.get("/public/menu")
-def public_menu():
-    return menu_catalog.build_public_menu()
+def public_menu(type: str | None = None):
+    try:
+        return menu_catalog.build_public_menu(type)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+@app.get("/public/menu/tree")
+def public_menu_tree(type: str | None = None):
+    try:
+        return menu_catalog.build_public_menu_tree(type)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
 
 
 @app.get("/public/menu/categories")
-def public_menu_categories():
-    return {"items": menu_catalog.list_categories(include_inactive=False)}
+def public_menu_categories(type: str | None = None):
+    try:
+        return {"items": menu_catalog.list_categories(include_inactive=False, category_type=type)}
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
 
 
 @app.get("/public/menu/items")
-def public_menu_items(category: str | None = None):
-    if category:
-        if category.isdigit():
+def public_menu_items(category: str | None = None, type: str | None = None):
+    try:
+        if category:
+            if category.isdigit():
+                return {
+                    "items": menu_catalog.list_items(
+                        include_inactive=False,
+                        category_id=int(category),
+                        category_type=type,
+                    )
+                }
+            category_record = menu_catalog.get_category_by_slug(
+                category, include_inactive=False, category_type=type
+            )
+            if not category_record:
+                raise HTTPException(status_code=404, detail="Category not found")
             return {
                 "items": menu_catalog.list_items(
-                    include_inactive=False, category_id=int(category)
+                    include_inactive=False,
+                    category_id=int(category_record.id),
+                    category_type=type,
                 )
             }
-        category_record = menu_catalog.get_category_by_slug(category, include_inactive=False)
-        if not category_record:
-            raise HTTPException(status_code=404, detail="Category not found")
         return {
-            "items": menu_catalog.list_items(
-                include_inactive=False, category_id=int(category_record.id)
-            )
+            "items": menu_catalog.list_items(include_inactive=False, category_type=type)
         }
-    return {"items": menu_catalog.list_items(include_inactive=False)}
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
 
 
 @app.get("/api/public/site-settings")
@@ -1968,37 +1999,69 @@ def api_public_site_settings():
 
 
 @app.get("/api/public/menu")
-def api_public_menu():
-    return menu_catalog.build_public_menu()
+def api_public_menu(type: str | None = None):
+    try:
+        return menu_catalog.build_public_menu(type)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+@app.get("/api/public/menu/tree")
+def api_public_menu_tree(type: str | None = None):
+    try:
+        return menu_catalog.build_public_menu_tree(type)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
 
 
 @app.get("/api/public/menu/categories")
-def api_public_menu_categories():
-    return {"items": menu_catalog.list_categories(include_inactive=False)}
+def api_public_menu_categories(type: str | None = None):
+    try:
+        return {"items": menu_catalog.list_categories(include_inactive=False, category_type=type)}
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
 
 
 @app.get("/api/public/menu/category/{slug}")
-def api_public_menu_category(slug: str):
-    category = menu_catalog.get_category_details(slug, include_inactive=False)
+def api_public_menu_category(slug: str, type: str | None = None):
+    try:
+        category = menu_catalog.get_category_details(
+            slug, include_inactive=False, category_type=type
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
     if not category:
         raise HTTPException(status_code=404, detail="Category not found")
     return category
 
 
 @app.get("/api/public/menu/items")
-def api_public_menu_items(category_slug: str | None = None):
-    if category_slug:
-        category_record = menu_catalog.get_category_by_slug(
-            category_slug, include_inactive=False
-        )
-        if not category_record:
-            raise HTTPException(status_code=404, detail="Category not found")
-        return {
-            "items": menu_catalog.list_items(
-                include_inactive=False, category_id=int(category_record.id)
+def api_public_menu_items(category_slug: str | None = None, type: str | None = None):
+    try:
+        if category_slug:
+            category_record = menu_catalog.get_category_by_slug(
+                category_slug, include_inactive=False, category_type=type
             )
-        }
-    return {"items": menu_catalog.list_items(include_inactive=False)}
+            if not category_record:
+                raise HTTPException(status_code=404, detail="Category not found")
+            return {
+                "items": menu_catalog.list_items(
+                    include_inactive=False,
+                    category_id=int(category_record.id),
+                    category_type=type,
+                )
+            }
+        return {"items": menu_catalog.list_items(include_inactive=False, category_type=type)}
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+@app.get("/api/public/item/{item_id}")
+def api_public_item(item_id: int):
+    item = menu_catalog.get_item_by_id(item_id, include_inactive=False)
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    return item
 
 
 @app.get("/api/public/blocks")
@@ -2638,6 +2701,20 @@ def admin_blocks_reorder(
     return {"status": "ok"}
 
 
+def _resolve_public_base_url() -> str | None:
+    settings = menu_catalog.get_site_settings()
+    base_url = (settings or {}).get("base_url") if isinstance(settings, dict) else None
+    if not base_url:
+        return None
+    return str(base_url).rstrip("/")
+
+
+def _build_public_link(base_url: str | None, path: str) -> str:
+    if base_url:
+        return f"{base_url}{path}"
+    return path
+
+
 @app.get("/api/admin/menu/categories")
 def admin_menu_categories(
     request: Request,
@@ -2645,7 +2722,13 @@ def admin_menu_categories(
     db: Session = Depends(get_db),
 ):
     adminsite_service.ensure_admin(request, db)
-    return {"items": menu_catalog.list_categories(include_inactive=include_inactive)}
+    base_url = _resolve_public_base_url()
+    categories = menu_catalog.list_categories(include_inactive=include_inactive)
+    for category in categories:
+        category["public_url"] = _build_public_link(
+            base_url, f"/c/{category.get('slug')}"
+        )
+    return {"items": categories}
 
 
 @app.post("/api/admin/menu/categories")
@@ -2703,13 +2786,17 @@ def admin_menu_items(
 ):
     adminsite_service.ensure_admin(request, db)
     try:
-        return {
-            "items": menu_catalog.list_items(
-                include_inactive=include_inactive,
-                category_id=category_id,
-                item_type=type,
+        base_url = _resolve_public_base_url()
+        items = menu_catalog.list_items(
+            include_inactive=include_inactive,
+            category_id=category_id,
+            item_type=type,
+        )
+        for item in items:
+            item["public_url"] = _build_public_link(
+                base_url, f"/i/{item.get('id')}"
             )
-        }
+        return {"items": items}
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
 

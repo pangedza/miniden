@@ -71,8 +71,9 @@ WebApp layout и design tokens
 -----------------------------
 1. Открыть `/` и убедиться, что header фиксирован, sidebar слева, main справа в контейнере 1200px.
 2. Перейти в `/c/korzinki` (или любой slug) и проверить сетку карточек: 4 колонки на desktop, 2 на tablet, 1 на mobile.
-3. Открыть `/cart` и проверить, что layout совпадает с главной страницей (тот же header/sidebar/main).
-4. На ширине <=1024px открыть меню через кнопку «Категории» и убедиться, что sidebar открывается как drawer.
+3. Кликнуть по карточке товара и убедиться, что открывается модалка (крестик/ESC/фон закрывают), а URL меняется на `/i/<id>`.
+4. Открыть `/cart` и проверить, что layout совпадает с главной страницей (тот же header/sidebar/main).
+5. На ширине <=1024px открыть меню через кнопку «Категории» и убедиться, что sidebar открывается как drawer.
 
 Архитектура проекта
 -------------------
@@ -90,15 +91,19 @@ WebApp layout и design tokens
 Публичные (для сайта и бота):
 - `GET /public/site-settings`
 - `GET /public/menu`
+- `GET /public/menu/tree?type=product|masterclass`
 - `GET /public/menu/categories`
 - `GET /public/menu/items?category=slug|id`
 - `GET /api/public/site-settings`
 - `GET /api/public/menu`
+- `GET /api/public/menu/tree?type=product|masterclass`
 - `GET /api/public/menu/categories`
 - `GET /api/public/menu/category/{slug}`
 - `GET /api/public/menu/items?category_slug=...`
+- `GET /api/public/item/{id}`
 - `GET /api/public/blocks?page=home|category|footer|custom`
 - WebApp-роут `/c/<slug>` использует эти публичные эндпоинты и ищет категорию по `menu_categories.slug`.
+- WebApp-роут `/i/<id>` открывает карточку позиции как модалку (deep-link).
 
 Админские (для AdminSite):
 - `GET/POST/PUT/DELETE /api/admin/menu/categories`
@@ -111,6 +116,7 @@ WebApp layout и design tokens
 Миграции меню
 -------------
 - В проекте нет Alembic: таблицы `menu_categories`, `menu_items`, `site_settings`, `site_blocks` создаются через `init_db()` при запуске backend.
+- Новые поля меню: `menu_categories.type`, `menu_categories.parent_id`, `menu_items.stock_qty` (null = без лимита).
 - Старые таблицы товаров/страниц не удаляются и остаются для legacy-функций; перенос данных в меню выполняется вручную при необходимости.
 
 Архитектура админки

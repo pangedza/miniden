@@ -100,7 +100,10 @@ def init_db() -> None:
             "ALTER TABLE adminsite_items ADD COLUMN IF NOT EXISTS stock INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE adminsite_pages ADD COLUMN IF NOT EXISTS theme JSONB DEFAULT '{}'",
             "ALTER TABLE menu_categories ADD COLUMN IF NOT EXISTS image_url TEXT",
+            "ALTER TABLE menu_categories ADD COLUMN IF NOT EXISTS type VARCHAR(32) NOT NULL DEFAULT 'product'",
+            "ALTER TABLE menu_categories ADD COLUMN IF NOT EXISTS parent_id INTEGER",
             "ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS legacy_link TEXT",
+            "ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS stock_qty INTEGER",
             "ALTER TABLE site_settings ADD COLUMN IF NOT EXISTS hero_enabled BOOLEAN NOT NULL DEFAULT TRUE",
         ]
 
@@ -117,6 +120,19 @@ def init_db() -> None:
                     "CHECK (type IN ('product', 'course', 'service', 'masterclass'))"
                 )
             )
+            conn.execute(
+                text(
+                    "ALTER TABLE menu_categories DROP CONSTRAINT IF EXISTS ck_menu_categories_type"
+                )
+            )
+            conn.execute(
+                text(
+                    "ALTER TABLE menu_categories ADD CONSTRAINT ck_menu_categories_type "
+                    "CHECK (type IN ('product', 'masterclass'))"
+                )
+            )
+
+            conn.execute(text("UPDATE menu_categories SET type='product' WHERE type IS NULL"))
 
             conn.execute(
                 text(
@@ -131,6 +147,25 @@ def init_db() -> None:
                     SET last_message_at = COALESCE(last_message_at, updated_at, created_at)
                     WHERE last_message_at IS NULL
                     """
+                )
+            )
+
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS idx_menu_categories_parent_id "
+                    "ON menu_categories(parent_id)"
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS idx_menu_categories_type "
+                    "ON menu_categories(type)"
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS idx_menu_items_category_id "
+                    "ON menu_items(category_id)"
                 )
             )
 

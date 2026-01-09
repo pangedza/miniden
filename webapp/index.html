@@ -51,6 +51,14 @@
     </div>
     <div class="nav-divider"></div>
     <div class="sidebar-section">
+      <div class="sidebar-title">Раздел</div>
+      <div class="type-tabs" id="type-tabs">
+        <button class="type-tab" type="button" data-menu-type="product">Товары</button>
+        <button class="type-tab" type="button" data-menu-type="masterclass">Мастер-классы</button>
+      </div>
+    </div>
+    <div class="nav-divider"></div>
+    <div class="sidebar-section">
       <div class="sidebar-title">Категории</div>
       <div id="nav-menu" class="category-list"></div>
     </div>
@@ -136,6 +144,34 @@
 
 <div class="app-sidebar-overlay"></div>
 <div id="toast-container"></div>
+
+<div class="item-modal-overlay" id="item-modal-overlay"></div>
+<div class="item-modal" id="item-modal" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="item-modal__header">
+    <span class="tag" id="item-modal-stock"></span>
+    <button class="item-modal__close" type="button" id="item-modal-close" aria-label="Закрыть">✕</button>
+  </div>
+  <div class="item-modal__content">
+    <div class="item-modal__media">
+      <img id="item-modal-image" alt="Фото товара" />
+    </div>
+    <div class="item-modal__details">
+      <p class="muted" id="item-modal-category"></p>
+      <h2 id="item-modal-title"></h2>
+      <p class="muted" id="item-modal-subtitle"></p>
+      <div class="price" id="item-modal-price"></div>
+      <p class="catalog-card-description" id="item-modal-description"></p>
+      <div class="item-modal__actions">
+        <div class="qty-control">
+          <button type="button" class="qty-btn" id="item-modal-minus">−</button>
+          <span class="qty-value" id="item-modal-qty">1</span>
+          <button type="button" class="qty-btn" id="item-modal-plus">+</button>
+        </div>
+        <button class="btn" type="button" id="item-modal-add">В корзину</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <script type="module" src="/js/site_app.js?v=20251220"></script>
 </body>

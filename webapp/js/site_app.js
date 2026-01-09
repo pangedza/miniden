@@ -1,4 +1,10 @@
-import { fetchBlocks, fetchMenu, fetchSiteSettings } from './site_api.js';
+import {
+  fetchBlocks,
+  fetchMenu,
+  fetchSiteSettings,
+  fetchCategoryDetails,
+  fetchItemById,
+} from './site_api.js';
 
 const views = {
   home: document.getElementById('view-home'),
@@ -11,6 +17,7 @@ const navMenu = document.getElementById('nav-menu');
 const navLinks = document.getElementById('nav-links');
 const sidebarOverlay = document.querySelector('.app-sidebar-overlay');
 const sidebarClose = document.querySelector('.menu-close');
+const typeTabs = document.getElementById('type-tabs');
 
 const heroTitle = document.getElementById('hero-title');
 const heroSubtitle = document.getElementById('hero-subtitle');
@@ -37,12 +44,31 @@ const itemCategory = document.getElementById('product-category');
 const itemImage = document.getElementById('product-image');
 const itemSubtitle = document.getElementById('product-subtitle');
 
+const itemModal = document.getElementById('item-modal');
+const itemModalOverlay = document.getElementById('item-modal-overlay');
+const itemModalClose = document.getElementById('item-modal-close');
+const itemModalImage = document.getElementById('item-modal-image');
+const itemModalTitle = document.getElementById('item-modal-title');
+const itemModalSubtitle = document.getElementById('item-modal-subtitle');
+const itemModalDescription = document.getElementById('item-modal-description');
+const itemModalPrice = document.getElementById('item-modal-price');
+const itemModalCategory = document.getElementById('item-modal-category');
+const itemModalStock = document.getElementById('item-modal-stock');
+const itemModalQty = document.getElementById('item-modal-qty');
+const itemModalMinus = document.getElementById('item-modal-minus');
+const itemModalPlus = document.getElementById('item-modal-plus');
+const itemModalAdd = document.getElementById('item-modal-add');
+
 const footerContacts = document.getElementById('footer-contacts');
 const footerSocial = document.getElementById('footer-social');
 
 let menuData = null;
+let activeMenuType = 'product';
+const menuCache = {};
 let settingsData = null;
 let blocksData = { home: [], category: [] };
+let modalState = { item: null, returnUrl: null, qty: 1 };
+let isModalOpen = false;
 
 function normalizeMediaUrl(url) {
   if (!url) return '';
@@ -59,6 +85,44 @@ function formatPrice(value, currency = '₽') {
   if (!Number.isFinite(number)) return 'Цена по запросу';
   if (number === 0) return 'Бесплатно';
   return `${number.toLocaleString('ru-RU')} ${currency}`;
+}
+
+function normalizeMenuType(value) {
+  return value === 'masterclass' ? 'masterclass' : 'product';
+}
+
+function formatCategoryType(type) {
+  if (type === 'masterclass') return 'Мастер-классы';
+  if (type === 'product') return 'Товары';
+  return type || 'Категория';
+}
+
+function getMenuTypeFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const type = params.get('type');
+  return type ? normalizeMenuType(type) : null;
+}
+
+function setMenuTypeParam(type, pathOverride = null) {
+  const url = new URL(window.location.href);
+  url.searchParams.set('type', type);
+  const path = pathOverride ?? url.pathname;
+  window.history.pushState({}, '', `${path}${url.search}`);
+}
+
+function updateTypeTabs() {
+  if (!typeTabs) return;
+  typeTabs.querySelectorAll('[data-menu-type]').forEach((tab) => {
+    tab.classList.toggle('is-active', tab.dataset.menuType === activeMenuType);
+  });
+}
+
+function isOutOfStock(item) {
+  return item?.stock_qty === 0;
+}
+
+function isStockLimited(item) {
+  return item?.stock_qty !== null && item?.stock_qty !== undefined;
 }
 
 function hideAllViews() {
@@ -163,8 +227,14 @@ function buildCategoryButton(category) {
   button.type = 'button';
   button.textContent = category.title;
   button.addEventListener('click', () => {
-    window.history.pushState({}, '', `/c/${encodeURIComponent(category.slug)}`);
-    route();
+    const params = new URLSearchParams();
+    params.set('type', activeMenuType);
+    window.history.pushState(
+      {},
+      '',
+      `/c/${encodeURIComponent(category.slug)}?${params.toString()}`
+    );
+    void route();
   });
   return button;
 }
@@ -172,6 +242,10 @@ function buildCategoryButton(category) {
 function buildItemCard(item) {
   const card = document.createElement('article');
   card.className = 'catalog-card';
+  const outOfStock = isOutOfStock(item);
+  if (outOfStock) {
+    card.classList.add('is-out-of-stock');
+  }
 
   const imageWrapper = document.createElement('div');
   imageWrapper.className = 'catalog-card-image';
@@ -200,6 +274,13 @@ function buildItemCard(item) {
   title.className = 'catalog-card-title';
   title.textContent = item.title || 'Позиция';
 
+  let stockBadge = null;
+  if (outOfStock) {
+    stockBadge = document.createElement('span');
+    stockBadge.className = 'tag is-danger';
+    stockBadge.textContent = 'Нет в наличии';
+  }
+
   const description = document.createElement('p');
   description.className = 'catalog-card-description';
   description.textContent = item.subtitle || item.description || '';
@@ -217,7 +298,12 @@ function buildItemCard(item) {
     addButton.className = 'btn';
     addButton.type = 'button';
     addButton.textContent = 'В корзину';
+    addButton.disabled = outOfStock;
+    if (outOfStock) {
+      addButton.title = 'Нет в наличии';
+    }
     addButton.addEventListener('click', () => {
+      if (outOfStock) return;
       try {
         window.Telegram.WebApp.sendData(
           JSON.stringify({
@@ -237,14 +323,22 @@ function buildItemCard(item) {
   } else {
     const more = document.createElement('a');
     more.className = 'btn secondary';
-    more.href = `/i/${encodeURIComponent(item.slug)}`;
     more.textContent = 'Подробнее';
-    more.setAttribute('data-router-link', '');
+    more.addEventListener('click', (event) => {
+      event.preventDefault();
+      openItemModal(item, { pushHistory: true });
+    });
     footer.append(price, more);
   }
 
-  body.append(meta, title, description, footer);
+  body.append(meta, title);
+  if (stockBadge) body.appendChild(stockBadge);
+  body.append(description, footer);
   card.append(imageWrapper, body);
+  card.addEventListener('click', (event) => {
+    if (event.target.closest('button, a')) return;
+    openItemModal(item, { pushHistory: true });
+  });
   return card;
 }
 
@@ -259,15 +353,24 @@ function renderMenuNavigation(categories) {
     return;
   }
 
-  categories.forEach((category) => {
-    const link = document.createElement('a');
-    link.href = `/c/${encodeURIComponent(category.slug)}`;
-    link.textContent = category.title;
-    link.dataset.routerLink = '';
-    link.dataset.categorySlug = category.slug;
-    link.className = 'category-link';
-    navMenu.appendChild(link);
-  });
+  const renderTree = (nodes, depth = 0) => {
+    nodes.forEach((category) => {
+      const link = document.createElement('a');
+      link.href = `/c/${encodeURIComponent(category.slug)}?type=${activeMenuType}`;
+      link.textContent = category.title;
+      link.dataset.routerLink = '';
+      link.dataset.categorySlug = category.slug;
+      link.dataset.depth = depth.toString();
+      link.className = 'category-link';
+      link.style.paddingLeft = `${12 + depth * 14}px`;
+      navMenu.appendChild(link);
+      if (category.children && category.children.length) {
+        renderTree(category.children, depth + 1);
+      }
+    });
+  };
+
+  renderTree(categories);
 }
 
 function setActiveCategory(slug) {
@@ -323,6 +426,32 @@ function renderBlocks(blocks, container) {
   });
 }
 
+async function loadMenuByType(type) {
+  const normalized = normalizeMenuType(type);
+  if (menuCache[normalized]) {
+    menuData = menuCache[normalized];
+    return menuData;
+  }
+  const data = await fetchMenu(normalized);
+  menuCache[normalized] = data;
+  menuData = data;
+  return data;
+}
+
+async function setActiveMenuType(type, { updateUrl = false, pathOverride = null } = {}) {
+  const normalized = normalizeMenuType(type);
+  if (activeMenuType === normalized && menuData) {
+    if (updateUrl) setMenuTypeParam(normalized, pathOverride);
+    updateTypeTabs();
+    return;
+  }
+  activeMenuType = normalized;
+  await loadMenuByType(normalized);
+  renderMenuNavigation(menuData?.categories || []);
+  updateTypeTabs();
+  if (updateUrl) setMenuTypeParam(normalized, pathOverride);
+}
+
 function renderHome(categories) {
   if (!homeItems) return;
   if (homeCategories) {
@@ -338,7 +467,7 @@ function renderHome(categories) {
   }
 
   homeEmpty?.classList.add('hidden');
-  const firstCategory = categories[0];
+  const firstCategory = findFirstCategoryWithItems(categories);
   const items = firstCategory.items || [];
   items.forEach((item) => homeItems.appendChild(buildItemCard(item)));
   setActiveCategory(firstCategory?.slug || null);
@@ -348,7 +477,7 @@ function renderCategoryView(category) {
   if (!categoryItems) return;
   categoryTitle.textContent = category.title || 'Категория';
   categoryMeta.textContent = 'Категория меню';
-  categoryType.textContent = category.type || 'Категория';
+  categoryType.textContent = formatCategoryType(category.type);
   categoryDescription.textContent = category.description || '';
 
   categoryItems.innerHTML = '';
@@ -378,17 +507,167 @@ function renderItemView(item) {
   setActiveCategory(item.category_slug);
 }
 
-function findCategory(slug) {
-  return menuData?.categories?.find((category) => category.slug === slug) || null;
+function updateModalQty(nextQty) {
+  modalState.qty = Math.max(1, nextQty);
+  if (itemModalQty) itemModalQty.textContent = modalState.qty.toString();
 }
 
-function findItem(slug) {
-  const categories = menuData?.categories || [];
+function renderItemModal(item) {
+  const imageUrl = normalizeMediaUrl(item.image_url || (item.images || [])[0]);
+  if (itemModalImage) {
+    itemModalImage.src = imageUrl || '';
+    itemModalImage.style.display = imageUrl ? 'block' : 'none';
+  }
+  if (itemModalTitle) itemModalTitle.textContent = item.title || 'Позиция';
+  if (itemModalSubtitle) itemModalSubtitle.textContent = item.subtitle || '';
+  if (itemModalDescription) itemModalDescription.textContent = item.description || '';
+  if (itemModalPrice) itemModalPrice.textContent = formatPrice(item.price, item.currency || '₽');
+  if (itemModalCategory) itemModalCategory.textContent = item.category_title || '';
+
+  const outOfStock = isOutOfStock(item);
+  if (itemModalStock) {
+    if (outOfStock) {
+      itemModalStock.textContent = 'Нет в наличии';
+      itemModalStock.classList.add('is-danger');
+      itemModalStock.style.display = '';
+    } else {
+      itemModalStock.textContent = '';
+      itemModalStock.classList.remove('is-danger');
+      itemModalStock.style.display = 'none';
+    }
+  }
+
+  updateModalQty(1);
+
+  const canUseTelegram = !!(window.isTelegramWebApp && window.Telegram?.WebApp);
+  if (itemModalAdd) {
+    itemModalAdd.disabled = outOfStock || !canUseTelegram;
+    itemModalAdd.title = !canUseTelegram ? 'Добавление доступно только в Telegram' : '';
+  }
+  if (itemModalMinus) {
+    itemModalMinus.disabled = outOfStock;
+  }
+  if (itemModalPlus) {
+    itemModalPlus.disabled = outOfStock;
+  }
+}
+
+function updateModalStockControls(item) {
+  if (!item) return;
+  const outOfStock = isOutOfStock(item);
+  if (itemModalAdd) {
+    itemModalAdd.disabled = outOfStock || !(window.isTelegramWebApp && window.Telegram?.WebApp);
+  }
+  if (itemModalMinus) {
+    itemModalMinus.disabled = outOfStock || modalState.qty <= 1;
+  }
+  if (itemModalPlus) {
+    if (outOfStock) {
+      itemModalPlus.disabled = true;
+    } else if (isStockLimited(item)) {
+      itemModalPlus.disabled = modalState.qty >= item.stock_qty;
+    } else {
+      itemModalPlus.disabled = false;
+    }
+  }
+}
+
+function openItemModal(item, { pushHistory = false, returnUrl } = {}) {
+  if (!itemModal || !itemModalOverlay) return;
+  modalState.item = item;
+  const currentUrl = `${window.location.pathname}${window.location.search}`;
+  modalState.returnUrl = returnUrl === undefined ? currentUrl : returnUrl;
+  modalState.qty = 1;
+  renderItemModal(item);
+  updateModalStockControls(item);
+
+  itemModal.classList.add('is-visible');
+  itemModalOverlay.classList.add('is-visible');
+  itemModal.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('modal-open');
+  isModalOpen = true;
+
+  if (pushHistory) {
+    const itemUrl = `/i/${encodeURIComponent(item.id)}`;
+    const params = new URLSearchParams(window.location.search);
+    params.set('type', activeMenuType);
+    const query = params.toString();
+    window.history.pushState({ modal: true }, '', `${itemUrl}${query ? `?${query}` : ''}`);
+  }
+}
+
+function hideItemModal() {
+  if (!itemModal || !itemModalOverlay) return;
+  itemModal.classList.remove('is-visible');
+  itemModalOverlay.classList.remove('is-visible');
+  itemModal.setAttribute('aria-hidden', 'true');
+  document.body.classList.remove('modal-open');
+  isModalOpen = false;
+}
+
+function closeItemModal({ useHistoryBack = true } = {}) {
+  const returnUrl = modalState.returnUrl;
+  const item = modalState.item;
+  modalState = { item: null, returnUrl: null, qty: 1 };
+  hideItemModal();
+
+  if (useHistoryBack && returnUrl) {
+    window.history.back();
+    return;
+  }
+
+  if (item?.category_slug) {
+    const params = new URLSearchParams();
+    params.set('type', activeMenuType);
+    window.history.pushState(
+      {},
+      '',
+      `/c/${encodeURIComponent(item.category_slug)}?${params.toString()}`
+    );
+  } else {
+    const params = new URLSearchParams();
+    params.set('type', activeMenuType);
+    window.history.pushState({}, '', `/?${params.toString()}`);
+  }
+  void route();
+}
+
+function findCategory(slug, categories = menuData?.categories || []) {
+  for (const category of categories) {
+    if (category.slug === slug) return category;
+    const nested = findCategory(slug, category.children || []);
+    if (nested) return nested;
+  }
+  return null;
+}
+
+function findItemBySlug(slug, categories = menuData?.categories || []) {
   for (const category of categories) {
     const item = (category.items || []).find((entry) => entry.slug === slug);
     if (item) return item;
+    const nested = findItemBySlug(slug, category.children || []);
+    if (nested) return nested;
   }
   return null;
+}
+
+function findItemById(itemId, categories = menuData?.categories || []) {
+  for (const category of categories) {
+    const item = (category.items || []).find((entry) => entry.id === itemId);
+    if (item) return item;
+    const nested = findItemById(itemId, category.children || []);
+    if (nested) return nested;
+  }
+  return null;
+}
+
+function findFirstCategoryWithItems(categories = []) {
+  for (const category of categories) {
+    if ((category.items || []).length) return category;
+    const nested = findFirstCategoryWithItems(category.children || []);
+    if (nested) return nested;
+  }
+  return categories[0] || null;
 }
 
 function closeSidebar() {
@@ -396,9 +675,66 @@ function closeSidebar() {
   sidebarOverlay?.classList.remove('is-visible');
 }
 
-function route() {
+function bindModalActions() {
+  itemModalClose?.addEventListener('click', () => closeItemModal());
+  itemModalOverlay?.addEventListener('click', () => closeItemModal());
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && isModalOpen) {
+      closeItemModal();
+    }
+  });
+  itemModalMinus?.addEventListener('click', () => {
+    if (!modalState.item) return;
+    updateModalQty(modalState.qty - 1);
+    updateModalStockControls(modalState.item);
+  });
+  itemModalPlus?.addEventListener('click', () => {
+    if (!modalState.item) return;
+    let nextQty = modalState.qty + 1;
+    if (isStockLimited(modalState.item)) {
+      nextQty = Math.min(nextQty, modalState.item.stock_qty);
+    }
+    updateModalQty(nextQty);
+    updateModalStockControls(modalState.item);
+  });
+  itemModalAdd?.addEventListener('click', () => {
+    if (!modalState.item || isOutOfStock(modalState.item)) return;
+    if (!(window.isTelegramWebApp && window.Telegram?.WebApp)) return;
+    try {
+      window.Telegram.WebApp.sendData(
+        JSON.stringify({
+          action: 'add_to_cart',
+          product_id: modalState.item.id,
+          qty: modalState.qty,
+          type: modalState.item.type,
+          source: 'menu',
+        })
+      );
+      window.Telegram.WebApp.close();
+    } catch (error) {
+      console.error('Не удалось отправить данные в Telegram WebApp', error);
+    }
+  });
+}
+
+async function route() {
   const path = window.location.pathname.replace(/\/+$/, '') || '/';
   const parts = path.split('/').filter(Boolean);
+  const urlType = getMenuTypeFromUrl();
+
+  if (urlType && urlType !== activeMenuType) {
+    await setActiveMenuType(urlType);
+  } else if (!menuData) {
+    await setActiveMenuType(activeMenuType);
+  }
+
+  const isItemRoute =
+    (parts[0] === 'i' || parts[0] === 'p' || parts[0] === 'm' || parts[0] === 'item') &&
+    parts[1];
+
+  if (!isItemRoute && isModalOpen) {
+    hideItemModal();
+  }
 
   if (path === '/' || parts.length === 0) {
     renderHome(menuData?.categories || []);
@@ -408,7 +744,19 @@ function route() {
   }
 
   if (parts[0] === 'c' && parts[1]) {
-    const category = findCategory(decodeURIComponent(parts[1]));
+    const slug = decodeURIComponent(parts[1]);
+    let category = findCategory(slug);
+    if (!category) {
+      try {
+        const fetched = await fetchCategoryDetails(slug);
+        if (fetched?.type && fetched.type !== activeMenuType) {
+          await setActiveMenuType(fetched.type);
+        }
+        category = fetched;
+      } catch (error) {
+        category = null;
+      }
+    }
     if (!category) {
       setActiveCategory(null);
       showView('notFound');
@@ -419,15 +767,42 @@ function route() {
     return;
   }
 
-  if ((parts[0] === 'i' || parts[0] === 'p' || parts[0] === 'm') && parts[1]) {
-    const item = findItem(decodeURIComponent(parts[1]));
+  if (isItemRoute && parts[1]) {
+    const identifier = decodeURIComponent(parts[1]);
+    let item = null;
+    if (/^\d+$/.test(identifier)) {
+      const itemId = Number(identifier);
+      item = findItemById(itemId);
+      if (!item) {
+        try {
+          item = await fetchItemById(itemId);
+        } catch (error) {
+          item = null;
+        }
+      }
+    } else {
+      item = findItemBySlug(identifier);
+    }
+
     if (!item) {
       setActiveCategory(null);
       showView('notFound');
       return;
     }
-    renderItemView(item);
-    showView('item');
+
+    if (item.type && item.type !== activeMenuType) {
+      await setActiveMenuType(item.type);
+    }
+
+    const category = item.category_slug ? findCategory(item.category_slug) : null;
+    if (category) {
+      renderCategoryView(category);
+      showView('category');
+    } else {
+      renderHome(menuData?.categories || []);
+      showView('home');
+    }
+    openItemModal(item, { pushHistory: false, returnUrl: null });
     return;
   }
 
@@ -443,10 +818,12 @@ function bindNavigation() {
     event.preventDefault();
     window.history.pushState({}, '', href);
     closeSidebar();
-    route();
+    void route();
   });
 
-  window.addEventListener('popstate', route);
+  window.addEventListener('popstate', () => {
+    void route();
+  });
 
   const toggle = document.querySelector('.menu-toggle');
   toggle?.addEventListener('click', () => {
@@ -455,18 +832,33 @@ function bindNavigation() {
   });
   sidebarOverlay?.addEventListener('click', closeSidebar);
   sidebarClose?.addEventListener('click', closeSidebar);
+
+  typeTabs?.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-menu-type]');
+    if (!button) return;
+    const nextType = button.dataset.menuType;
+    if (!nextType || nextType === activeMenuType) return;
+    void setActiveMenuType(nextType, { updateUrl: true, pathOverride: '/' });
+    closeSidebar();
+    void route();
+  });
+
+  bindModalActions();
 }
 
 async function bootstrap() {
   try {
+    const urlType = getMenuTypeFromUrl();
+    activeMenuType = urlType || activeMenuType;
     const [settings, menu, homeBlocksData, categoryBlocksData] = await Promise.all([
       fetchSiteSettings(),
-      fetchMenu(),
+      fetchMenu(activeMenuType),
       fetchBlocks('home'),
       fetchBlocks('category'),
     ]);
     settingsData = settings;
     menuData = menu;
+    menuCache[activeMenuType] = menu;
     blocksData = {
       home: homeBlocksData?.items || [],
       category: categoryBlocksData?.items || [],
@@ -482,7 +874,8 @@ async function bootstrap() {
   renderHero(settingsData);
   renderFooter(settingsData);
   renderMenuNavigation(menuData?.categories || []);
-  route();
+  updateTypeTabs();
+  await route();
 }
 
 bindNavigation();

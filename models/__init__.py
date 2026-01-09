@@ -548,10 +548,18 @@ class HomePost(Base):
 
 class MenuCategory(Base):
     __tablename__ = "menu_categories"
+    __table_args__ = (
+        CheckConstraint(
+            "type IN ('product', 'masterclass')",
+            name="ck_menu_categories_type",
+        ),
+    )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     title = Column(Text, nullable=False)
     slug = Column(String(150), nullable=False, unique=True)
+    type = Column(String(32), nullable=False, default="product", server_default="product", index=True)
+    parent_id = Column(Integer, ForeignKey("menu_categories.id"), nullable=True, index=True)
     description = Column(Text, nullable=True)
     image_url = Column(Text, nullable=True)
     order_index = Column(Integer, nullable=False, default=0, server_default="0")
@@ -559,6 +567,8 @@ class MenuCategory(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=func.now(), nullable=False)
 
+    parent = relationship("MenuCategory", remote_side=[id], back_populates="children")
+    children = relationship("MenuCategory", back_populates="parent")
     items = relationship(
         "MenuItem",
         back_populates="category",
@@ -582,7 +592,7 @@ class MenuItem(Base):
     )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    category_id = Column(Integer, ForeignKey("menu_categories.id"), nullable=False)
+    category_id = Column(Integer, ForeignKey("menu_categories.id"), nullable=False, index=True)
     title = Column(Text, nullable=False)
     subtitle = Column(Text, nullable=True)
     slug = Column(String(150), nullable=False)
@@ -594,6 +604,7 @@ class MenuItem(Base):
     legacy_link = Column(Text, nullable=True)
     order_index = Column(Integer, nullable=False, default=0, server_default="0")
     is_active = Column(Boolean, nullable=False, default=True, server_default="true")
+    stock_qty = Column(Integer, nullable=True)
     type = Column(String(32), nullable=False, default="product", server_default="product")
     meta = Column(JSONB, nullable=False, default=dict, server_default="{}")
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

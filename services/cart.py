@@ -80,10 +80,34 @@ def add_to_cart(user_id: int, product_id: int, product_type: str, qty: int = 1) 
                 CartItem.type == product_type,
             )
         )
+        stock_limit = None
+        if product_type in menu_catalog.MENU_ITEM_TYPES:
+            product = menu_catalog.get_item_by_id(
+                int(product_id), include_inactive=False, item_type=product_type
+            )
+            stock_limit = product.get("stock_qty") if product else None
+            if product and stock_limit == 0:
+                return
+
         if existing:
-            existing.qty = existing.qty + qty
+            next_qty = existing.qty + qty
+            if stock_limit is not None:
+                next_qty = min(next_qty, int(stock_limit))
+            existing.qty = next_qty
         else:
-            session.add(CartItem(user_id=user_id, product_id=int(product_id), qty=qty, type=product_type))
+            next_qty = qty
+            if stock_limit is not None:
+                next_qty = min(next_qty, int(stock_limit))
+            if next_qty <= 0:
+                return
+            session.add(
+                CartItem(
+                    user_id=user_id,
+                    product_id=int(product_id),
+                    qty=next_qty,
+                    type=product_type,
+                )
+            )
 
 
 def change_qty(user_id: int, product_id: int, delta: int, product_type: str = "basket") -> None:

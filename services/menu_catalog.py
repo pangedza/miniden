@@ -13,6 +13,7 @@ from database import get_session
 from models import MenuCategory, MenuItem, SiteBlock, SiteSettings
 
 MENU_ITEM_TYPES = {"product", "course", "service", "masterclass"}
+MENU_CATEGORY_TYPES = {"product", "masterclass"}
 BLOCK_PAGES = {"home", "category", "footer", "custom"}
 BLOCK_TYPES = {"banner", "text", "cta", "gallery", "features"}
 
@@ -25,6 +26,15 @@ def normalize_menu_type(value: str | None) -> str | None:
         raise ValueError("Unsupported menu item type")
     if candidate == "masterclass":
         return "masterclass"
+    return candidate or None
+
+
+def normalize_category_type(value: str | None) -> str | None:
+    if value is None:
+        return None
+    candidate = value.strip().lower()
+    if candidate and candidate not in MENU_CATEGORY_TYPES:
+        raise ValueError("Unsupported category type")
     return candidate or None
 
 
@@ -80,10 +90,15 @@ def normalize_media_path(value: str | None) -> str | None:
     return raw
 
 
-def _category_query(session: Session, *, include_inactive: bool) -> Any:
+def _category_query(
+    session: Session, *, include_inactive: bool, category_type: str | None = None
+) -> Any:
+    normalized_type = normalize_category_type(category_type)
     query = session.query(MenuCategory)
     if not include_inactive:
         query = query.filter(MenuCategory.is_active.is_(True))
+    if normalized_type:
+        query = query.filter(MenuCategory.type == normalized_type)
     return query.order_by(MenuCategory.order_index, MenuCategory.id)
 
 
@@ -93,6 +108,7 @@ def _item_query(
     include_inactive: bool,
     category_id: int | None = None,
     item_type: str | None = None,
+    category_type: str | None = None,
 ) -> Any:
     query = session.query(MenuItem, MenuCategory).join(MenuCategory)
     if not include_inactive:
@@ -104,6 +120,8 @@ def _item_query(
         query = query.filter(MenuItem.category_id == category_id)
     if item_type:
         query = query.filter(MenuItem.type == item_type)
+    if category_type:
+        query = query.filter(MenuCategory.type == category_type)
     return query.order_by(MenuItem.order_index, MenuItem.id)
 
 
@@ -112,6 +130,8 @@ def _serialize_category(category: MenuCategory) -> dict[str, Any]:
         "id": int(category.id),
         "title": category.title,
         "slug": category.slug,
+        "type": category.type,
+        "parent_id": int(category.parent_id) if category.parent_id is not None else None,
         "description": category.description,
         "image_url": category.image_url,
         "order_index": int(category.order_index or 0),
@@ -143,6 +163,7 @@ def _serialize_item(item: MenuItem, category: MenuCategory | None = None) -> dic
         "legacy_link": item.legacy_link,
         "order_index": int(item.order_index or 0),
         "is_active": bool(item.is_active),
+        "stock_qty": int(item.stock_qty) if item.stock_qty is not None else None,
         "type": item.type,
         "meta": item.meta or {},
         "created_at": item.created_at.isoformat() if item.created_at else None,
@@ -150,9 +171,13 @@ def _serialize_item(item: MenuItem, category: MenuCategory | None = None) -> dic
     }
 
 
-def list_categories(*, include_inactive: bool = False) -> list[dict[str, Any]]:
+def list_categories(
+    *, include_inactive: bool = False, category_type: str | None = None
+) -> list[dict[str, Any]]:
     with get_session() as session:
-        categories = _category_query(session, include_inactive=include_inactive).all()
+        categories = _category_query(
+            session, include_inactive=include_inactive, category_type=category_type
+        ).all()
     return [_serialize_category(category) for category in categories]
 
 
@@ -161,39 +186,91 @@ def list_items(
     include_inactive: bool = False,
     category_id: int | None = None,
     item_type: str | None = None,
+    category_type: str | None = None,
 ) -> list[dict[str, Any]]:
     normalized_type = normalize_menu_type(item_type)
+    normalized_category_type = normalize_category_type(category_type)
     with get_session() as session:
         rows = _item_query(
             session,
             include_inactive=include_inactive,
             category_id=category_id,
             item_type=normalized_type,
+            category_type=normalized_category_type,
         ).all()
     return [_serialize_item(item, category) for item, category in rows]
 
 
-def get_category_by_slug(slug: str, *, include_inactive: bool = False) -> MenuCategory | None:
+def get_category_by_slug(
+    slug: str,
+    *,
+    include_inactive: bool = False,
+    category_type: str | None = None,
+) -> MenuCategory | None:
     normalized_slug = (slug or "").strip().lower()
     if not normalized_slug:
         return None
     with get_session() as session:
-        query = _category_query(session, include_inactive=include_inactive).filter(
-            func.lower(MenuCategory.slug) == normalized_slug
-        )
+        query = _category_query(
+            session,
+            include_inactive=include_inactive,
+            category_type=category_type,
+        ).filter(func.lower(MenuCategory.slug) == normalized_slug)
         return query.first()
 
 
-def get_category_details(slug: str, *, include_inactive: bool = False) -> dict[str, Any] | None:
-    category = get_category_by_slug(slug, include_inactive=include_inactive)
-    if not category:
+def get_category_details(
+    slug: str,
+    *,
+    include_inactive: bool = False,
+    category_type: str | None = None,
+) -> dict[str, Any] | None:
+    normalized_type = normalize_category_type(category_type)
+    normalized_slug = (slug or "").strip().lower()
+    if not normalized_slug:
         return None
-    payload = _serialize_category(category)
-    payload["items"] = list_items(
-        include_inactive=include_inactive,
-        category_id=int(category.id),
-    )
-    return payload
+    with get_session() as session:
+        category = _category_query(
+            session,
+            include_inactive=include_inactive,
+            category_type=normalized_type,
+        ).filter(func.lower(MenuCategory.slug) == normalized_slug).first()
+        if not category:
+            return None
+        items_rows = _item_query(
+            session,
+            include_inactive=include_inactive,
+            category_id=int(category.id),
+            item_type=None,
+            category_type=normalized_type,
+        ).all()
+        payload = _serialize_category(category)
+        payload["items"] = [_serialize_item(item, linked) for item, linked in items_rows]
+        children = (
+            _category_query(
+                session,
+                include_inactive=include_inactive,
+                category_type=normalized_type,
+            )
+            .filter(MenuCategory.parent_id == category.id)
+            .all()
+        )
+        children_payloads = []
+        for child in children:
+            child_items = _item_query(
+                session,
+                include_inactive=include_inactive,
+                category_id=int(child.id),
+                item_type=None,
+                category_type=normalized_type,
+            ).all()
+            child_payload = _serialize_category(child)
+            child_payload["items"] = [
+                _serialize_item(item, linked) for item, linked in child_items
+            ]
+            children_payloads.append(child_payload)
+        payload["children"] = children_payloads
+        return payload
 
 
 def get_category_by_id(category_id: int) -> MenuCategory | None:
@@ -236,10 +313,17 @@ def get_item_by_id(
         return _serialize_item(item, category)
 
 
-def build_public_menu() -> dict[str, Any]:
+def build_public_menu(category_type: str | None = None) -> dict[str, Any]:
+    normalized_type = normalize_category_type(category_type)
     with get_session() as session:
-        categories = _category_query(session, include_inactive=False).all()
-        rows = _item_query(session, include_inactive=False).all()
+        categories = _category_query(
+            session, include_inactive=False, category_type=normalized_type
+        ).all()
+        rows = _item_query(
+            session,
+            include_inactive=False,
+            category_type=normalized_type,
+        ).all()
 
     items_by_category: dict[int, list[dict[str, Any]]] = {}
     for item, category in rows:
@@ -259,6 +343,49 @@ def build_public_menu() -> dict[str, Any]:
     updated_at = updated_at or datetime.utcnow()
     return {
         "categories": serialized_categories,
+        "updated_at": updated_at.isoformat(),
+    }
+
+
+def build_public_menu_tree(category_type: str | None = None) -> dict[str, Any]:
+    normalized_type = normalize_category_type(category_type)
+    with get_session() as session:
+        categories = _category_query(
+            session, include_inactive=False, category_type=normalized_type
+        ).all()
+        rows = _item_query(
+            session,
+            include_inactive=False,
+            category_type=normalized_type,
+        ).all()
+
+    items_by_category: dict[int, list[dict[str, Any]]] = {}
+    for item, category in rows:
+        items_by_category.setdefault(category.id, []).append(
+            _serialize_item(item, category)
+        )
+
+    category_map: dict[int, dict[str, Any]] = {}
+    updated_at = None
+    for category in categories:
+        serialized = _serialize_category(category)
+        serialized["items"] = items_by_category.get(category.id, [])
+        serialized["children"] = []
+        category_map[category.id] = serialized
+        if category.updated_at and (updated_at is None or category.updated_at > updated_at):
+            updated_at = category.updated_at
+
+    roots: list[dict[str, Any]] = []
+    for category in categories:
+        serialized = category_map[category.id]
+        if category.parent_id and category.parent_id in category_map:
+            category_map[category.parent_id]["children"].append(serialized)
+        else:
+            roots.append(serialized)
+
+    updated_at = updated_at or datetime.utcnow()
+    return {
+        "categories": roots,
         "updated_at": updated_at.isoformat(),
     }
 
@@ -324,11 +451,22 @@ def create_category(payload: dict[str, Any]) -> dict[str, Any]:
         title = (payload.get("title") or "").strip()
         if not title:
             raise ValueError("Title is required")
+        normalized_type = normalize_category_type(payload.get("type")) or "product"
+        parent_id = payload.get("parent_id")
+        parent = None
+        if parent_id is not None:
+            parent = session.get(MenuCategory, int(parent_id))
+            if not parent:
+                raise ValueError("Parent category not found")
+            if parent.type != normalized_type:
+                raise ValueError("Parent category type does not match")
         slug_base = normalize_slug(payload.get("slug"), title=title)
         slug = generate_unique_slug(session, MenuCategory, slug_base, [])
         category = MenuCategory(
             title=title,
             slug=slug,
+            type=normalized_type,
+            parent_id=int(parent.id) if parent else None,
             description=payload.get("description"),
             image_url=normalize_media_path(payload.get("image_url")),
             order_index=int(payload.get("order_index") or 0),
@@ -345,6 +483,24 @@ def update_category(category_id: int, payload: dict[str, Any]) -> dict[str, Any]
         category = session.get(MenuCategory, category_id)
         if not category:
             raise KeyError("Category not found")
+        next_type = normalize_category_type(payload.get("type")) or category.type
+        parent_id = payload.get("parent_id") if "parent_id" in payload else category.parent_id
+        parent = None
+        if parent_id is not None:
+            if int(parent_id) == category.id:
+                raise ValueError("Category cannot be its own parent")
+            parent = session.get(MenuCategory, int(parent_id))
+            if not parent:
+                raise ValueError("Parent category not found")
+            if parent.type != next_type:
+                raise ValueError("Parent category type does not match")
+        if "type" in payload:
+            category.type = next_type
+            session.query(MenuItem).filter(MenuItem.category_id == category.id).update(
+                {"type": next_type}
+            )
+        if "parent_id" in payload:
+            category.parent_id = int(parent.id) if parent else None
 
         if "title" in payload:
             next_title = (payload.get("title") or "").strip()
@@ -402,7 +558,9 @@ def create_item(payload: dict[str, Any]) -> dict[str, Any]:
         title = (payload.get("title") or "").strip()
         if not title:
             raise ValueError("Title is required")
-        normalized_type = normalize_menu_type(payload.get("type")) or "product"
+        normalized_type = normalize_menu_type(payload.get("type")) or category.type
+        if category.type != normalized_type:
+            raise ValueError("Item type does not match category")
         slug_base = normalize_slug(payload.get("slug"), title=title)
         slug = generate_unique_slug(
             session,
@@ -411,6 +569,11 @@ def create_item(payload: dict[str, Any]) -> dict[str, Any]:
             [MenuItem.category_id == category.id],
         )
         images = [normalize_media_path(item) for item in (payload.get("images") or [])]
+        stock_qty = payload.get("stock_qty")
+        if stock_qty is not None:
+            stock_qty = int(stock_qty)
+            if stock_qty < 0:
+                raise ValueError("Stock qty cannot be negative")
         item = MenuItem(
             category_id=category.id,
             title=title,
@@ -424,6 +587,7 @@ def create_item(payload: dict[str, Any]) -> dict[str, Any]:
             legacy_link=payload.get("legacy_link"),
             order_index=int(payload.get("order_index") or 0),
             is_active=bool(payload.get("is_active", True)),
+            stock_qty=stock_qty,
             type=normalized_type,
             meta=payload.get("meta") or {},
         )
@@ -446,6 +610,16 @@ def update_item(item_id: int, payload: dict[str, Any]) -> dict[str, Any]:
             item.category_id = category.id
         else:
             category = item.category
+
+        if "category_id" in payload and "type" not in payload:
+            if category.type != item.type:
+                item.type = category.type
+
+        if "type" in payload:
+            next_type = normalize_menu_type(payload.get("type")) or item.type
+            if category.type != next_type:
+                raise ValueError("Item type does not match category")
+            item.type = next_type
 
         if "title" in payload:
             next_title = (payload.get("title") or "").strip()
@@ -471,8 +645,15 @@ def update_item(item_id: int, payload: dict[str, Any]) -> dict[str, Any]:
             item.order_index = int(payload.get("order_index") or 0)
         if "is_active" in payload:
             item.is_active = bool(payload.get("is_active"))
-        if "type" in payload:
-            item.type = normalize_menu_type(payload.get("type")) or item.type
+        if "stock_qty" in payload:
+            stock_qty = payload.get("stock_qty")
+            if stock_qty is None:
+                item.stock_qty = None
+            else:
+                stock_qty = int(stock_qty)
+                if stock_qty < 0:
+                    raise ValueError("Stock qty cannot be negative")
+                item.stock_qty = stock_qty
         if "meta" in payload:
             item.meta = payload.get("meta") or {}
 
