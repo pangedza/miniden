@@ -295,3 +295,4 @@ window.API_BASE = API_BASE;
 window.processTelegramAuthFromUrl = processTelegramAuthFromUrl;
 window.startTelegramOAuthFlow = startTelegramOAuthFlow;
 window.isTelegramWebApp = isTelegramWebApp;
+window.TELEGRAM_BOT_USERNAME = TELEGRAM_BOT_USERNAME;

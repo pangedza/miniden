@@ -65,7 +65,7 @@ from media_paths import (
     MEDIA_ROOT,
     ensure_media_dirs,
 )
-from models import AuthSession, User
+from models import AuthSession, BotEventTrigger, CheckoutOrder, User
 from models.admin_user import AdminRole
 from models.support import (
     SupportMessage,
@@ -561,6 +561,124 @@ def _send_message_to_admins(text: str) -> list[int]:
     return message_ids
 
 
+def _send_bot_message(chat_id: int, text: str, reply_markup: dict[str, Any] | None = None) -> bool:
+    if not BOT_TOKEN:
+        return False
+
+    api_url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    payload: dict[str, Any] = {"chat_id": chat_id, "text": text}
+    if reply_markup:
+        payload["reply_markup"] = json.dumps(reply_markup, ensure_ascii=False)
+
+    try:
+        data = urlencode(payload).encode()
+        with urllib.request.urlopen(api_url, data=data, timeout=10) as response:
+            result = json.load(response)
+    except Exception:
+        logger.exception("Failed to send bot message to user %s", chat_id)
+        return False
+
+    return bool(result.get("ok"))
+
+
+def _format_checkout_items(items: list[dict[str, Any]], currency: str) -> str:
+    lines = []
+    for index, item in enumerate(items, start=1):
+        title = item.get("title") or "Позиция"
+        qty = int(item.get("qty") or 0)
+        price = int(item.get("price") or 0)
+        line_total = price * qty
+        lines.append(f"{index}) {title} x{qty} — {line_total} {currency}")
+    return "\n".join(lines) if lines else "—"
+
+
+def _build_event_keyboard(buttons: list[dict[str, Any]], *, webapp_url: str) -> dict[str, Any] | None:
+    if not buttons:
+        return None
+
+    rows: dict[int, list[dict[str, str]]] = {}
+    for button in buttons:
+        title = str(button.get("title") or "").strip()
+        if not title:
+            continue
+        button_type = (button.get("type") or "").strip().lower()
+        value = str(button.get("value") or "").strip()
+        value = value.replace("{webapp_url}", webapp_url)
+        if not value:
+            continue
+        row_index = int(button.get("row") or 0)
+        payload: dict[str, str]
+        if button_type == "url":
+            payload = {"text": title, "url": value}
+        else:
+            payload = {"text": title, "callback_data": value}
+        rows.setdefault(row_index, []).append(payload)
+
+    if not rows:
+        return None
+
+    inline_keyboard = [rows[row] for row in sorted(rows.keys()) if rows[row]]
+    if not inline_keyboard:
+        return None
+    return {"inline_keyboard": inline_keyboard}
+
+
+def _resolve_webapp_url(request: Request) -> str:
+    settings = get_settings()
+    if settings.webapp_index_url:
+        return settings.webapp_index_url
+    base_url = str(request.base_url).rstrip("/")
+    return f"{base_url}/"
+
+
+def _dispatch_webapp_checkout_created(
+    *,
+    request: Request,
+    tg_user_id: int,
+    items: list[dict[str, Any]],
+    totals: dict[str, Any],
+    order_id: int,
+) -> None:
+    webapp_url = _resolve_webapp_url(request)
+    with get_session() as session:
+        trigger = (
+            session.query(BotEventTrigger)
+            .filter(BotEventTrigger.event_code == "webapp_checkout_created")
+            .filter(BotEventTrigger.is_enabled.is_(True))
+            .first()
+        )
+
+    qty_total = int(totals.get("qty_total") or 0)
+    sum_total = int(totals.get("sum_total") or 0)
+    currency = totals.get("currency") or "₽"
+    items_text = _format_checkout_items(items, currency)
+
+    if trigger:
+        template = trigger.message_template or ""
+        text = template.format(
+            items=items_text,
+            qty_total=qty_total,
+            sum_total=sum_total,
+            currency=currency,
+            order_id=order_id,
+            webapp_url=webapp_url,
+        )
+        keyboard = _build_event_keyboard(trigger.buttons_json or [], webapp_url=webapp_url)
+    else:
+        text = (
+            "🛒 Новый заказ из витрины\n"
+            f"Вы выбрали:\n{items_text}\n"
+            f"Итого: {qty_total} шт, {sum_total} {currency}"
+        )
+        keyboard = {
+            "inline_keyboard": [
+                [{"text": "Связаться", "callback_data": "trigger:contact_manager"}],
+                [{"text": "Открыть витрину", "url": webapp_url}],
+            ]
+        }
+
+    _send_bot_message(tg_user_id, text, reply_markup=keyboard)
+
 def _notify_admin_about_chat(chat_session, preview_text: str) -> list[int]:
     snippet = (preview_text or "")[:200]
     text = (
@@ -1028,6 +1146,34 @@ class CheckoutPayload(BaseModel):
     promocode: str | None = None
 
 
+class WebappCheckoutItem(BaseModel):
+    item_id: int
+    title: str
+    qty: int
+    price: int
+    type: str
+    category_slug: str | None = None
+
+
+class WebappCheckoutTotals(BaseModel):
+    qty_total: int
+    sum_total: int
+    currency: str = "₽"
+
+
+class WebappCheckoutContext(BaseModel):
+    page_url: str | None = None
+    user_agent: str | None = None
+    created_at: str | None = None
+
+
+class WebappCheckoutPayload(BaseModel):
+    tg_user_id: int
+    items: list[WebappCheckoutItem]
+    totals: WebappCheckoutTotals
+    client_context: WebappCheckoutContext | None = None
+
+
 class TelegramAuthPayload(BaseModel):
     init_data: str | None = None
     auth_query: str | None = None
@@ -1374,6 +1520,7 @@ def _build_cart_response(user_id: int) -> dict[str, Any]:
                 "qty": qty,
                 "subtotal": subtotal,
                 "category_id": product_info.get("category_id"),
+                "category_slug": product_info.get("category_slug"),
             }
         )
 
@@ -2067,6 +2214,78 @@ def api_public_item(item_id: int):
 @app.get("/api/public/blocks")
 def api_public_blocks(page: str | None = None):
     return {"items": menu_catalog.list_blocks(include_inactive=False, page=page)}
+
+
+@app.post("/api/public/checkout/from-webapp")
+def api_public_checkout_from_webapp(payload: WebappCheckoutPayload, request: Request):
+    if payload.tg_user_id <= 0:
+        raise HTTPException(status_code=422, detail="tg_user_id is required")
+    if not payload.items:
+        raise HTTPException(status_code=422, detail="items are required")
+
+    normalized_items: list[dict[str, Any]] = []
+    qty_total = 0
+    sum_total = 0
+
+    for item in payload.items:
+        if item.qty <= 0:
+            raise HTTPException(status_code=422, detail="qty must be positive")
+        if item.price < 0:
+            raise HTTPException(status_code=422, detail="price must be non-negative")
+        if not item.title:
+            raise HTTPException(status_code=422, detail="title is required")
+        item_type = item.type or "basket"
+        if item_type not in ALLOWED_TYPES:
+            raise HTTPException(status_code=422, detail="unsupported item type")
+
+        qty_total += int(item.qty)
+        sum_total += int(item.price) * int(item.qty)
+        normalized_items.append(
+            {
+                "item_id": int(item.item_id),
+                "title": item.title,
+                "qty": int(item.qty),
+                "price": int(item.price),
+                "type": item_type,
+                "category_slug": item.category_slug,
+            }
+        )
+
+    if payload.totals.qty_total != qty_total:
+        raise HTTPException(status_code=422, detail="qty_total mismatch")
+    if payload.totals.sum_total != sum_total:
+        raise HTTPException(status_code=422, detail="sum_total mismatch")
+
+    totals_payload = payload.totals.model_dump()
+    totals_payload["qty_total"] = qty_total
+    totals_payload["sum_total"] = sum_total
+
+    client_context = payload.client_context.model_dump() if payload.client_context else None
+
+    with get_session() as session:
+        users_service.get_or_create_user_from_telegram(
+            session, telegram_id=int(payload.tg_user_id)
+        )
+        order = CheckoutOrder(
+            tg_user_id=int(payload.tg_user_id),
+            status="created",
+            items_json=normalized_items,
+            totals_json=totals_payload,
+            client_context_json=client_context,
+        )
+        session.add(order)
+        session.flush()
+        order_id = int(order.id)
+
+    _dispatch_webapp_checkout_created(
+        request=request,
+        tg_user_id=int(payload.tg_user_id),
+        items=normalized_items,
+        totals=totals_payload,
+        order_id=order_id,
+    )
+
+    return {"ok": True, "order_id": order_id, "message": "sent"}
 
 
 @app.get("/api/site/menu")

@@ -3,6 +3,7 @@ MiniDeN — Telegram-бот и веб-магазин
 
 Changelog / История изменений
 -----------------------------
+- 2026-06-XX: WebApp получил фиксированную cart bar (кол-во, сумма, кнопки «Корзина»/«Оформить»). Кнопка «Оформить» шлёт содержимое корзины в Telegram через событие `webapp_checkout_created` и отправляет пользователю сообщение с кнопками. Добавлен endpoint `/api/public/checkout/from-webapp` и таблица `checkout_orders`.
 - 2026-06-XX: Карточки витрины получили iiko-like hover/focus: при наведении/фокусе карточка поднимается, описание и кнопка «В корзину» появляются без изменения высоты сетки; на touch-устройствах описание и кнопка видны всегда. Кнопка «В корзину» отключается при stock_qty=0, показывается бейдж «Нет в наличии».
 - 2026-06-XX: WebApp витрина приведена к iiko-like layout: единый контейнер, sticky header, фиксированный sidebar и отдельный скролл для main/sidebar; карточки и кнопки приведены к единой сетке и design tokens.
 - 2026-06-XX: Витрина обновлена под iiko-like UX: единые design tokens, фиксированный header, левый сайдбар категорий, карточки позиций и единый стиль страниц. Контентные блоки вынесены в таблицу `site_blocks`, добавлены публичные `/api/public/*` и админские `/api/admin/blocks` эндпоинты. Добавлены поля `hero_enabled`, `menu_categories.image_url`, `menu_items.legacy_link`, а также авто-сид для slug `korzinki/basket/cradle/set` для back-compat `/c/<slug>`.
@@ -29,8 +30,16 @@ Changelog / История изменений
 Кнопка «➕» в Telegram WebApp
 ----------------------------
 - Витрина показывает кнопку «➕» только внутри Telegram WebApp.
-- По клику отправляется `Telegram.WebApp.sendData` с `{action:'add_to_cart', product_id, type, source:'menu'}` и окно WebApp закрывается.
-- Бот обрабатывает `web_app_data` в `handlers/webapp.py`, добавляет позицию через `services/cart.py` и отвечает сообщением «✅ Добавлено в корзину …».
+- По клику витрина делает `POST /api/cart/add` (тип позиции мапится на `basket/course`) и обновляет cart bar.
+- Cart bar появляется при наличии позиций, а кнопка «Корзина» ведёт на `/cart`.
+
+WebApp checkout → Telegram (adminbot)
+-------------------------------------
+- Витрина берёт `tg_user_id` из `Telegram.WebApp.initDataUnsafe.user.id` и показывает кнопку «Оформить» только для Telegram WebApp.
+- По клику «Оформить» отправляется `POST /api/public/checkout/from-webapp` с items/totals и клиентским контекстом.
+- Backend сохраняет запись в `checkout_orders` и диспатчит событие `webapp_checkout_created`.
+- Событие использует `bot_event_triggers` (дефолтный триггер создаётся при `init_db`) и отправляет пользователю сообщение со списком позиций и inline-кнопками («Связаться», «Открыть витрину»).
+- Обработчик inline-кнопки «Связаться» принимает callback `trigger:contact_manager` (см. `handlers/support.py`).
 
 Правила slug и удаления категорий (доп. 2025-12-30)
 - Slug: только латиница/цифры/дефисы (`^[a-z0-9]+(?:-[a-z0-9]+)*$`), поле можно оставить пустым — slug сгенерируется из Title (транслитерация + slugify).
@@ -118,6 +127,7 @@ WebApp layout и design tokens
 - `GET /api/public/menu/items?category_slug=...`
 - `GET /api/public/item/{id}`
 - `GET /api/public/blocks?page=home|category|footer|custom`
+- `POST /api/public/checkout/from-webapp`
 - WebApp-роут `/c/<slug>` использует эти публичные эндпоинты и ищет категорию по `menu_categories.slug`.
 - WebApp-роут `/i/<id>` открывает карточку позиции как модалку (deep-link).
 
