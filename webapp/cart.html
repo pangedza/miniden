@@ -25,84 +25,87 @@
         </div>
       </div>
       <div class="header-actions">
-        <button class="menu-toggle" aria-label="Открыть меню">Меню</button>
+        <button class="menu-toggle" aria-label="Открыть категории">Категории</button>
         <a class="btn cart-button" href="/cart">Корзина</a>
       </div>
     </div>
   </header>
 
-  <aside class="site-sidebar app-sidebar">
-    <div class="sidebar-head">
-      <div class="brand brand--inline" data-branding-block>
-        <div class="brand__logo-wrapper brand__logo-placeholder" aria-hidden="true">
-          <img data-branding-logo class="brand__logo" alt="Логотип MiniDeN" />
+  <div class="site-container site-layout">
+    <aside class="site-sidebar app-sidebar">
+      <div class="sidebar-head">
+        <div class="brand brand--inline" data-branding-block>
+          <div class="brand__logo-wrapper brand__logo-placeholder" aria-hidden="true">
+            <img data-branding-logo class="brand__logo" alt="Логотип MiniDeN" />
+          </div>
+          <div class="brand__text">
+            <div class="brand__title" data-branding-title data-branding-default="Miniden">Miniden</div>
+            <span data-branding-tagline class="muted">меню и витрина</span>
+          </div>
         </div>
-        <div class="brand__text">
-          <div class="brand__title" data-branding-title data-branding-default="Miniden">Miniden</div>
-          <span data-branding-tagline class="muted">меню и витрина</span>
+        <button class="menu-close" aria-label="Закрыть меню">✕</button>
+      </div>
+      <div class="sidebar-section">
+        <a href="/" class="category-link">Главная</a>
+        <a href="/cart" class="category-link is-active">Корзина</a>
+        <a href="/adminsite" id="admin-link" style="display:none;">Админка</a>
+      </div>
+    </aside>
+
+    <main class="site-content">
+      <div class="cart-header">
+        <h1>Корзина</h1>
+        <p class="muted">Здесь отображаются товары и мастер-классы из вашего Telegram-аккаунта.</p>
+      </div>
+
+      <div class="note" id="note"></div>
+
+      <table class="cart-table" aria-label="Корзина">
+        <thead>
+          <tr>
+            <th>Товар</th>
+            <th>Категория</th>
+            <th>Цена</th>
+            <th>Кол-во</th>
+            <th>Сумма</th>
+          </tr>
+        </thead>
+        <tbody id="cart-body"></tbody>
+      </table>
+
+      <div class="total-card" id="cart-panel" style="display:none;">
+        <div class="total-row"><span>Итого</span><span id="cart-total">0 ₽</span></div>
+        <div class="promo-row" id="promo-info" style="display:none; color: var(--muted); font-weight:600;">
+          <div>
+            <div id="promo-label"></div>
+            <div id="promo-scope" style="font-size:13px; color: var(--muted);"></div>
+          </div>
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <strong id="promo-discount" style="color: var(--accent);"></strong>
+            <button class="btn secondary" type="button" id="remove-promo">Удалить промокод</button>
+          </div>
+        </div>
+        <div class="input-row">
+          <input type="text" placeholder="Промокод" id="promo-code" />
+          <button class="btn secondary" type="button" id="apply-promo">Применить</button>
+        </div>
+        <div class="input-row">
+          <input type="text" placeholder="Ваше имя" id="customer-name" />
+          <input type="text" placeholder="Телефон или ник" id="customer-contact" />
+        </div>
+        <div class="input-row">
+          <textarea id="customer-comment" placeholder="Комментарий к заказу (необязательно)"></textarea>
+        </div>
+        <div class="input-row">
+          <button class="btn secondary" type="button" id="clear-cart">Очистить корзину</button>
+          <button class="btn" type="button" id="checkout">Оформить заказ</button>
         </div>
       </div>
-    </div>
-    <div class="sidebar-section">
-      <a href="/" class="category-link">Главная</a>
-      <a href="/cart" class="category-link is-active">Корзина</a>
-      <a href="/adminsite" id="admin-link" style="display:none;">Админка</a>
-    </div>
-  </aside>
+    </main>
+  </div>
 
   <div class="app-sidebar-overlay"></div>
   <div id="toast-container"></div>
-
-  <main class="site-container">
-    <div class="cart-header">
-      <h1>Корзина</h1>
-      <p class="muted">Здесь отображаются товары и мастер-классы из вашего Telegram-аккаунта.</p>
-    </div>
-
-    <div class="note" id="note"></div>
-
-    <table class="cart-table" aria-label="Корзина">
-      <thead>
-        <tr>
-          <th>Товар</th>
-          <th>Категория</th>
-          <th>Цена</th>
-          <th>Кол-во</th>
-          <th>Сумма</th>
-        </tr>
-      </thead>
-      <tbody id="cart-body"></tbody>
-    </table>
-
-    <div class="total-card" id="cart-panel" style="display:none;">
-      <div class="total-row"><span>Итого</span><span id="cart-total">0 ₽</span></div>
-      <div class="promo-row" id="promo-info" style="display:none; color: var(--muted); font-weight:600;">
-        <div>
-          <div id="promo-label"></div>
-          <div id="promo-scope" style="font-size:13px; color: var(--muted);"></div>
-        </div>
-        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-          <strong id="promo-discount" style="color: var(--accent);"></strong>
-          <button class="btn secondary" type="button" id="remove-promo">Удалить промокод</button>
-        </div>
-      </div>
-      <div class="input-row">
-        <input type="text" placeholder="Промокод" id="promo-code" />
-        <button class="btn secondary" type="button" id="apply-promo">Применить</button>
-      </div>
-      <div class="input-row">
-        <input type="text" placeholder="Ваше имя" id="customer-name" />
-        <input type="text" placeholder="Телефон или ник" id="customer-contact" />
-      </div>
-      <div class="input-row">
-        <textarea id="customer-comment" placeholder="Комментарий к заказу (необязательно)"></textarea>
-      </div>
-      <div class="input-row">
-        <button class="btn secondary" type="button" id="clear-cart">Очистить корзину</button>
-        <button class="btn" type="button" id="checkout">Оформить заказ</button>
-      </div>
-    </div>
-  </main>
 
   <script src="js/app.js?v=20251218"></script>
   <script src="js/api.js?v=20250605"></script>
