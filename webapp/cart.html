@@ -13,55 +13,51 @@
 
 </head>
 <body class="page-cart">
-  <header class="top-nav">
-    <div class="brand" data-branding-block>
-      <div class="brand__logo-wrapper">
-        <img data-branding-logo class="brand__logo" alt="Логотип MiniDeN" />
-      </div>
-      <div class="brand__text">
-        <div class="brand__title" data-branding-title data-branding-default="MiniDeN">MiniDeN</div>
-        <span data-branding-tagline>уютные корзинки и мастер-классы</span>
-      </div>
-    </div>
-    <div class="header-actions">
-      <div class="theme-switcher">
-        <label for="theme-select">Тема</label>
-        <select id="theme-select">
-          <option value="lifestyle">Lifestyle</option>
-          <option value="purple">Фиолетовая</option>
-          <option value="dark">Тёмная</option>
-          <option value="light">Светлая</option>
-          <option value="cream">Сливочная</option>
-        </select>
-      </div>
-      <button class="menu-toggle" aria-label="Открыть меню">☰</button>
-    </div>
-    <nav class="nav-links app-sidebar">
-      <div class="sidebar-brand" data-branding-block>
-        <div class="brand__logo-wrapper brand__logo-wrapper--sidebar">
-          <img data-branding-logo class="brand__logo brand__logo--sidebar" alt="Логотип MiniDeN" />
+  <header class="site-header">
+    <div class="site-container header-inner">
+      <div class="brand" data-branding-block>
+        <div class="brand__logo-wrapper brand__logo-placeholder" aria-hidden="true">
+          <img data-branding-logo class="brand__logo" alt="Логотип MiniDeN" />
         </div>
         <div class="brand__text">
-          <strong data-branding-title data-branding-default="Miniden">Miniden</strong>
-          <span data-branding-tagline>уют, семья, вязание</span>
+          <div class="brand__title" data-branding-title data-branding-default="MiniDeN">MiniDeN</div>
+          <span data-branding-tagline class="muted">меню и витрина</span>
         </div>
       </div>
-      <a href="index.html">Главная</a>
-      <a href="/categories">Категории</a>
-      <a href="products.html">Товары</a>
-      <a href="masterclasses.html">Мастер-классы</a>
-      <a href="cart.html" class="active">Корзина</a>
-      <a href="profile.html">Профиль</a>
-      <a href="/adminsite" id="admin-link" style="display:none;">Админка</a>
-    </nav>
+      <div class="header-actions">
+        <button class="menu-toggle" aria-label="Открыть меню">Меню</button>
+        <a class="btn cart-button" href="/cart">Корзина</a>
+      </div>
+    </div>
   </header>
+
+  <aside class="site-sidebar app-sidebar">
+    <div class="sidebar-head">
+      <div class="brand brand--inline" data-branding-block>
+        <div class="brand__logo-wrapper brand__logo-placeholder" aria-hidden="true">
+          <img data-branding-logo class="brand__logo" alt="Логотип MiniDeN" />
+        </div>
+        <div class="brand__text">
+          <div class="brand__title" data-branding-title data-branding-default="Miniden">Miniden</div>
+          <span data-branding-tagline class="muted">меню и витрина</span>
+        </div>
+      </div>
+    </div>
+    <div class="sidebar-section">
+      <a href="/" class="category-link">Главная</a>
+      <a href="/cart" class="category-link is-active">Корзина</a>
+      <a href="/adminsite" id="admin-link" style="display:none;">Админка</a>
+    </div>
+  </aside>
 
   <div class="app-sidebar-overlay"></div>
   <div id="toast-container"></div>
 
-  <main>
-    <h1>Корзина</h1>
-    <p>Здесь отображаются товары и мастер-классы из вашего Telegram-аккаунта.</p>
+  <main class="site-container">
+    <div class="cart-header">
+      <h1>Корзина</h1>
+      <p class="muted">Здесь отображаются товары и мастер-классы из вашего Telegram-аккаунта.</p>
+    </div>
 
     <div class="note" id="note"></div>
 

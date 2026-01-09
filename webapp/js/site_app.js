@@ -1,4 +1,4 @@
-import { fetchMenu, fetchSiteSettings } from './site_api.js';
+import { fetchBlocks, fetchMenu, fetchSiteSettings } from './site_api.js';
 
 const views = {
   home: document.getElementById('view-home'),
@@ -18,6 +18,7 @@ const heroImage = document.getElementById('hero-image');
 const heroSection = document.getElementById('hero-section');
 
 const homeCategories = document.getElementById('home-categories');
+const homeBlocks = document.getElementById('home-blocks');
 const homeItems = document.getElementById('home-items');
 const homeEmpty = document.getElementById('home-empty');
 
@@ -27,6 +28,7 @@ const categoryType = document.getElementById('category-type');
 const categoryItems = document.getElementById('category-items');
 const categoryEmpty = document.getElementById('category-empty');
 const categoryDescription = document.getElementById('category-description');
+const categoryBlocks = document.getElementById('category-blocks');
 
 const itemTitle = document.getElementById('product-title');
 const itemDescription = document.getElementById('product-description');
@@ -40,6 +42,7 @@ const footerSocial = document.getElementById('footer-social');
 
 let menuData = null;
 let settingsData = null;
+let blocksData = { home: [], category: [] };
 
 function normalizeMediaUrl(url) {
   if (!url) return '';
@@ -72,15 +75,14 @@ function applyColors(settings) {
   if (!settings) return;
   const root = document.documentElement;
   if (settings.primary_color) {
-    root.style.setProperty('--color-accent-primary', settings.primary_color);
-    root.style.setProperty('--color-accent-primary-strong', settings.primary_color);
+    root.style.setProperty('--color-primary', settings.primary_color);
+    root.style.setProperty('--color-primary-hover', settings.primary_color);
   }
   if (settings.secondary_color) {
-    root.style.setProperty('--color-accent-secondary', settings.secondary_color);
-    root.style.setProperty('--color-accent-secondary-strong', settings.secondary_color);
+    root.style.setProperty('--color-accent', settings.secondary_color);
   }
   if (settings.background_color) {
-    root.style.setProperty('--color-bg', settings.background_color);
+    root.style.setProperty('--color-page-bg', settings.background_color);
   }
 }
 
@@ -106,6 +108,11 @@ function applyBranding(settings) {
 
 function renderHero(settings) {
   if (!heroSection) return;
+  if (settings?.hero_enabled === false) {
+    heroSection.style.display = 'none';
+    return;
+  }
+  heroSection.style.display = '';
   const title = settings?.hero_title || 'Меню и витрина';
   const subtitle = settings?.hero_subtitle || 'Добавляйте категории и позиции через AdminSite.';
   const imageUrl = normalizeMediaUrl(settings?.hero_image_url);
@@ -198,24 +205,18 @@ function buildItemCard(item) {
   description.textContent = item.subtitle || item.description || '';
 
   const footer = document.createElement('div');
-  footer.className = 'product-card__actions';
+  footer.className = 'catalog-card-actions';
 
   const price = document.createElement('div');
   price.className = 'price';
   price.textContent = formatPrice(item.price, item.currency || '₽');
 
-  const more = document.createElement('a');
-  more.className = 'btn secondary';
-  more.href = `/i/${encodeURIComponent(item.slug)}`;
-  more.textContent = 'Подробнее';
-  more.setAttribute('data-router-link', '');
-
   const canUseTelegram = !!(window.isTelegramWebApp && window.Telegram?.WebApp);
   if (canUseTelegram && item?.id !== undefined) {
     const addButton = document.createElement('button');
-    addButton.className = 'btn secondary';
+    addButton.className = 'btn';
     addButton.type = 'button';
-    addButton.textContent = '➕';
+    addButton.textContent = 'В корзину';
     addButton.addEventListener('click', () => {
       try {
         window.Telegram.WebApp.sendData(
@@ -232,8 +233,13 @@ function buildItemCard(item) {
         console.error('Не удалось отправить данные в Telegram WebApp', error);
       }
     });
-    footer.append(price, addButton, more);
+    footer.append(price, addButton);
   } else {
+    const more = document.createElement('a');
+    more.className = 'btn secondary';
+    more.href = `/i/${encodeURIComponent(item.slug)}`;
+    more.textContent = 'Подробнее';
+    more.setAttribute('data-router-link', '');
     footer.append(price, more);
   }
 
@@ -258,7 +264,62 @@ function renderMenuNavigation(categories) {
     link.href = `/c/${encodeURIComponent(category.slug)}`;
     link.textContent = category.title;
     link.dataset.routerLink = '';
+    link.dataset.categorySlug = category.slug;
+    link.className = 'category-link';
     navMenu.appendChild(link);
+  });
+}
+
+function setActiveCategory(slug) {
+  if (!navMenu) return;
+  navMenu.querySelectorAll('[data-category-slug]').forEach((link) => {
+    if (slug && link.dataset.categorySlug === slug) {
+      link.classList.add('is-active');
+    } else {
+      link.classList.remove('is-active');
+    }
+  });
+}
+
+function renderBlocks(blocks, container) {
+  if (!container) return;
+  container.innerHTML = '';
+  if (!blocks || !blocks.length) {
+    container.classList.add('hidden');
+    return;
+  }
+  container.classList.remove('hidden');
+  blocks.forEach((block) => {
+    const wrapper = document.createElement('article');
+    wrapper.className = `content-block content-block--${block.type}`;
+    const title = document.createElement('h3');
+    title.textContent = block.title || '';
+    const subtitle = document.createElement('p');
+    subtitle.textContent = block.subtitle || '';
+    subtitle.className = 'muted';
+
+    if (block.type === 'banner') {
+      wrapper.classList.add('content-block--banner');
+      const image = document.createElement('img');
+      const imageUrl = normalizeMediaUrl(block.image_url);
+      if (imageUrl) {
+        image.src = imageUrl;
+        image.alt = block.title || 'Banner';
+        wrapper.appendChild(image);
+      }
+    }
+
+    if (block.type === 'cta') {
+      const button = document.createElement('a');
+      button.className = 'btn';
+      button.textContent = block.payload?.button_text || 'Оставить заявку';
+      button.href = block.payload?.button_link || '/cart';
+      wrapper.appendChild(button);
+    }
+
+    if (block.title) wrapper.appendChild(title);
+    if (block.subtitle) wrapper.appendChild(subtitle);
+    container.appendChild(wrapper);
   });
 }
 
@@ -269,6 +330,8 @@ function renderHome(categories) {
 
   if (!categories.length) {
     homeEmpty?.classList.remove('hidden');
+    homeEmpty.textContent = 'Добавьте категории в AdminSite, чтобы отобразить меню.';
+    setActiveCategory(null);
     return;
   }
 
@@ -280,23 +343,27 @@ function renderHome(categories) {
   const firstCategory = categories[0];
   const items = firstCategory.items || [];
   items.forEach((item) => homeItems.appendChild(buildItemCard(item)));
+  setActiveCategory(firstCategory?.slug || null);
 }
 
 function renderCategoryView(category) {
   if (!categoryItems) return;
   categoryTitle.textContent = category.title || 'Категория';
   categoryMeta.textContent = 'Категория меню';
-  categoryType.textContent = category.type || 'product';
+  categoryType.textContent = category.type || 'Категория';
   categoryDescription.textContent = category.description || '';
 
   categoryItems.innerHTML = '';
   const items = category.items || [];
   if (!items.length) {
     categoryEmpty.style.display = 'block';
+    categoryEmpty.textContent = 'В этой категории пока нет позиций.';
   } else {
     categoryEmpty.style.display = 'none';
     items.forEach((item) => categoryItems.appendChild(buildItemCard(item)));
   }
+  setActiveCategory(category.slug);
+  renderBlocks(blocksData.category, categoryBlocks);
 }
 
 function renderItemView(item) {
@@ -310,6 +377,7 @@ function renderItemView(item) {
   itemDescription.textContent = item.description || '';
   itemPrice.textContent = formatPrice(item.price, item.currency || '₽');
   itemCategory.textContent = item.category_title || '';
+  setActiveCategory(item.category_slug);
 }
 
 function findCategory(slug) {
@@ -336,6 +404,7 @@ function route() {
 
   if (path === '/' || parts.length === 0) {
     renderHome(menuData?.categories || []);
+    renderBlocks(blocksData.home, homeBlocks);
     showView('home');
     return;
   }
@@ -343,6 +412,7 @@ function route() {
   if (parts[0] === 'c' && parts[1]) {
     const category = findCategory(decodeURIComponent(parts[1]));
     if (!category) {
+      setActiveCategory(null);
       showView('notFound');
       return;
     }
@@ -354,6 +424,7 @@ function route() {
   if ((parts[0] === 'i' || parts[0] === 'p' || parts[0] === 'm') && parts[1]) {
     const item = findItem(decodeURIComponent(parts[1]));
     if (!item) {
+      setActiveCategory(null);
       showView('notFound');
       return;
     }
@@ -390,12 +461,22 @@ function bindNavigation() {
 
 async function bootstrap() {
   try {
-    const [settings, menu] = await Promise.all([fetchSiteSettings(), fetchMenu()]);
+    const [settings, menu, homeBlocksData, categoryBlocksData] = await Promise.all([
+      fetchSiteSettings(),
+      fetchMenu(),
+      fetchBlocks('home'),
+      fetchBlocks('category'),
+    ]);
     settingsData = settings;
     menuData = menu;
+    blocksData = {
+      home: homeBlocksData?.items || [],
+      category: categoryBlocksData?.items || [],
+    };
   } catch (error) {
     console.error('Не удалось загрузить данные витрины', error);
     menuData = { categories: [] };
+    blocksData = { home: [], category: [] };
   }
 
   applyColors(settingsData);

@@ -99,11 +99,24 @@ def init_db() -> None:
             "ALTER TABLE webchat_messages ADD COLUMN IF NOT EXISTS is_read_by_client BOOLEAN NOT NULL DEFAULT FALSE",
             "ALTER TABLE adminsite_items ADD COLUMN IF NOT EXISTS stock INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE adminsite_pages ADD COLUMN IF NOT EXISTS theme JSONB DEFAULT '{}'",
+            "ALTER TABLE menu_categories ADD COLUMN IF NOT EXISTS image_url TEXT",
+            "ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS legacy_link TEXT",
+            "ALTER TABLE site_settings ADD COLUMN IF NOT EXISTS hero_enabled BOOLEAN NOT NULL DEFAULT TRUE",
         ]
 
         with engine.begin() as conn:
             for statement in alter_statements:
                 conn.execute(text(statement))
+
+            conn.execute(
+                text("ALTER TABLE menu_items DROP CONSTRAINT IF EXISTS ck_menu_items_type")
+            )
+            conn.execute(
+                text(
+                    "ALTER TABLE menu_items ADD CONSTRAINT ck_menu_items_type "
+                    "CHECK (type IN ('product', 'course', 'service', 'masterclass'))"
+                )
+            )
 
             conn.execute(
                 text(
@@ -122,6 +135,40 @@ def init_db() -> None:
             )
 
     _ensure_optional_columns()
+
+    def _seed_menu_back_compat_categories() -> None:
+        from models import MenuCategory  # noqa: WPS433
+
+        seed_map = {
+            "korzinki": "Корзинки",
+            "basket": "Basket",
+            "cradle": "Cradle",
+            "set": "Set",
+        }
+        with SessionLocal() as session:
+            existing = (
+                session.query(MenuCategory)
+                .filter(MenuCategory.slug.in_(list(seed_map.keys())))
+                .all()
+            )
+            existing_slugs = {category.slug for category in existing}
+            max_order = session.query(func.max(MenuCategory.order_index)).scalar() or 0
+            order_offset = 1
+            for slug, title in seed_map.items():
+                if slug in existing_slugs:
+                    continue
+                category = MenuCategory(
+                    title=title,
+                    slug=slug,
+                    description=None,
+                    order_index=int(max_order) + order_offset,
+                    is_active=True,
+                )
+                session.add(category)
+                order_offset += 1
+            session.commit()
+
+    _seed_menu_back_compat_categories()
 
     def _ensure_bot_constructor_extensions() -> None:
         """Колонки и таблицы для узлов с ожиданием ввода."""

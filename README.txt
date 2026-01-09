@@ -3,6 +3,7 @@ MiniDeN — Telegram-бот и веб-магазин
 
 Changelog / История изменений
 -----------------------------
+- 2026-06-XX: Витрина обновлена под iiko-like UX: единые design tokens, фиксированный header, левый сайдбар категорий, карточки позиций и единый стиль страниц. Контентные блоки вынесены в таблицу `site_blocks`, добавлены публичные `/api/public/*` и админские `/api/admin/blocks` эндпоинты. Добавлены поля `hero_enabled`, `menu_categories.image_url`, `menu_items.legacy_link`, а также авто-сид для slug `korzinki/basket/cradle/set` для back-compat `/c/<slug>`.
 - 2026-06-XX: AdminSite — восстановлены кликабельность конструктора и навигация старых разделов (товары/категории/курсы/мастер-классы/главная), отдельным пунктом оставлено «Меню витрины»; скрытые оверлеи больше не перекрывают клики.
 - 2026-06-XX: Витрина и AdminSite переведены на menu-driven модель: таблицы `menu_categories`, `menu_items`, `site_settings`; публичные данные отдаются через `/public/*`, админка управляет меню через `/api/admin/menu/*` и настройками через `/api/admin/site-settings`. Старые темы/шаблоны/блоки отключены для витрины (рендер больше не зависит от `/api/site/theme` и `/api/site/pages/*`).
 - 2026-06-XX: Вернули совместимость со старыми ссылками PROD_MENU `/c/<slug>`: сервер отдаёт `webapp/index.html` для `/c/{slug}`, фронтенд берёт категории из БД меню (`/public/menu`) и показывает 404-экран при неизвестном slug.
@@ -52,10 +53,11 @@ Smoke test
 
 Menu-driven витрина (iiko-like)
 -------------------------------
-- Витрина рендерит категории → позиции из `/public/menu` и настройки из `/public/site-settings`.
-- Один рендерер без тем/шаблонов/блоков: домашняя страница показывает hero + категории + позиции первой категории.
+- Витрина рендерит категории → позиции из `/public/menu` или `/api/public/menu` и настройки из `/public/site-settings` или `/api/public/site-settings`.
+- Используется единый набор design tokens (цвета/шрифты/радиусы) и layout с левым сайдбаром.
+- Блоки страницы выводятся из `site_blocks` через `/api/public/blocks?page=...` (home/category/footer/custom).
 - Порядок определяется `order_index` у категорий и позиций; флаг `is_active=false` скрывает записи на сайте и в боте.
-- AdminSite управляет меню через `/api/admin/menu/*` и настройками сайта через `/api/admin/site-settings`.
+- AdminSite управляет меню через `/api/admin/menu/*`, блоками через `/api/admin/blocks` и настройками сайта через `/api/admin/site-settings`.
 
 Архитектура проекта
 -------------------
@@ -75,6 +77,12 @@ Menu-driven витрина (iiko-like)
 - `GET /public/menu`
 - `GET /public/menu/categories`
 - `GET /public/menu/items?category=slug|id`
+- `GET /api/public/site-settings`
+- `GET /api/public/menu`
+- `GET /api/public/menu/categories`
+- `GET /api/public/menu/category/{slug}`
+- `GET /api/public/menu/items?category_slug=...`
+- `GET /api/public/blocks?page=home|category|footer|custom`
 - WebApp-роут `/c/<slug>` использует эти публичные эндпоинты и ищет категорию по `menu_categories.slug`.
 
 Админские (для AdminSite):
@@ -82,10 +90,12 @@ Menu-driven витрина (iiko-like)
 - `GET/POST/PUT/DELETE /api/admin/menu/items`
 - `POST /api/admin/menu/reorder`
 - `GET/PUT /api/admin/site-settings`
+- `GET/POST/PUT/DELETE /api/admin/blocks`
+- `POST /api/admin/blocks/reorder`
 
 Миграции меню
 -------------
-- В проекте нет Alembic: таблицы `menu_categories`, `menu_items`, `site_settings` создаются через `init_db()` при запуске backend.
+- В проекте нет Alembic: таблицы `menu_categories`, `menu_items`, `site_settings`, `site_blocks` создаются через `init_db()` при запуске backend.
 - Старые таблицы товаров/страниц не удаляются и остаются для legacy-функций; перенос данных в меню выполняется вручную при необходимости.
 
 Архитектура админки
@@ -194,9 +204,10 @@ Deploy через systemd (root)
 
 Меню и настройки сайта (коротко)
 --------------------------------
-- Публичные данные: `GET /public/site-settings` и `GET /public/menu` (категории сразу с позициями).
+- Публичные данные: `GET /public/site-settings` и `GET /public/menu` (категории сразу с позициями), плюс `/api/public/*` аналоги.
+- Блоки страницы: `GET /api/public/blocks?page=...` и админские `GET/POST/PUT/DELETE /api/admin/blocks` + `POST /api/admin/blocks/reorder`.
 - Админка меню: `GET/POST/PUT/DELETE /api/admin/menu/categories`, `GET/POST/PUT/DELETE /api/admin/menu/items`, сортировка через `POST /api/admin/menu/reorder`.
-- Настройки сайта: `GET/PUT /api/admin/site-settings` (brand_name, logo_url, цвета, контакты, соцсети, hero).
+- Настройки сайта: `GET/PUT /api/admin/site-settings` (brand_name, logo_url, цвета, контакты, соцсети, hero_enabled/hero_*).
 - Плюс-кнопка в витрине доступна только в Telegram WebApp; отправляется `sendData` с `{action:'add_to_cart', product_id, type, source:'menu'}`.
 
 Тронутые файлы (ключевые изменения)
