@@ -64,6 +64,7 @@ def init_db() -> None:
     from models import (  # noqa: WPS433
         BotAction,
         BotButton,
+        BotEventTrigger,
         BotNode,
         BotRuntime,
         BotTemplate,
@@ -417,6 +418,47 @@ def init_db() -> None:
             session.commit()
 
     _seed_bot_triggers()
+
+    def _seed_bot_event_triggers() -> None:
+        with SessionLocal() as session:
+            existing = (
+                session.query(BotEventTrigger)
+                .filter(BotEventTrigger.event_code == "webapp_checkout_created")
+                .first()
+            )
+            if existing:
+                return
+
+            session.add(
+                BotEventTrigger(
+                    event_code="webapp_checkout_created",
+                    title="Заказ из WebApp",
+                    message_template=(
+                        "🛒 Новый заказ из витрины\n"
+                        "Вы выбрали:\n"
+                        "{items}\n"
+                        "Итого: {qty_total} шт, {sum_total} {currency}"
+                    ),
+                    buttons_json=[
+                        {
+                            "title": "Связаться",
+                            "type": "callback",
+                            "value": "trigger:contact_manager",
+                            "row": 0,
+                        },
+                        {
+                            "title": "Открыть витрину",
+                            "type": "url",
+                            "value": "{webapp_url}",
+                            "row": 1,
+                        },
+                    ],
+                    is_enabled=True,
+                )
+            )
+            session.commit()
+
+    _seed_bot_event_triggers()
 
     def _ensure_bot_templates_table() -> None:
         create_table = """

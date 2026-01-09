@@ -143,6 +143,19 @@ class BotTrigger(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=func.now(), nullable=False)
 
 
+class BotEventTrigger(Base):
+    __tablename__ = "bot_event_triggers"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    event_code = Column(String(64), unique=True, nullable=False, index=True)
+    title = Column(String(128), nullable=True)
+    message_template = Column(Text, nullable=False)
+    buttons_json = Column(JSONB, nullable=True)
+    is_enabled = Column(Boolean, default=True, nullable=False, server_default="true")
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=func.now(), nullable=False)
+
+
 class MenuButton(Base):
     __tablename__ = "menu_buttons"
 
@@ -437,6 +450,18 @@ class Order(Base):
 
     user = relationship("User", back_populates="orders", foreign_keys=[user_id])
     items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
+
+
+class CheckoutOrder(Base):
+    __tablename__ = "checkout_orders"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tg_user_id = Column(BigInteger, nullable=False, index=True)
+    status = Column(String, nullable=False, default="created", server_default="created")
+    items_json = Column(JSONB, nullable=False, default=list, server_default="[]")
+    totals_json = Column(JSONB, nullable=False, default=dict, server_default="{}")
+    client_context_json = Column(JSONB, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 
 class OrderItem(Base):
@@ -788,6 +813,7 @@ __all__ = [
     "BotButton",
     "BotAction",
     "BotRuntime",
+    "BotEventTrigger",
     "Base",
     "AdminSession",
     "AdminUser",
@@ -796,6 +822,7 @@ __all__ = [
     "CartItem",
     "Favorite",
     "Order",
+    "CheckoutOrder",
     "OrderItem",
     "ProductImage",
     "MasterclassImage",

@@ -18,7 +18,7 @@ def remember_user_question(user_id: int, question: str) -> None:
         USER_LAST_QUESTION[user_id] = question
 
 
-@support_router.callback_query(F.data == "contact_manager")
+@support_router.callback_query(F.data.in_({"contact_manager", "trigger:contact_manager"}))
 async def contact_manager(callback: types.CallbackQuery):
     user = callback.from_user
     settings = get_settings()
