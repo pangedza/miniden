@@ -56,8 +56,8 @@ export async function requestWithStatus(path, params = null) {
   return { payload, status, statusText, url: url.toString() };
 }
 
-export function fetchMenu() {
-  return request('/api/public/menu');
+export function fetchMenu(type = null) {
+  return request('/api/public/menu/tree', { type });
 }
 
 export function fetchSiteSettings() {
@@ -68,10 +68,18 @@ export function fetchCategories() {
   return request('/api/public/menu/categories');
 }
 
-export function fetchCategoryItems(category) {
-  return request('/api/public/menu/items', { category_slug: category });
+export function fetchCategoryItems(category, type = null) {
+  return request('/api/public/menu/items', { category_slug: category, type });
 }
 
 export function fetchBlocks(page) {
   return request('/api/public/blocks', { page });
+}
+
+export function fetchCategoryDetails(slug, type = null) {
+  return request(`/api/public/menu/category/${slug}`, { type });
+}
+
+export function fetchItemById(itemId) {
+  return request(`/api/public/item/${itemId}`);
 }
