@@ -252,7 +252,7 @@ async function syncGuestCartToServer(profile) {
   clearGuestCart();
 }
 
-function showToast(message, title = "MiniDeN") {
+function showToast(message, title = "MiniDeN", durationMs = 2500) {
   const container = document.getElementById("toast-container");
   if (!container) return;
 
@@ -274,7 +274,7 @@ function showToast(message, title = "MiniDeN") {
     setTimeout(() => el.remove(), 250);
   }
 
-  const timeout = setTimeout(hide, 2500);
+  const timeout = setTimeout(hide, Number.isFinite(durationMs) ? durationMs : 2500);
   el.addEventListener("click", () => {
     clearTimeout(timeout);
     hide();
