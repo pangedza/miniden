@@ -138,7 +138,7 @@ function setCartBarVisible(visible) {
 
 function showInfoToast(message) {
   if (typeof window.showToast === 'function') {
-    window.showToast(message);
+    window.showToast(message, 'MiniDeN', 2000);
   } else {
     console.warn(message);
   }
@@ -182,6 +182,14 @@ function updateTypeTabs() {
 
 function isOutOfStock(item) {
   return item?.stock_qty === 0;
+}
+
+function isItemInactive(item) {
+  return item?.is_active === false;
+}
+
+function isItemUnavailable(item) {
+  return isItemInactive(item) || isOutOfStock(item);
 }
 
 function isStockLimited(item) {
@@ -302,10 +310,14 @@ function updateCartBar(cart) {
   if (!cartBar || !cart) return;
   const qtyTotal = getCartQtyTotal(cart.items || []);
   const total = Number(cart.total) || 0;
+  const hasItems = qtyTotal > 0;
   if (cartBarCount) cartBarCount.textContent = qtyTotal.toString();
   if (cartBarTotal) cartBarTotal.textContent = formatPrice(total);
   if (cartBadge) cartBadge.textContent = qtyTotal.toString();
-  setCartBarVisible(qtyTotal > 0);
+  setCartBarVisible(hasItems);
+  if (cartBarCheckout) {
+    cartBarCheckout.disabled = !hasItems;
+  }
 }
 
 function updateCheckoutAvailability() {
@@ -355,7 +367,7 @@ async function addItemToCart(item, qty = 1) {
   const updatedCart = await response.json();
   cartState = updatedCart;
   updateCartBar(updatedCart);
-  showInfoToast('Добавлено в корзину');
+  showInfoToast('Товар добавлен');
 }
 
 function buildCheckoutPayload(cart) {
@@ -462,6 +474,8 @@ function buildItemCard(item) {
   const card = document.createElement('article');
   card.className = 'catalog-card';
   const outOfStock = isOutOfStock(item);
+  const isInactive = isItemInactive(item);
+  const isUnavailable = isInactive || outOfStock;
   if (outOfStock) {
     card.classList.add('is-out-of-stock');
   }
@@ -537,15 +551,16 @@ function buildItemCard(item) {
   addButton.textContent = 'В корзину';
   addButton.setAttribute('aria-label', 'Добавить в корзину');
 
-  const canUseTelegram = !!(window.isTelegramWebApp && telegramUserId);
-  addButton.disabled = outOfStock || !canUseTelegram;
+  addButton.disabled = isUnavailable;
   if (outOfStock) {
     addButton.title = 'Нет в наличии';
-  } else if (!canUseTelegram) {
-    addButton.title = 'Добавление доступно только в Telegram';
+  } else if (isInactive) {
+    addButton.title = 'Позиция недоступна';
+  } else if (!telegramUserId) {
+    addButton.title = 'Откройте витрину из Telegram бота.';
   }
   addButton.addEventListener('click', () => {
-    if (outOfStock || !item?.id) return;
+    if (isUnavailable || !item?.id) return;
     addItemToCart(item, 1).catch((error) => {
       console.error('Не удалось добавить товар в корзину', error);
       showInfoToast('Не удалось добавить товар в корзину');
@@ -749,6 +764,8 @@ function renderItemModal(item) {
   if (itemModalCategory) itemModalCategory.textContent = item.category_title || '';
 
   const outOfStock = isOutOfStock(item);
+  const isInactive = isItemInactive(item);
+  const isUnavailable = isInactive || outOfStock;
   if (itemModalStock) {
     if (outOfStock) {
       itemModalStock.textContent = 'Нет в наличии';
@@ -763,30 +780,39 @@ function renderItemModal(item) {
 
   updateModalQty(1);
 
-  const canUseTelegram = !!(window.isTelegramWebApp && window.Telegram?.WebApp);
   if (itemModalAdd) {
-    itemModalAdd.disabled = outOfStock || !canUseTelegram;
-    itemModalAdd.title = !canUseTelegram ? 'Добавление доступно только в Telegram' : '';
+    itemModalAdd.disabled = isUnavailable;
+    if (outOfStock) {
+      itemModalAdd.title = 'Нет в наличии';
+    } else if (isInactive) {
+      itemModalAdd.title = 'Позиция недоступна';
+    } else if (!telegramUserId) {
+      itemModalAdd.title = 'Откройте витрину из Telegram бота.';
+    } else {
+      itemModalAdd.title = '';
+    }
   }
   if (itemModalMinus) {
-    itemModalMinus.disabled = outOfStock;
+    itemModalMinus.disabled = isUnavailable;
   }
   if (itemModalPlus) {
-    itemModalPlus.disabled = outOfStock;
+    itemModalPlus.disabled = isUnavailable;
   }
 }
 
 function updateModalStockControls(item) {
   if (!item) return;
   const outOfStock = isOutOfStock(item);
+  const isInactive = isItemInactive(item);
+  const isUnavailable = isInactive || outOfStock;
   if (itemModalAdd) {
-    itemModalAdd.disabled = outOfStock || !(window.isTelegramWebApp && window.Telegram?.WebApp);
+    itemModalAdd.disabled = isUnavailable;
   }
   if (itemModalMinus) {
-    itemModalMinus.disabled = outOfStock || modalState.qty <= 1;
+    itemModalMinus.disabled = isUnavailable || modalState.qty <= 1;
   }
   if (itemModalPlus) {
-    if (outOfStock) {
+    if (isUnavailable) {
       itemModalPlus.disabled = true;
     } else if (isStockLimited(item)) {
       itemModalPlus.disabled = modalState.qty >= item.stock_qty;
@@ -922,7 +948,7 @@ function bindModalActions() {
     updateModalStockControls(modalState.item);
   });
   itemModalAdd?.addEventListener('click', () => {
-    if (!modalState.item || isOutOfStock(modalState.item)) return;
+    if (!modalState.item || isItemUnavailable(modalState.item)) return;
     addItemToCart(modalState.item, modalState.qty).catch((error) => {
       console.error('Не удалось добавить товар в корзину', error);
       showInfoToast('Не удалось добавить товар в корзину');
