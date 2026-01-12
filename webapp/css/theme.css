@@ -771,6 +771,10 @@ button.btn:disabled {
   color: var(--color-text-secondary);
 }
 
+[hidden] {
+  display: none !important;
+}
+
 .hidden {
   display: none !important;
 }
