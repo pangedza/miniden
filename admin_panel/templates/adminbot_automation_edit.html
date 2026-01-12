@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>{% if rule %}Редактирование правила{% else %}Новое правило{% endif %}</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 16px; background: #f5f5f5; }
+        header { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+        form { background: #fff; padding: 16px; border: 1px solid #cbd5e1; border-radius: 6px; max-width: 1100px; }
+        label { display: block; margin-top: 12px; font-weight: bold; }
+        input[type="text"], textarea, select { width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px; }
+        textarea { min-height: 120px; }
+        .actions { margin-top: 16px; display: flex; gap: 8px; flex-wrap: wrap; }
+        .button { padding: 8px 12px; border: none; background: #2563eb; color: #fff; border-radius: 4px; text-decoration: none; cursor: pointer; }
+        .error { color: #dc2626; margin-top: 8px; }
+        .hint { color: #475569; font-size: 13px; margin-top: 4px; }
+        .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin-top: 12px; }
+        .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+        .checkbox { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+        .step { border-left: 4px solid #0ea5e9; padding-left: 12px; margin-top: 16px; }
+        .action-card { border: 1px solid #cbd5e1; padding: 12px; border-radius: 6px; background: #fff; margin-top: 10px; }
+        .action-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .action-controls { display: flex; gap: 6px; }
+        .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+        .chip { background: #e0f2fe; color: #0f172a; padding: 4px 8px; border-radius: 999px; border: none; cursor: pointer; font-size: 12px; }
+        .preview { background: #0f172a; color: #e2e8f0; padding: 12px; border-radius: 8px; font-family: 'Courier New', monospace; white-space: pre-wrap; }
+        .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; background: #e2e8f0; font-size: 12px; margin-right: 6px; }
+    </style>
+</head>
+<body>
+<header>
+    <a href="/adminbot" class="button">Главная</a>
+    <a href="/adminbot/templates" class="button">Шаблоны</a>
+    <a href="/adminbot/nodes" class="button">Узлы</a>
+    <a href="/adminbot/automations" class="button" style="background:#0ea5e9;">Автоматизации</a>
+    <a href="/adminbot/triggers" class="button">Триггеры</a>
+    <a href="/adminbot/runtime" class="button">Работа бота</a>
+    <a href="/adminbot/logs" class="button">Логи</a>
+    <a href="/adminbot/logout" class="button" style="background:#dc2626;">Выйти</a>
+</header>
+<h2>{% if rule %}Редактирование правила{% else %}Новое правило{% endif %}</h2>
+<div class="error" style="display:{% if error %}block{% else %}none{% endif %};">{{ error }}</div>
+
+{% set initial_actions = form.actions if form else (rule.actions_json if rule and rule.actions_json else []) %}
+<form method="post" action="{% if rule %}/adminbot/automations/{{ rule.id }}/edit{% else %}/adminbot/automations/new{% endif %}">
+    <div class="step">
+        <h3>Шаг 1. Триггер</h3>
+        <div class="row">
+            <div>
+                <label>Название правила</label>
+                <input type="text" name="title" value="{{ form.title if form else (rule.title if rule else '') }}" placeholder="Например: WebApp заказ">
+                <div class="hint">Это название увидит только администратор.</div>
+            </div>
+            <div>
+                <label>Триггер</label>
+                <select name="trigger_type">
+                    {% for key, label in trigger_labels.items() %}
+                    <option value="{{ key }}" {% if (form and form.trigger_type == key) or (rule and rule.trigger_type == key) or (not rule and not form and loop.first) %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+                <div class="hint">Первый релиз: только WebApp заказ.</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="step">
+        <h3>Шаг 2. Условия</h3>
+        <div class="card">
+            <div class="checkbox">
+                <input type="checkbox" checked disabled>
+                <label style="margin:0; font-weight:normal;">Источник = WebApp (по умолчанию)</label>
+            </div>
+            <div class="hint">Пока доступно только условие источника.</div>
+        </div>
+    </div>
+
+    <div class="step">
+        <h3>Шаг 3. Действия</h3>
+        <div class="hint">Действия выполняются сверху вниз. Кнопки можно прикреплять отдельным действием.</div>
+        <div id="actions_container"></div>
+        <div class="card">
+            <div class="row">
+                <div>
+                    <label>Добавить действие</label>
+                    <select id="new_action_type">
+                        {% for key, label in action_labels.items() %}
+                        <option value="{{ key }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div style="display:flex; align-items:flex-end;">
+                    <button type="button" class="button" id="add_action_btn" style="background:#0ea5e9;">Добавить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <input type="hidden" name="actions_json" id="actions_json_input">
+    <div class="checkbox">
+        <input type="checkbox" id="is_enabled" name="is_enabled" {% if form %}{% if form.is_enabled %}checked{% endif %}{% elif rule is none or rule.is_enabled %}checked{% endif %}>
+        <label for="is_enabled" style="margin:0; font-weight:normal;">Правило включено</label>
+    </div>
+
+    <div class="actions">
+        <button type="submit" class="button">Сохранить</button>
+        <a href="/adminbot/automations" class="button" style="background:#6b7280;">Отмена</a>
+        <a href="/adminbot/automations/button-presets" class="button" style="background:#475569;">Пресеты кнопок</a>
+    </div>
+</form>
+
+<script>
+    const actionLabels = {{ action_labels | tojson }};
+    const presets = {{ presets_payload | tojson }};
+    const templateVariables = {{ template_variables | tojson }};
+    const itemFields = {{ item_fields | tojson }};
+    const buttonScopes = {{ button_scopes | tojson }};
+    const initialActions = {{ initial_actions | tojson }};
+    const sampleItems = [
+        { title: "Букет", qty: 2, price: 1200 },
+        { title: "Открытка", qty: 1, price: 150 }
+    ];
+
+    const actionsContainer = document.getElementById('actions_container');
+    const actionsJsonInput = document.getElementById('actions_json_input');
+    const addActionButton = document.getElementById('add_action_btn');
+    const newActionType = document.getElementById('new_action_type');
+
+    function insertAtCursor(textarea, text) {
+        const start = textarea.selectionStart || 0;
+        const end = textarea.selectionEnd || 0;
+        const value = textarea.value || '';
+        textarea.value = value.slice(0, start) + text + value.slice(end);
+        textarea.focus();
+        textarea.selectionStart = textarea.selectionEnd = start + text.length;
+        textarea.dispatchEvent(new Event('input'));
+    }
+
+    function buildItemsPreview(fields, currency) {
+        const selected = new Set(fields || []);
+        return sampleItems.map(item => {
+            const parts = [];
+            if (selected.has('title')) parts.push(item.title);
+            if (selected.has('qty')) parts.push(`x${item.qty}`);
+            if (selected.has('price')) parts.push(`${item.price} ${currency}`);
+            if (selected.has('sum')) parts.push(`= ${item.price * item.qty} ${currency}`);
+            return parts.length ? `• ${parts.join(' ')}` : '';
+        }).filter(Boolean).join('\n');
+    }
+
+    function renderPreview(card) {
+        const preview = card.querySelector('.preview');
+        if (!preview) return;
+        const title = card.querySelector('[data-field="title"]')?.value || '';
+        const body = card.querySelector('[data-field="body"]')?.value || '';
+        const itemsEnabled = card.querySelector('[data-field="items_enabled"]')?.checked;
+        const itemsTitle = card.querySelector('[data-field="items_title"]')?.value || 'Состав заказа';
+        const fields = Array.from(card.querySelectorAll('[data-field="items_field"]:checked')).map(cb => cb.value);
+        const currency = '₽';
+
+        let text = '';
+        const context = templateVariables.reduce((acc, item) => {
+            acc[item.key] = item.sample;
+            return acc;
+        }, {});
+        let titleText = title;
+        let bodyText = body;
+        Object.keys(context).forEach(key => {
+            const token = `{${key}}`;
+            titleText = titleText.replaceAll(token, context[key]);
+            bodyText = bodyText.replaceAll(token, context[key]);
+        });
+
+        if (titleText) text += titleText;
+        if (bodyText) text += (text ? '\n\n' : '') + bodyText;
+        if (itemsEnabled && fields.length) {
+            const itemsPreview = buildItemsPreview(fields, currency);
+            if (itemsPreview) {
+                text += (text ? '\n\n' : '') + `${itemsTitle}:\n${itemsPreview}`;
+            }
+        }
+        preview.textContent = text || 'Предпросмотр появится здесь...';
+    }
+
+    function buildVariableChips(getTarget) {
+        const container = document.createElement('div');
+        container.className = 'chips';
+        templateVariables.forEach(variable => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'chip';
+            btn.textContent = `{${variable.key}}`;
+            btn.title = variable.label;
+            btn.addEventListener('click', () => {
+                const target = getTarget();
+                if (target) {
+                    insertAtCursor(target, `{${variable.key}}`);
+                }
+            });
+            container.appendChild(btn);
+        });
+        return container;
+    }
+
+    function renderActionCard(action = {}) {
+        const card = document.createElement('div');
+        card.className = 'action-card';
+        const actionType = action.type || newActionType.value;
+
+        card.innerHTML = `
+            <div class="action-header">
+                <div style="min-width:220px;">
+                    <label style="margin-top:0;">Тип действия</label>
+                    <select data-field="action_type">
+                        ${Object.keys(actionLabels).map(key => `<option value="${key}" ${key === actionType ? 'selected' : ''}>${actionLabels[key]}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="action-controls">
+                    <button type="button" class="button action-remove" style="background:#dc2626;">Удалить</button>
+                </div>
+            </div>
+            <div class="action-body"></div>
+        `;
+
+        const body = card.querySelector('.action-body');
+        const actionSelect = card.querySelector('[data-field="action_type"]');
+
+        function renderBody() {
+            const selected = actionSelect.value;
+            body.innerHTML = '';
+
+            if (selected === 'SAVE_ORDER') {
+                body.innerHTML = `<div class="hint">Создаёт запись заказа в базе и обновляет номер заказа для следующих действий.</div>`;
+                return;
+            }
+
+            if (selected === 'ATTACH_BUTTONS') {
+                const target = action.target || 'user';
+                const presetId = action.preset_id || '';
+                body.innerHTML = `
+                    <div class="row">
+                        <div>
+                            <label>Кому отправить кнопки</label>
+                            <select data-field="target">
+                                ${Object.keys(buttonScopes).map(scope => `<option value="${scope}" ${scope === target ? 'selected' : ''}>${buttonScopes[scope]}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div>
+                            <label>Набор кнопок</label>
+                            <select data-field="preset_id">
+                                <option value="">Выберите</option>
+                                ${presets.map(preset => `<option value="${preset.id}" ${String(presetId) === String(preset.id) ? 'selected' : ''}>${preset.title}</option>`).join('')}
+                            </select>
+                            <div class="hint">Можно использовать {webapp_url} и {user_id} в значениях.</div>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
+            if (selected === 'SEND_USER_MESSAGE' || selected === 'SEND_ADMIN_MESSAGE') {
+                const template = action.template || {};
+                const title = template.title || '';
+                const bodyText = template.body || '';
+                const itemsEnabled = Boolean(template.items_enabled);
+                const itemsTitle = template.items_title || 'Состав заказа';
+                const selectedFields = template.items_fields || ['title', 'qty', 'price', 'sum'];
+
+                body.innerHTML = `
+                    <div class="row">
+                        <div>
+                            <label>Заголовок</label>
+                            <input type="text" data-field="title" value="${title}">
+                            <div class="hint">Можно вставлять переменные ниже.</div>
+                        </div>
+                        <div>
+                            <label>Текст сообщения</label>
+                            <textarea data-field="body">${bodyText}</textarea>
+                            <div class="hint">Нажимайте на переменные для вставки.</div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="row">
+                            <div>
+                                <label>Вставить переменную</label>
+                                <div class="variable-chips"></div>
+                            </div>
+                            <div>
+                                <label>Список товаров</label>
+                                <div class="chips">
+                                    ${itemFields.map(field => `
+                                        <label class="pill">
+                                            <input type="checkbox" data-field="items_field" value="${field.key}" ${selectedFields.includes(field.key) ? 'checked' : ''}>
+                                            ${field.label}
+                                        </label>
+                                    `).join('')}
+                                </div>
+                                <div class="checkbox">
+                                    <input type="checkbox" data-field="items_enabled" ${itemsEnabled ? 'checked' : ''}>
+                                    <label style="margin:0; font-weight:normal;">Показывать товары</label>
+                                </div>
+                                <input type="text" data-field="items_title" value="${itemsTitle}" placeholder="Заголовок списка">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <label style="margin-top:0;">Предпросмотр</label>
+                        <div class="preview">Предпросмотр появится здесь...</div>
+                    </div>
+                `;
+
+                const textarea = body.querySelector('[data-field="body"]');
+                const titleInput = body.querySelector('[data-field="title"]');
+                let lastFocused = textarea;
+                textarea.addEventListener('focus', () => { lastFocused = textarea; });
+                titleInput.addEventListener('focus', () => { lastFocused = titleInput; });
+                const chipsContainer = body.querySelector('.variable-chips');
+                chipsContainer.appendChild(buildVariableChips(() => lastFocused));
+
+                body.querySelectorAll('input, textarea').forEach(input => {
+                    input.addEventListener('input', () => renderPreview(card));
+                });
+                body.querySelectorAll('[data-field="items_field"]').forEach(input => {
+                    input.addEventListener('change', () => renderPreview(card));
+                });
+                renderPreview(card);
+                return;
+            }
+        }
+
+        actionSelect.addEventListener('change', () => {
+            action.type = actionSelect.value;
+            renderBody();
+        });
+
+        card.querySelector('.action-remove').addEventListener('click', () => {
+            card.remove();
+        });
+
+        renderBody();
+        return card;
+    }
+
+    function collectActions() {
+        const cards = actionsContainer.querySelectorAll('.action-card');
+        const actions = [];
+        cards.forEach(card => {
+            const type = card.querySelector('[data-field="action_type"]')?.value;
+            if (!type) return;
+            if (type === 'ATTACH_BUTTONS') {
+                actions.push({
+                    type,
+                    target: card.querySelector('[data-field="target"]')?.value || 'user',
+                    preset_id: card.querySelector('[data-field="preset_id"]')?.value || ''
+                });
+                return;
+            }
+            if (type === 'SEND_USER_MESSAGE' || type === 'SEND_ADMIN_MESSAGE') {
+                const fields = Array.from(card.querySelectorAll('[data-field="items_field"]:checked')).map(cb => cb.value);
+                actions.push({
+                    type,
+                    template: {
+                        title: card.querySelector('[data-field="title"]')?.value || '',
+                        body: card.querySelector('[data-field="body"]')?.value || '',
+                        items_enabled: card.querySelector('[data-field="items_enabled"]')?.checked || false,
+                        items_fields: fields,
+                        items_title: card.querySelector('[data-field="items_title"]')?.value || 'Состав заказа'
+                    }
+                });
+                return;
+            }
+            actions.push({ type });
+        });
+        return actions;
+    }
+
+    addActionButton.addEventListener('click', () => {
+        const action = { type: newActionType.value };
+        actionsContainer.appendChild(renderActionCard(action));
+    });
+
+    if (initialActions.length) {
+        initialActions.forEach(action => actionsContainer.appendChild(renderActionCard(action)));
+    } else {
+        actionsContainer.appendChild(renderActionCard({ type: 'SAVE_ORDER' }));
+    }
+
+    document.querySelector('form').addEventListener('submit', (event) => {
+        const actions = collectActions();
+        actionsJsonInput.value = JSON.stringify(actions);
+        if (!actions.length) {
+            event.preventDefault();
+            alert('Добавьте хотя бы одно действие.');
+        }
+    });
+</script>
+</body>
+</html>

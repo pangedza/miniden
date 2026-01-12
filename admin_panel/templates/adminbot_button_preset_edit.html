@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>{% if preset %}Редактирование пресета{% else %}Новый пресет{% endif %}</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 16px; background: #f5f5f5; }
+        header { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+        form { background: #fff; padding: 16px; border: 1px solid #cbd5e1; border-radius: 6px; max-width: 900px; }
+        label { display: block; margin-top: 12px; font-weight: bold; }
+        input[type="text"], select { width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px; }
+        .actions { margin-top: 16px; display: flex; gap: 8px; flex-wrap: wrap; }
+        .button { padding: 8px 12px; border: none; background: #2563eb; color: #fff; border-radius: 4px; text-decoration: none; cursor: pointer; }
+        .error { color: #dc2626; margin-top: 8px; }
+        .hint { color: #475569; font-size: 13px; margin-top: 4px; }
+        .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin-top: 12px; }
+        .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+        .button-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    </style>
+</head>
+<body>
+<header>
+    <a href="/adminbot" class="button">Главная</a>
+    <a href="/adminbot/automations" class="button">Автоматизации</a>
+    <a href="/adminbot/automations/button-presets" class="button" style="background:#0ea5e9;">Пресеты кнопок</a>
+    <a href="/adminbot/nodes" class="button">Узлы</a>
+    <a href="/adminbot/runtime" class="button">Работа бота</a>
+    <a href="/adminbot/logout" class="button" style="background:#dc2626;">Выйти</a>
+</header>
+
+<h2>{% if preset %}Редактирование пресета{% else %}Новый пресет{% endif %}</h2>
+<div class="error" style="display:{% if error %}block{% else %}none{% endif %};">{{ error }}</div>
+
+{% set initial_buttons = form.buttons if form else (preset.buttons_json if preset and preset.buttons_json else []) %}
+<form method="post" action="{% if preset %}/adminbot/automations/button-presets/{{ preset.id }}/edit{% else %}/adminbot/automations/button-presets/new{% endif %}">
+    <div class="row">
+        <div>
+            <label>Название набора</label>
+            <input type="text" name="title" value="{{ form.title if form else (preset.title if preset else '') }}">
+        </div>
+        <div>
+            <label>Аудитория</label>
+            <select name="scope">
+                {% for key, label in button_scopes.items() %}
+                <option value="{{ key }}" {% if (form and form.scope == key) or (preset and preset.scope == key) %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3 style="margin-top:0;">Кнопки</h3>
+        <div class="hint">Callback data можно использовать как есть. Для ссылки используйте тип URL. Поддерживаются переменные {webapp_url}, {user_id}.</div>
+        <div id="buttons_container"></div>
+        <div class="button-row" style="margin-top:10px;">
+            <button type="button" class="button" id="add_button_btn" style="background:#0ea5e9;">Добавить кнопку</button>
+        </div>
+    </div>
+
+    <input type="hidden" name="buttons_json" id="buttons_json_input">
+    <div class="checkbox" style="margin-top:12px;">
+        <input type="checkbox" id="is_enabled" name="is_enabled" {% if form %}{% if form.is_enabled %}checked{% endif %}{% elif preset is none or preset.is_enabled %}checked{% endif %}>
+        <label for="is_enabled" style="margin:0; font-weight:normal;">Пресет включён</label>
+    </div>
+
+    <div class="actions">
+        <button type="submit" class="button">Сохранить</button>
+        <a href="/adminbot/automations/button-presets" class="button" style="background:#6b7280;">Отмена</a>
+    </div>
+</form>
+
+<script>
+    const initialButtons = {{ initial_buttons | tojson }};
+    const buttonsContainer = document.getElementById('buttons_container');
+    const buttonsJsonInput = document.getElementById('buttons_json_input');
+    const addButtonBtn = document.getElementById('add_button_btn');
+
+    function renderButtonRow(button = {}) {
+        const row = document.createElement('div');
+        row.className = 'card';
+        row.innerHTML = `
+            <div class="row">
+                <div>
+                    <label>Текст кнопки</label>
+                    <input type="text" data-field="title" value="${button.title || ''}">
+                </div>
+                <div>
+                    <label>Тип</label>
+                    <select data-field="type">
+                        <option value="callback" ${button.type === 'callback' || !button.type ? 'selected' : ''}>Callback</option>
+                        <option value="url" ${button.type === 'url' ? 'selected' : ''}>URL</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Значение</label>
+                    <input type="text" data-field="value" value="${button.value || ''}" placeholder="callback или https://">
+                </div>
+                <div>
+                    <label>Ряд</label>
+                    <input type="text" data-field="row" value="${button.row ?? 0}">
+                </div>
+            </div>
+            <div class="button-row" style="margin-top:8px;">
+                <button type="button" class="button remove-button" style="background:#dc2626;">Удалить</button>
+            </div>
+        `;
+        row.querySelector('.remove-button').addEventListener('click', () => row.remove());
+        return row;
+    }
+
+    addButtonBtn.addEventListener('click', () => {
+        buttonsContainer.appendChild(renderButtonRow({ type: 'callback', row: 0 }));
+    });
+
+    if (initialButtons.length) {
+        initialButtons.forEach(button => buttonsContainer.appendChild(renderButtonRow(button)));
+    }
+
+    document.querySelector('form').addEventListener('submit', (event) => {
+        const buttons = Array.from(buttonsContainer.querySelectorAll('.card')).map(card => ({
+            title: card.querySelector('[data-field="title"]')?.value || '',
+            type: card.querySelector('[data-field="type"]')?.value || 'callback',
+            value: card.querySelector('[data-field="value"]')?.value || '',
+            row: card.querySelector('[data-field="row"]')?.value || 0
+        }));
+        buttonsJsonInput.value = JSON.stringify(buttons);
+        if (!buttons.length) {
+            const confirmed = confirm('Сохранить без кнопок?');
+            if (!confirmed) {
+                event.preventDefault();
+            }
+        }
+    });
+</script>
+</body>
+</html>

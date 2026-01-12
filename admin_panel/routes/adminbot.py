@@ -19,6 +19,7 @@ from . import (
     adminbot_runtime,
     adminbot_templates,
     adminbot_triggers,
+    adminbot_automations,
 )
 
 router = APIRouter(prefix="/adminbot", tags=["AdminBot"])
@@ -81,3 +82,4 @@ router.include_router(adminbot_logs.router)
 router.include_router(adminbot_templates.router)
 router.include_router(adminbot_admins.router)
 router.include_router(adminbot_media.router)
+router.include_router(adminbot_automations.router)

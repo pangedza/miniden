@@ -65,7 +65,7 @@ from media_paths import (
     MEDIA_ROOT,
     ensure_media_dirs,
 )
-from models import AuthSession, BotEventTrigger, CheckoutOrder, User
+from models import AuthSession, BotEventTrigger, BotButtonPreset, CheckoutOrder, User
 from models.admin_user import AdminRole
 from models.support import (
     SupportMessage,
@@ -82,6 +82,7 @@ from services import home as home_service
 from services import faq_service
 from services import branding as branding_service
 from services import orders as orders_service
+from services import automations as automations_service
 from services import menu_catalog
 from services import products as products_service
 from services import promocodes as promocodes_service
@@ -531,7 +532,9 @@ class AdminWebChatReplyBody(BaseModel):
     text: str
 
 
-def _send_message_to_admins(text: str) -> list[int]:
+def _send_message_to_admins(
+    text: str, reply_markup: dict[str, Any] | None = None
+) -> list[int]:
     admin_ids = list(getattr(SETTINGS, "admin_ids", set()) or [])
     primary_admin = getattr(SETTINGS, "admin_chat_id", None)
     if primary_admin and primary_admin not in admin_ids:
@@ -544,7 +547,10 @@ def _send_message_to_admins(text: str) -> list[int]:
     message_ids: list[int] = []
 
     for chat_id in admin_ids:
-        payload = urlencode({"chat_id": chat_id, "text": text}).encode()
+        payload_data: dict[str, Any] = {"chat_id": chat_id, "text": text}
+        if reply_markup:
+            payload_data["reply_markup"] = json.dumps(reply_markup, ensure_ascii=False)
+        payload = urlencode(payload_data).encode()
         try:
             with urllib.request.urlopen(api_url, data=payload, timeout=10) as response:
                 data = json.load(response)
@@ -631,6 +637,163 @@ def _resolve_webapp_url(request: Request) -> str:
     return f"{base_url}/"
 
 
+def _automation_conditions_match(conditions: list[dict[str, Any]] | None) -> bool:
+    if not conditions:
+        return True
+    for condition in conditions:
+        cond_type = str(condition.get("type") or "").lower()
+        if cond_type == "source":
+            value = str(condition.get("value") or "").lower()
+            if value not in {"webapp", "web_app"}:
+                return False
+    return True
+
+
+def _build_webapp_automation_context(
+    *,
+    tg_user_id: int,
+    items: list[dict[str, Any]],
+    totals: dict[str, Any],
+    order_id: int,
+) -> dict[str, Any]:
+    user = users_service.get_user_by_telegram_id(tg_user_id)
+    user_name = (
+        user.first_name if user and user.first_name else user.username if user else None
+    ) or "Пользователь"
+    phone = user.phone if user and user.phone else ""
+    total_amount = int(totals.get("sum_total") or 0)
+    currency = totals.get("currency") or "₽"
+    items_text = automations_service.build_items_text(
+        items, currency, ["title", "qty", "price", "sum"]
+    )
+    return {
+        "order_id": order_id,
+        "total": total_amount,
+        "items": items_text,
+        "user_name": user_name,
+        "user_id": tg_user_id,
+        "phone": phone,
+        "comment": "",
+    }
+
+
+def _apply_webapp_automation_rules(
+    *,
+    request: Request,
+    tg_user_id: int,
+    items: list[dict[str, Any]],
+    totals: dict[str, Any],
+    order_id: int,
+) -> bool:
+    currency = totals.get("currency") or "₽"
+    webapp_url = _resolve_webapp_url(request)
+    context = _build_webapp_automation_context(
+        tg_user_id=tg_user_id, items=items, totals=totals, order_id=order_id
+    )
+
+    with get_session() as session:
+        rules = automations_service.list_active_rules(
+            session, trigger_type=automations_service.TRIGGER_WEBAPP_ORDER
+        )
+        presets = automations_service.list_active_presets(session)
+
+    if not rules:
+        return False
+
+    presets_map = {int(preset.id): preset for preset in presets}
+    any_executed = False
+
+    for rule in rules:
+        if not _automation_conditions_match(rule.conditions_json or []):
+            continue
+        attached_presets: dict[str, BotButtonPreset | None] = {"user": None, "admin": None}
+        for action in rule.actions_json or []:
+            action_type = str(action.get("type") or "").upper()
+            if action_type == automations_service.ACTION_SAVE_ORDER:
+                if context.get("saved_order_id"):
+                    any_executed = True
+                    continue
+                user = users_service.get_user_by_telegram_id(tg_user_id)
+                user_name = (
+                    user.first_name if user and user.first_name else user.username if user else None
+                ) or "webapp"
+                customer_name = (user.first_name if user else None) or user_name
+                contact = user.phone if user and user.phone else ""
+                order_items = [
+                    {
+                        "product_id": int(item.get("item_id") or item.get("product_id") or 0),
+                        "name": item.get("title"),
+                        "price": int(item.get("price") or 0),
+                        "qty": int(item.get("qty") or 0),
+                        "type": item.get("type") or "basket",
+                    }
+                    for item in items
+                ]
+                order_text = format_order_for_admin(
+                    user_id=tg_user_id,
+                    user_name=user_name,
+                    items=order_items,
+                    total=int(totals.get("sum_total") or 0),
+                    customer_name=customer_name,
+                    contact=contact,
+                    comment="",
+                )
+                saved_order_id = orders_service.add_order(
+                    user_id=tg_user_id,
+                    user_name=user_name,
+                    items=order_items,
+                    total=int(totals.get("sum_total") or 0),
+                    customer_name=customer_name,
+                    contact=contact,
+                    comment="",
+                    order_text=order_text,
+                )
+                context["order_id"] = saved_order_id
+                context["saved_order_id"] = saved_order_id
+                any_executed = True
+                continue
+
+            if action_type == automations_service.ACTION_ATTACH_BUTTONS:
+                target = str(action.get("target") or "").lower()
+                try:
+                    preset_id = int(action.get("preset_id") or 0)
+                except (TypeError, ValueError):
+                    preset_id = 0
+                preset = presets_map.get(preset_id)
+                if preset and target in attached_presets:
+                    attached_presets[target] = preset
+                    any_executed = True
+                continue
+
+            if action_type in {
+                automations_service.ACTION_SEND_USER_MESSAGE,
+                automations_service.ACTION_SEND_ADMIN_MESSAGE,
+            }:
+                text = automations_service.render_message(
+                    action.get("template"),
+                    context=context,
+                    items=items,
+                    currency=currency,
+                )
+                if not text:
+                    continue
+                target_scope = "user" if action_type == automations_service.ACTION_SEND_USER_MESSAGE else "admin"
+                preset = attached_presets.get(target_scope)
+                reply_markup = automations_service.build_keyboard_from_buttons(
+                    preset.buttons_json if preset else None,
+                    webapp_url=webapp_url,
+                    context=context,
+                )
+                if target_scope == "user":
+                    _send_bot_message(tg_user_id, text, reply_markup=reply_markup)
+                else:
+                    _send_message_to_admins(text, reply_markup=reply_markup)
+                any_executed = True
+                continue
+
+    return any_executed
+
+
 def _dispatch_webapp_checkout_created(
     *,
     request: Request,
@@ -639,6 +802,15 @@ def _dispatch_webapp_checkout_created(
     totals: dict[str, Any],
     order_id: int,
 ) -> None:
+    if _apply_webapp_automation_rules(
+        request=request,
+        tg_user_id=tg_user_id,
+        items=items,
+        totals=totals,
+        order_id=order_id,
+    ):
+        return
+
     webapp_url = _resolve_webapp_url(request)
     with get_session() as session:
         trigger = (
