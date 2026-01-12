@@ -82,6 +82,8 @@ let isModalOpen = false;
 let telegramUserId = null;
 let cartState = { items: [], total: 0 };
 let cartLoading = false;
+const checkoutSuccessStorageKey = 'webapp_checkout_success';
+const checkoutSuccessTtlMs = 10 * 60 * 1000;
 
 function normalizeMediaUrl(url) {
   if (!url) return '';
@@ -393,6 +395,86 @@ function showCheckoutSuccess() {
   cartCheckoutSuccess.removeAttribute('hidden');
 }
 
+function readCheckoutSuccessState() {
+  if (!window.sessionStorage) return null;
+  try {
+    const raw = window.sessionStorage.getItem(checkoutSuccessStorageKey);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (!data || typeof data !== 'object') return null;
+    const createdAt = Number(data.createdAt);
+    if (!Number.isFinite(createdAt)) return null;
+    if (Date.now() - createdAt > checkoutSuccessTtlMs) {
+      window.sessionStorage.removeItem(checkoutSuccessStorageKey);
+      return null;
+    }
+    return {
+      orderId: data.orderId ?? null,
+      createdAt,
+      consumed: Boolean(data.consumed),
+      consumedAt: Number.isFinite(Number(data.consumedAt)) ? Number(data.consumedAt) : null,
+    };
+  } catch (error) {
+    return null;
+  }
+}
+
+function writeCheckoutSuccessState(state) {
+  if (!window.sessionStorage) return;
+  try {
+    window.sessionStorage.setItem(checkoutSuccessStorageKey, JSON.stringify(state));
+  } catch (error) {
+    // Ignore storage write errors.
+  }
+}
+
+function recordCheckoutSuccess(orderId) {
+  writeCheckoutSuccessState({
+    orderId: orderId ?? null,
+    createdAt: Date.now(),
+    consumed: false,
+    consumedAt: null,
+  });
+}
+
+function consumeCheckoutSuccess() {
+  const state = readCheckoutSuccessState();
+  if (!state) return;
+  if (state.consumed) return;
+  writeCheckoutSuccessState({
+    ...state,
+    consumed: true,
+    consumedAt: Date.now(),
+  });
+}
+
+function dismissCheckoutSuccess() {
+  cartCheckoutSuccess?.setAttribute('hidden', '');
+  consumeCheckoutSuccess();
+}
+
+function handleCheckoutSuccessFromUrl() {
+  const url = new URL(window.location.href);
+  const paramKeys = ['success', 'order_sent', 'orderSent', 'checkout_success'];
+  const foundKey = paramKeys.find((key) => url.searchParams.has(key));
+  if (!foundKey) return false;
+  url.searchParams.delete(foundKey);
+  window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+  recordCheckoutSuccess('url');
+  showCheckoutSuccess();
+  consumeCheckoutSuccess();
+  return true;
+}
+
+function restoreCheckoutSuccess() {
+  if (handleCheckoutSuccessFromUrl()) return;
+  const state = readCheckoutSuccessState();
+  if (state && !state.consumed) {
+    showCheckoutSuccess();
+    consumeCheckoutSuccess();
+  }
+}
+
 async function submitCheckout() {
   if (!telegramUserId) {
     showInfoToast('Откройте витрину из Telegram бота.');
@@ -419,8 +501,10 @@ async function submitCheckout() {
       const text = await response.text();
       throw new Error(text || 'Не удалось отправить заказ');
     }
-    await response.json();
+    const result = await response.json();
+    recordCheckoutSuccess(result?.order_id);
     showCheckoutSuccess();
+    consumeCheckoutSuccess();
   } catch (error) {
     console.error('Ошибка отправки заказа', error);
     showInfoToast(error?.message || 'Не удалось отправить заказ');
@@ -934,12 +1018,12 @@ function bindCartBarActions() {
   });
 
   cartSuccessClose?.addEventListener('click', () => {
-    cartCheckoutSuccess?.setAttribute('hidden', '');
+    dismissCheckoutSuccess();
   });
 
   cartCheckoutSuccess?.addEventListener('click', (event) => {
     if (event.target === cartCheckoutSuccess) {
-      cartCheckoutSuccess.setAttribute('hidden', '');
+      dismissCheckoutSuccess();
     }
   });
 
@@ -948,8 +1032,11 @@ function bindCartBarActions() {
     const botLink = username ? `https://t.me/${username}` : 'https://t.me';
     if (window.Telegram?.WebApp?.openTelegramLink) {
       event.preventDefault();
+      dismissCheckoutSuccess();
       window.Telegram.WebApp.openTelegramLink(botLink);
+      return;
     }
+    dismissCheckoutSuccess();
   });
 
   window.addEventListener('resize', updateCartBarOffset);
@@ -1093,6 +1180,7 @@ function bindNavigation() {
 async function bootstrap() {
   initTelegramContext();
   updateCheckoutAvailability();
+  restoreCheckoutSuccess();
   try {
     const urlType = getMenuTypeFromUrl();
     activeMenuType = urlType || activeMenuType;
