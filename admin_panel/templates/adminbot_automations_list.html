@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Автоматизации</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 16px; background: #f8fafc; }
+        header { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+        a.button, button { padding: 6px 10px; background: #2563eb; color: #fff; text-decoration: none; border: none; border-radius: 4px; cursor: pointer; }
+        table { border-collapse: collapse; width: 100%; background: #fff; }
+        th, td { border: 1px solid #cbd5e1; padding: 8px; text-align: left; vertical-align: top; }
+        th { background: #e2e8f0; }
+        .muted { color: #475569; font-size: 14px; }
+        form.inline { display: inline; }
+        .toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 12px 0; }
+        .badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 12px; background: #e0f2fe; color: #0369a1; margin-right: 4px; }
+        .card { background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 12px; margin: 12px 0; }
+    </style>
+</head>
+<body>
+<header>
+    <a href="/adminbot" class="button">Главная</a>
+    <a href="/adminbot/templates" class="button">Шаблоны</a>
+    <a href="/adminbot/nodes" class="button">Узлы</a>
+    <a href="/adminbot/automations" class="button" style="background:#0ea5e9;">Автоматизации</a>
+    <a href="/adminbot/triggers" class="button">Триггеры</a>
+    <a href="/adminbot/runtime" class="button" title="Работа бота — обновление версии сценария">Работа бота</a>
+    <a href="/adminbot/logs" class="button" title="Логи — история действий бота">Логи</a>
+    <a href="/adminbot/logout" class="button" style="background:#dc2626;">Выйти</a>
+</header>
+<h2>Автоматизации</h2>
+<div class="muted">Собирайте правила в три шага: триггер → условия → действия. Всё кликами.</div>
+
+{% if not rules %}
+<div class="card">
+    <strong>Пока нет правил.</strong>
+    <div class="muted" style="margin-top:6px;">Создайте правило или используйте шаблон для заказов из WebApp.</div>
+    <div class="toolbar" style="margin-top:10px;">
+        <a href="/adminbot/automations/new" class="button">Создать правило</a>
+        <form method="post" action="/adminbot/automations/seed" class="inline">
+            <button type="submit" style="background:#0ea5e9;">Создать правило по шаблону</button>
+        </form>
+        <a href="/adminbot/automations/button-presets" class="button" style="background:#475569;">Пресеты кнопок</a>
+    </div>
+</div>
+{% else %}
+<div class="toolbar">
+    <a href="/adminbot/automations/new" class="button">Создать правило</a>
+    <a href="/adminbot/automations/button-presets" class="button" style="background:#475569;">Пресеты кнопок</a>
+    <form method="post" action="/adminbot/automations/seed" class="inline">
+        <button type="submit" style="background:#0ea5e9;">Создать правило по шаблону</button>
+    </form>
+</div>
+<table>
+    <thead>
+    <tr>
+        <th>Название</th>
+        <th>Триггер</th>
+        <th>Действия</th>
+        <th>Включено</th>
+        <th>Действия</th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for rule in rules %}
+    <tr>
+        <td>{{ rule.title }}</td>
+        <td>{{ trigger_labels.get(rule.trigger_type, rule.trigger_type) }}</td>
+        <td>
+            {% for action in rule.actions_json or [] %}
+                {% set action_type = action.get('type') if action else None %}
+                <span class="badge">{{ action_labels.get(action_type, action_type) }}</span>
+            {% endfor %}
+        </td>
+        <td>{{ '✅' if rule.is_enabled else '⛔' }}</td>
+        <td>
+            <a href="/adminbot/automations/{{ rule.id }}/edit">Редактировать</a>
+            |
+            <form action="/adminbot/automations/{{ rule.id }}/delete" method="post" class="inline" onsubmit="return confirm('Удалить правило?');">
+                <button type="submit" style="background:#dc2626;">Удалить</button>
+            </form>
+        </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+
+{% if presets %}
+<p class="muted" style="margin-top:12px;">
+    Пресеты кнопок: {% for preset in presets %}<span class="badge">{{ preset.title }}</span>{% endfor %}
+</p>
+{% else %}
+<p class="muted" style="margin-top:12px;">Пресеты кнопок пока не созданы. Добавьте их в разделе «Пресеты кнопок».</p>
+{% endif %}
+</body>
+</html>

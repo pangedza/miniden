@@ -156,6 +156,31 @@ class BotEventTrigger(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=func.now(), nullable=False)
 
 
+class BotAutomationRule(Base):
+    __tablename__ = "bot_automation_rules"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    title = Column(String(128), nullable=False)
+    trigger_type = Column(String(32), nullable=False)
+    conditions_json = Column(JSONB, nullable=True)
+    actions_json = Column(JSONB, nullable=True)
+    is_enabled = Column(Boolean, default=True, nullable=False, server_default="true")
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=func.now(), nullable=False)
+
+
+class BotButtonPreset(Base):
+    __tablename__ = "bot_button_presets"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    title = Column(String(128), nullable=False)
+    scope = Column(String(16), nullable=False, default="user", server_default="user")
+    buttons_json = Column(JSONB, nullable=True)
+    is_enabled = Column(Boolean, default=True, nullable=False, server_default="true")
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=func.now(), nullable=False)
+
+
 class MenuButton(Base):
     __tablename__ = "menu_buttons"
 
@@ -814,6 +839,8 @@ __all__ = [
     "BotAction",
     "BotRuntime",
     "BotEventTrigger",
+    "BotAutomationRule",
+    "BotButtonPreset",
     "Base",
     "AdminSession",
     "AdminUser",
