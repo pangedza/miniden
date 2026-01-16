@@ -100,6 +100,10 @@
           <button class="btn secondary" type="button" id="clear-cart">Очистить корзину</button>
           <button class="btn" type="button" id="checkout">Оформить заказ</button>
         </div>
+        <div class="input-row">
+          <button class="btn" type="button" id="checkout-bot-inline">Оформить в боте</button>
+          <div class="muted" id="checkout-bot-inline-hint" style="display:none;">Оформление в боте доступно в Telegram</div>
+        </div>
       </div>
     </main>
   </div>
@@ -150,6 +154,8 @@
     const checkoutContactBtn = document.getElementById('checkout-contact-admin');
     const checkoutBotBtn = document.getElementById('checkout-bot');
     const checkoutBotHint = document.getElementById('checkout-bot-hint');
+    const checkoutBotInlineBtn = document.getElementById('checkout-bot-inline');
+    const checkoutBotInlineHint = document.getElementById('checkout-bot-inline-hint');
 
     let profile = null;
     let telegramUserId = null;
@@ -205,6 +211,12 @@
       }
       if (checkoutBotHint) {
         checkoutBotHint.style.display = isAvailable ? 'none' : 'block';
+      }
+      if (checkoutBotInlineBtn) {
+        checkoutBotInlineBtn.style.display = isAvailable ? '' : 'none';
+      }
+      if (checkoutBotInlineHint) {
+        checkoutBotInlineHint.style.display = isAvailable ? 'none' : 'block';
       }
     }
 
@@ -693,6 +705,60 @@
       }
     }
 
+    function getCartTotalForPayload() {
+      const items = currentCart.items || [];
+      const fallbackTotal = items.reduce((sum, item) => {
+        const price = Number(item.price) || 0;
+        const qty = Number(item.qty) || 0;
+        return sum + price * qty;
+      }, 0);
+      const baseTotal = Number(currentCart.total || 0) || fallbackTotal;
+      const promoTotal = Number.isFinite(Number(finalTotal)) ? Number(finalTotal) : baseTotal;
+      return appliedPromo ? promoTotal : baseTotal;
+    }
+
+    function buildWebAppOrderPayload() {
+      const items = (currentCart.items || []).map((item) => ({
+        id: item.product_id,
+        title: item.name || item.title || `Товар #${item.product_id}`,
+        qty: Number(item.qty) || 0,
+        price: Number(item.price) || 0,
+      }));
+      return {
+        type: 'webapp_order',
+        cart: {
+          items,
+          total: getCartTotalForPayload(),
+          currency: 'RUB',
+        },
+      };
+    }
+
+    function notifyBotCheckoutSent() {
+      const message = 'Заказ отправлен в бот. Вернитесь в чат.';
+      if (typeof showToast === 'function') {
+        showToast(message);
+        return;
+      }
+      alert(message);
+    }
+
+    function sendCartToTelegramBot() {
+      const tg = window.Telegram?.WebApp;
+      const isTg = Boolean(tg && tg.initData);
+      if (!isTg) {
+        showToast('Оформление в боте доступно в Telegram');
+        return;
+      }
+      if (!currentCart.items?.length) {
+        showToast('Корзина пуста');
+        return;
+      }
+      const payload = buildWebAppOrderPayload();
+      tg.sendData(JSON.stringify(payload));
+      notifyBotCheckoutSent();
+    }
+
     applyPromoBtn.addEventListener('click', applyPromo);
     removePromoBtn?.addEventListener('click', removePromo);
     clearBtn.addEventListener('click', clearCart);
@@ -702,12 +768,8 @@
     document.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') closeCheckoutModal();
     });
-    checkoutBotBtn?.addEventListener('click', () => {
-      const tg = window.Telegram?.WebApp;
-      if (tg && tg.initData) {
-        tg.sendData(JSON.stringify({ type: 'cart_checkout' }));
-      }
-    });
+    checkoutBotBtn?.addEventListener('click', sendCartToTelegramBot);
+    checkoutBotInlineBtn?.addEventListener('click', sendCartToTelegramBot);
 
     async function initCartPage() {
       telegramUserId = resolveTelegramUserId();
