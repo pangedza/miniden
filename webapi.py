@@ -271,6 +271,7 @@ SETTINGS = get_settings()
 BOT_TOKEN = SETTINGS.bot_token
 AUTH_SESSION_TTL_SECONDS = 600
 COOKIE_MAX_AGE = 30 * 24 * 60 * 60
+CART_SESSION_COOKIE = "cart_session_id"
 UPLOAD_FOLDERS = {"products", "courses", "categories", "home", "reviews", "uploads"}
 
 BRANDING_LOGO_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".svg"}
@@ -1278,13 +1279,13 @@ async def api_webchat_manager_reply(
 
 def _validate_type(product_type: str) -> str:
     if product_type not in ALLOWED_TYPES:
-        raise HTTPException(status_code=400, detail="type must be 'basket' or 'course'")
+        raise HTTPException(status_code=422, detail="type must be 'basket' or 'course'")
     return product_type
 
 
 def _validate_category_type(product_type: str) -> str:
     if product_type not in ALLOWED_CATEGORY_TYPES:
-        raise HTTPException(status_code=400, detail="type must be 'basket', 'course' or 'mixed'")
+        raise HTTPException(status_code=422, detail="type must be 'basket', 'course' or 'mixed'")
     return product_type
 
 
@@ -1299,14 +1300,14 @@ def _faq_to_dict(item) -> dict:
 
 
 class CartItemPayload(BaseModel):
-    user_id: int
+    user_id: int | None = None
     product_id: int
     qty: int | None = 1
     type: str = "basket"
 
 
 class CartClearPayload(BaseModel):
-    user_id: int
+    user_id: int | None = None
 
 
 class CheckoutPayload(BaseModel):
@@ -1635,6 +1636,47 @@ def _get_current_user_from_cookie(session: Session, request: Request) -> User | 
     return session.query(User).filter(User.telegram_id == telegram_id).first()
 
 
+def _get_cart_user_id_from_cookie(request: Request) -> int | None:
+    user_id = request.cookies.get("tg_user_id")
+    if not user_id:
+        return None
+    try:
+        return int(user_id)
+    except ValueError:
+        return None
+
+
+def _ensure_cart_session_id(request: Request, response: Response) -> str:
+    session_id = request.cookies.get(CART_SESSION_COOKIE)
+    if session_id:
+        return session_id
+    session_id = uuid4().hex
+    response.set_cookie(
+        key=CART_SESSION_COOKIE,
+        value=session_id,
+        httponly=True,
+        max_age=COOKIE_MAX_AGE,
+        samesite="lax",
+    )
+    return session_id
+
+
+def _resolve_cart_identity(
+    request: Request,
+    response: Response,
+    user_id: int | None = None,
+) -> tuple[int | None, str | None]:
+    if user_id is not None:
+        return int(user_id), None
+
+    cookie_user_id = _get_cart_user_id_from_cookie(request)
+    if cookie_user_id is not None:
+        return cookie_user_id, None
+
+    session_id = _ensure_cart_session_id(request, response)
+    return None, session_id
+
+
 def get_admin_user(request: Request) -> User:
     with get_session() as session:
         user = _get_current_user_from_cookie(session, request)
@@ -1649,8 +1691,12 @@ def _product_by_type(product_type: str, product_id: int, *, include_inactive: bo
     return products_service.get_course_by_id(product_id, include_inactive=include_inactive)
 
 
-def _build_cart_response(user_id: int) -> dict[str, Any]:
-    items, removed_ids = cart_service.get_cart_items(user_id)
+def _build_cart_response(
+    *,
+    user_id: int | None = None,
+    session_id: str | None = None,
+) -> dict[str, Any]:
+    items, removed_ids = cart_service.get_cart_items(user_id, session_id=session_id)
 
     normalized_items: list[dict[str, Any]] = []
     removed_items: list[dict[str, Any]] = []
@@ -1660,7 +1706,12 @@ def _build_cart_response(user_id: int) -> dict[str, Any]:
         product_type = item.get("type") or "basket"
         if product_type not in ALLOWED_TYPES:
             removed_items.append({"product_id": item.get("product_id"), "type": product_type, "reason": "invalid"})
-            cart_service.remove_from_cart(user_id, int(item.get("product_id") or 0), product_type)
+            cart_service.remove_from_cart(
+                user_id,
+                int(item.get("product_id") or 0),
+                product_type,
+                session_id=session_id,
+            )
             continue
         try:
             product_id = int(item.get("product_id"))
@@ -1671,12 +1722,22 @@ def _build_cart_response(user_id: int) -> dict[str, Any]:
         product_info = _product_by_type(product_type, product_id)
         if not product_info:
             removed_items.append({"product_id": product_id, "type": product_type, "reason": "inactive"})
-            cart_service.remove_from_cart(user_id, product_id, product_type)
+            cart_service.remove_from_cart(
+                user_id,
+                product_id,
+                product_type,
+                session_id=session_id,
+            )
             continue
 
         qty = max(int(item.get("qty") or 0), 0)
         if qty <= 0:
-            cart_service.remove_from_cart(user_id, product_id, product_type)
+            cart_service.remove_from_cart(
+                user_id,
+                product_id,
+                product_type,
+                session_id=session_id,
+            )
             continue
 
         price = int(product_info.get("price") or 0)
@@ -2061,7 +2122,7 @@ class PromocodeValidatePayload(BaseModel):
 
 
 class CartPromocodeApplyPayload(BaseModel):
-    user_id: int
+    user_id: int | None = None
     code: str
 
 
@@ -2706,22 +2767,30 @@ def upload_review_photo(review_id: int, request: Request, file: list[UploadFile]
 
 
 @app.get("/api/cart")
-def api_cart(user_id: int):
+def api_cart(request: Request, response: Response, user_id: int | None = None):
     """Вернуть содержимое корзины пользователя и сумму заказа."""
-    return _build_cart_response(user_id)
+    resolved_user_id, session_id = _resolve_cart_identity(request, response, user_id=user_id)
+    return _build_cart_response(user_id=resolved_user_id, session_id=session_id)
 
 
 @app.post("/api/cart/apply-promocode")
-def api_cart_apply_promocode(payload: CartPromocodeApplyPayload):
-    if payload.user_id is None:
-        raise HTTPException(status_code=400, detail="user_id is required")
+def api_cart_apply_promocode(
+    payload: CartPromocodeApplyPayload,
+    request: Request,
+    response: Response,
+):
+    resolved_user_id, session_id = _resolve_cart_identity(
+        request,
+        response,
+        user_id=payload.user_id,
+    )
 
-    cart_data = _build_cart_response(payload.user_id)
+    cart_data = _build_cart_response(user_id=resolved_user_id, session_id=session_id)
     items = cart_data.get("items") or []
     if not items:
         raise HTTPException(status_code=400, detail="Cart is empty")
 
-    result = promocodes_service.validate_promocode(payload.code, payload.user_id, items)
+    result = promocodes_service.validate_promocode(payload.code, resolved_user_id, items)
     if not result:
         raise HTTPException(status_code=400, detail="Invalid promocode")
 
@@ -2745,7 +2814,7 @@ def api_checkout(payload: CheckoutPayload):
     if payload.user_id is None or not users_service.get_user_by_telegram_id(int(payload.user_id)):
         raise HTTPException(status_code=401, detail="Требуется авторизация")
 
-    cart_data = _build_cart_response(payload.user_id)
+    cart_data = _build_cart_response(user_id=payload.user_id)
     normalized_items = cart_data.get("items") or []
     removed_items = cart_data.get("removed_items") or []
     total = int(cart_data.get("total") or 0)
@@ -2813,40 +2882,56 @@ def api_checkout(payload: CheckoutPayload):
 
 
 @app.post("/api/cart/add")
-def api_cart_add(payload: CartItemPayload):
+def api_cart_add(payload: CartItemPayload, request: Request, response: Response):
     qty = payload.qty or 1
     if qty <= 0:
-        raise HTTPException(status_code=400, detail="qty must be positive")
+        raise HTTPException(status_code=422, detail="qty must be positive")
 
     product_type = _validate_type(payload.type)
     product = _product_by_type(product_type, int(payload.product_id))
     if not product:
         raise HTTPException(status_code=404, detail="Product not found or inactive")
 
-    cart_service.add_to_cart(
+    resolved_user_id, session_id = _resolve_cart_identity(
+        request,
+        response,
         user_id=payload.user_id,
+    )
+    cart_service.add_to_cart(
+        user_id=resolved_user_id,
         product_id=int(payload.product_id),
         qty=qty,
         product_type=product_type,
+        session_id=session_id,
     )
 
-    return _build_cart_response(payload.user_id)
+    return _build_cart_response(user_id=resolved_user_id, session_id=session_id)
 
 
 @app.post("/api/cart/update")
-def api_cart_update(payload: CartItemPayload):
+def api_cart_update(payload: CartItemPayload, request: Request, response: Response):
     qty = payload.qty or 0
     product_type = _validate_type(payload.type)
 
+    resolved_user_id, session_id = _resolve_cart_identity(
+        request,
+        response,
+        user_id=payload.user_id,
+    )
     if qty <= 0:
-        cart_service.remove_from_cart(payload.user_id, int(payload.product_id), product_type)
-        return _build_cart_response(payload.user_id)
+        cart_service.remove_from_cart(
+            resolved_user_id,
+            int(payload.product_id),
+            product_type,
+            session_id=session_id,
+        )
+        return _build_cart_response(user_id=resolved_user_id, session_id=session_id)
 
     product = _product_by_type(product_type, int(payload.product_id))
     if not product:
         raise HTTPException(status_code=404, detail="Product not found or inactive")
 
-    current_items, _ = cart_service.get_cart_items(payload.user_id)
+    current_items, _ = cart_service.get_cart_items(resolved_user_id, session_id=session_id)
     existing = next(
         (
             i
@@ -2859,22 +2944,38 @@ def api_cart_update(payload: CartItemPayload):
     if existing:
         delta = qty - int(existing.get("qty") or 0)
         if delta != 0:
-            cart_service.change_qty(payload.user_id, int(payload.product_id), delta, product_type)
+            cart_service.change_qty(
+                resolved_user_id,
+                int(payload.product_id),
+                delta,
+                product_type,
+                session_id=session_id,
+            )
     else:
         cart_service.add_to_cart(
-            user_id=payload.user_id,
+            user_id=resolved_user_id,
             product_id=int(payload.product_id),
             qty=qty,
             product_type=product_type,
+            session_id=session_id,
         )
 
-    return _build_cart_response(payload.user_id)
+    return _build_cart_response(user_id=resolved_user_id, session_id=session_id)
 
 
 @app.post("/api/cart/clear")
-def api_cart_clear(payload: CartClearPayload):
-    cart_service.clear_cart(payload.user_id)
-    return _build_cart_response(payload.user_id)
+def api_cart_clear(
+    request: Request,
+    response: Response,
+    payload: CartClearPayload = Body(default=CartClearPayload()),
+):
+    resolved_user_id, session_id = _resolve_cart_identity(
+        request,
+        response,
+        user_id=payload.user_id,
+    )
+    cart_service.clear_cart(resolved_user_id, session_id=session_id)
+    return _build_cart_response(user_id=resolved_user_id, session_id=session_id)
 
 
 @app.get("/api/me")
@@ -2952,7 +3053,7 @@ def api_promocode_validate(payload: PromocodeValidatePayload):
                 }
             )
     else:
-        cart_data = _build_cart_response(payload.telegram_id)
+        cart_data = _build_cart_response(user_id=payload.telegram_id)
         cart_items = cart_data.get("items") or []
 
     result = promocodes_service.validate_promocode(payload.code, payload.telegram_id, cart_items)

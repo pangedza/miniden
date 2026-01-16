@@ -106,6 +106,8 @@ def init_db() -> None:
             "ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS legacy_link TEXT",
             "ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS stock_qty INTEGER",
             "ALTER TABLE site_settings ADD COLUMN IF NOT EXISTS hero_enabled BOOLEAN NOT NULL DEFAULT TRUE",
+            "ALTER TABLE cart_items ADD COLUMN IF NOT EXISTS session_id VARCHAR(64)",
+            "ALTER TABLE cart_items ALTER COLUMN user_id DROP NOT NULL",
         ]
 
         with engine.begin() as conn:
@@ -167,6 +169,12 @@ def init_db() -> None:
                 text(
                     "CREATE INDEX IF NOT EXISTS idx_menu_items_category_id "
                     "ON menu_items(category_id)"
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS idx_cart_items_session_id "
+                    "ON cart_items(session_id)"
                 )
             )
 

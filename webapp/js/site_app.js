@@ -74,7 +74,6 @@ let settingsData = null;
 let blocksData = { home: [], category: [] };
 let modalState = { item: null, returnUrl: null, qty: 1 };
 let isModalOpen = false;
-let telegramUserId = null;
 let cartState = { items: [], total: 0 };
 let cartLoading = false;
 
@@ -101,12 +100,7 @@ function formatCartTotal(value, currency = '₽') {
   return `${number.toLocaleString('ru-RU')} ${currency}`;
 }
 
-function resolveTelegramUserId() {
-  return window.Telegram?.WebApp?.initDataUnsafe?.user?.id || null;
-}
-
 function initTelegramContext() {
-  telegramUserId = resolveTelegramUserId();
   if (window.Telegram?.WebApp?.ready) {
     window.Telegram.WebApp.ready();
   }
@@ -116,51 +110,6 @@ function getCartQtyTotal(items) {
   return (items || []).reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
 }
 
-function loadGuestCartItems() {
-  if (typeof window.loadGuestCart !== 'function') return [];
-  const items = window.loadGuestCart();
-  return Array.isArray(items) ? items : [];
-}
-
-function saveGuestCartItems(items) {
-  if (typeof window.saveGuestCart !== 'function') return;
-  window.saveGuestCart(items || []);
-}
-
-function buildGuestCartState(items) {
-  const safeItems = Array.isArray(items) ? items : [];
-  const total = safeItems.reduce(
-    (sum, item) => sum + (Number(item.price) || 0) * (Number(item.qty) || 0),
-    0
-  );
-  return {
-    items: safeItems,
-    total,
-  };
-}
-
-function addItemToGuestCart(item, qty = 1) {
-  const cartType = mapCartType(item.type);
-  const current = loadGuestCartItems();
-  const existing = current.find(
-    (entry) => Number(entry.product_id) === Number(item.id) && entry.type === cartType
-  );
-  const price = Number(item.price) || 0;
-  if (existing) {
-    existing.qty = (Number(existing.qty) || 0) + qty;
-    existing.price = price || Number(existing.price) || 0;
-  } else {
-    current.push({
-      product_id: item.id,
-      type: cartType,
-      qty,
-      price,
-    });
-  }
-  saveGuestCartItems(current);
-  cartState = buildGuestCartState(current);
-  updateCartBar(cartState);
-}
 
 function setCartBarOffset(value) {
   document.documentElement.style.setProperty('--cart-bar-offset', `${value}px`);
@@ -339,11 +288,7 @@ function renderFooter(settings) {
 }
 
 async function fetchCart() {
-  if (!telegramUserId) {
-    return buildGuestCartState(loadGuestCartItems());
-  }
   const url = new URL('/api/cart', window.location.origin);
-  url.searchParams.set('user_id', String(telegramUserId));
   const response = await fetch(url.toString(), { cache: 'no-store' });
   if (!response.ok) {
     const text = await response.text();
@@ -379,17 +324,11 @@ async function refreshCartBar() {
 }
 
 async function addItemToCart(item, qty = 1) {
-  if (!telegramUserId) {
-    addItemToGuestCart(item, qty);
-    showInfoToast('Товар добавлен');
-    return;
-  }
   const cartType = mapCartType(item.type);
   const response = await fetch('/api/cart/add', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      user_id: telegramUserId,
       product_id: item.id,
       qty,
       type: cartType,
@@ -606,7 +545,7 @@ function renderBlocks(blocks, container) {
       const button = document.createElement('a');
       button.className = 'btn';
       button.textContent = block.payload?.button_text || 'Оставить заявку';
-      button.href = block.payload?.button_link || '/cart';
+      button.href = block.payload?.button_link || '/cart.html';
       wrapper.appendChild(button);
     }
 
@@ -907,7 +846,7 @@ function bindModalActions() {
 
 function bindCartBarActions() {
   const handleCartBarClick = () => {
-    const targetPath = '/cart';
+    const targetPath = '/cart.html';
     if (window.location.pathname !== targetPath) {
       window.location.assign(targetPath);
     }
@@ -1060,6 +999,9 @@ function bindNavigation() {
 
 async function bootstrap() {
   initTelegramContext();
+  if (typeof window.ensureTelegramWebAppAuth === 'function') {
+    await window.ensureTelegramWebAppAuth();
+  }
   try {
     const urlType = getMenuTypeFromUrl();
     activeMenuType = urlType || activeMenuType;
