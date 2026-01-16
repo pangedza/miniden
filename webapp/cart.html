@@ -104,6 +104,22 @@
     </main>
   </div>
 
+  <div class="checkout-modal-overlay" id="checkout-modal-overlay"></div>
+  <div class="checkout-modal" id="checkout-modal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="checkout-modal-title">
+    <div class="checkout-modal__header">
+      <h2 id="checkout-modal-title">Оформление заказа</h2>
+      <button class="checkout-modal__close" type="button" id="checkout-modal-close" aria-label="Закрыть">✕</button>
+    </div>
+    <div class="checkout-modal__body">
+      <p class="muted">Выберите способ оформления</p>
+      <div class="checkout-modal__actions">
+        <a class="btn secondary" id="checkout-contact-admin" href="#" target="_blank" rel="noopener">Связаться с админом</a>
+        <button class="btn" type="button" id="checkout-bot">Оформить в боте</button>
+      </div>
+      <div class="checkout-modal__hint muted" id="checkout-bot-hint">Доступно в Telegram</div>
+    </div>
+  </div>
+
   <div class="app-sidebar-overlay"></div>
   <div id="toast-container"></div>
 
@@ -128,6 +144,12 @@
     const nameInput = document.getElementById('customer-name');
     const contactInput = document.getElementById('customer-contact');
     const commentInput = document.getElementById('customer-comment');
+    const checkoutModal = document.getElementById('checkout-modal');
+    const checkoutModalOverlay = document.getElementById('checkout-modal-overlay');
+    const checkoutModalClose = document.getElementById('checkout-modal-close');
+    const checkoutContactBtn = document.getElementById('checkout-contact-admin');
+    const checkoutBotBtn = document.getElementById('checkout-bot');
+    const checkoutBotHint = document.getElementById('checkout-bot-hint');
 
     let profile = null;
     if (isTelegramWebApp && window.Telegram?.WebApp?.ready) {
@@ -137,6 +159,61 @@
     let appliedPromo = null;
     let discountAmount = 0;
     let finalTotal = 0;
+    let adminContactUrl = null;
+
+    function setAdminContactUrl(url) {
+      if (!checkoutContactBtn) return;
+      if (!url) return;
+      checkoutContactBtn.href = url;
+    }
+
+    async function resolveAdminContactUrl() {
+      const fallbackUrl = 'https://t.me/your_admin_username'; // TODO: заменить на реальный контакт админа
+      try {
+        const settings = await apiGet('/public/site-settings');
+        const social = settings?.social_links || {};
+        const contacts = settings?.contacts || {};
+        const candidate =
+          social.telegram ||
+          social.Telegram ||
+          contacts.telegram ||
+          contacts.Telegram ||
+          contacts.tg ||
+          contacts.TG;
+        adminContactUrl = candidate || fallbackUrl;
+      } catch (error) {
+        console.warn('Failed to load site settings for admin contact', error);
+        adminContactUrl = fallbackUrl;
+      }
+      setAdminContactUrl(adminContactUrl);
+    }
+
+    function updateTelegramCheckoutAvailability() {
+      const tg = window.Telegram?.WebApp;
+      const isAvailable = Boolean(tg && tg.initData);
+      if (checkoutBotBtn) {
+        checkoutBotBtn.style.display = isAvailable ? '' : 'none';
+      }
+      if (checkoutBotHint) {
+        checkoutBotHint.style.display = isAvailable ? 'none' : 'block';
+      }
+    }
+
+    function openCheckoutModal() {
+      if (!checkoutModal || !checkoutModalOverlay) return;
+      checkoutModal.classList.add('is-visible');
+      checkoutModalOverlay.classList.add('is-visible');
+      checkoutModal.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('modal-open');
+    }
+
+    function closeCheckoutModal() {
+      if (!checkoutModal || !checkoutModalOverlay) return;
+      checkoutModal.classList.remove('is-visible');
+      checkoutModalOverlay.classList.remove('is-visible');
+      checkoutModal.setAttribute('aria-hidden', 'true');
+      document.body.classList.remove('modal-open');
+    }
 
     function isItemEligibleForPromo(item, promo) {
       if (!promo) return false;
@@ -605,11 +682,24 @@
     applyPromoBtn.addEventListener('click', applyPromo);
     removePromoBtn?.addEventListener('click', removePromo);
     clearBtn.addEventListener('click', clearCart);
-    checkoutBtn.addEventListener('click', checkout);
+    checkoutBtn.addEventListener('click', openCheckoutModal);
+    checkoutModalClose?.addEventListener('click', closeCheckoutModal);
+    checkoutModalOverlay?.addEventListener('click', closeCheckoutModal);
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') closeCheckoutModal();
+    });
+    checkoutBotBtn?.addEventListener('click', () => {
+      const tg = window.Telegram?.WebApp;
+      if (tg && tg.initData) {
+        tg.sendData(JSON.stringify({ type: 'cart_checkout' }));
+      }
+    });
 
     async function initCartPage() {
+      await resolveAdminContactUrl();
       await loadUserProfile();
       await loadCart();
+      updateTelegramCheckoutAvailability();
     }
 
     initCartPage();
