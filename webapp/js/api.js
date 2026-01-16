@@ -65,6 +65,7 @@ async function apiPost(path, body) {
 }
 
 const isTelegramWebApp = !!(window.Telegram && window.Telegram.WebApp);
+let telegramWebAppAuthPromise = null;
 
 function normalizeError(message, status) {
   const error = new Error(message);
@@ -189,6 +190,25 @@ async function getCurrentUserProfile(options = {}) {
   }
 }
 
+async function ensureTelegramWebAppAuth() {
+  if (!isTelegramWebApp) return null;
+  if (telegramWebAppAuthPromise) return telegramWebAppAuthPromise;
+
+  const tg = window.Telegram?.WebApp;
+  if (!tg?.initData) return null;
+
+  telegramWebAppAuthPromise = apiPost("/auth/telegram_webapp", {
+    init_data: tg.initData,
+  })
+    .then((res) => res?.user || null)
+    .catch((error) => {
+      console.warn("Telegram WebApp auth failed", error);
+      return null;
+    });
+
+  return telegramWebAppAuthPromise;
+}
+
 const GUEST_CART_KEY = "miniden_guest_cart";
 
 function loadGuestCart() {
@@ -285,6 +305,7 @@ window.apiGet = apiGet;
 window.apiPost = apiPost;
 window.getCurrentUser = getCurrentUser;
 window.getCurrentUserProfile = getCurrentUserProfile;
+window.ensureTelegramWebAppAuth = ensureTelegramWebAppAuth;
 window.loadGuestCart = loadGuestCart;
 window.saveGuestCart = saveGuestCart;
 window.addToGuestCart = addToGuestCart;

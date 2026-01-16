@@ -450,7 +450,8 @@ class CartItem(Base):
     __tablename__ = "cart_items"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(BigInteger, ForeignKey("users.telegram_id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(BigInteger, ForeignKey("users.telegram_id", ondelete="CASCADE"), nullable=True)
+    session_id = Column(String(64), nullable=True, index=True)
     product_id = Column(Integer, nullable=False)
     type = Column(String, nullable=False)
     qty = Column(Integer, nullable=False, default=1)

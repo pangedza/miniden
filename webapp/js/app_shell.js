@@ -59,6 +59,9 @@
       if (isTelegramWebApp) {
         loginButton.disabled = true;
         try {
+          if (typeof ensureTelegramWebAppAuth === 'function') {
+            await ensureTelegramWebAppAuth();
+          }
           await loadSession();
         } finally {
           loginButton.disabled = false;
@@ -74,6 +77,9 @@
       showToast(error?.message || 'Не удалось авторизоваться через Telegram');
     });
 
+    if (typeof ensureTelegramWebAppAuth === 'function') {
+      await ensureTelegramWebAppAuth();
+    }
     await loadSession();
   };
 

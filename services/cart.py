@@ -49,10 +49,19 @@ def _normalize_product(item: CartItem) -> tuple[dict[str, Any] | None, bool]:
     )
 
 
-def get_cart_items(user_id: int) -> Tuple[list[dict[str, Any]], list[int]]:
+def _build_cart_filters(user_id: int | None, session_id: str | None) -> list[Any]:
+    if user_id is not None:
+        return [CartItem.user_id == int(user_id)]
+    if not session_id:
+        raise ValueError("cart_identity_missing")
+    return [CartItem.session_id == session_id]
+
+
+def get_cart_items(user_id: int | None, session_id: str | None = None) -> Tuple[list[dict[str, Any]], list[int]]:
     init_db()
     with get_session() as session:
-        items = session.scalars(select(CartItem).where(CartItem.user_id == user_id).order_by(CartItem.id)).all()
+        filters = _build_cart_filters(user_id, session_id)
+        items = session.scalars(select(CartItem).where(*filters).order_by(CartItem.id)).all()
 
     result: list[dict[str, Any]] = []
     removed: list[int] = []
@@ -60,7 +69,7 @@ def get_cart_items(user_id: int) -> Tuple[list[dict[str, Any]], list[int]]:
     for item in items:
         normalized, was_removed = _normalize_product(item)
         if was_removed:
-            remove_from_cart(user_id, int(item.product_id), item.type)
+            remove_from_cart(user_id, int(item.product_id), item.type, session_id=session_id)
             removed.append(int(item.product_id))
             continue
         if normalized:
@@ -69,13 +78,21 @@ def get_cart_items(user_id: int) -> Tuple[list[dict[str, Any]], list[int]]:
     return result, removed
 
 
-def add_to_cart(user_id: int, product_id: int, product_type: str, qty: int = 1) -> None:
+def add_to_cart(
+    user_id: int | None,
+    product_id: int,
+    product_type: str,
+    qty: int = 1,
+    session_id: str | None = None,
+) -> None:
     qty = max(int(qty), 1)
-    users_service.get_or_create_user_from_telegram({"id": user_id})
+    if user_id is not None:
+        users_service.get_or_create_user_from_telegram({"id": user_id})
     with get_session() as session:
+        filters = _build_cart_filters(user_id, session_id)
         existing = session.scalar(
             select(CartItem).where(
-                CartItem.user_id == user_id,
+                *filters,
                 CartItem.product_id == int(product_id),
                 CartItem.type == product_type,
             )
@@ -103,6 +120,7 @@ def add_to_cart(user_id: int, product_id: int, product_type: str, qty: int = 1) 
             session.add(
                 CartItem(
                     user_id=user_id,
+                    session_id=session_id if user_id is None else None,
                     product_id=int(product_id),
                     qty=next_qty,
                     type=product_type,
@@ -110,12 +128,19 @@ def add_to_cart(user_id: int, product_id: int, product_type: str, qty: int = 1) 
             )
 
 
-def change_qty(user_id: int, product_id: int, delta: int, product_type: str = "basket") -> None:
+def change_qty(
+    user_id: int | None,
+    product_id: int,
+    delta: int,
+    product_type: str = "basket",
+    session_id: str | None = None,
+) -> None:
     init_db()
     with get_session() as session:
+        filters = _build_cart_filters(user_id, session_id)
         item = session.scalar(
             select(CartItem).where(
-                CartItem.user_id == user_id,
+                *filters,
                 CartItem.product_id == int(product_id),
                 CartItem.type == product_type,
             )
@@ -129,12 +154,18 @@ def change_qty(user_id: int, product_id: int, delta: int, product_type: str = "b
             item.qty = new_qty
 
 
-def remove_from_cart(user_id: int, product_id: int, product_type: str = "basket") -> None:
+def remove_from_cart(
+    user_id: int | None,
+    product_id: int,
+    product_type: str = "basket",
+    session_id: str | None = None,
+) -> None:
     init_db()
     with get_session() as session:
+        filters = _build_cart_filters(user_id, session_id)
         item = session.scalar(
             select(CartItem).where(
-                CartItem.user_id == user_id,
+                *filters,
                 CartItem.product_id == int(product_id),
                 CartItem.type == product_type,
             )
@@ -143,14 +174,15 @@ def remove_from_cart(user_id: int, product_id: int, product_type: str = "basket"
             session.delete(item)
 
 
-def clear_cart(user_id: int) -> None:
+def clear_cart(user_id: int | None, session_id: str | None = None) -> None:
     init_db()
     with get_session() as session:
-        session.execute(delete(CartItem).where(CartItem.user_id == user_id))
+        filters = _build_cart_filters(user_id, session_id)
+        session.execute(delete(CartItem).where(*filters))
 
 
-def get_cart_total(user_id: int) -> int:
-    items, _ = get_cart_items(user_id)
+def get_cart_total(user_id: int | None, session_id: str | None = None) -> int:
+    items, _ = get_cart_items(user_id, session_id=session_id)
     total = 0
     for item in items:
         total += int(item.get("price", 0)) * int(item.get("qty", 0))

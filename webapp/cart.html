@@ -26,7 +26,7 @@
       </div>
       <div class="header-actions">
         <button class="menu-toggle" aria-label="Открыть категории">Категории</button>
-        <a class="btn cart-button" href="/cart">Корзина</a>
+        <a class="btn cart-button" href="/cart.html">Корзина</a>
       </div>
     </div>
   </header>
@@ -47,7 +47,7 @@
       </div>
       <div class="sidebar-section">
         <a href="/" class="category-link">Главная</a>
-        <a href="/cart" class="category-link is-active">Корзина</a>
+        <a href="/cart.html" class="category-link is-active">Корзина</a>
         <a href="/adminsite" id="admin-link" style="display:none;">Админка</a>
       </div>
     </aside>
@@ -55,7 +55,7 @@
     <main class="site-content">
       <div class="cart-header">
         <h1>Корзина</h1>
-        <p class="muted">Здесь отображаются товары и мастер-классы из вашего Telegram-аккаунта.</p>
+        <p class="muted">Здесь отображаются товары и мастер-классы из вашей корзины.</p>
       </div>
 
       <div class="note" id="note"></div>
@@ -179,10 +179,6 @@
 
     function resolveTelegramUserId() {
       return window.Telegram?.WebApp?.initDataUnsafe?.user?.id || null;
-    }
-
-    function getCartUserId() {
-      return profile?.telegram_id || telegramUserId || null;
     }
 
     function setAdminContactUrl(url) {
@@ -500,18 +496,20 @@
       updateDebugPanel(cart);
     }
 
-    async function loadCartFromServer(userId) {
+    async function loadCartFromServer() {
       try {
         noteEl.textContent = '';
         lastCartError = null;
-        await syncGuestCartToServer({ telegram_id: userId });
-        const cart = await apiGet('/cart', { user_id: userId });
+        const cart = await apiGet('/cart');
         currentCart = cart;
         if (!appliedPromo) {
           discountAmount = 0;
           finalTotal = cart.total || 0;
         }
         renderCart(cart);
+        if (!profile?.telegram_id) {
+          noteEl.textContent = 'Чтобы оформить заказ, войдите через Telegram.';
+        }
       } catch (e) {
         noteEl.textContent = 'Не удалось загрузить корзину. Попробуйте обновить страницу.';
         lastCartError = 'Ошибка загрузки корзины';
@@ -519,115 +517,31 @@
       }
     }
 
-    async function loadGuestCartView() {
-      const items = loadGuestCart();
-      if (!items.length) {
-        noteEl.textContent = 'Чтобы оформить заказ и сохранить корзину, войдите через Telegram на главной странице.';
-        lastCartError = null;
-        renderEmpty('Корзина пуста. Добавьте товары на страницах каталога.');
-        return;
-      }
-
-      const types = Array.from(new Set(items.map((item) => item.type || 'basket')));
-      const productMaps = {};
-
-      for (const type of types) {
-        try {
-          const products = await apiGet('/products', { type });
-          productMaps[type] = Object.fromEntries(products.map((p) => [Number(p.id), p]));
-        } catch (e) {
-          productMaps[type] = {};
-        }
-      }
-
-      const enriched = items.map((item) => {
-        const map = productMaps[item.type || 'basket'] || {};
-        const product = map[Number(item.product_id)] || {};
-        const price = Number(product.price || 0);
-        return {
-          product_id: item.product_id,
-          type: item.type || 'basket',
-          qty: item.qty || 1,
-          name: product.name || `Товар #${item.product_id}`,
-          price,
-        };
-      });
-
-      const total = enriched.reduce((acc, item) => acc + (Number(item.price) || 0) * (Number(item.qty) || 0), 0);
-      currentCart = { items: enriched, total };
-      cartPanel.style.display = 'grid';
-      appliedPromo = null;
-      discountAmount = 0;
-      finalTotal = total;
-      noteEl.textContent = 'Для оформления заказа войдите через Telegram. После входа корзина сохранится.';
-      renderCart(currentCart);
-    }
-
     async function loadCart() {
-      const userId = getCartUserId();
-      if (userId) {
-        await loadCartFromServer(userId);
-      } else {
-        await loadGuestCartView();
-      }
+      await loadCartFromServer();
     }
 
     async function updateQty(productId, qty, type) {
-      const userId = getCartUserId();
-      if (userId) {
-        try {
-          await apiPost('/cart/update', { user_id: userId, product_id: productId, qty, type: type || 'basket' });
-          appliedPromo = null;
-          await loadCart();
-        } catch (e) {
-          showToast('Не удалось обновить количество. Попробуйте ещё раз.');
-        }
-        return;
+      try {
+        await apiPost('/cart/update', { product_id: productId, qty, type: type || 'basket' });
+        appliedPromo = null;
+        await loadCart();
+      } catch (e) {
+        showToast('Не удалось обновить количество. Попробуйте ещё раз.');
       }
-
-      const items = loadGuestCart();
-      const updated = items
-        .map((item) => {
-          if (item.product_id === productId && item.type === type) {
-            return { ...item, qty };
-          }
-          return item;
-        })
-        .filter((item) => (item.product_id === productId && item.type === type ? qty > 0 : true));
-      saveGuestCart(updated);
-      await loadGuestCartView();
     }
 
     async function clearCart() {
-      const userId = getCartUserId();
-      if (userId) {
-        try {
-          await apiPost('/cart/clear', { user_id: userId });
-          appliedPromo = null;
-          await loadCart();
-        } catch (e) {
-          showToast('Не удалось очистить корзину. Попробуйте ещё раз.');
-        }
-        return;
+      try {
+        await apiPost('/cart/clear');
+        appliedPromo = null;
+        await loadCart();
+      } catch (e) {
+        showToast('Не удалось очистить корзину. Попробуйте ещё раз.');
       }
-
-      clearGuestCart();
-      appliedPromo = null;
-      discountAmount = 0;
-      finalTotal = 0;
-      await loadGuestCartView();
     }
 
     async function applyPromo() {
-      const userId = getCartUserId();
-      if (!userId) {
-        showToast('Промокод можно применить после входа через Telegram.');
-        setTimeout(() => {
-          window.location.href = '/index.html';
-        }, 1200);
-        return;
-      }
-
       const code = (promoInput.value || '').trim();
       if (!code) {
         showToast('Введите промокод');
@@ -635,7 +549,7 @@
       }
 
       try {
-        const result = await apiPost('/cart/apply-promocode', { user_id: userId, code });
+        const result = await apiPost('/cart/apply-promocode', { code });
         appliedPromo = result;
         discountAmount = Number(result.discount_amount || 0);
         finalTotal = Number(result.final_total || currentCart.total || 0);
@@ -705,7 +619,7 @@
     }
 
     async function checkout() {
-      const userId = getCartUserId();
+      const userId = profile?.telegram_id || telegramUserId || null;
       if (!userId) {
         showToast('Чтобы оформить заказ и сохранить корзину, войдите через Telegram.');
         setTimeout(() => {
@@ -823,6 +737,9 @@
 
     async function initCartPage() {
       telegramUserId = resolveTelegramUserId();
+      if (typeof ensureTelegramWebAppAuth === 'function') {
+        await ensureTelegramWebAppAuth();
+      }
       await resolveAdminContactUrl();
       await loadUserProfile();
       await loadCart();
