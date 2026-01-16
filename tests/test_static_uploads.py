@@ -18,6 +18,9 @@ os.environ.setdefault("BOT_TOKEN", "test-bot-token")
 from config import get_settings
 from webapi import STATIC_DIR_PUBLIC, app
 
+from starlette.requests import Request
+from admin_panel.routes import adminbot_automations
+
 
 async def _call_app(path: str) -> tuple[int, dict[str, str], bytes]:
     response_body = bytearray()
@@ -81,6 +84,38 @@ class StaticUploadsTestCase(unittest.TestCase):
             self.assertEqual(body, sample_content)
         finally:
             sample_path.unlink(missing_ok=True)
+
+
+def test_automation_edit_missing_rule_returns_404(monkeypatch: object) -> None:
+    class DummyDb:
+        def get(self, model: object, rule_id: int) -> None:
+            return None
+
+    dummy_user = object()
+    monkeypatch.setattr(
+        adminbot_automations,
+        "require_admin",
+        lambda request, db, roles=None: dummy_user,
+    )
+
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0"},
+        "method": "GET",
+        "path": "/adminbot/automations/999/edit",
+        "raw_path": b"/adminbot/automations/999/edit",
+        "root_path": "",
+        "query_string": b"",
+        "headers": [],
+        "client": ("testclient", 50001),
+        "server": ("testserver", 80),
+        "scheme": "http",
+    }
+    request = Request(scope)
+    response = asyncio.run(
+        adminbot_automations.automations_edit_form(request, 999, DummyDb())
+    )
+    assert response.status_code == 404
 
 
 if __name__ == "__main__":

@@ -1026,6 +1026,15 @@ Front reset: theme-only + constructor-driven site
 - Восстановлена обработка OPEN_NODE: кнопки CONTACT/ABOUT с payload вида `OPEN_NODE CONTACT` корректно открывают узлы и логируют причины ошибок.
 - Исправлена зависимость DB для AdminSite API: в FastAPI используется `Depends(get_db)` (yield Session), а `database.get_session()` остаётся контекстным менеджером.
 
+## Фикс: Automations Edit 500
+- Что было: `/adminbot/automations/{id}/edit` отдавал 500 Internal Server Error при открытии страницы редактирования.
+- Что сделано: исправлен backend endpoint для edit (добавлены payload пресетов, 404 для отсутствующего правила, логирование загрузки/ошибок), добавлены безопасные сообщения об отсутствии правила.
+- Как проверить:
+  1. Откройте `/adminbot/automations`.
+  2. Нажмите «Редактировать» у правила — страница должна открыться без 500.
+  3. Откройте несуществующий ID (например `/adminbot/automations/999999/edit`) — должна появиться страница с текстом «Правило не найдено» (HTTP 404).
+- Где смотреть логи при проблемах: `admin_panel/routes/adminbot_automations.py`, обработчики `/adminbot/automations/{id}/edit` (GET/POST) пишут info-логи с `rule_id`.
+
 Важно: AdminSite / Версии / Кэш
 - Публичный эндпоинт `/api/site/home` должен отдавать заголовок Cache-Control: no-store (плюс совместимый Pragma: no-cache).
 - Админские эндпоинты сохранения/публикации страниц возвращают updatedAt/version, чтобы фронт мог отличать свежий ответ.
