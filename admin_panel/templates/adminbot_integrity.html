@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Проверка целостности</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 16px; background:#f8fafc; }
+        header { display:flex; gap:12px; margin-bottom:16px; flex-wrap: wrap; }
+        a.button, button { padding: 6px 10px; background: #2563eb; color: #fff; text-decoration: none; border: none; border-radius: 4px; cursor: pointer; }
+        .section { background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:14px; margin-bottom:14px; }
+        table { width:100%; border-collapse:collapse; }
+        th, td { border:1px solid #e2e8f0; padding:8px; text-align:left; }
+        th { background:#f1f5f9; }
+        .badge { display:inline-block; padding:2px 6px; border-radius:999px; background:#e2e8f0; font-size:12px; }
+        .muted { color:#64748b; font-size:13px; }
+        .success { background:#ecfdf3; border:1px solid #bbf7d0; padding:10px; border-radius:6px; color:#166534; }
+        .warn { background:#fef9c3; border:1px solid #fde047; padding:10px; border-radius:6px; color:#854d0e; }
+    </style>
+</head>
+<body>
+<header>
+    <a href="/adminbot" class="button">Главная</a>
+    <a href="/adminbot/builder" class="button">Сборка бота</a>
+    <a href="/adminbot/integrity" class="button" style="background:#0ea5e9;">Проверка целостности</a>
+    <a href="/adminbot/nodes" class="button">Узлы</a>
+    <a href="/adminbot/templates" class="button">Шаблоны</a>
+    <a href="/adminbot/automations" class="button">Автоматизации</a>
+    <a href="/adminbot/logout" class="button" style="background:#dc2626;">Выйти</a>
+</header>
+
+<h2>Проверка целостности связей</h2>
+<p class="muted">Сканируем ссылки между узлами, кнопками, триггерами и пресетами. Ничего не меняем — только отчёт.</p>
+
+{% if total_issues == 0 %}
+<div class="success">Ошибок не найдено. Все связи выглядят корректно.</div>
+{% else %}
+<div class="warn">Найдены проблемы: {{ total_issues }}.</div>
+{% endif %}
+
+<div class="section">
+    <h3>Ссылки узлов на узлы <span class="badge">{{ issues.missing_node_links|length }}</span></h3>
+    <table>
+        <thead>
+        <tr>
+            <th>Узел</th>
+            <th>Поле</th>
+            <th>Указан переход</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for item in issues.missing_node_links %}
+        <tr>
+            <td>{{ item.node_code }}</td>
+            <td>{{ item.field }}</td>
+            <td>{{ item.target }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="3" class="muted">Нет битых переходов.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="section">
+    <h3>Кнопки → узлы <span class="badge">{{ issues.missing_button_targets|length }}</span></h3>
+    <table>
+        <thead>
+        <tr>
+            <th>ID кнопки</th>
+            <th>Текст</th>
+            <th>Узел</th>
+            <th>Цель</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for item in issues.missing_button_targets %}
+        <tr>
+            <td>{{ item.button_id }}</td>
+            <td>{{ item.title }}</td>
+            <td>{{ item.node_id }}</td>
+            <td>{{ item.target }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="muted">Кнопки целы.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="section">
+    <h3>Триггеры → узлы <span class="badge">{{ issues.missing_trigger_targets|length }}</span></h3>
+    <table>
+        <thead>
+        <tr>
+            <th>ID</th>
+            <th>Тип</th>
+            <th>Значение</th>
+            <th>Цель</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for item in issues.missing_trigger_targets %}
+        <tr>
+            <td>{{ item.trigger_id }}</td>
+            <td>{{ item.trigger_type }}</td>
+            <td>{{ item.trigger_value or '—' }}</td>
+            <td>{{ item.target }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="muted">Триггеры целы.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="section">
+    <h3>Reply меню → узлы <span class="badge">{{ issues.missing_menu_targets|length }}</span></h3>
+    <table>
+        <thead>
+        <tr>
+            <th>ID</th>
+            <th>Кнопка</th>
+            <th>Цель</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for item in issues.missing_menu_targets %}
+        <tr>
+            <td>{{ item.menu_button_id }}</td>
+            <td>{{ item.text }}</td>
+            <td>{{ item.target }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="3" class="muted">Reply меню целое.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="section">
+    <h3>Действия узлов → узлы <span class="badge">{{ issues.missing_action_targets|length }}</span></h3>
+    <table>
+        <thead>
+        <tr>
+            <th>ID действия</th>
+            <th>Узел</th>
+            <th>Поле</th>
+            <th>Цель</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for item in issues.missing_action_targets %}
+        <tr>
+            <td>{{ item.action_id }}</td>
+            <td>{{ item.node_code }}</td>
+            <td>{{ item.key }}</td>
+            <td>{{ item.target }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="muted">Действия узлов без ошибок.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="section">
+    <h3>Автоматизации → пресеты <span class="badge">{{ issues.missing_preset_refs|length }}</span></h3>
+    <table>
+        <thead>
+        <tr>
+            <th>Правило</th>
+            <th>Пресет ID</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for item in issues.missing_preset_refs %}
+        <tr>
+            <td>{{ item.rule_title }} (#{{ item.rule_id }})</td>
+            <td>{{ item.preset_id }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="2" class="muted">Связи с пресетами в порядке.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+</body>
+</html>

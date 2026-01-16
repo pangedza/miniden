@@ -16,11 +16,14 @@
         .success { background: #ecfdf3; border: 1px solid #bbf7d0; padding: 10px; border-radius: 6px; color: #166534; }
         .error { background: #fef2f2; border: 1px solid #fecaca; padding: 10px; border-radius: 6px; color: #b91c1c; }
         .actions { display: flex; gap: 10px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+        .card { background:#f8fafc; border:1px dashed #cbd5e1; padding:10px; border-radius:6px; margin-top:8px; }
     </style>
 </head>
 <body>
 <header>
     <a href="/adminbot" class="button">Главная</a>
+    <a href="/adminbot/builder" class="button" style="background:#0ea5e9;">Сборка бота</a>
+    <a href="/adminbot/integrity" class="button">Проверка целостности</a>
     <a href="/adminbot/templates" class="button" style="background:#0ea5e9;">Шаблоны</a>
     <a href="/adminbot/nodes" class="button">Узлы</a>
     <a href="/adminbot/triggers" class="button">Триггеры</a>
@@ -34,17 +37,55 @@
 <div class="muted">Код шаблона: {{ template.code }}</div>
 {% if template.description %}<p>{{ template.description }}</p>{% endif %}
 <div class="section">
-    <h3>Что создастся</h3>
-    <div class="muted">Шаблон будет скопирован: новые коды узлов и триггеров не затронут существующие данные.</div>
-    <div class="actions">
-        <form method="post" action="/adminbot/templates/{{ template.code }}/apply">
+    <h3>Preview + подтверждение изменений</h3>
+    <div class="muted">При совпадениях мы ничего не перезаписываем. Если нужно заменить, отметьте чекбокс.</div>
+    <form method="post" action="/adminbot/templates/{{ template.code }}/apply">
+        {% set conflicts = preview_nodes|selectattr('conflict')|list %}
+        {% set button_conflicts = (preview_buttons or [])|selectattr('conflict')|list %}
+        {% set preset_conflicts = (preview_presets or [])|selectattr('conflict')|list %}
+        {% set automation_conflicts = (preview_automations or [])|selectattr('conflict')|list %}
+
+        {% if conflicts or button_conflicts or preset_conflicts or automation_conflicts %}
+        <div class="card" style="margin-top:10px;">
+            <strong>Совпадения (по умолчанию не трогаем)</strong>
+            <div class="muted" style="margin-top:6px;">Отметьте, чтобы заменить существующие данные.</div>
+            {% for node in conflicts %}
+            <label style="display:block; margin-top:6px;">
+                <input type="checkbox" name="replace_items" value="{{ node.replace_key }}" {% if replace_items and node.replace_key in replace_items %}checked{% endif %}>
+                Заменить узел: {{ node.title }} ({{ node.new_code }})
+            </label>
+            {% endfor %}
+            {% for btn in button_conflicts %}
+            <label style="display:block; margin-top:6px;">
+                <input type="checkbox" name="replace_items" value="{{ btn.replace_key }}" {% if replace_items and btn.replace_key in replace_items %}checked{% endif %}>
+                Заменить кнопку: {{ btn.title }} (узел {{ btn.node_code }})
+            </label>
+            {% endfor %}
+            {% for preset in preset_conflicts %}
+            <label style="display:block; margin-top:6px;">
+                <input type="checkbox" name="replace_items" value="{{ preset.replace_key }}" {% if replace_items and preset.replace_key in replace_items %}checked{% endif %}>
+                Заменить пресет: {{ preset.title }}
+            </label>
+            {% endfor %}
+            {% for automation in automation_conflicts %}
+            <label style="display:block; margin-top:6px;">
+                <input type="checkbox" name="replace_items" value="{{ automation.replace_key }}" {% if replace_items and automation.replace_key in replace_items %}checked{% endif %}>
+                Заменить автоматизацию: {{ automation.title }}
+            </label>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="muted" style="margin-top:8px;">Совпадений нет — всё будет создано как новое.</div>
+        {% endif %}
+
+        <div class="actions" style="margin-top:12px;">
             <button type="submit">Применить шаблон</button>
-        </form>
-        <a href="/adminbot/nodes" class="button" style="background:#0ea5e9;">Открыть узлы</a>
-    </div>
+            <a href="/adminbot/nodes" class="button" style="background:#0ea5e9;">Открыть узлы</a>
+        </div>
+    </form>
     {% if applied and result %}
     <div class="success" style="margin-top:10px;">
-        Шаблон применён. Создано узлов: {{ result.nodes|length }}, кнопок: {{ result.buttons_created or 0 }}, триггеров: {{ result.triggers|length }}.
+        Шаблон применён. Создано узлов: {{ result.nodes|length }}, кнопок: {{ result.buttons_created or 0 }}, действий: {{ result.actions_created or 0 }}, триггеров: {{ result.triggers|length }}.
     </div>
     {% endif %}
     {% if error %}
@@ -63,6 +104,7 @@
             <th>Переходы</th>
             <th>Кнопок</th>
             <th>Действий</th>
+            <th>Действие</th>
         </tr>
         </thead>
         <tbody>
@@ -79,13 +121,83 @@
             </td>
             <td>{{ node.buttons|length }}</td>
             <td>{{ node.actions|length }}</td>
+            <td>{% if node.action == 'replace' %}♻️ заменить{% elif node.action == 'skip' %}⏭ пропустить{% else %}➕ создать{% endif %}</td>
         </tr>
         {% else %}
-        <tr><td colspan="7">В шаблоне нет узлов</td></tr>
+        <tr><td colspan="8">В шаблоне нет узлов</td></tr>
         {% endfor %}
         </tbody>
     </table>
 </div>
+{% if preview_buttons %}
+<div class="section">
+    <h3>Кнопки</h3>
+    <table>
+        <thead>
+        <tr>
+            <th>Узел</th>
+            <th>Название</th>
+            <th>Действие</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for btn in preview_buttons %}
+        <tr>
+            <td>{{ btn.node_code }}</td>
+            <td>{{ btn.title }}</td>
+            <td>{% if btn.action == 'replace' %}♻️ заменить{% elif btn.action == 'skip' %}⏭ пропустить{% else %}➕ создать{% endif %}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+{% if preview_presets %}
+<div class="section">
+    <h3>Пресеты кнопок</h3>
+    <table>
+        <thead>
+        <tr>
+            <th>Название</th>
+            <th>Scope</th>
+            <th>Действие</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for preset in preview_presets %}
+        <tr>
+            <td>{{ preset.title }}</td>
+            <td>{{ preset.scope }}</td>
+            <td>{% if preset.action == 'replace' %}♻️ заменить{% elif preset.action == 'skip' %}⏭ пропустить{% else %}➕ создать{% endif %}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+{% if preview_automations %}
+<div class="section">
+    <h3>Автоматизации</h3>
+    <table>
+        <thead>
+        <tr>
+            <th>Название</th>
+            <th>Триггер</th>
+            <th>Действие</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for automation in preview_automations %}
+        <tr>
+            <td>{{ automation.title }}</td>
+            <td>{{ automation.trigger_type }}</td>
+            <td>{% if automation.action == 'replace' %}♻️ заменить{% elif automation.action == 'skip' %}⏭ пропустить{% else %}➕ создать{% endif %}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
 <div class="section">
     <h3>Триггеры</h3>
     <table>

@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Сборка бота</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 16px; background:#f8fafc; }
+        header { display:flex; gap:12px; margin-bottom:16px; flex-wrap: wrap; }
+        a.button, button { padding: 6px 10px; background: #2563eb; color: #fff; text-decoration: none; border: none; border-radius: 4px; cursor: pointer; }
+        .hero { background:#0f172a; color:#e2e8f0; padding:18px; border-radius:12px; margin-bottom:16px; }
+        .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:12px; }
+        .card { background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:14px; display:flex; flex-direction:column; gap:10px; }
+        .status { display:inline-flex; align-items:center; gap:6px; padding:4px 8px; border-radius:999px; font-size:12px; }
+        .status.ok { background:#dcfce7; color:#166534; }
+        .status.warn { background:#fef9c3; color:#854d0e; }
+        .status.fail { background:#fee2e2; color:#991b1b; }
+        .muted { color:#64748b; font-size:13px; }
+        .actions { display:flex; gap:8px; flex-wrap: wrap; }
+        .wizard { background:#fff; border:1px solid #cbd5e1; border-radius:10px; padding:14px; margin-top:16px; }
+        .wizard-step { display:none; }
+        .wizard-step.active { display:block; }
+        .wizard-actions { display:flex; gap:8px; margin-top:12px; }
+    </style>
+</head>
+<body>
+<header>
+    <a href="/adminbot" class="button">Главная</a>
+    <a href="/adminbot/builder" class="button" style="background:#0ea5e9;">Сборка бота</a>
+    <a href="/adminbot/integrity" class="button">Проверка целостности</a>
+    <a href="/adminbot/templates" class="button">Шаблоны</a>
+    <a href="/adminbot/nodes" class="button">Узлы</a>
+    <a href="/adminbot/menu-buttons" class="button">Меню</a>
+    <a href="/adminbot/automations" class="button">Автоматизации</a>
+    <a href="/adminbot/runtime" class="button">Работа бота</a>
+    <a href="/adminbot/logout" class="button" style="background:#dc2626;">Выйти</a>
+</header>
+
+<div class="hero">
+    <h2>Сборка бота — единый конструктор</h2>
+    <p>Проверяйте статус ключевых разделов и переходите к настройкам без лишних поисков.</p>
+    <p class="muted">Стартовый узел: <strong>{{ start_node_code }}</strong></p>
+    <div class="actions" style="margin-top:8px;">
+        <a href="/adminbot/templates" class="button" style="background:#38bdf8; color:#0b1220;">Быстрая сборка по шаблону</a>
+        <a href="/adminbot/integrity" class="button" style="background:#475569;">Проверить целостность</a>
+    </div>
+</div>
+
+<div class="grid">
+    {% for section in sections %}
+    <div class="card">
+        <div class="status {{ section.status.class }}">
+            <span>{{ section.status.icon }}</span>
+            <span>{{ section.status.label }}</span>
+        </div>
+        <strong>{{ section.title }}</strong>
+        <div class="muted">{{ section.description }}</div>
+        <div class="muted">{{ section.hint }}</div>
+        <div class="actions">
+            <a href="{{ section.url }}" class="button">Настроить</a>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="wizard" id="builder-wizard">
+    <h3>Мастер сборки для новичка (3 шага)</h3>
+    <div class="wizard-step active" data-step="1">
+        <strong>Шаг 1. Профиль пользователя</strong>
+        <p class="muted">Создайте узел «Профиль». Мы предложим добавить «Мои заказы» и «Контакты/Помощь».</p>
+        <div class="wizard-actions">
+            <button type="button" class="button" data-next>Дальше</button>
+            <button type="button" class="button" style="background:#6b7280;" data-skip>Пропустить</button>
+        </div>
+    </div>
+    <div class="wizard-step" data-step="2">
+        <strong>Шаг 2. Корзина и заказы</strong>
+        <p class="muted">Включите корзину и автоматизацию заказа из WebApp. При необходимости установите пакет «Корзина + Заказы».</p>
+        <div class="wizard-actions">
+            <button type="button" class="button" data-next>Дальше</button>
+            <button type="button" class="button" style="background:#6b7280;" data-skip>Пропустить</button>
+        </div>
+    </div>
+    <div class="wizard-step" data-step="3">
+        <strong>Шаг 3. Помощь и обратная связь</strong>
+        <p class="muted">Добавьте узлы «Помощь» и «Связаться», чтобы пользователи быстро писали админу.</p>
+        <div class="wizard-actions">
+            <a href="/adminbot/templates" class="button">Выбрать шаблон</a>
+            <button type="button" class="button" style="background:#6b7280;" data-skip>Закрыть</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function () {
+        const wizard = document.getElementById('builder-wizard');
+        if (!wizard) return;
+        const steps = Array.from(wizard.querySelectorAll('.wizard-step'));
+        let current = 0;
+
+        function showStep(index) {
+            steps.forEach((step, idx) => step.classList.toggle('active', idx === index));
+        }
+
+        wizard.addEventListener('click', (event) => {
+            if (event.target.matches('[data-next]')) {
+                current = Math.min(current + 1, steps.length - 1);
+                showStep(current);
+            }
+            if (event.target.matches('[data-skip]')) {
+                wizard.style.display = 'none';
+            }
+        });
+    })();
+</script>
+</body>
+</html>

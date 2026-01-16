@@ -21,6 +21,8 @@
 <body>
 <header>
     <a href="/adminbot/nodes" class="button">Назад к узлам</a>
+    <a href="/adminbot/builder" class="button" style="background:#0ea5e9;">Сборка бота</a>
+    <a href="/adminbot/integrity" class="button">Проверка целостности</a>
     <a href="/adminbot/templates" class="button">Шаблоны</a>
     <a href="/adminbot/menu-buttons" class="button">Меню</a>
     <a href="/adminbot/triggers" class="button" title="Триггеры — точки входа в сценарий">Триггеры</a>
@@ -86,10 +88,14 @@
             <a href="/adminbot/buttons/{{ button.id }}/move?direction=up">⬆️</a>
             <a href="/adminbot/buttons/{{ button.id }}/move?direction=down">⬇️</a> |
             <a href="/adminbot/buttons/{{ button.id }}/edit">Изменить</a>
+            |
+            <form action="/adminbot/buttons/{{ button.id }}/delete" method="post" class="inline" onsubmit="return confirm('Удалить кнопку?');">
+                <button type="submit" style="background:#dc2626;">Удалить</button>
+            </form>
         </td>
     </tr>
     {% else %}
-    <tr><td colspan="7">Кнопки отсутствуют</td></tr>
+    <tr><td colspan="8">Кнопки отсутствуют</td></tr>
     {% endfor %}
     </tbody>
 </table>
