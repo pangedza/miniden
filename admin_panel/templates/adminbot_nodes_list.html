@@ -12,11 +12,14 @@
         a.button, button { padding: 6px 10px; background: #2563eb; color: #fff; text-decoration: none; border: none; border-radius: 4px; cursor: pointer; }
         .muted { color: #475569; font-size: 14px; }
         .badge { padding: 2px 6px; border-radius: 4px; font-size: 12px; background: #e0f2fe; color: #0369a1; }
+        .inline { display: inline; }
     </style>
 </head>
 <body>
 <header>
     <a href="/adminbot" class="button">Главная</a>
+    <a href="/adminbot/builder" class="button" style="background:#0ea5e9;">Сборка бота</a>
+    <a href="/adminbot/integrity" class="button">Проверка целостности</a>
     <a href="/adminbot/templates" class="button">Шаблоны</a>
     <a href="/adminbot/nodes" class="button">Узлы</a>
     <a href="/adminbot/menu-buttons" class="button">Меню</a>
@@ -61,6 +64,10 @@
         <td>
             <a href="/adminbot/nodes/{{ node.id }}/edit">Редактировать</a> |
             <a href="/adminbot/nodes/{{ node.id }}/buttons">Кнопки</a>
+            |
+            <form action="/adminbot/nodes/{{ node.id }}/delete" method="post" class="inline" onsubmit="return confirm('Удалить узел? Если есть ссылки, удаление будет заблокировано.');">
+                <button type="submit" style="background:#dc2626;">Удалить</button>
+            </form>
         </td>
     </tr>
     {% else %}

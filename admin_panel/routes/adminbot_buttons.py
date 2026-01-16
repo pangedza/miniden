@@ -701,6 +701,27 @@ async def update_button(
     )
 
 
+@router.post("/buttons/{button_id}/delete")
+async def delete_button(
+    request: Request, button_id: int, db: Session = Depends(get_db_session)
+):
+    user = require_admin(request, db, roles=ALLOWED_ROLES)
+    if not user:
+        return _login_redirect(_next_from_request(request))
+
+    button = db.get(BotButton, button_id)
+    if not button:
+        return RedirectResponse(url="/adminbot/nodes", status_code=303)
+
+    node_id = button.node_id
+    db.delete(button)
+    db.commit()
+    _bump_runtime(db)
+    db.commit()
+
+    return RedirectResponse(url=f"/adminbot/nodes/{node_id}/buttons", status_code=303)
+
+
 @router.post("/nodes/quick-create")
 async def quick_create_node(
     request: Request,

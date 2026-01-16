@@ -811,6 +811,28 @@ async def delete_node(request: Request, node_id: int, db: Session = Depends(get_
     if not node:
         return RedirectResponse(url="/adminbot/nodes", status_code=303)
 
+    references = _find_incoming_links(db, node.code)
+    if any(references.get(key) for key in ("nodes", "buttons", "triggers")):
+        actions = (
+            db.query(BotNodeAction)
+            .filter(BotNodeAction.node_code == node.code)
+            .order_by(BotNodeAction.sort_order, BotNodeAction.id)
+            .all()
+        )
+        return TEMPLATES.TemplateResponse(
+            "adminbot_node_edit.html",
+            {
+                "request": request,
+                "user": user,
+                "node": node,
+                "error": "Нельзя удалить узел: на него есть ссылки. Сначала переназначьте переходы.",
+                "actions": actions,
+                "actions_json": _serialize_actions(actions),
+                "references": references,
+            },
+            status_code=400,
+        )
+
     try:
         _cleanup_node_links(db, node.code)
         db.delete(node)

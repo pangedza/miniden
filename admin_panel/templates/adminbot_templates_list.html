@@ -18,6 +18,8 @@
 <body>
 <header>
     <a href="/adminbot" class="button">Главная</a>
+    <a href="/adminbot/builder" class="button" style="background:#0ea5e9;">Сборка бота</a>
+    <a href="/adminbot/integrity" class="button">Проверка целостности</a>
     <a href="/adminbot/templates" class="button" style="background:#0ea5e9;">Шаблоны</a>
     <a href="/adminbot/nodes" class="button">Узлы</a>
     <a href="/adminbot/triggers" class="button">Триггеры</a>
@@ -28,19 +30,27 @@
     <a href="/adminbot/logout" class="button" style="background:#dc2626;">Выйти</a>
 </header>
 <h2>Шаблоны сценариев</h2>
-<p class="muted">Выберите шаблон, чтобы за минуту получить готовый сценарий. Применение создаёт копию узлов и триггеров, ваши данные не затираются.</p>
+<p class="muted">Выберите шаблон-пакет, чтобы за минуту получить готовый сценарий. Перед применением доступен preview и подтверждение изменений.</p>
 <div class="grid">
     {% for template in templates %}
     <div class="card">
         <div>
             <h3>{{ template.title }}</h3>
+            {% if template.template_json and template.template_json.pack_type %}
+                <div class="muted">Starter Kit</div>
+            {% endif %}
             <div class="muted">Код: {{ template.code }}</div>
             {% if template.description %}<p>{{ template.description }}</p>{% endif %}
             <small>Добавлен: {{ template.created_at }}</small>
         </div>
         <div class="actions">
-            <div class="muted">Готовый набор узлов и триггеров</div>
-            <a href="/adminbot/templates/{{ template.code }}" class="button">Применить</a>
+            <div class="muted">Набор узлов, кнопок, пресетов и автоматизаций</div>
+            <div style="display:flex; gap:8px; flex-wrap: wrap;">
+                <a href="/adminbot/templates/{{ template.code }}" class="button">Применить</a>
+                <form action="/adminbot/templates/{{ template.code }}/delete" method="post" onsubmit="return confirm('Удалить шаблон?');">
+                    <button type="submit" style="background:#dc2626;">Удалить</button>
+                </form>
+            </div>
         </div>
     </div>
     {% else %}
