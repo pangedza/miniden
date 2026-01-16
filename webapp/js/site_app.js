@@ -906,16 +906,14 @@ function bindModalActions() {
 }
 
 function bindCartBarActions() {
-  cartBar?.addEventListener('click', () => {
-    console.log('CartBottomBar clicked');
-  });
-
-  cartBar?.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      console.log('CartBottomBar clicked');
+  const handleCartBarClick = () => {
+    const targetPath = '/cart';
+    if (window.location.pathname !== targetPath) {
+      window.location.assign(targetPath);
     }
-  });
+  };
+
+  cartBar?.addEventListener('click', handleCartBarClick);
 
   window.addEventListener('resize', updateCartBarOffset);
   document.addEventListener('visibilitychange', () => {
