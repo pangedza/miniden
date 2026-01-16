@@ -65,12 +65,7 @@ const footerSocial = document.getElementById('footer-social');
 const cartBar = document.getElementById('cart-bar');
 const cartBarCount = document.getElementById('cart-bar-count');
 const cartBarTotal = document.getElementById('cart-bar-total');
-const cartBarCheckout = document.getElementById('cart-bar-checkout');
-const cartBarNote = document.getElementById('cart-bar-note');
 const cartBadge = document.getElementById('cart-count');
-const cartCheckoutSuccess = document.getElementById('cart-checkout-success');
-const cartSuccessOpenBot = document.getElementById('cart-success-open-bot');
-const cartSuccessClose = document.getElementById('cart-success-close');
 
 let menuData = null;
 let activeMenuType = 'product';
@@ -82,7 +77,6 @@ let isModalOpen = false;
 let telegramUserId = null;
 let cartState = { items: [], total: 0 };
 let cartLoading = false;
-let checkoutSuccessShown = false;
 
 function normalizeMediaUrl(url) {
   if (!url) return '';
@@ -101,6 +95,12 @@ function formatPrice(value, currency = '₽') {
   return `${number.toLocaleString('ru-RU')} ${currency}`;
 }
 
+function formatCartTotal(value, currency = '₽') {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return `0 ${currency}`;
+  return `${number.toLocaleString('ru-RU')} ${currency}`;
+}
+
 function resolveTelegramUserId() {
   return window.Telegram?.WebApp?.initDataUnsafe?.user?.id || null;
 }
@@ -114,6 +114,52 @@ function initTelegramContext() {
 
 function getCartQtyTotal(items) {
   return (items || []).reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
+}
+
+function loadGuestCartItems() {
+  if (typeof window.loadGuestCart !== 'function') return [];
+  const items = window.loadGuestCart();
+  return Array.isArray(items) ? items : [];
+}
+
+function saveGuestCartItems(items) {
+  if (typeof window.saveGuestCart !== 'function') return;
+  window.saveGuestCart(items || []);
+}
+
+function buildGuestCartState(items) {
+  const safeItems = Array.isArray(items) ? items : [];
+  const total = safeItems.reduce(
+    (sum, item) => sum + (Number(item.price) || 0) * (Number(item.qty) || 0),
+    0
+  );
+  return {
+    items: safeItems,
+    total,
+  };
+}
+
+function addItemToGuestCart(item, qty = 1) {
+  const cartType = mapCartType(item.type);
+  const current = loadGuestCartItems();
+  const existing = current.find(
+    (entry) => Number(entry.product_id) === Number(item.id) && entry.type === cartType
+  );
+  const price = Number(item.price) || 0;
+  if (existing) {
+    existing.qty = (Number(existing.qty) || 0) + qty;
+    existing.price = price || Number(existing.price) || 0;
+  } else {
+    current.push({
+      product_id: item.id,
+      type: cartType,
+      qty,
+      price,
+    });
+  }
+  saveGuestCartItems(current);
+  cartState = buildGuestCartState(current);
+  updateCartBar(cartState);
 }
 
 function setCartBarOffset(value) {
@@ -293,7 +339,9 @@ function renderFooter(settings) {
 }
 
 async function fetchCart() {
-  if (!telegramUserId) return { items: [], total: 0 };
+  if (!telegramUserId) {
+    return buildGuestCartState(loadGuestCartItems());
+  }
   const url = new URL('/api/cart', window.location.origin);
   url.searchParams.set('user_id', String(telegramUserId));
   const response = await fetch(url.toString(), { cache: 'no-store' });
@@ -312,27 +360,13 @@ function updateCartBar(cart) {
   const total = Number(cart.total) || 0;
   const hasItems = qtyTotal > 0;
   if (cartBarCount) cartBarCount.textContent = qtyTotal.toString();
-  if (cartBarTotal) cartBarTotal.textContent = formatPrice(total);
+  if (cartBarTotal) cartBarTotal.textContent = formatCartTotal(total);
   if (cartBadge) cartBadge.textContent = qtyTotal.toString();
   setCartBarVisible(hasItems);
-  if (cartBarCheckout) {
-    cartBarCheckout.disabled = !hasItems;
-  }
-}
-
-function updateCheckoutAvailability() {
-  if (!cartBarCheckout) return;
-  const hasTelegram = Boolean(telegramUserId);
-  cartBarNote?.toggleAttribute('hidden', hasTelegram);
-  cartBarCheckout.dataset.disabledHint = hasTelegram ? '' : 'true';
 }
 
 async function refreshCartBar() {
-  if (!telegramUserId || cartLoading) {
-    cartState = { items: [], total: 0 };
-    updateCartBar(cartState);
-    return;
-  }
+  if (cartLoading) return;
   cartLoading = true;
   try {
     cartState = await fetchCart();
@@ -346,7 +380,8 @@ async function refreshCartBar() {
 
 async function addItemToCart(item, qty = 1) {
   if (!telegramUserId) {
-    showInfoToast('Откройте витрину из Telegram бота.');
+    addItemToGuestCart(item, qty);
+    showInfoToast('Товар добавлен');
     return;
   }
   const cartType = mapCartType(item.type);
@@ -368,88 +403,6 @@ async function addItemToCart(item, qty = 1) {
   cartState = updatedCart;
   updateCartBar(updatedCart);
   showInfoToast('Товар добавлен');
-}
-
-function buildCheckoutPayload(cart) {
-  const items = (cart.items || []).map((item) => ({
-    item_id: item.product_id,
-    title: item.name,
-    qty: item.qty,
-    price: item.price,
-    type: item.type,
-    category_slug: item.category_slug || null,
-  }));
-  const qtyTotal = getCartQtyTotal(cart.items || []);
-  return {
-    tg_user_id: telegramUserId,
-    items,
-    totals: {
-      qty_total: qtyTotal,
-      sum_total: Number(cart.total) || 0,
-      currency: '₽',
-    },
-    client_context: {
-      page_url: window.location.href,
-      user_agent: navigator.userAgent,
-      created_at: new Date().toISOString(),
-    },
-  };
-}
-
-function showCheckoutSuccess() {
-  if (!cartCheckoutSuccess || checkoutSuccessShown) return;
-  const username = window.TELEGRAM_BOT_USERNAME;
-  const botLink = username ? `https://t.me/${username}` : 'https://t.me';
-  if (cartSuccessOpenBot) {
-    cartSuccessOpenBot.href = botLink;
-  }
-  cartCheckoutSuccess.removeAttribute('hidden');
-  checkoutSuccessShown = true;
-}
-
-function dismissCheckoutSuccess() {
-  cartCheckoutSuccess?.setAttribute('hidden', '');
-}
-
-async function submitCheckout() {
-  if (!telegramUserId) {
-    showInfoToast('Откройте витрину из Telegram бота.');
-    return;
-  }
-  await refreshCartBar();
-  if (!cartState.items?.length) {
-    showInfoToast('Корзина пуста.');
-    return;
-  }
-  const payload = buildCheckoutPayload(cartState);
-  cartBarCheckout?.setAttribute('disabled', 'true');
-  cartBarCheckout?.classList.add('is-loading');
-  const originalText = cartBarCheckout?.textContent;
-  if (cartBarCheckout) cartBarCheckout.textContent = 'Отправка...';
-  checkoutSuccessShown = false;
-
-  try {
-    const response = await fetch('/api/public/checkout/from-webapp', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || 'Не удалось отправить заказ');
-    }
-    await response.json();
-    showCheckoutSuccess();
-  } catch (error) {
-    console.error('Ошибка отправки заказа', error);
-    showInfoToast(error?.message || 'Не удалось отправить заказ');
-  } finally {
-    if (cartBarCheckout) {
-      cartBarCheckout.textContent = originalText || 'Оформить';
-      cartBarCheckout.classList.remove('is-loading');
-      cartBarCheckout.removeAttribute('disabled');
-    }
-  }
 }
 
 function buildCategoryButton(category) {
@@ -556,8 +509,6 @@ function buildItemCard(item) {
     addButton.title = 'Нет в наличии';
   } else if (isInactive) {
     addButton.title = 'Позиция недоступна';
-  } else if (!telegramUserId) {
-    addButton.title = 'Откройте витрину из Telegram бота.';
   }
   addButton.addEventListener('click', () => {
     if (isUnavailable || !item?.id) return;
@@ -786,8 +737,6 @@ function renderItemModal(item) {
       itemModalAdd.title = 'Нет в наличии';
     } else if (isInactive) {
       itemModalAdd.title = 'Позиция недоступна';
-    } else if (!telegramUserId) {
-      itemModalAdd.title = 'Откройте витрину из Telegram бота.';
     } else {
       itemModalAdd.title = '';
     }
@@ -957,35 +906,15 @@ function bindModalActions() {
 }
 
 function bindCartBarActions() {
-  cartBarCheckout?.addEventListener('click', () => {
-    if (!telegramUserId) {
-      showInfoToast('Откройте витрину из Telegram бота.');
-      cartBarNote?.removeAttribute('hidden');
-      return;
-    }
-    void submitCheckout();
+  cartBar?.addEventListener('click', () => {
+    console.log('CartBottomBar clicked');
   });
 
-  cartSuccessClose?.addEventListener('click', () => {
-    dismissCheckoutSuccess();
-  });
-
-  cartCheckoutSuccess?.addEventListener('click', (event) => {
-    if (event.target === cartCheckoutSuccess) {
-      dismissCheckoutSuccess();
-    }
-  });
-
-  cartSuccessOpenBot?.addEventListener('click', (event) => {
-    const username = window.TELEGRAM_BOT_USERNAME;
-    const botLink = username ? `https://t.me/${username}` : 'https://t.me';
-    if (window.Telegram?.WebApp?.openTelegramLink) {
+  cartBar?.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
-      dismissCheckoutSuccess();
-      window.Telegram.WebApp.openTelegramLink(botLink);
-      return;
+      console.log('CartBottomBar clicked');
     }
-    dismissCheckoutSuccess();
   });
 
   window.addEventListener('resize', updateCartBarOffset);
@@ -1128,7 +1057,6 @@ function bindNavigation() {
 
 async function bootstrap() {
   initTelegramContext();
-  updateCheckoutAvailability();
   try {
     const urlType = getMenuTypeFromUrl();
     activeMenuType = urlType || activeMenuType;

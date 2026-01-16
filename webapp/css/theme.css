@@ -950,6 +950,7 @@ textarea {
   pointer-events: none;
   transition: transform 180ms ease, opacity 180ms ease;
   z-index: 30;
+  cursor: pointer;
 }
 
 .cart-bar--visible {
@@ -963,15 +964,16 @@ textarea {
   margin: 0 auto;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   gap: 16px;
 }
 
 .cart-bar__summary {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-weight: 600;
+  text-align: center;
 }
 
 .cart-bar__line {
