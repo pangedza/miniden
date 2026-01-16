@@ -38,9 +38,18 @@
     <a href="/adminbot/logs" class="button">Логи</a>
     <a href="/adminbot/logout" class="button" style="background:#dc2626;">Выйти</a>
 </header>
-<h2>{% if rule %}Редактирование правила{% else %}Новое правило{% endif %}</h2>
+<h2>
+    {% if missing_rule %}
+        Правило не найдено
+    {% elif rule %}
+        Редактирование правила
+    {% else %}
+        Новое правило
+    {% endif %}
+</h2>
 <div class="error" style="display:{% if error %}block{% else %}none{% endif %};">{{ error }}</div>
 
+{% if not missing_rule %}
 {% set initial_actions = form.actions if form else (rule.actions_json if rule and rule.actions_json else []) %}
 <form method="post" action="{% if rule %}/adminbot/automations/{{ rule.id }}/edit{% else %}/adminbot/automations/new{% endif %}">
     <div class="step">
@@ -393,5 +402,10 @@
         }
     });
 </script>
+{% else %}
+<div class="actions">
+    <a href="/adminbot/automations" class="button" style="background:#6b7280;">Назад к списку</a>
+</div>
+{% endif %}
 </body>
 </html>

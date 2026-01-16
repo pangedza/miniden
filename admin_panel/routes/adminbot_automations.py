@@ -1,4 +1,5 @@
 import json
+import logging
 from typing import Any
 
 from fastapi import APIRouter, Depends, Form, Request
@@ -14,6 +15,7 @@ from services import automations as automations_service
 router = APIRouter(tags=["AdminBot"])
 
 ALLOWED_ROLES = (AdminRole.superadmin, AdminRole.admin_bot, AdminRole.moderator)
+logger = logging.getLogger(__name__)
 
 
 def _login_redirect(next_url: str | None = None) -> RedirectResponse:
@@ -273,6 +275,7 @@ async def automations_new_form(request: Request, db: Session = Depends(get_db_se
             "rule": None,
             "form": None,
             "error": None,
+            "missing_rule": False,
             "presets": presets,
             "presets_payload": presets_payload,
             "trigger_labels": automations_service.TRIGGER_LABELS,
@@ -330,6 +333,7 @@ async def automations_create(
                     "actions": actions_list,
                     "is_enabled": is_enabled,
                 },
+                "missing_rule": False,
                 "presets": presets,
                 "presets_payload": presets_payload,
                 "trigger_labels": automations_service.TRIGGER_LABELS,
@@ -338,7 +342,7 @@ async def automations_create(
                 "template_variables": automations_service.TEMPLATE_VARIABLES,
                 "item_fields": automations_service.ITEM_FIELDS,
             },
-            status_code=400,
+            status_code=422,
         )
 
     rule = BotAutomationRule(
@@ -362,11 +366,36 @@ async def automations_edit_form(
     if not user:
         return _login_redirect(_next_from_request(request))
 
+    logger.info("Adminbot automation edit: request", extra={"rule_id": rule_id})
     rule = db.get(BotAutomationRule, rule_id)
     if not rule:
-        return RedirectResponse(url="/adminbot/automations", status_code=303)
+        logger.info("Adminbot automation edit: rule not found", extra={"rule_id": rule_id})
+        return TEMPLATES.TemplateResponse(
+            "adminbot_automation_edit.html",
+            {
+                "request": request,
+                "user": user,
+                "rule": None,
+                "form": None,
+                "error": "Правило не найдено",
+                "missing_rule": True,
+                "presets": [],
+                "presets_payload": [],
+                "trigger_labels": automations_service.TRIGGER_LABELS,
+                "action_labels": automations_service.ACTION_LABELS,
+                "button_scopes": automations_service.BUTTON_SCOPES,
+                "template_variables": automations_service.TEMPLATE_VARIABLES,
+                "item_fields": automations_service.ITEM_FIELDS,
+            },
+            status_code=404,
+        )
 
     presets = db.query(BotButtonPreset).order_by(BotButtonPreset.scope, BotButtonPreset.id).all()
+    presets_payload = _build_presets_payload(presets)
+    logger.info(
+        "Adminbot automation edit: rule loaded",
+        extra={"rule_id": rule_id, "presets_count": len(presets_payload)},
+    )
 
     return TEMPLATES.TemplateResponse(
         "adminbot_automation_edit.html",
@@ -376,6 +405,7 @@ async def automations_edit_form(
             "rule": rule,
             "form": None,
             "error": None,
+            "missing_rule": False,
             "presets": presets,
             "presets_payload": presets_payload,
             "trigger_labels": automations_service.TRIGGER_LABELS,
@@ -401,9 +431,29 @@ async def automations_update(
     if not user:
         return _login_redirect(_next_from_request(request))
 
+    logger.info("Adminbot automation update: request", extra={"rule_id": rule_id})
     rule = db.get(BotAutomationRule, rule_id)
     if not rule:
-        return RedirectResponse(url="/adminbot/automations", status_code=303)
+        logger.info("Adminbot automation update: rule not found", extra={"rule_id": rule_id})
+        return TEMPLATES.TemplateResponse(
+            "adminbot_automation_edit.html",
+            {
+                "request": request,
+                "user": user,
+                "rule": None,
+                "error": "Правило не найдено",
+                "form": None,
+                "missing_rule": True,
+                "presets": [],
+                "presets_payload": [],
+                "trigger_labels": automations_service.TRIGGER_LABELS,
+                "action_labels": automations_service.ACTION_LABELS,
+                "button_scopes": automations_service.BUTTON_SCOPES,
+                "template_variables": automations_service.TEMPLATE_VARIABLES,
+                "item_fields": automations_service.ITEM_FIELDS,
+            },
+            status_code=404,
+        )
 
     title_value = title.strip()
     trigger_value = trigger_type.strip().upper()
@@ -425,6 +475,10 @@ async def automations_update(
         error, actions_list = _validate_actions(actions_list, presets_map)
 
     if error:
+        logger.info(
+            "Adminbot automation update: validation error",
+            extra={"rule_id": rule_id, "error": error},
+        )
         return TEMPLATES.TemplateResponse(
             "adminbot_automation_edit.html",
             {
@@ -438,6 +492,7 @@ async def automations_update(
                     "actions": actions_list,
                     "is_enabled": is_enabled,
                 },
+                "missing_rule": False,
                 "presets": presets,
                 "presets_payload": presets_payload,
                 "trigger_labels": automations_service.TRIGGER_LABELS,
@@ -446,7 +501,7 @@ async def automations_update(
                 "template_variables": automations_service.TEMPLATE_VARIABLES,
                 "item_fields": automations_service.ITEM_FIELDS,
             },
-            status_code=400,
+            status_code=422,
         )
 
     rule.title = title_value
