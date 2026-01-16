@@ -557,6 +557,7 @@ button.btn:disabled {
   flex-direction: column;
   box-shadow: var(--shadow-sm);
   transition: transform 150ms ease, box-shadow 150ms ease;
+  position: relative;
 }
 
 .catalog-card:hover,
@@ -587,35 +588,41 @@ button.btn:disabled {
   flex-direction: column;
   gap: 10px;
   position: relative;
+  padding-bottom: calc(var(--card-padding) + var(--catalog-card-actions-height, 40px) + 8px);
 }
 
 .catalog-card-meta {
   font-size: 12px;
   text-transform: uppercase;
   color: var(--color-text-secondary);
+  transition: transform 150ms ease;
 }
 
 .catalog-card-title {
   margin: 0;
   font-size: 18px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  transition: transform 150ms ease;
+}
+
+.catalog-card-body .tag {
+  transition: transform 150ms ease;
 }
 
 .catalog-card-description {
   margin: 0;
   color: var(--color-text-secondary);
   font-size: 14px;
-  position: absolute;
-  left: var(--card-padding);
-  right: var(--card-padding);
-  bottom: calc(var(--card-padding) + var(--catalog-card-actions-height, 40px));
   opacity: 0;
   transform: translateY(6px);
-  max-height: 0;
-  overflow: hidden;
-  transition: opacity 150ms ease, transform 150ms ease, max-height 150ms ease;
+  transition: opacity 150ms ease, transform 150ms ease;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+  overflow: hidden;
   pointer-events: none;
 }
 
@@ -627,7 +634,15 @@ button.btn:disabled {
 .catalog-card:focus-within .catalog-card-description {
   opacity: 1;
   transform: translateY(0);
-  max-height: 48px;
+}
+
+.catalog-card:hover .catalog-card-meta,
+.catalog-card:hover .catalog-card-title,
+.catalog-card:hover .catalog-card-body .tag,
+.catalog-card:focus-within .catalog-card-meta,
+.catalog-card:focus-within .catalog-card-title,
+.catalog-card:focus-within .catalog-card-body .tag {
+  transform: translateY(-4px);
 }
 
 .catalog-card-actions {
@@ -635,8 +650,11 @@ button.btn:disabled {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-top: auto;
   min-height: var(--catalog-card-actions-height, 40px);
+  position: absolute;
+  left: var(--card-padding);
+  right: var(--card-padding);
+  bottom: var(--card-padding);
 }
 
 .catalog-card-buttons {
@@ -667,7 +685,6 @@ button.btn:disabled {
   .catalog-card-description {
     opacity: 1;
     transform: translateY(0);
-    max-height: 48px;
     pointer-events: auto;
   }
 
