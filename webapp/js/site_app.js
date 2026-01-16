@@ -928,6 +928,11 @@ async function route() {
   const parts = path.split('/').filter(Boolean);
   const urlType = getMenuTypeFromUrl();
 
+  if (path === '/cart') {
+    window.location.assign('/cart.html');
+    return;
+  }
+
   if (urlType && urlType !== activeMenuType) {
     await setActiveMenuType(urlType);
   } else if (!menuData) {

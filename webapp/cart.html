@@ -59,6 +59,7 @@
       </div>
 
       <div class="note" id="note"></div>
+      <div class="note" id="cart-debug" style="display:none;"></div>
 
       <table class="cart-table" aria-label="Корзина">
         <thead>
@@ -131,8 +132,15 @@
   <script src="js/api.js?v=20250605"></script>
   <script src="js/app_shell.js?v=20251220"></script>
   <script>
+    const DEBUG_CART = false;
+    const DEBUG_CART_STORAGE_KEYS = {
+      bottomBar: ['miniden_guest_cart'],
+      cartPage: ['miniden_guest_cart'],
+    };
+
     const adminLink = document.getElementById('admin-link');
     const noteEl = document.getElementById('note');
+    const debugEl = document.getElementById('cart-debug');
     const tbody = document.getElementById('cart-body');
     const totalEl = document.getElementById('cart-total');
     const promoInfoEl = document.getElementById('promo-info');
@@ -167,6 +175,7 @@
     let discountAmount = 0;
     let finalTotal = 0;
     let adminContactUrl = null;
+    let lastCartError = null;
 
     function resolveTelegramUserId() {
       return window.Telegram?.WebApp?.initDataUnsafe?.user?.id || null;
@@ -361,10 +370,47 @@
       tbody.appendChild(row);
       totalEl.textContent = '0 ₽';
       cartPanel.style.display = 'none';
+      updateDebugPanel(currentCart, lastCartError);
+    }
+
+    function renderStorageDebug(keys, title) {
+      if (!Array.isArray(keys) || !keys.length) return '';
+      const items = keys
+        .map((key) => {
+          const raw = localStorage.getItem(key);
+          const length = raw ? raw.length : 0;
+          const status = raw ? `${length} chars` : 'нет данных';
+          return `<li><strong>${key}</strong>: ${status}</li>`;
+        })
+        .join('');
+      return `<div><strong>${title}</strong><ul>${items}</ul></div>`;
+    }
+
+    function updateDebugPanel(cart, errorMessage = null) {
+      if (!DEBUG_CART || !debugEl) return;
+      const items = cart?.items || [];
+      const count = items.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
+      const total = Number(cart?.total || 0);
+      const url = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      const storageBottom = renderStorageDebug(DEBUG_CART_STORAGE_KEYS.bottomBar, 'localStorage (нижняя панель)');
+      const storageCart = renderStorageDebug(DEBUG_CART_STORAGE_KEYS.cartPage, 'localStorage (страница корзины)');
+      const errorLine = errorMessage ? `<div style="color: var(--accent);"><strong>Ошибка:</strong> ${errorMessage}</div>` : '';
+      debugEl.innerHTML = `
+        <div><strong>DEBUG_CART</strong></div>
+        <div><strong>URL:</strong> ${url}</div>
+        <div><strong>items.length:</strong> ${items.length}</div>
+        <div><strong>count:</strong> ${count}</div>
+        <div><strong>total:</strong> ${Number.isFinite(total) ? total : 0}</div>
+        ${errorLine}
+        ${storageBottom}
+        ${storageCart}
+      `;
+      debugEl.style.display = 'block';
     }
 
     function renderCart(cart) {
       currentCart = cart;
+      lastCartError = null;
       tbody.innerHTML = '';
 
       if (!cart.items?.length) {
@@ -451,11 +497,13 @@
         discountAmount = 0;
         finalTotal = cart.total || 0;
       }
+      updateDebugPanel(cart);
     }
 
     async function loadCartFromServer(userId) {
       try {
         noteEl.textContent = '';
+        lastCartError = null;
         await syncGuestCartToServer({ telegram_id: userId });
         const cart = await apiGet('/cart', { user_id: userId });
         currentCart = cart;
@@ -466,6 +514,7 @@
         renderCart(cart);
       } catch (e) {
         noteEl.textContent = 'Не удалось загрузить корзину. Попробуйте обновить страницу.';
+        lastCartError = 'Ошибка загрузки корзины';
         renderEmpty('Ошибка загрузки корзины');
       }
     }
@@ -474,6 +523,7 @@
       const items = loadGuestCart();
       if (!items.length) {
         noteEl.textContent = 'Чтобы оформить заказ и сохранить корзину, войдите через Telegram на главной странице.';
+        lastCartError = null;
         renderEmpty('Корзина пуста. Добавьте товары на страницах каталога.');
         return;
       }
