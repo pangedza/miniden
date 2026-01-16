@@ -152,6 +152,7 @@
     const checkoutBotHint = document.getElementById('checkout-bot-hint');
 
     let profile = null;
+    let telegramUserId = null;
     if (isTelegramWebApp && window.Telegram?.WebApp?.ready) {
       window.Telegram.WebApp.ready();
     }
@@ -160,6 +161,14 @@
     let discountAmount = 0;
     let finalTotal = 0;
     let adminContactUrl = null;
+
+    function resolveTelegramUserId() {
+      return window.Telegram?.WebApp?.initDataUnsafe?.user?.id || null;
+    }
+
+    function getCartUserId() {
+      return profile?.telegram_id || telegramUserId || null;
+    }
 
     function setAdminContactUrl(url) {
       if (!checkoutContactBtn) return;
@@ -432,11 +441,11 @@
       }
     }
 
-    async function loadCartFromServer() {
+    async function loadCartFromServer(userId) {
       try {
         noteEl.textContent = '';
-        await syncGuestCartToServer(profile);
-        const cart = await apiGet('/cart', { user_id: profile.telegram_id });
+        await syncGuestCartToServer({ telegram_id: userId });
+        const cart = await apiGet('/cart', { user_id: userId });
         currentCart = cart;
         if (!appliedPromo) {
           discountAmount = 0;
@@ -493,17 +502,19 @@
     }
 
     async function loadCart() {
-      if (profile?.telegram_id) {
-        await loadCartFromServer();
+      const userId = getCartUserId();
+      if (userId) {
+        await loadCartFromServer(userId);
       } else {
         await loadGuestCartView();
       }
     }
 
     async function updateQty(productId, qty, type) {
-      if (profile?.telegram_id) {
+      const userId = getCartUserId();
+      if (userId) {
         try {
-          await apiPost('/cart/update', { user_id: profile.telegram_id, product_id: productId, qty, type: type || 'basket' });
+          await apiPost('/cart/update', { user_id: userId, product_id: productId, qty, type: type || 'basket' });
           appliedPromo = null;
           await loadCart();
         } catch (e) {
@@ -526,9 +537,10 @@
     }
 
     async function clearCart() {
-      if (profile?.telegram_id) {
+      const userId = getCartUserId();
+      if (userId) {
         try {
-          await apiPost('/cart/clear', { user_id: profile.telegram_id });
+          await apiPost('/cart/clear', { user_id: userId });
           appliedPromo = null;
           await loadCart();
         } catch (e) {
@@ -545,7 +557,8 @@
     }
 
     async function applyPromo() {
-      if (!profile?.telegram_id) {
+      const userId = getCartUserId();
+      if (!userId) {
         showToast('Промокод можно применить после входа через Telegram.');
         setTimeout(() => {
           window.location.href = '/index.html';
@@ -560,7 +573,7 @@
       }
 
       try {
-        const result = await apiPost('/cart/apply-promocode', { user_id: profile.telegram_id, code });
+        const result = await apiPost('/cart/apply-promocode', { user_id: userId, code });
         appliedPromo = result;
         discountAmount = Number(result.discount_amount || 0);
         finalTotal = Number(result.final_total || currentCart.total || 0);
@@ -630,7 +643,8 @@
     }
 
     async function checkout() {
-      if (!profile?.telegram_id) {
+      const userId = getCartUserId();
+      if (!userId) {
         showToast('Чтобы оформить заказ и сохранить корзину, войдите через Telegram.');
         setTimeout(() => {
           window.location.href = '/index.html';
@@ -651,8 +665,8 @@
       try {
         await updateProfileIfNeeded(customerName, contact);
         const result = await apiPost('/checkout', {
-          user_id: profile.telegram_id,
-          user_name: profile.telegram_username,
+          user_id: userId,
+          user_name: profile?.telegram_username,
           customer_name: customerName,
           contact,
           comment: comment || null,
@@ -696,6 +710,7 @@
     });
 
     async function initCartPage() {
+      telegramUserId = resolveTelegramUserId();
       await resolveAdminContactUrl();
       await loadUserProfile();
       await loadCart();
