@@ -10,12 +10,30 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from database import get_session
-from models import MenuCategory, MenuItem, SiteBlock, SiteSettings
+from models import (
+    MenuCategory,
+    MenuItem,
+    ProductBasket,
+    ProductCategory,
+    ProductCourse,
+    SiteBlock,
+    SiteSettings,
+)
 
 MENU_ITEM_TYPES = {"product", "course", "service", "masterclass"}
 MENU_CATEGORY_TYPES = {"product", "masterclass"}
 BLOCK_PAGES = {"home", "category", "footer", "custom"}
 BLOCK_TYPES = {"banner", "text", "cta", "gallery", "features"}
+LEGACY_ITEM_TYPE_MAP = {"basket": "product", "course": "course"}
+
+
+def map_legacy_item_type(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = value.strip().lower()
+    if normalized in MENU_ITEM_TYPES:
+        return normalized
+    return LEGACY_ITEM_TYPE_MAP.get(normalized)
 
 
 def normalize_menu_type(value: str | None) -> str | None:
@@ -88,6 +106,237 @@ def normalize_media_path(value: str | None) -> str | None:
         if parsed.path.startswith("/media/"):
             return parsed.path
     return raw
+
+
+def _normalize_legacy_category_type(value: str | None) -> str:
+    if value == "course":
+        return "masterclass"
+    return "product"
+
+
+def _ensure_menu_category(
+    session: Session,
+    *,
+    title: str,
+    slug_base: str,
+    category_type: str,
+    description: str | None,
+    image_url: str | None,
+    order_index: int,
+    is_active: bool,
+) -> MenuCategory:
+    existing = session.query(MenuCategory).filter(MenuCategory.slug == slug_base).first()
+    if existing:
+        return existing
+
+    slug = generate_unique_slug(session, MenuCategory, slug_base, [])
+    category = MenuCategory(
+        title=title,
+        slug=slug,
+        type=category_type,
+        description=description,
+        image_url=image_url,
+        order_index=order_index,
+        is_active=is_active,
+    )
+    session.add(category)
+    session.flush()
+    return category
+
+
+def migrate_legacy_products_to_menu(*, dry_run: bool = False) -> dict[str, int]:
+    from database import init_db  # noqa: WPS433
+
+    init_db()
+    created_categories = 0
+    created_items = 0
+    skipped_items = 0
+
+    with get_session() as session:
+        category_map: dict[int, int] = {}
+
+        default_categories = {
+            "basket": ("Корзинки", "korzinki", "product"),
+            "course": ("Курсы", "courses", "masterclass"),
+        }
+
+        for legacy_type, (title, slug, category_type) in default_categories.items():
+            existing = session.query(MenuCategory).filter(MenuCategory.slug == slug).first()
+            if existing:
+                category_map[-(1 if legacy_type == "basket" else 2)] = int(existing.id)
+                continue
+            if dry_run:
+                created_categories += 1
+                continue
+            category = MenuCategory(
+                title=title,
+                slug=slug,
+                type=category_type,
+                description=None,
+                image_url=None,
+                order_index=0,
+                is_active=True,
+            )
+            session.add(category)
+            session.flush()
+            created_categories += 1
+            category_map[-(1 if legacy_type == "basket" else 2)] = int(category.id)
+
+        legacy_categories = session.query(ProductCategory).order_by(ProductCategory.id).all()
+        for legacy_category in legacy_categories:
+            category_type = _normalize_legacy_category_type(legacy_category.type)
+            slug_source = legacy_category.slug or legacy_category.name or f"category-{legacy_category.id}"
+            slug_base = slugify(slug_source) or slugify(f"category-{legacy_category.id}") or "category"
+
+            existing = session.query(MenuCategory).filter(MenuCategory.slug == slug_base).first()
+            if existing:
+                category_map[int(legacy_category.id)] = int(existing.id)
+                continue
+
+            if dry_run:
+                created_categories += 1
+                continue
+
+            category = _ensure_menu_category(
+                session,
+                title=legacy_category.name,
+                slug_base=slug_base,
+                category_type=category_type,
+                description=legacy_category.description,
+                image_url=normalize_media_path(legacy_category.image_url),
+                order_index=int(legacy_category.sort_order or 0),
+                is_active=bool(legacy_category.is_active),
+            )
+            category_map[int(legacy_category.id)] = int(category.id)
+            created_categories += 1
+
+        def _collect_images(images: list[str | None]) -> list[str]:
+            seen = set()
+            result = []
+            for item in images:
+                normalized = normalize_media_path(item)
+                if not normalized or normalized in seen:
+                    continue
+                seen.add(normalized)
+                result.append(normalized)
+            return result
+
+        def _migrate_items(
+            rows: list[ProductBasket] | list[ProductCourse],
+            *,
+            legacy_table: str,
+            legacy_type: str,
+        ) -> None:
+            nonlocal created_items, skipped_items
+            item_type = map_legacy_item_type(legacy_type) or "product"
+            default_category_key = -1 if legacy_type == "basket" else -2
+
+            for row in rows:
+                legacy_link = f"legacy:{legacy_table}:{row.id}"
+                existing = session.query(MenuItem).filter(MenuItem.legacy_link == legacy_link).first()
+                if existing:
+                    skipped_items += 1
+                    continue
+
+                category_id = None
+                if row.category_id is not None:
+                    category_id = category_map.get(int(row.category_id))
+                if not category_id:
+                    category_id = category_map.get(default_category_key)
+                if not category_id:
+                    skipped_items += 1
+                    continue
+
+                title = row.title
+                slug_source = slugify(title or f"item-{row.id}") or slugify(f"item-{row.id}") or "item"
+                slug = generate_unique_slug(
+                    session,
+                    MenuItem,
+                    slug_source,
+                    [MenuItem.category_id == int(category_id)],
+                )
+
+                existing = session.query(MenuItem).filter(
+                    MenuItem.category_id == int(category_id),
+                    MenuItem.slug == slug,
+                ).first()
+                if existing:
+                    skipped_items += 1
+                    continue
+
+                images = []
+                if getattr(row, "image_url", None):
+                    images.append(getattr(row, "image_url"))
+                if getattr(row, "image", None):
+                    images.append(getattr(row, "image"))
+
+                if legacy_type == "basket":
+                    images.extend([img.image_url for img in getattr(row, "product_images", []) or []])
+                else:
+                    images.extend([img.image_url for img in getattr(row, "masterclass_images", []) or []])
+
+                normalized_images = _collect_images(images)
+                primary_image = normalize_media_path(getattr(row, "image_url", None)) or (
+                    normalized_images[0] if normalized_images else None
+                )
+
+                meta = {
+                    "legacy_source": legacy_table,
+                    "legacy_id": int(row.id),
+                    "detail_url": getattr(row, "detail_url", None),
+                    "wb_url": getattr(row, "wb_url", None),
+                    "ozon_url": getattr(row, "ozon_url", None),
+                    "yandex_url": getattr(row, "yandex_url", None),
+                    "avito_url": getattr(row, "avito_url", None),
+                    "masterclass_url": getattr(row, "masterclass_url", None),
+                }
+                meta = {key: value for key, value in meta.items() if value is not None}
+
+                if dry_run:
+                    created_items += 1
+                    continue
+
+                item = MenuItem(
+                    category_id=int(category_id),
+                    title=title,
+                    subtitle=getattr(row, "short_description", None),
+                    slug=slug,
+                    description=row.description,
+                    price=row.price,
+                    currency=None,
+                    images=normalized_images,
+                    image_url=primary_image,
+                    legacy_link=legacy_link,
+                    order_index=0,
+                    is_active=bool(getattr(row, "is_active", True)),
+                    stock_qty=int(getattr(row, "stock", 0))
+                    if getattr(row, "stock", None) is not None
+                    else None,
+                    type=item_type,
+                    meta=meta,
+                )
+                session.add(item)
+                created_items += 1
+
+        baskets = (
+            session.query(ProductBasket)
+            .order_by(ProductBasket.id)
+            .all()
+        )
+        courses = (
+            session.query(ProductCourse)
+            .order_by(ProductCourse.id)
+            .all()
+        )
+
+        _migrate_items(baskets, legacy_table="products_baskets", legacy_type="basket")
+        _migrate_items(courses, legacy_table="products_courses", legacy_type="course")
+
+    return {
+        "categories_created": created_categories,
+        "items_created": created_items,
+        "items_skipped": skipped_items,
+    }
 
 
 def _category_query(

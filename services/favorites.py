@@ -8,10 +8,9 @@ from sqlalchemy import delete, select
 from database import get_session, init_db
 from models import Favorite
 from services import menu_catalog
-from services import products as products_service
 
 
-ALLOWED_TYPES = {"basket", "course", "product", "service"}
+ALLOWED_TYPES = {"basket", "course", "product", "service", "masterclass"}
 
 
 def _validate_type(product_type: str) -> str:
@@ -59,25 +58,20 @@ def remove_favorite(user_id: int, product_id: int, product_type: str) -> bool:
 
 
 def _serialize_favorite(row: Favorite) -> dict[str, Any]:
-    product = None
-    if row.type in menu_catalog.MENU_ITEM_TYPES:
-        product = menu_catalog.get_item_by_id(
-            int(row.product_id),
-            include_inactive=True,
-            item_type=row.type,
-        )
-    if not product and row.type == "basket":
-        product = products_service.get_basket_by_id(int(row.product_id))
-    if not product and row.type == "course":
-        product = products_service.get_course_by_id(int(row.product_id))
+    resolved_type = menu_catalog.map_legacy_item_type(row.type) or "product"
+    product = menu_catalog.get_item_by_id(
+        int(row.product_id),
+        include_inactive=True,
+        item_type=resolved_type,
+    )
 
-    name = (product or {}).get("name") if isinstance(product, dict) else None
+    name = (product or {}).get("title") if isinstance(product, dict) else None
     if not name and isinstance(product, dict):
-        name = product.get("title")
+        name = product.get("name")
 
     return {
         "product_id": int(row.product_id),
-        "type": row.type,
+        "type": resolved_type,
         "name": name,
         "price": int((product or {}).get("price") or 0),
         "is_active": bool((product or {}).get("is_active", 0)),

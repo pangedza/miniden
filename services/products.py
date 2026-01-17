@@ -1,3 +1,8 @@
+"""
+LEGACY сервис товаров (products_baskets/products_courses).
+Используется только для обратной совместимости и архивных эндпоинтов.
+"""
+
 from __future__ import annotations
 
 import json

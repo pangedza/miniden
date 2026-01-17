@@ -9,7 +9,7 @@ from config import ADMIN_IDS_SET
 from services import admin_notes as admin_notes_service
 from services import bans as bans_service
 from services import orders as orders_service
-from services import products as products_service
+from services import menu_catalog
 from services import user_stats as user_stats_service
 from services.bot_config import load_menu_buttons
 from keyboards.admin_inline import (
@@ -322,7 +322,8 @@ async def admin_products_actions_disabled(
 
 
 async def _send_course_access_list(target_message: types.Message) -> None:
-    courses = products_service.get_courses()
+    raw_courses = menu_catalog.list_items(include_inactive=False, item_type="course")
+    courses = [{"id": item["id"], "name": item["title"]} for item in raw_courses]
     text = "🎓 Выберите курс для управления доступом:" if courses else "Пока нет курсов для управления доступом."
 
     await target_message.answer(
@@ -332,15 +333,15 @@ async def _send_course_access_list(target_message: types.Message) -> None:
 
 
 async def _send_course_access_info(target_message: types.Message, course_id: int) -> None:
-    course = products_service.get_product_by_id(course_id)
-    if not course or course.get("type") != "course":
+    course = menu_catalog.get_item_by_id(course_id, include_inactive=False, item_type="course")
+    if not course:
         await target_message.answer("Курс не найден или недоступен.")
         return
 
     users = orders_service.get_course_users(course_id)
 
     lines: list[str] = [
-        f"🎓 <b>{course['name']}</b> (ID: <code>{course_id}</code>)",
+        f"🎓 <b>{course['title']}</b> (ID: <code>{course_id}</code>)",
         f"Пользователей с доступом: <b>{len(users)}</b>",
     ]
 
@@ -403,8 +404,8 @@ async def admin_course_access_grant(callback: types.CallbackQuery, state: FSMCon
         await callback.answer("Некорректный ID курса", show_alert=True)
         return
 
-    course = products_service.get_product_by_id(course_id)
-    if not course or course.get("type") != "course":
+    course = menu_catalog.get_item_by_id(course_id, include_inactive=False, item_type="course")
+    if not course:
         await callback.answer("Курс не найден", show_alert=True)
         return
 
@@ -413,7 +414,7 @@ async def admin_course_access_grant(callback: types.CallbackQuery, state: FSMCon
     await state.set_state(CourseAccessState.waiting_grant_user_id)
 
     await callback.message.answer(
-        f"Введите user_id для выдачи доступа к курсу <b>{course['name']}</b> (ID: <code>{course_id}</code>):"
+        f"Введите user_id для выдачи доступа к курсу <b>{course['title']}</b> (ID: <code>{course_id}</code>):"
     )
     await callback.answer()
 
@@ -434,8 +435,8 @@ async def admin_course_access_revoke(callback: types.CallbackQuery, state: FSMCo
         await callback.answer("Некорректный ID курса", show_alert=True)
         return
 
-    course = products_service.get_product_by_id(course_id)
-    if not course or course.get("type") != "course":
+    course = menu_catalog.get_item_by_id(course_id, include_inactive=False, item_type="course")
+    if not course:
         await callback.answer("Курс не найден", show_alert=True)
         return
 
@@ -444,7 +445,7 @@ async def admin_course_access_revoke(callback: types.CallbackQuery, state: FSMCo
     await state.set_state(CourseAccessState.waiting_revoke_user_id)
 
     await callback.message.answer(
-        f"Введите user_id для отзыва доступа к курсу <b>{course['name']}</b> (ID: <code>{course_id}</code>):"
+        f"Введите user_id для отзыва доступа к курсу <b>{course['title']}</b> (ID: <code>{course_id}</code>):"
     )
     await callback.answer()
 
