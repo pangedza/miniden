@@ -580,7 +580,8 @@ async function reorderItem(index, delta) {
 
 async function loadCategories() {
   try {
-    const typeParam = activeUrlType ? `?type=${encodeURIComponent(activeUrlType)}` : '';
+    const typeValue = activeItemType || '';
+    const typeParam = typeValue ? `?type=${encodeURIComponent(typeValue)}` : '';
     const response = await apiRequest(`${API_MENU_CATEGORIES}${typeParam}`, { method: 'GET' });
     categories = response.items || [];
     if (selectedCategory) {

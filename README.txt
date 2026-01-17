@@ -31,6 +31,17 @@ AdminSite Task2: API type фильтр
   - admin_panel/adminsite/router.py
   - admin_panel/adminsite/service.py
 
+AdminSite Task3: сохранение type в create/edit
+---------------------------------------------
+- Изменённые файлы:
+  - admin_panel/adminsite/static/adminsite/constructor.js
+  - webapi.py
+- Как проверить:
+  1. Открыть `/adminsite/constructor?type=masterclasses`.
+  2. Создать категорию и убедиться, что после обновления страницы она остаётся в мастер-классах.
+  3. Перейти на `/adminsite/constructor?type=products` и убедиться, что категория не отображается.
+  4. Создать категорию в продуктах и проверить, что она не появляется в мастер-классах.
+
 Changelog / История изменений
 -----------------------------
 - 2026-06-XX: Корзина WebApp переведена на единое хранение в БД: браузер использует cookie `cart_session_id`, Telegram WebApp проходит серверную auth через `initData` и использует `tg_user_id`, маршруты `/api/cart*` больше не зависят от localStorage; кнопки корзины ведут на `/cart.html`.

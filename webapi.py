@@ -3211,16 +3211,22 @@ def _build_public_link(base_url: str | None, path: str) -> str:
 def admin_menu_categories(
     request: Request,
     include_inactive: bool = True,
+    type: str | None = None,
     db: Session = Depends(get_db),
 ):
     adminsite_service.ensure_admin(request, db)
     base_url = _resolve_public_base_url()
-    categories = menu_catalog.list_categories(include_inactive=include_inactive)
-    for category in categories:
-        category["public_url"] = _build_public_link(
-            base_url, f"/c/{category.get('slug')}"
+    try:
+        categories = menu_catalog.list_categories(
+            include_inactive=include_inactive, category_type=type
         )
-    return {"items": categories}
+        for category in categories:
+            category["public_url"] = _build_public_link(
+                base_url, f"/c/{category.get('slug')}"
+            )
+        return {"items": categories}
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
 
 
 @app.post("/api/admin/menu/categories")
