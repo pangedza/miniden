@@ -5,7 +5,8 @@ from typing import List
 
 from sqlalchemy import func, select
 
-from database import get_session, init_db
+from database import get_session
+from initdb import init_db
 from models import Favorite, Order, OrderItem, User, UserStats
 from services import menu_catalog
 

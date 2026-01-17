@@ -7,7 +7,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from config import ADMIN_IDS_SET
-from database import get_session, init_db
+from database import get_session
+from initdb import init_db
 from models import User
 
 

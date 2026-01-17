@@ -2,7 +2,8 @@
 
 import argparse
 
-from database import SessionLocal, init_db
+from database import SessionLocal
+from initdb import init_db
 from models.admin_user import AdminRole, AdminUser
 from services.passwords import hash_password
 

@@ -121,7 +121,7 @@ WebApp checkout → Telegram (adminbot)
 - По клику «Оформить» отправляется `POST /api/public/checkout/from-webapp` с items/totals и клиентским контекстом.
 - Success-модалка «Заказ отправлен» открывается только после успешного ответа `POST /api/public/checkout/from-webapp` и закрывается по кнопке/клику по фону; при загрузке страницы модалка не восстанавливается и не зависит от query-параметров.
 - Backend сохраняет запись в `checkout_orders` и диспатчит событие `webapp_checkout_created`.
-- Событие использует `bot_event_triggers` (дефолтный триггер создаётся при `init_db`) и отправляет пользователю сообщение со списком позиций и inline-кнопками («Связаться», «Открыть витрину»).
+- Событие использует `bot_event_triggers` (дефолтный триггер создаётся при `initdb.init_db()`) и отправляет пользователю сообщение со списком позиций и inline-кнопками («Связаться», «Открыть витрину»).
 - Обработчик inline-кнопки «Связаться» принимает callback `trigger:contact_manager` (см. `handlers/support.py`).
 - Ограничения ввода: имя и контакт — до 100 символов, комментарий — до 500 символов.
 - Ограничения загрузок: изображения — до 5 МБ (загрузка товаров/обложек, аватары и фото отзывов).
@@ -213,6 +213,8 @@ WebApp layout и design tokens
 -------------------
 - Telegram-бот (`bot.py`): точка входа, проверка подписки, стартовый экран и главное меню с WebApp-кнопками, мини-CRM для админов.
 - Backend (`webapi.py`): FastAPI-приложение `webapi:app`, обслуживает авторизацию, каталог, корзину, заказы, избранное, промокоды и админку.
+  - Роуты разнесены по модулям: `routes_public.py` (публичные API каталога/корзины/витрины), `routes_auth.py` (Telegram Login/WebApp initData), `routes_adminsite.py` (AdminSite и admin API), `routes_adminbot.py` (конструктор бота).
+  - Для корректной работы эндпоинтов, принимающих form-data (`UploadFile`, `Form`), требуется установленный пакет `python-multipart`.
   - Для корректной работы эндпоинтов, принимающих form-data (`UploadFile`, `Form`), требуется установленный пакет `python-multipart`.
   - Пакет включён в `requirements.txt` и ставится вместе с остальными зависимостями командой: `pip install -r requirements.txt`.
 - PostgreSQL: единая база данных для бота, WebApp и сайта (строка подключения `DATABASE_URL`).
@@ -250,7 +252,7 @@ WebApp layout и design tokens
 
 Миграции меню
 -------------
-- В проекте нет Alembic: таблицы `menu_categories`, `menu_items`, `site_settings`, `site_blocks` создаются через `init_db()` при запуске backend.
+- В проекте нет Alembic: таблицы `menu_categories`, `menu_items`, `site_settings`, `site_blocks` создаются через `initdb.init_db()` вручную или при dev-запуске (`INIT_DB_ON_STARTUP=1`).
 - Новые поля меню: `menu_categories.type`, `menu_categories.parent_id`, `menu_items.stock_qty` (null = без лимита).
 - Старые таблицы товаров/страниц не удаляются и остаются для legacy-функций; перенос данных в меню выполняется вручную при необходимости.
 
@@ -319,6 +321,7 @@ ReplyKeyboard-меню из конструктора AdminBot
 - pip install -r requirements.txt
 - uvicorn webapi:app --host 0.0.0.0 --port 8000
 - НЕ запускать `python api/main.py` — это legacy shim.
+- Для dev-инициализации БД: `INIT_DB_ON_STARTUP=1 uvicorn webapi:app --host 0.0.0.0 --port 8000` или вручную `python -c "from initdb import init_db; init_db()"`.
 
 Автозапуск backend через systemd
 --------------------------------
@@ -873,12 +876,12 @@ curl -H "Cookie: admin_session=<cookie>" \
 
 База данных
 -----------
-Backend и бот работают от одной PostgreSQL-базы (`DATABASE_URL`). Таблицы создаются через `database.init_db()`, а сервисы из `services/` используют общие модели из `models.py`.
+Backend и бот работают от одной PostgreSQL-базы (`DATABASE_URL`). Таблицы создаются через `initdb.init_db()`, а сервисы из `services/` используют общие модели из `models.py`.
 
 Запуск в продакшене
 --------------------
 - Backend: `uvicorn webapi:app --host 0.0.0.0 --port 8000`.
-- Бот: `python -m bot` (aiogram 3, настройки из `config.py`, инициализация БД через `init_db()`).
+- Бот: `python -m bot` (aiogram 3, настройки из `config.py`, инициализация БД через `initdb.init_db()`).
 
 Systemd и nginx
 ---------------
@@ -1066,7 +1069,7 @@ Front reset: theme-only + constructor-driven site
 - Тема/стили остаются в `webapp/css/theme.css` (переключатель в шапке), новая логика витрины — в `webapp/js/site_app.js` и `webapp/js/site_api.js`.
 
 ## Unified project structure
-- Backend API: `webapi.py` (FastAPI), routers under `api/routers/*`, admin routes under `admin_panel/routes/*`, AdminSite API in `admin_panel/adminsite/router.py`.
+- Backend API: `webapi.py` (FastAPI, includes `routes_public.py`, `routes_auth.py`, `routes_adminsite.py`, `routes_adminbot.py`), routers under `api/routers/*`, admin routes under `admin_panel/routes/*`, AdminSite API in `admin_panel/adminsite/router.py`.
 - Frontend (customer site): static HTML/JS/CSS in `webapp/` served via `/css`, `/js`, `/media`.
 - AdminSite UI: templates in `admin_panel/adminsite/templates`, constructor assets in `admin_panel/adminsite/static/adminsite` (served at `/static/adminsite/*`).
 - AdminBot UI: templates in `admin_panel/templates/adminbot*`, routes under `admin_panel/routes/*`.

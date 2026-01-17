@@ -5,7 +5,8 @@ from typing import Any
 
 from sqlalchemy import func, select
 
-from database import get_session, init_db
+from database import get_session
+from initdb import init_db
 from models import Order
 from services import orders as orders_service
 from services import stats as stats_service
