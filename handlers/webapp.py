@@ -2,18 +2,19 @@ import json
 import logging
 
 from aiogram import F, Router
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, WebAppInfo
-
-import json
-import logging
-
-from aiogram import F, Router
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, WebAppInfo
+from aiogram.types import (
+    CallbackQuery,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Message,
+    WebAppInfo,
+)
 
 from config import get_settings
-from services import menu_catalog
+from services import menu_catalog, orders as orders_service, users as users_service
 from services.cart import add_to_cart
 from services.products import get_product_by_id
+from utils.texts import format_order_for_admin, format_price
 
 router = Router()
 
@@ -58,6 +59,83 @@ def _build_cart_keyboard() -> InlineKeyboardMarkup | None:
             [InlineKeyboardButton(text="Открыть корзину", web_app=WebAppInfo(url=cart_url))]
         ]
     )
+
+
+def _build_order_user_keyboard(order_id: int | None) -> InlineKeyboardMarkup:
+    settings = get_settings()
+    inline_keyboard: list[list[InlineKeyboardButton]] = []
+
+    admin_chat_id = settings.admin_chat_id
+    if admin_chat_id:
+        inline_keyboard.append(
+            [
+                InlineKeyboardButton(
+                    text="Связаться с админом",
+                    url=f"tg://user?id={admin_chat_id}",
+                )
+            ]
+        )
+
+    cancel_callback = f"webapp:order:cancel:{order_id or 0}"
+    inline_keyboard.append(
+        [InlineKeyboardButton(text="Отменить заказ", callback_data=cancel_callback)]
+    )
+
+    return InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
+
+
+def _parse_webapp_order_payload(payload: dict) -> tuple[list[dict], int] | None:
+    if payload.get("type") != "webapp_order":
+        return None
+
+    cart = payload.get("cart")
+    if not isinstance(cart, dict):
+        return None
+
+    items = cart.get("items")
+    if not isinstance(items, list):
+        return None
+
+    raw_total = cart.get("total")
+    try:
+        total = int(float(raw_total))
+    except (TypeError, ValueError):
+        return None
+
+    parsed_items: list[dict] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        raw_id = item.get("id") or item.get("product_id")
+        try:
+            product_id = int(raw_id)
+        except (TypeError, ValueError):
+            continue
+        try:
+            qty = int(item.get("qty") or 0)
+        except (TypeError, ValueError):
+            qty = 0
+        try:
+            price = int(float(item.get("price") or 0))
+        except (TypeError, ValueError):
+            price = 0
+        if qty <= 0:
+            continue
+        title = item.get("title") or item.get("name") or f"Товар #{product_id}"
+        parsed_items.append(
+            {
+                "product_id": product_id,
+                "name": title,
+                "qty": qty,
+                "price": price,
+                "type": item.get("type") or "basket",
+            }
+        )
+
+    if not parsed_items:
+        return None
+
+    return parsed_items, total
 
 
 def _is_valid_adminsite_item(item: dict) -> bool:
@@ -140,6 +218,65 @@ async def handle_webapp_data(message: Message) -> None:
         logging.exception("Не удалось разобрать web_app_data: %s", raw)
         return
 
+    if data.get("type") == "webapp_order":
+        webapp_order = _parse_webapp_order_payload(data)
+        if webapp_order is None:
+            await message.answer("Не удалось прочитать заказ")
+            return
+        items, total = webapp_order
+        user_name = (
+            message.from_user.full_name
+            if message.from_user.full_name
+            else message.from_user.username or "Пользователь"
+        )
+        user_record = users_service.get_user_by_telegram_id(message.from_user.id)
+        contact = user_record.phone if user_record and user_record.phone else ""
+        order_text = format_order_for_admin(
+            user_id=message.from_user.id,
+            user_name=user_name,
+            items=items,
+            total=total,
+            customer_name=user_name,
+            contact=contact,
+            comment="",
+        )
+        order_id = orders_service.add_order(
+            user_id=message.from_user.id,
+            user_name=user_name,
+            items=items,
+            total=total,
+            customer_name=user_name,
+            contact=contact,
+            comment="",
+            order_text=order_text,
+        )
+
+        lines = ["✅ Заказ принят", "", "🛒 Ваш заказ:"]
+        for idx, item in enumerate(items, start=1):
+            subtotal = int(item.get("price", 0)) * int(item.get("qty", 0))
+            lines.append(
+                f"{idx}) {item.get('name')} — {format_price(item.get('price', 0))} x {item.get('qty')} = {format_price(subtotal)}"
+            )
+        lines.append("")
+        lines.append(f"Итого: <b>{format_price(total)}</b>")
+        await message.answer(
+            "\n".join(lines),
+            reply_markup=_build_order_user_keyboard(order_id),
+        )
+
+        settings = get_settings()
+        admin_ids = settings.admin_ids or set()
+        if admin_ids:
+            admin_message = order_text.replace(
+                "🆕 <b>Новый заказ</b>", "📦 <b>Новый заказ</b>", 1
+            )
+            for admin_id in admin_ids:
+                try:
+                    await message.bot.send_message(admin_id, admin_message)
+                except Exception:
+                    logging.exception("Не удалось отправить заказ админу %s", admin_id)
+        return
+
     product_id = data.get("product_id")
     qty_raw = data.get("qty") or 1
 
@@ -195,3 +332,8 @@ async def handle_webapp_data(message: Message) -> None:
         await message.answer(response_text, reply_markup=keyboard)
     else:
         await message.answer(f"{response_text}\n\nНажми 🛒 Корзина")
+
+
+@router.callback_query(F.data.startswith("webapp:order:cancel:"))
+async def handle_webapp_order_cancel(callback: CallbackQuery) -> None:
+    await callback.answer("Отмена заказа пока недоступна", show_alert=True)
