@@ -103,7 +103,7 @@
         </div>
         <div class="input-row">
           <button class="btn" type="button" id="checkout-bot-inline">Оформить в боте</button>
-          <div class="muted" id="checkout-bot-inline-hint" style="display:none;">Оформление в боте доступно в Telegram</div>
+          <div class="muted" id="checkout-bot-inline-hint" style="display:none;">Доступно только в Telegram</div>
         </div>
       </div>
     </main>
@@ -121,7 +121,7 @@
         <a class="btn secondary" id="checkout-contact-admin" href="#" target="_blank" rel="noopener">Связаться с админом</a>
         <button class="btn" type="button" id="checkout-bot">Оформить в боте</button>
       </div>
-      <div class="checkout-modal__hint muted" id="checkout-bot-hint">Доступно в Telegram</div>
+      <div class="checkout-modal__hint muted" id="checkout-bot-hint">Доступно только в Telegram</div>
     </div>
   </div>
 
@@ -210,7 +210,7 @@
 
     function updateTelegramCheckoutAvailability() {
       const tg = window.Telegram?.WebApp;
-      const isAvailable = Boolean(tg && tg.initData);
+      const isAvailable = Boolean(tg);
       if (checkoutBotBtn) {
         checkoutBotBtn.style.display = isAvailable ? '' : 'none';
       }
@@ -709,9 +709,9 @@
 
     function sendCartToTelegramBot() {
       const tg = window.Telegram?.WebApp;
-      const isTg = Boolean(tg && tg.initData);
+      const isTg = Boolean(tg);
       if (!isTg) {
-        showToast('Оформление в боте доступно в Telegram');
+        showToast('Доступно только в Telegram');
         return;
       }
       if (!currentCart.items?.length) {
@@ -720,6 +720,11 @@
       }
       const payload = buildWebAppOrderPayload();
       tg.sendData(JSON.stringify(payload));
+      try {
+        tg.close?.();
+      } catch (error) {
+        console.warn('Failed to close Telegram WebApp', error);
+      }
       notifyBotCheckoutSent();
     }
 
