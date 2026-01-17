@@ -103,7 +103,7 @@
         </div>
         <div class="input-row">
           <button class="btn" type="button" id="checkout-bot-inline">Оформить в боте</button>
-          <div class="muted" id="checkout-bot-inline-hint" style="display:none;">Доступно только в Telegram</div>
+          <div class="muted" id="checkout-bot-inline-hint" style="display:none;">Откройте через Telegram бот</div>
         </div>
       </div>
     </main>
@@ -117,11 +117,13 @@
     </div>
     <div class="checkout-modal__body">
       <p class="muted">Выберите способ оформления</p>
-      <div class="checkout-modal__actions">
+      <div class="checkout-modal__actions" id="checkout-modal-actions">
         <a class="btn secondary" id="checkout-contact-admin" href="#" target="_blank" rel="noopener">Связаться с админом</a>
         <button class="btn" type="button" id="checkout-bot">Оформить в боте</button>
       </div>
-      <div class="checkout-modal__hint muted" id="checkout-bot-hint">Доступно только в Telegram</div>
+      <div class="checkout-modal__hint muted" id="checkout-bot-hint">Откройте через Telegram бот</div>
+      <div class="checkout-modal__status muted" id="checkout-bot-status" style="display:none;"></div>
+      <button class="btn secondary" type="button" id="checkout-bot-close" style="display:none;">Закрыть</button>
     </div>
   </div>
 
@@ -162,6 +164,9 @@
     const checkoutContactBtn = document.getElementById('checkout-contact-admin');
     const checkoutBotBtn = document.getElementById('checkout-bot');
     const checkoutBotHint = document.getElementById('checkout-bot-hint');
+    const checkoutModalActions = document.getElementById('checkout-modal-actions');
+    const checkoutBotStatus = document.getElementById('checkout-bot-status');
+    const checkoutBotCloseBtn = document.getElementById('checkout-bot-close');
     const checkoutBotInlineBtn = document.getElementById('checkout-bot-inline');
     const checkoutBotInlineHint = document.getElementById('checkout-bot-inline-hint');
 
@@ -210,26 +215,40 @@
     }
 
     function updateTelegramCheckoutAvailability() {
-      const isAvailable = isTelegram;
+      const isAvailable = Boolean(telegramUserId);
       if (checkoutBotBtn) {
         checkoutBotBtn.style.display = isAvailable ? '' : 'none';
       }
       if (checkoutBotHint) {
-        checkoutBotHint.style.display = isAvailable ? 'none' : 'none';
+        checkoutBotHint.style.display = isAvailable ? 'none' : '';
       }
       if (checkoutBotInlineBtn) {
         checkoutBotInlineBtn.style.display = isAvailable ? '' : 'none';
       }
       if (checkoutBotInlineHint) {
-        checkoutBotInlineHint.style.display = isAvailable ? 'none' : 'none';
+        checkoutBotInlineHint.style.display = isAvailable ? 'none' : '';
       }
       if (checkoutContactBtn) {
         checkoutContactBtn.style.display = isAvailable ? '' : '';
       }
     }
 
+    function resetCheckoutBotState() {
+      if (checkoutModalActions) {
+        checkoutModalActions.style.display = '';
+      }
+      if (checkoutBotStatus) {
+        checkoutBotStatus.style.display = 'none';
+        checkoutBotStatus.textContent = '';
+      }
+      if (checkoutBotCloseBtn) {
+        checkoutBotCloseBtn.style.display = 'none';
+      }
+    }
+
     function openCheckoutModal() {
       if (!checkoutModal || !checkoutModalOverlay) return;
+      resetCheckoutBotState();
       checkoutModal.classList.add('is-visible');
       checkoutModalOverlay.classList.add('is-visible');
       checkoutModal.setAttribute('aria-hidden', 'false');
@@ -677,30 +696,40 @@
     }
 
     function buildWebAppOrderPayload() {
-      return {
-        type: 'webapp_order',
+      const tg = window.Telegram?.WebApp;
+      const initData = tg?.initData || null;
+      const payload = {
+        tg_user_id: telegramUserId,
         cart: {
           items: currentCart.items || [],
           total: getCartTotalForPayload(),
           currency: 'RUB',
         },
       };
-    }
-
-    function notifyBotCheckoutSent() {
-      const message = 'Заказ отправлен в бот. Вернитесь в чат.';
-      if (typeof showToast === 'function') {
-        showToast(message);
-        return;
+      if (initData) {
+        payload.init_data = initData;
       }
-      alert(message);
+      return payload;
     }
 
-    function sendCartToTelegramBot() {
+    function showCheckoutBotSuccess(orderId) {
+      if (checkoutModalActions) {
+        checkoutModalActions.style.display = 'none';
+      }
+      if (checkoutBotStatus) {
+        const orderLabel = orderId ? `Заказ №${orderId} сохранён` : 'Заказ сохранён';
+        checkoutBotStatus.textContent = orderLabel;
+        checkoutBotStatus.style.display = '';
+      }
+      if (checkoutBotCloseBtn) {
+        checkoutBotCloseBtn.style.display = '';
+      }
+    }
+
+    async function sendCartToTelegramBot() {
       const tg = window.Telegram?.WebApp;
-      const isTg = Boolean(tg);
-      if (!isTg) {
-        showToast('Доступно только в Telegram');
+      if (!telegramUserId) {
+        showToast('Откройте через Telegram бот');
         return;
       }
       if (!currentCart.items?.length) {
@@ -708,13 +737,31 @@
         return;
       }
       const payload = buildWebAppOrderPayload();
-      tg.sendData(JSON.stringify(payload));
+      const headers = { 'Content-Type': 'application/json' };
+      if (tg?.initData) {
+        headers['X-Telegram-Init-Data'] = tg.initData;
+      }
+
       try {
-        tg.close?.();
+        const response = await fetch('/api/webapp/order', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(payload),
+        });
+        const data = await handleResponse(response);
+        const orderId = data?.order_id ?? data?.id ?? '';
+        showCheckoutBotSuccess(orderId);
+      } catch (error) {
+        showToast(error?.message || 'Не удалось оформить заказ. Попробуйте ещё раз.');
+      }
+    }
+
+    function closeTelegramWebApp() {
+      try {
+        window.Telegram?.WebApp?.close?.();
       } catch (error) {
         console.warn('Failed to close Telegram WebApp', error);
       }
-      notifyBotCheckoutSent();
     }
 
     applyPromoBtn.addEventListener('click', applyPromo);
@@ -728,6 +775,10 @@
     });
     checkoutBotBtn?.addEventListener('click', sendCartToTelegramBot);
     checkoutBotInlineBtn?.addEventListener('click', sendCartToTelegramBot);
+    checkoutBotCloseBtn?.addEventListener('click', () => {
+      closeTelegramWebApp();
+      closeCheckoutModal();
+    });
 
     async function initCartPage() {
       telegramUserId = resolveTelegramUserId();
