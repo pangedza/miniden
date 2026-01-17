@@ -7,33 +7,24 @@ from sqlalchemy import delete, select
 from database import get_session, init_db
 from models import CartItem
 from services import menu_catalog
-from services import products as products_service
 from services import users as users_service
 
 
 def _normalize_product(item: CartItem) -> tuple[dict[str, Any] | None, bool]:
     product_type = item.type
-    product = None
-
-    if product_type in menu_catalog.MENU_ITEM_TYPES:
-        product = menu_catalog.get_item_by_id(
-            int(item.product_id),
-            include_inactive=True,
-            item_type=product_type,
-        )
-        if not product and product_type == "course":
-            product = products_service.get_course_by_id(item.product_id)
-    elif product_type == "basket":
-        product = products_service.get_basket_by_id(item.product_id)
-    else:
-        product = products_service.get_course_by_id(item.product_id)
+    resolved_type = menu_catalog.map_legacy_item_type(product_type) or "product"
+    product = menu_catalog.get_item_by_id(
+        int(item.product_id),
+        include_inactive=True,
+        item_type=resolved_type,
+    )
 
     if not product:
         return None, True
 
-    name = product.get("name") if isinstance(product, dict) else None
+    name = product.get("title") if isinstance(product, dict) else None
     if not name and isinstance(product, dict):
-        name = product.get("title")
+        name = product.get("name")
 
     return (
         {
@@ -41,7 +32,7 @@ def _normalize_product(item: CartItem) -> tuple[dict[str, Any] | None, bool]:
             "name": name,
             "price": int(product.get("price", 0) or 0),
             "qty": int(item.qty),
-            "type": product_type,
+            "type": resolved_type,
             "category_id": product.get("category_id"),
             "category_name": product.get("category_title") or product.get("category_name"),
         },
@@ -88,23 +79,25 @@ def add_to_cart(
     qty = max(int(qty), 1)
     if user_id is not None:
         users_service.get_or_create_user_from_telegram({"id": user_id})
+    normalized_type = menu_catalog.map_legacy_item_type(product_type) or "product"
+    if normalized_type not in menu_catalog.MENU_ITEM_TYPES:
+        normalized_type = "product"
     with get_session() as session:
         filters = _build_cart_filters(user_id, session_id)
         existing = session.scalar(
             select(CartItem).where(
                 *filters,
                 CartItem.product_id == int(product_id),
-                CartItem.type == product_type,
+                CartItem.type == normalized_type,
             )
         )
         stock_limit = None
-        if product_type in menu_catalog.MENU_ITEM_TYPES:
-            product = menu_catalog.get_item_by_id(
-                int(product_id), include_inactive=False, item_type=product_type
-            )
-            stock_limit = product.get("stock_qty") if product else None
-            if product and stock_limit == 0:
-                return
+        product = menu_catalog.get_item_by_id(
+            int(product_id), include_inactive=False, item_type=normalized_type
+        )
+        stock_limit = product.get("stock_qty") if product else None
+        if product and stock_limit == 0:
+            return
 
         if existing:
             next_qty = existing.qty + qty
@@ -123,7 +116,7 @@ def add_to_cart(
                     session_id=session_id if user_id is None else None,
                     product_id=int(product_id),
                     qty=next_qty,
-                    type=product_type,
+                    type=normalized_type,
                 )
             )
 
@@ -136,15 +129,24 @@ def change_qty(
     session_id: str | None = None,
 ) -> None:
     init_db()
+    normalized_type = menu_catalog.map_legacy_item_type(product_type) or product_type
     with get_session() as session:
         filters = _build_cart_filters(user_id, session_id)
         item = session.scalar(
             select(CartItem).where(
                 *filters,
                 CartItem.product_id == int(product_id),
-                CartItem.type == product_type,
+                CartItem.type == normalized_type,
             )
         )
+        if not item and normalized_type != product_type:
+            item = session.scalar(
+                select(CartItem).where(
+                    *filters,
+                    CartItem.product_id == int(product_id),
+                    CartItem.type == product_type,
+                )
+            )
         if not item:
             return
         new_qty = item.qty + delta
@@ -161,15 +163,24 @@ def remove_from_cart(
     session_id: str | None = None,
 ) -> None:
     init_db()
+    normalized_type = menu_catalog.map_legacy_item_type(product_type) or product_type
     with get_session() as session:
         filters = _build_cart_filters(user_id, session_id)
         item = session.scalar(
             select(CartItem).where(
                 *filters,
                 CartItem.product_id == int(product_id),
-                CartItem.type == product_type,
+                CartItem.type == normalized_type,
             )
         )
+        if not item and normalized_type != product_type:
+            item = session.scalar(
+                select(CartItem).where(
+                    *filters,
+                    CartItem.product_id == int(product_id),
+                    CartItem.type == product_type,
+                )
+            )
         if item:
             session.delete(item)
 

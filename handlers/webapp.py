@@ -13,7 +13,6 @@ from aiogram.types import (
 from config import get_settings
 from services import menu_catalog, orders as orders_service, users as users_service
 from services.cart import add_to_cart
-from services.products import get_product_by_id
 from utils.texts import format_order_for_admin, format_price
 
 router = Router()
@@ -152,7 +151,7 @@ async def _handle_adminsite_payload(message: Message, payload: dict) -> None:
         return
 
     payload_type = payload.get("type")
-    mapped_type = payload_type if payload_type in menu_catalog.MENU_ITEM_TYPES else "basket"
+    mapped_type = payload_type if payload_type in menu_catalog.MENU_ITEM_TYPES else "product"
 
     added_count = 0
     for item in items:
@@ -303,13 +302,10 @@ async def handle_webapp_data(message: Message) -> None:
         return
 
     product_type = data.get("type")
-    product = None
-    if product_type in menu_catalog.MENU_ITEM_TYPES:
-        product = menu_catalog.get_item_by_id(
-            product_id_int, include_inactive=False, item_type=product_type
-        )
-    if not product:
-        product = get_product_by_id(product_id_int)
+    resolved_type = menu_catalog.map_legacy_item_type(product_type) or "product"
+    product = menu_catalog.get_item_by_id(
+        product_id_int, include_inactive=False, item_type=resolved_type
+    )
     if not product:
         logging.warning("Товар с id=%s не найден для web_app_data", product_id_int)
         return
@@ -318,14 +314,14 @@ async def handle_webapp_data(message: Message) -> None:
         add_to_cart(
             user_id=message.from_user.id,
             product_id=product_id_int,
-            product_type=product_type or product.get("type") or "basket",
+            product_type=resolved_type or product.get("type") or "product",
             qty=qty_int,
         )
     except Exception:
         logging.exception("Ошибка при добавлении товара из WebApp в корзину")
         return
 
-    product_name = product.get("name") or f"Товар #{product_id_int}"
+    product_name = product.get("title") or product.get("name") or f"Товар #{product_id_int}"
     keyboard = _build_cart_keyboard()
     response_text = f"✅ Добавлено в корзину: {product_name} (x{qty_int}). Открыть корзину?"
     if keyboard:

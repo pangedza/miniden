@@ -8,7 +8,6 @@ from sqlalchemy import select
 from database import get_session
 from models import Order, OrderItem
 from services import menu_catalog
-from services import products as products_service
 from services import stats as stats_service
 from services import users as users_service
 
@@ -57,19 +56,12 @@ def _normalize_order_items(items: list[dict[str, Any]]) -> tuple[list[dict[str, 
             continue
 
         raw_type = item.get("type")
-        product_data = (
-            menu_catalog.get_item_by_id(
-                product_id, include_inactive=True, item_type=raw_type
-            )
-            if raw_type in menu_catalog.MENU_ITEM_TYPES
-            else None
+        resolved_type = menu_catalog.map_legacy_item_type(raw_type) or "product"
+        product_data = menu_catalog.get_item_by_id(
+            product_id, include_inactive=True, item_type=resolved_type
         )
-        if not product_data and raw_type == "course":
-            product_data = products_service.get_course_by_id(product_id)
-        if not product_data and raw_type == "basket":
-            product_data = products_service.get_basket_by_id(product_id)
         if not product_data:
-            product_data = products_service.get_product_by_id(product_id) or {}
+            product_data = {}
 
         price_raw = item.get("price")
         try:
@@ -77,8 +69,8 @@ def _normalize_order_items(items: list[dict[str, Any]]) -> tuple[list[dict[str, 
         except (TypeError, ValueError):
             price = int(product_data.get("price") or 0)
 
-        product_type = item.get("type") or product_data.get("type") or "product"
-        if product_type not in menu_catalog.MENU_ITEM_TYPES and product_type not in {"basket", "course"}:
+        product_type = resolved_type or product_data.get("type") or "product"
+        if product_type not in menu_catalog.MENU_ITEM_TYPES:
             product_type = "product"
 
         normalized.append(
@@ -137,7 +129,7 @@ def add_order(
                     product_id=int(item["product_id"]),
                     qty=int(item["qty"]),
                     price=int(item["price"]),
-                    type=item.get("type") or "basket",
+                    type=item.get("type") or "product",
                 )
             )
 
@@ -165,23 +157,18 @@ def _course_item_available(status: str | None, price: int) -> bool:
 
 def _serialize_order_item(item: OrderItem, order_status: str | None = None) -> dict[str, Any]:
     product = None
-    if item.type in menu_catalog.MENU_ITEM_TYPES:
+    resolved_type = menu_catalog.map_legacy_item_type(item.type) or "product"
+    if resolved_type in menu_catalog.MENU_ITEM_TYPES:
         product = menu_catalog.get_item_by_id(
             int(item.product_id),
             include_inactive=True,
-            item_type=item.type,
+            item_type=resolved_type,
         )
-    if not product and item.type == "course":
-        product = products_service.get_course_by_id(item.product_id, include_inactive=True)
-    if not product and item.type == "basket":
-        product = products_service.get_basket_by_id(item.product_id, include_inactive=True)
-    if not product:
-        product = products_service.get_product_by_id(item.product_id, include_inactive=True)
     price = int(item.price or 0)
     status = order_status or STATUS_NEW
-    name = (product or {}).get("name") if isinstance(product, dict) else None
+    name = (product or {}).get("title") if isinstance(product, dict) else None
     if not name and isinstance(product, dict):
-        name = product.get("title")
+        name = product.get("name")
     return {
         "product_id": item.product_id,
         "qty": item.qty,
@@ -189,8 +176,12 @@ def _serialize_order_item(item: OrderItem, order_status: str | None = None) -> d
         "type": item.type,
         "product": product,
         "name": name,
-        "detail_url": (product or {}).get("detail_url") if isinstance(product, dict) else None,
-        "masterclass_url": (product or {}).get("masterclass_url") if isinstance(product, dict) else None,
+        "detail_url": (
+            (product or {}).get("meta", {}).get("detail_url") if isinstance(product, dict) else None
+        ),
+        "masterclass_url": (
+            (product or {}).get("meta", {}).get("masterclass_url") if isinstance(product, dict) else None
+        ),
         "can_access": item.type == "course" and _course_item_available(status, price),
     }
 
@@ -331,9 +322,21 @@ def get_courses_from_order(order_id: int) -> list[dict[str, Any]]:
         ).all()
     result: list[dict[str, Any]] = []
     for item in items:
-        product = products_service.get_course_by_id(item.product_id)
+        product = menu_catalog.get_item_by_id(
+            int(item.product_id),
+            include_inactive=True,
+            item_type="course",
+        )
         if product:
-            result.append(product)
+            result.append(
+                {
+                    "id": product.get("id"),
+                    "name": product.get("title") or product.get("name"),
+                    "description": product.get("description"),
+                    "detail_url": product.get("meta", {}).get("detail_url")
+                    or product.get("legacy_link"),
+                }
+            )
     return result
 
 
@@ -347,7 +350,11 @@ def get_user_courses_with_access(user_id: int) -> list[dict[str, Any]]:
 
     courses: dict[int, dict[str, Any]] = {}
     for item, order in rows:
-        product = products_service.get_course_by_id(item.product_id, include_inactive=True)
+        product = menu_catalog.get_item_by_id(
+            int(item.product_id),
+            include_inactive=True,
+            item_type="course",
+        )
         if not product:
             continue
         price = int(item.price or 0)
@@ -357,8 +364,10 @@ def get_user_courses_with_access(user_id: int) -> list[dict[str, Any]]:
         course_id = int(product.get("id"))
         entry = {
             "id": course_id,
-            "name": product.get("name"),
-            "masterclass_url": product.get("masterclass_url") or product.get("detail_url"),
+            "name": product.get("title") or product.get("name"),
+            "masterclass_url": product.get("meta", {}).get("masterclass_url")
+            or product.get("meta", {}).get("detail_url")
+            or product.get("legacy_link"),
             "is_paid": price > 0,
             "from_order_id": order.id,
             "price": price,

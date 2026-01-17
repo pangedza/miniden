@@ -8,7 +8,7 @@ from sqlalchemy import func, select
 
 from database import get_session
 from models import ProductReview, User
-from services import products as products_service
+from services import menu_catalog
 from services import users as users_service
 
 REVIEW_STATUSES = {"pending", "approved", "rejected"}
@@ -77,11 +77,19 @@ def create_review(
         raise ValueError("multiple_targets")
 
     if product_id is not None:
-        product = products_service.get_basket_by_id(product_id)
+        product = menu_catalog.get_item_by_id(
+            product_id,
+            include_inactive=True,
+            item_type="product",
+        )
         if not product or not product.get("is_active", True):
             raise ValueError("product_not_found")
     if masterclass_id is not None:
-        masterclass = products_service.get_course_by_id(masterclass_id)
+        masterclass = menu_catalog.get_item_by_id(
+            masterclass_id,
+            include_inactive=True,
+            item_type="course",
+        )
         if not masterclass or not masterclass.get("is_active", True):
             raise ValueError("masterclass_not_found")
 
@@ -228,10 +236,12 @@ def admin_list_reviews(
                 product_meta = product_cache.get(cache_key)
                 if product_meta is None:
                     if row.masterclass_id is not None:
-                        product_meta = products_service.get_course_by_id(cache_key, include_inactive=True)
+                        product_meta = menu_catalog.get_item_by_id(
+                            cache_key, include_inactive=True, item_type="course"
+                        )
                     else:
-                        product_meta = products_service.get_product_by_id(
-                            cache_key, include_inactive=True
+                        product_meta = menu_catalog.get_item_by_id(
+                            cache_key, include_inactive=True, item_type="product"
                         )
                     product_cache[cache_key] = product_meta
 

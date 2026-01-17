@@ -264,7 +264,7 @@ def _safe_validation_errors(exc: RequestValidationError) -> list[dict[str, Any]]
     return safe_errors
 
 
-ALLOWED_TYPES = {"basket", "course"}
+ALLOWED_TYPES = set(menu_catalog.MENU_ITEM_TYPES) | {"basket"}
 ALLOWED_CATEGORY_TYPES = {"basket", "course", "mixed"}
 
 SETTINGS = get_settings()
@@ -1705,9 +1705,10 @@ def get_admin_user(request: Request) -> User:
 
 
 def _product_by_type(product_type: str, product_id: int, *, include_inactive: bool = False):
-    if product_type == "basket":
-        return products_service.get_basket_by_id(product_id, include_inactive=include_inactive)
-    return products_service.get_course_by_id(product_id, include_inactive=include_inactive)
+    resolved_type = menu_catalog.map_legacy_item_type(product_type) or "product"
+    return menu_catalog.get_item_by_id(
+        product_id, include_inactive=include_inactive, item_type=resolved_type
+    )
 
 
 def _build_cart_response(
@@ -1722,7 +1723,7 @@ def _build_cart_response(
     total = 0
 
     for item in items:
-        product_type = item.get("type") or "basket"
+        product_type = item.get("type") or "product"
         if product_type not in ALLOWED_TYPES:
             removed_items.append({"product_id": item.get("product_id"), "type": product_type, "reason": "invalid"})
             cart_service.remove_from_cart(
@@ -1766,8 +1767,8 @@ def _build_cart_response(
         normalized_items.append(
             {
                 "product_id": product_id,
-                "type": product_type,
-                "name": product_info.get("name"),
+                "type": menu_catalog.map_legacy_item_type(product_type) or product_type,
+                "name": product_info.get("title") or product_info.get("name"),
                 "price": price,
                 "qty": qty,
                 "subtotal": subtotal,
@@ -1777,7 +1778,9 @@ def _build_cart_response(
         )
 
     for removed_id in removed_ids:
-        product_info = products_service.get_product_by_id(removed_id, include_inactive=True)
+        product_info = menu_catalog.get_item_by_id(
+            removed_id, include_inactive=True, item_type=None
+        )
         removed_items.append(
             {
                 "product_id": removed_id,
@@ -2697,6 +2700,8 @@ def site_page(page_key: str):
     raise HTTPException(status_code=410, detail="Page constructor disabled")
 
 
+# LEGACY CATALOG API (products_baskets/products_courses).
+# Используйте /api/public/menu* и /api/admin/menu* для работы с menu_items.
 @app.get("/api/categories")
 def api_categories(type: str | None = None, active_only: bool = True):
     """
@@ -3859,6 +3864,8 @@ def _persist_category_image(image_file: UploadFile | None, *, current_url: str |
     return new_url
 
 
+# LEGACY ADMIN CATALOG ENDPOINTS (products_baskets/products_courses).
+# Используйте /api/admin/menu* для работы с menu_items/menu_categories.
 @app.get("/api/admin/products")
 def admin_products(user_id: int, type: str | None = None, status: str | None = None):
     _ensure_admin(user_id)

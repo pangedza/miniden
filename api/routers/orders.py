@@ -9,9 +9,9 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from services import cart as cart_service
+from services import menu_catalog
 from services import orders as orders_service
 from services import users as users_service
-from services import products as products_service
 from utils.texts import format_order_for_admin
 
 router = APIRouter(prefix="/order", tags=["orders"])
@@ -53,11 +53,11 @@ def api_checkout(payload: CheckoutPayload):
             removed_items.append({"product_id": item.get("product_id"), "reason": "invalid_id"})
             continue
 
-        product_type = item.get("type") or "basket"
-        if product_type == "basket":
-            product_info = products_service.get_basket_by_id(product_id_int)
-        else:
-            product_info = products_service.get_course_by_id(product_id_int)
+        product_type = item.get("type") or "product"
+        resolved_type = menu_catalog.map_legacy_item_type(product_type) or "product"
+        product_info = menu_catalog.get_item_by_id(
+            product_id_int, include_inactive=False, item_type=resolved_type
+        )
 
         if not product_info:
             removed_items.append({"product_id": product_id_int, "reason": "inactive"})
@@ -70,10 +70,10 @@ def api_checkout(payload: CheckoutPayload):
         normalized_items.append(
             {
                 "product_id": product_id_int,
-                "name": product_info.get("name") or item.get("name"),
+                "name": product_info.get("title") or item.get("name"),
                 "price": price,
                 "qty": qty,
-                "type": product_type,
+                "type": resolved_type,
             }
         )
 
