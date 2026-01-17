@@ -685,7 +685,7 @@ def _apply_webapp_automation_rules(
     items: list[dict[str, Any]],
     totals: dict[str, Any],
     order_id: int,
-) -> bool:
+) -> dict[str, bool]:
     currency = totals.get("currency") or "₽"
     webapp_url = _resolve_webapp_url(request)
     context = _build_webapp_automation_context(
@@ -699,10 +699,12 @@ def _apply_webapp_automation_rules(
         presets = automations_service.list_active_presets(session)
 
     if not rules:
-        return False
+        return {"any": False, "user_sent": False, "admin_sent": False}
 
     presets_map = {int(preset.id): preset for preset in presets}
     any_executed = False
+    user_sent = False
+    admin_sent = False
 
     for rule in rules:
         if not _automation_conditions_match(rule.conditions_json or []):
@@ -787,12 +789,14 @@ def _apply_webapp_automation_rules(
                 )
                 if target_scope == "user":
                     _send_bot_message(tg_user_id, text, reply_markup=reply_markup)
+                    user_sent = True
                 else:
                     _send_message_to_admins(text, reply_markup=reply_markup)
+                    admin_sent = True
                 any_executed = True
                 continue
 
-    return any_executed
+    return {"any": any_executed, "user_sent": user_sent, "admin_sent": admin_sent}
 
 
 def _dispatch_webapp_checkout_created(
@@ -803,14 +807,13 @@ def _dispatch_webapp_checkout_created(
     totals: dict[str, Any],
     order_id: int,
 ) -> None:
-    if _apply_webapp_automation_rules(
+    automation_result = _apply_webapp_automation_rules(
         request=request,
         tg_user_id=tg_user_id,
         items=items,
         totals=totals,
         order_id=order_id,
-    ):
-        return
+    )
 
     webapp_url = _resolve_webapp_url(request)
     with get_session() as session:
@@ -826,31 +829,41 @@ def _dispatch_webapp_checkout_created(
     currency = totals.get("currency") or "₽"
     items_text = _format_checkout_items(items, currency)
 
-    if trigger:
-        template = trigger.message_template or ""
-        text = template.format(
-            items=items_text,
-            qty_total=qty_total,
-            sum_total=sum_total,
-            currency=currency,
-            order_id=order_id,
-            webapp_url=webapp_url,
-        )
-        keyboard = _build_event_keyboard(trigger.buttons_json or [], webapp_url=webapp_url)
-    else:
-        text = (
-            "🛒 Новый заказ из витрины\n"
-            f"Вы выбрали:\n{items_text}\n"
-            f"Итого: {qty_total} шт, {sum_total} {currency}"
-        )
-        keyboard = {
-            "inline_keyboard": [
-                [{"text": "Связаться", "callback_data": "trigger:contact_manager"}],
-                [{"text": "Открыть витрину", "url": webapp_url}],
-            ]
-        }
+    if not automation_result["user_sent"]:
+        if trigger:
+            template = trigger.message_template or ""
+            text = template.format(
+                items=items_text,
+                qty_total=qty_total,
+                sum_total=sum_total,
+                currency=currency,
+                order_id=order_id,
+                webapp_url=webapp_url,
+            )
+            keyboard = _build_event_keyboard(trigger.buttons_json or [], webapp_url=webapp_url)
+        else:
+            text = (
+                "🛒 Новый заказ из витрины\n"
+                f"Вы выбрали:\n{items_text}\n"
+                f"Итого: {qty_total} шт, {sum_total} {currency}"
+            )
+            keyboard = {
+                "inline_keyboard": [
+                    [{"text": "Связаться", "callback_data": "trigger:contact_manager"}],
+                    [{"text": "Открыть витрину", "url": webapp_url}],
+                ]
+            }
 
-    _send_bot_message(tg_user_id, text, reply_markup=keyboard)
+        _send_bot_message(tg_user_id, text, reply_markup=keyboard)
+
+    if not automation_result["admin_sent"]:
+        admin_text = (
+            "📦 Новый заказ из WebApp\n"
+            f"Заказ #{order_id}\n"
+            f"{items_text}\n"
+            f"Итого: {sum_total} {currency}"
+        )
+        _send_message_to_admins(admin_text)
 
 def _notify_admin_about_chat(chat_session, preview_text: str) -> list[int]:
     snippet = (preview_text or "")[:200]
@@ -2542,87 +2555,10 @@ def api_public_checkout_from_webapp(payload: WebappCheckoutPayload, request: Req
 
 @app.post("/api/webapp/order")
 def api_webapp_order(payload: WebappOrderPayload):
-    tg_user_id = int(payload.tg_user_id or 0)
-    if tg_user_id <= 0:
-        raise HTTPException(status_code=422, detail="tg_user_id is required")
-
-    if payload.init_data:
-        try:
-            user_data = _validate_telegram_webapp_init_data(payload.init_data, BOT_TOKEN)
-        except HTTPException as exc:
-            raise HTTPException(status_code=422, detail="invalid_init_data") from exc
-        if int(user_data.get("id") or 0) != tg_user_id:
-            raise HTTPException(status_code=422, detail="init_data_mismatch")
-
-    cart = payload.cart
-    if not cart.items:
-        raise HTTPException(status_code=422, detail="cart items are required")
-
-    normalized_items: list[dict[str, Any]] = []
-    computed_total = 0
-
-    for item in cart.items:
-        if not item.title:
-            raise HTTPException(status_code=422, detail="title is required")
-        if item.qty <= 0:
-            raise HTTPException(status_code=422, detail="qty must be positive")
-        if item.price < 0:
-            raise HTTPException(status_code=422, detail="price must be non-negative")
-        if item.id <= 0:
-            raise HTTPException(status_code=422, detail="item id must be positive")
-
-        qty = int(item.qty)
-        price = int(item.price)
-        computed_total += price * qty
-        normalized_items.append(
-            {
-                "product_id": int(item.id),
-                "title": item.title,
-                "qty": qty,
-                "price": price,
-                "type": "product",
-            }
-        )
-
-    if int(cart.total) != computed_total:
-        raise HTTPException(status_code=422, detail="cart total mismatch")
-
-    currency = cart.currency or "₽"
-    order_payload = {
-        "items": [
-            {
-                "id": item["product_id"],
-                "title": item["title"],
-                "qty": item["qty"],
-                "price": item["price"],
-            }
-            for item in normalized_items
-        ],
-        "total": computed_total,
-        "currency": currency,
-    }
-
-    order_id = orders_service.add_order(
-        user_id=tg_user_id,
-        user_name="webapp",
-        items=normalized_items,
-        total=computed_total,
-        customer_name="",
-        contact="",
-        comment="",
-        order_text=json.dumps(order_payload, ensure_ascii=False),
-        status=orders_service.STATUS_NEW,
+    raise HTTPException(
+        status_code=410,
+        detail="Deprecated endpoint. Use /api/public/checkout/from-webapp",
     )
-
-    items_text = _format_checkout_items(order_payload["items"], currency)
-    _send_message_to_admins(
-        "📦 Новый заказ из WebApp\n"
-        f"Заказ #{order_id}\n"
-        f"{items_text}\n"
-        f"Итого: {computed_total} {currency}"
-    )
-
-    return {"order_id": order_id}
 
 
 @app.get("/api/site/menu")
