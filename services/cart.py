@@ -4,7 +4,8 @@ from typing import Any, Tuple
 
 from sqlalchemy import delete, select
 
-from database import get_session, init_db
+from database import get_session
+from initdb import init_db
 from models import CartItem
 from services import menu_catalog
 from services import users as users_service

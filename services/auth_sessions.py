@@ -4,7 +4,8 @@ from uuid import uuid4
 
 from sqlalchemy import select
 
-from database import get_session, init_db
+from database import get_session
+from initdb import init_db
 from models import AuthSession
 
 

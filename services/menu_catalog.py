@@ -145,7 +145,7 @@ def _ensure_menu_category(
 
 
 def migrate_legacy_products_to_menu(*, dry_run: bool = False) -> dict[str, int]:
-    from database import init_db  # noqa: WPS433
+    from initdb import init_db  # noqa: WPS433
 
     init_db()
     created_categories = 0

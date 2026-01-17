@@ -19,7 +19,7 @@ from aiohttp import ClientError, ClientTimeout
 from aiohttp.client_exceptions import ServerDisconnectedError
 
 from config import get_settings
-from database import init_db
+from initdb import init_db
 from utils.logging_config import BOT_LOG_FILE, setup_logging
 
 from handlers import admin, baskets, cart, courses, start, webapp
