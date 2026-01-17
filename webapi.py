@@ -1347,6 +1347,25 @@ class WebappCheckoutPayload(BaseModel):
     client_context: WebappCheckoutContext | None = None
 
 
+class WebappOrderItem(BaseModel):
+    id: int
+    title: str
+    qty: int
+    price: int
+
+
+class WebappOrderCart(BaseModel):
+    items: list[WebappOrderItem]
+    total: int
+    currency: str = "₽"
+
+
+class WebappOrderPayload(BaseModel):
+    tg_user_id: int
+    cart: WebappOrderCart
+    init_data: str | None = None
+
+
 class TelegramAuthPayload(BaseModel):
     init_data: str | None = None
     auth_query: str | None = None
@@ -2519,6 +2538,91 @@ def api_public_checkout_from_webapp(payload: WebappCheckoutPayload, request: Req
     )
 
     return {"ok": True, "order_id": order_id, "message": "sent"}
+
+
+@app.post("/api/webapp/order")
+def api_webapp_order(payload: WebappOrderPayload):
+    tg_user_id = int(payload.tg_user_id or 0)
+    if tg_user_id <= 0:
+        raise HTTPException(status_code=422, detail="tg_user_id is required")
+
+    if payload.init_data:
+        try:
+            user_data = _validate_telegram_webapp_init_data(payload.init_data, BOT_TOKEN)
+        except HTTPException as exc:
+            raise HTTPException(status_code=422, detail="invalid_init_data") from exc
+        if int(user_data.get("id") or 0) != tg_user_id:
+            raise HTTPException(status_code=422, detail="init_data_mismatch")
+
+    cart = payload.cart
+    if not cart.items:
+        raise HTTPException(status_code=422, detail="cart items are required")
+
+    normalized_items: list[dict[str, Any]] = []
+    computed_total = 0
+
+    for item in cart.items:
+        if not item.title:
+            raise HTTPException(status_code=422, detail="title is required")
+        if item.qty <= 0:
+            raise HTTPException(status_code=422, detail="qty must be positive")
+        if item.price < 0:
+            raise HTTPException(status_code=422, detail="price must be non-negative")
+        if item.id <= 0:
+            raise HTTPException(status_code=422, detail="item id must be positive")
+
+        qty = int(item.qty)
+        price = int(item.price)
+        computed_total += price * qty
+        normalized_items.append(
+            {
+                "product_id": int(item.id),
+                "title": item.title,
+                "qty": qty,
+                "price": price,
+                "type": "product",
+            }
+        )
+
+    if int(cart.total) != computed_total:
+        raise HTTPException(status_code=422, detail="cart total mismatch")
+
+    currency = cart.currency or "₽"
+    order_payload = {
+        "items": [
+            {
+                "id": item["product_id"],
+                "title": item["title"],
+                "qty": item["qty"],
+                "price": item["price"],
+            }
+            for item in normalized_items
+        ],
+        "total": computed_total,
+        "currency": currency,
+    }
+
+    order_id = orders_service.add_order(
+        user_id=tg_user_id,
+        user_name="webapp",
+        items=normalized_items,
+        total=computed_total,
+        customer_name="",
+        contact="",
+        comment="",
+        order_text=json.dumps(order_payload, ensure_ascii=False),
+        status=orders_service.STATUS_NEW,
+    )
+
+    items_text = _format_checkout_items(order_payload["items"], currency)
+    _send_message_to_admins(
+        "📦 Новый заказ из WebApp\n"
+        f"Заказ #{order_id}\n"
+        f"{items_text}\n"
+        f"Итого: {computed_total} {currency}"
+    )
+
+    return {"order_id": order_id}
 
 
 @app.get("/api/site/menu")
