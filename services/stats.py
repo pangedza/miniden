@@ -5,7 +5,8 @@ from typing import List
 
 from sqlalchemy import func, select
 
-from database import get_session, init_db
+from database import get_session
+from initdb import init_db_if_enabled
 from models import Favorite, Order, OrderItem, User, UserStats
 from services import menu_catalog
 from services import products as products_service
@@ -25,7 +26,7 @@ def _parse_date(value: str | None) -> datetime | None:
 
 
 def get_orders_stats_summary(date_from: str | None = None, date_to: str | None = None) -> dict:
-    init_db()
+    init_db_if_enabled()
     filters = []
     dt_from = _parse_date(date_from)
     dt_to = _parse_date(date_to)

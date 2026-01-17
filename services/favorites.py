@@ -5,7 +5,8 @@ from typing import Any, List
 
 from sqlalchemy import delete, select
 
-from database import get_session, init_db
+from database import get_session
+from initdb import init_db_if_enabled
 from models import Favorite
 from services import menu_catalog
 from services import products as products_service
@@ -21,7 +22,7 @@ def _validate_type(product_type: str) -> str:
 
 
 def add_favorite(user_id: int, product_id: int, product_type: str) -> bool:
-    init_db()
+    init_db_if_enabled()
     _validate_type(product_type)
     with get_session() as session:
         exists = session.scalar(
@@ -46,7 +47,7 @@ def add_favorite(user_id: int, product_id: int, product_type: str) -> bool:
 
 def remove_favorite(user_id: int, product_id: int, product_type: str) -> bool:
     _validate_type(product_type)
-    init_db()
+    init_db_if_enabled()
     with get_session() as session:
         result = session.execute(
             delete(Favorite).where(
@@ -85,7 +86,7 @@ def _serialize_favorite(row: Favorite) -> dict[str, Any]:
 
 
 def list_favorites(user_id: int) -> List[dict[str, Any]]:
-    init_db()
+    init_db_if_enabled()
     with get_session() as session:
         rows = session.scalars(
             select(Favorite)
@@ -97,7 +98,7 @@ def list_favorites(user_id: int) -> List[dict[str, Any]]:
 
 def is_favorite(user_id: int, product_id: int, product_type: str) -> bool:
     _validate_type(product_type)
-    init_db()
+    init_db_if_enabled()
     with get_session() as session:
         row = session.scalar(
             select(Favorite).where(

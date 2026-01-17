@@ -7,7 +7,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from config import ADMIN_IDS_SET
-from database import get_session, init_db
+from database import get_session
+from initdb import init_db_if_enabled
 from models import User
 
 
@@ -93,7 +94,7 @@ def get_or_create_user_from_telegram(
     last_name = data.get("last_name")
     phone = _extract_phone(data)
 
-    init_db()
+    init_db_if_enabled()
     with get_session() as session:
         return _get_or_create_user(
             session,
@@ -106,7 +107,7 @@ def get_or_create_user_from_telegram(
 
 
 def update_user_contact(telegram_id: int, phone: str | None) -> User:
-    init_db()
+    init_db_if_enabled()
     with get_session() as session:
         user = session.scalar(select(User).where(User.telegram_id == telegram_id))
         if not user:
@@ -117,7 +118,7 @@ def update_user_contact(telegram_id: int, phone: str | None) -> User:
 
 
 def get_user_by_telegram_id(telegram_id: int) -> User | None:
-    init_db()
+    init_db_if_enabled()
     with get_session() as session:
         return session.scalar(select(User).where(User.telegram_id == telegram_id))
 

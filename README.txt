@@ -42,6 +42,15 @@ AdminSite Task3: сохранение type в create/edit
   3. Перейти на `/adminsite/constructor?type=products` и убедиться, что категория не отображается.
   4. Создать категорию в продуктах и проверить, что она не появляется в мастер-классах.
 
+FastAPI структура (webapi)
+--------------------------
+- `webapi.py` — конфигурация приложения (middleware, static mounts, include_router, startup).
+- `routes_public.py` — публичные API (каталог, корзина, профиль, витрина).
+- `routes_auth.py` — Telegram Login + WebApp initData авторизация.
+- `routes_adminsite.py` — API админки сайта.
+- `routes_adminbot.py` — API конструктора бота (router из `admin_panel.routes.adminbot`).
+- `initdb.py` — ручная инициализация БД; автозапуск только в dev через `MINIDEN_INIT_DB=1`.
+
 Changelog / История изменений
 -----------------------------
 - 2026-06-XX: Корзина WebApp переведена на единое хранение в БД: браузер использует cookie `cart_session_id`, Telegram WebApp проходит серверную auth через `initData` и использует `tg_user_id`, маршруты `/api/cart*` больше не зависят от localStorage; кнопки корзины ведут на `/cart.html`.
@@ -102,7 +111,7 @@ WebApp checkout → Telegram (adminbot)
 - По клику «Оформить» отправляется `POST /api/public/checkout/from-webapp` с items/totals и клиентским контекстом.
 - Success-модалка «Заказ отправлен» открывается только после успешного ответа `POST /api/public/checkout/from-webapp` и закрывается по кнопке/клику по фону; при загрузке страницы модалка не восстанавливается и не зависит от query-параметров.
 - Backend сохраняет запись в `checkout_orders` и диспатчит событие `webapp_checkout_created`.
-- Событие использует `bot_event_triggers` (дефолтный триггер создаётся при `init_db`) и отправляет пользователю сообщение со списком позиций и inline-кнопками («Связаться», «Открыть витрину»).
+- Событие использует `bot_event_triggers` (дефолтный триггер создаётся при `initdb.init_db()`) и отправляет пользователю сообщение со списком позиций и inline-кнопками («Связаться», «Открыть витрину»).
 - Обработчик inline-кнопки «Связаться» принимает callback `trigger:contact_manager` (см. `handlers/support.py`).
 
 Автоматизации (Rules)
@@ -229,7 +238,7 @@ WebApp layout и design tokens
 
 Миграции меню
 -------------
-- В проекте нет Alembic: таблицы `menu_categories`, `menu_items`, `site_settings`, `site_blocks` создаются через `init_db()` при запуске backend.
+- В проекте нет Alembic: таблицы `menu_categories`, `menu_items`, `site_settings`, `site_blocks` создаются через `initdb.init_db()` при ручном запуске или через `initdb.init_db_if_enabled()` при dev-старте (`MINIDEN_INIT_DB=1`).
 - Новые поля меню: `menu_categories.type`, `menu_categories.parent_id`, `menu_items.stock_qty` (null = без лимита).
 - Старые таблицы товаров/страниц не удаляются и остаются для legacy-функций; перенос данных в меню выполняется вручную при необходимости.
 
@@ -844,12 +853,12 @@ curl -H "Cookie: admin_session=<cookie>" \
 
 База данных
 -----------
-Backend и бот работают от одной PostgreSQL-базы (`DATABASE_URL`). Таблицы создаются через `database.init_db()`, а сервисы из `services/` используют общие модели из `models.py`.
+Backend и бот работают от одной PostgreSQL-базы (`DATABASE_URL`). Таблицы создаются через `initdb.init_db()`, а сервисы из `services/` используют общие модели из `models.py`.
 
 Запуск в продакшене
 --------------------
 - Backend: `uvicorn webapi:app --host 0.0.0.0 --port 8000`.
-- Бот: `python -m bot` (aiogram 3, настройки из `config.py`, инициализация БД через `init_db()`).
+- Бот: `python -m bot` (aiogram 3, настройки из `config.py`, dev-инициализация БД через `initdb.init_db_if_enabled()`).
 
 Systemd и nginx
 ---------------

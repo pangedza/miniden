@@ -5,7 +5,8 @@ from typing import Any
 
 from sqlalchemy import func, select
 
-from database import get_session, init_db
+from database import get_session
+from initdb import init_db_if_enabled
 from models import Order
 from services import orders as orders_service
 from services import stats as stats_service
@@ -29,7 +30,7 @@ def get_user_order_stats(user_id: int) -> dict[str, Any]:
         "last_order_created_at": None,
     }
 
-    init_db()
+    init_db_if_enabled()
     with get_session() as session:
         count_row = session.execute(
             select(

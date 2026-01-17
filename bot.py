@@ -19,7 +19,7 @@ from aiohttp import ClientError, ClientTimeout
 from aiohttp.client_exceptions import ServerDisconnectedError
 
 from config import get_settings
-from database import init_db
+from initdb import init_db_if_enabled
 from utils.logging_config import BOT_LOG_FILE, setup_logging
 
 from handlers import admin, baskets, cart, courses, start, webapp
@@ -36,7 +36,7 @@ async def main() -> None:
     settings = get_settings()
 
     # Инициализация БД (создаём таблицы при первом запуске)
-    init_db()
+    init_db_if_enabled()
 
     # Инициализация бота
     # В aiogram 3.7.0+ parse_mode нужно передавать через DefaultBotProperties

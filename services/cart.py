@@ -4,7 +4,8 @@ from typing import Any, Tuple
 
 from sqlalchemy import delete, select
 
-from database import get_session, init_db
+from database import get_session
+from initdb import init_db_if_enabled
 from models import CartItem
 from services import menu_catalog
 from services import products as products_service
@@ -58,7 +59,7 @@ def _build_cart_filters(user_id: int | None, session_id: str | None) -> list[Any
 
 
 def get_cart_items(user_id: int | None, session_id: str | None = None) -> Tuple[list[dict[str, Any]], list[int]]:
-    init_db()
+    init_db_if_enabled()
     with get_session() as session:
         filters = _build_cart_filters(user_id, session_id)
         items = session.scalars(select(CartItem).where(*filters).order_by(CartItem.id)).all()
@@ -135,7 +136,7 @@ def change_qty(
     product_type: str = "basket",
     session_id: str | None = None,
 ) -> None:
-    init_db()
+    init_db_if_enabled()
     with get_session() as session:
         filters = _build_cart_filters(user_id, session_id)
         item = session.scalar(
@@ -160,7 +161,7 @@ def remove_from_cart(
     product_type: str = "basket",
     session_id: str | None = None,
 ) -> None:
-    init_db()
+    init_db_if_enabled()
     with get_session() as session:
         filters = _build_cart_filters(user_id, session_id)
         item = session.scalar(
@@ -175,7 +176,7 @@ def remove_from_cart(
 
 
 def clear_cart(user_id: int | None, session_id: str | None = None) -> None:
-    init_db()
+    init_db_if_enabled()
     with get_session() as session:
         filters = _build_cart_filters(user_id, session_id)
         session.execute(delete(CartItem).where(*filters))

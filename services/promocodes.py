@@ -6,7 +6,8 @@ from typing import Any, Iterable
 
 from sqlalchemy import func, select
 
-from database import get_session, init_db
+from database import get_session
+from initdb import init_db_if_enabled
 from models import Order, PromoCode
 
 
@@ -165,7 +166,7 @@ def _validate_payload(data: dict[str, Any]) -> dict[str, Any]:
 
 def create_promocode(data: dict[str, Any]) -> dict:
     payload = _validate_payload(data)
-    init_db()
+    init_db_if_enabled()
     with get_session() as session:
         existing = session.scalar(select(PromoCode).where(PromoCode.code == payload["code"]))
         if existing:
@@ -179,7 +180,7 @@ def create_promocode(data: dict[str, Any]) -> dict:
 
 
 def update_promocode(promo_id: int, data: dict[str, Any]) -> dict | None:
-    init_db()
+    init_db_if_enabled()
     with get_session() as session:
         promo = session.get(PromoCode, promo_id)
         if not promo:
@@ -193,7 +194,7 @@ def update_promocode(promo_id: int, data: dict[str, Any]) -> dict | None:
 
 
 def delete_promocode(promo_id: int) -> bool:
-    init_db()
+    init_db_if_enabled()
     with get_session() as session:
         promo = session.get(PromoCode, promo_id)
         if not promo:
@@ -203,7 +204,7 @@ def delete_promocode(promo_id: int) -> bool:
 
 
 def list_promocodes() -> list[dict[str, Any]]:
-    init_db()
+    init_db_if_enabled()
     with get_session() as session:
         promos = session.scalars(select(PromoCode).order_by(PromoCode.id.desc())).all()
         return [_serialize(promo) for promo in promos]
@@ -279,7 +280,7 @@ def validate_promocode(code: str, user_id: int | None, cart_items: list[dict[str
     if not normalized or not cart_items:
         return None
 
-    init_db()
+    init_db_if_enabled()
     with get_session() as session:
         promo = session.scalar(select(PromoCode).where(PromoCode.code == normalized))
         if not promo or not promo.active:
@@ -324,7 +325,7 @@ def increment_usage(code: str) -> None:
     normalized = _normalize_code(code)
     if not normalized:
         return
-    init_db()
+    init_db_if_enabled()
     with get_session() as session:
         promo = session.scalar(select(PromoCode).where(PromoCode.code == normalized))
         if promo:
@@ -336,7 +337,7 @@ def set_promocode_active(code: str, is_active: bool) -> bool:
     if not normalized:
         return False
 
-    init_db()
+    init_db_if_enabled()
     with get_session() as session:
         promo = session.scalar(select(PromoCode).where(PromoCode.code == normalized))
         if not promo:
