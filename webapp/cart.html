@@ -165,9 +165,10 @@
     const checkoutBotInlineBtn = document.getElementById('checkout-bot-inline');
     const checkoutBotInlineHint = document.getElementById('checkout-bot-inline-hint');
 
+    const isTelegram = !!window.Telegram?.WebApp;
     let profile = null;
     let telegramUserId = null;
-    if (isTelegramWebApp && window.Telegram?.WebApp?.ready) {
+    if (isTelegram && window.Telegram?.WebApp?.ready) {
       window.Telegram.WebApp.ready();
     }
     let currentCart = { items: [], total: 0 };
@@ -209,19 +210,21 @@
     }
 
     function updateTelegramCheckoutAvailability() {
-      const tg = window.Telegram?.WebApp;
-      const isAvailable = Boolean(tg);
+      const isAvailable = isTelegram;
       if (checkoutBotBtn) {
         checkoutBotBtn.style.display = isAvailable ? '' : 'none';
       }
       if (checkoutBotHint) {
-        checkoutBotHint.style.display = isAvailable ? 'none' : 'block';
+        checkoutBotHint.style.display = isAvailable ? 'none' : 'none';
       }
       if (checkoutBotInlineBtn) {
         checkoutBotInlineBtn.style.display = isAvailable ? '' : 'none';
       }
       if (checkoutBotInlineHint) {
-        checkoutBotInlineHint.style.display = isAvailable ? 'none' : 'block';
+        checkoutBotInlineHint.style.display = isAvailable ? 'none' : 'none';
+      }
+      if (checkoutContactBtn) {
+        checkoutContactBtn.style.display = isAvailable ? '' : '';
       }
     }
 
@@ -507,9 +510,7 @@
           finalTotal = cart.total || 0;
         }
         renderCart(cart);
-        if (!profile?.telegram_id) {
-          noteEl.textContent = 'Чтобы оформить заказ, войдите через Telegram.';
-        }
+        noteEl.textContent = '';
       } catch (e) {
         noteEl.textContent = 'Не удалось загрузить корзину. Попробуйте обновить страницу.';
         lastCartError = 'Ошибка загрузки корзины';
@@ -621,10 +622,7 @@
     async function checkout() {
       const userId = profile?.telegram_id || telegramUserId || null;
       if (!userId) {
-        showToast('Чтобы оформить заказ и сохранить корзину, войдите через Telegram.');
-        setTimeout(() => {
-          window.location.href = '/index.html';
-        }, 1200);
+        showToast('Оформление через бота доступно в Telegram.');
         return;
       }
 
@@ -659,10 +657,7 @@
         await loadCart();
       } catch (e) {
         if (e?.status === 401) {
-          showToast('Требуется авторизация через Telegram.');
-          setTimeout(() => {
-            window.location.href = '/index.html';
-          }, 1200);
+          showToast('Оформление через бота доступно в Telegram.');
           return;
         }
         showToast(e?.message || 'Не удалось оформить заказ. Попробуйте ещё раз.');
@@ -682,16 +677,10 @@
     }
 
     function buildWebAppOrderPayload() {
-      const items = (currentCart.items || []).map((item) => ({
-        id: item.product_id,
-        title: item.name || item.title || `Товар #${item.product_id}`,
-        qty: Number(item.qty) || 0,
-        price: Number(item.price) || 0,
-      }));
       return {
         type: 'webapp_order',
         cart: {
-          items,
+          items: currentCart.items || [],
           total: getCartTotalForPayload(),
           currency: 'RUB',
         },
@@ -742,9 +731,6 @@
 
     async function initCartPage() {
       telegramUserId = resolveTelegramUserId();
-      if (typeof ensureTelegramWebAppAuth === 'function') {
-        await ensureTelegramWebAppAuth();
-      }
       await resolveAdminContactUrl();
       await loadUserProfile();
       await loadCart();
