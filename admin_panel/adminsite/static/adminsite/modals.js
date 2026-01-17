@@ -57,6 +57,7 @@ export class BaseModal {
         if (this.isOpen) return;
         this.isOpen = true;
         this.backdrop.hidden = false;
+        this.backdrop.style.pointerEvents = "auto";
         document.addEventListener('keydown', this.handleEscape);
     }
 
@@ -64,6 +65,7 @@ export class BaseModal {
         if (!this.isOpen) return;
         this.isOpen = false;
         this.backdrop.hidden = true;
+        this.backdrop.style.pointerEvents = "none";
         this.showMessage('');
         document.removeEventListener('keydown', this.handleEscape);
         if (typeof this.reset === 'function') {

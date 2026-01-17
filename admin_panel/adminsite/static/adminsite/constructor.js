@@ -15,6 +15,7 @@ const itemsCaption = document.getElementById('items-caption');
 const menuRefresh = document.getElementById('menu-refresh');
 
 const settingsSave = document.getElementById('settings-save');
+const settingsPreview = document.getElementById('settings-preview');
 const settingsBrand = document.getElementById('settings-brand');
 const settingsLogo = document.getElementById('settings-logo');
 const settingsPrimary = document.getElementById('settings-primary');
@@ -49,6 +50,8 @@ let selectedCategory = null;
 let activeItemType = null;
 let activeItemLabel = null;
 let activeUrlType = null;
+let settingsSnapshot = null;
+let settingsPreviewBaseUrl = null;
 
 const TYPE_LABELS = {
   product: 'Товары',
@@ -117,6 +120,24 @@ function setActiveItemType(type, label) {
   }
 }
 
+function updateSubnavLinks(urlType) {
+  const nav = document.querySelector('.adminsite-subnav');
+  if (!nav || !urlType) return;
+  nav.querySelectorAll('a[href]').forEach((link) => {
+    try {
+      const href = link.getAttribute('href');
+      if (!href) return;
+      const linkUrl = new URL(href, window.location.origin);
+      if (!linkUrl.pathname.startsWith('/adminsite/constructor')) return;
+      if (linkUrl.searchParams.has('type')) return;
+      linkUrl.searchParams.set('type', urlType);
+      link.href = `${linkUrl.pathname}?${linkUrl.searchParams.toString()}`;
+    } catch (error) {
+      console.warn('Failed to update subnav link', error);
+    }
+  });
+}
+
 function applySectionFromUrl() {
   const params = new URLSearchParams(window.location.search);
   const section = params.get('section') || 'menu';
@@ -128,6 +149,7 @@ function applySectionFromUrl() {
   const typeChanged = activeUrlType !== urlType;
   activeUrlType = urlType;
   setActiveItemType(itemType ?? config?.type ?? null, label ?? config?.label ?? null);
+  updateSubnavLinks(urlType);
   if (typeChanged) {
     resetMenuState();
   }
@@ -145,6 +167,38 @@ function parseImages(value) {
     .split(/\n|,/)
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function buildSettingsPayload() {
+  return {
+    brand_name: settingsBrand.value.trim() || null,
+    logo_url: settingsLogo.value.trim() || null,
+    primary_color: settingsPrimary.value.trim() || null,
+    secondary_color: settingsSecondary.value.trim() || null,
+    background_color: settingsBackground.value.trim() || null,
+    hero_title: settingsHeroTitle.value.trim() || null,
+    hero_subtitle: settingsHeroSubtitle.value.trim() || null,
+    hero_image_url: settingsHeroImage.value.trim() || null,
+    contacts: parseJsonInput(settingsContacts.value, {}),
+    social_links: parseJsonInput(settingsSocial.value, {}),
+  };
+}
+
+function snapshotSettings() {
+  settingsSnapshot = JSON.stringify(buildSettingsPayload());
+}
+
+function hasUnsavedSettings() {
+  if (settingsSnapshot === null) return false;
+  return settingsSnapshot !== JSON.stringify(buildSettingsPayload());
+}
+
+function resolvePreviewUrl() {
+  const baseUrl = settingsPreviewBaseUrl || window.location.origin;
+  const previewUrl = new URL(baseUrl, window.location.origin);
+  previewUrl.searchParams.set('admin_preview', '1');
+  previewUrl.searchParams.set('ts', Date.now().toString());
+  return previewUrl.toString();
 }
 
 async function copyToClipboard(value) {
@@ -625,6 +679,8 @@ async function loadSettings() {
     settingsHeroImage.value = data?.hero_image_url || '';
     settingsContacts.value = JSON.stringify(data?.contacts || {}, null, 2);
     settingsSocial.value = JSON.stringify(data?.social_links || {}, null, 2);
+    settingsPreviewBaseUrl = data?.base_url ? String(data.base_url).trim() : null;
+    snapshotSettings();
   } catch (error) {
     setStatus(statusSettings, error.message || 'Не удалось загрузить настройки', 'error');
   }
@@ -632,24 +688,47 @@ async function loadSettings() {
 
 async function saveSettings() {
   try {
-    const payload = {
-      brand_name: settingsBrand.value.trim() || null,
-      logo_url: settingsLogo.value.trim() || null,
-      primary_color: settingsPrimary.value.trim() || null,
-      secondary_color: settingsSecondary.value.trim() || null,
-      background_color: settingsBackground.value.trim() || null,
-      hero_title: settingsHeroTitle.value.trim() || null,
-      hero_subtitle: settingsHeroSubtitle.value.trim() || null,
-      hero_image_url: settingsHeroImage.value.trim() || null,
-      contacts: parseJsonInput(settingsContacts.value, {}),
-      social_links: parseJsonInput(settingsSocial.value, {}),
-    };
-
+    const payload = buildSettingsPayload();
     await apiRequest(API_SITE_SETTINGS, { method: 'PUT', body: payload });
     setStatus(statusSettings, 'Настройки сохранены', 'ok');
+    snapshotSettings();
   } catch (error) {
     setStatus(statusSettings, error.message || 'Не удалось сохранить настройки', 'error');
   }
+}
+
+async function previewSettings() {
+  let hasUnsavedChanges = false;
+  try {
+    hasUnsavedChanges = hasUnsavedSettings();
+  } catch (error) {
+    setStatus(statusSettings, 'Проверьте JSON в настройках перед предпросмотром', 'error');
+    return;
+  }
+
+  if (hasUnsavedChanges) {
+    const confirmPreview = confirm(
+      'Есть несохранённые изменения. Предпросмотр откроет опубликованную версию. Продолжить?'
+    );
+    if (!confirmPreview) return;
+  }
+
+  let hasUnpublishedChanges = false;
+  try {
+    const health = await apiRequest('/api/adminsite/health/page/home', { method: 'GET' });
+    hasUnpublishedChanges = Boolean(health?.hasUnpublishedChanges);
+  } catch (error) {
+    console.warn('Failed to check draft status', error);
+  }
+
+  if (hasUnpublishedChanges) {
+    const confirmPreview = confirm(
+      'Есть неопубликованные изменения страницы. Предпросмотр откроет опубликованную версию. Открыть?'
+    );
+    if (!confirmPreview) return;
+  }
+
+  window.open(resolvePreviewUrl(), '_blank', 'noopener');
 }
 
 function renderMediaList(items) {
@@ -734,6 +813,7 @@ categoryAdd?.addEventListener('click', () => renderCategoryForm());
 itemAdd?.addEventListener('click', () => renderItemForm());
 menuRefresh?.addEventListener('click', () => loadCategories());
 settingsSave?.addEventListener('click', saveSettings);
+settingsPreview?.addEventListener('click', previewSettings);
 mediaUploadBtn?.addEventListener('click', uploadMedia);
 mediaRefreshBtn?.addEventListener('click', () => loadMedia(mediaSearch?.value || ''));
 mediaSearch?.addEventListener('input', () => loadMedia(mediaSearch.value));
