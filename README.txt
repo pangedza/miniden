@@ -1188,3 +1188,5 @@ API endpoint: POST /api/webapp/order
 Ответ:
   { "order_id": 42 }
 Сохраняемые поля: tg_user_id, items (json), total, currency.
+
+WebApp checkout: отправка tg_user_id + cart в /api/webapp/order
