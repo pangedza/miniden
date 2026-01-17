@@ -100,15 +100,15 @@ async def upload_media(
     _ensure_dir()
     validation_error = _validate_upload(file)
     if validation_error:
-        return JSONResponse(status_code=400, content={"error": validation_error})
+        return JSONResponse(status_code=422, content={"error": validation_error})
 
     data = await file.read()
     if not data:
-        return JSONResponse(status_code=400, content={"error": "Файл пустой"})
+        return JSONResponse(status_code=422, content={"error": "Файл пустой"})
 
     if len(data) > MAX_SIZE_BYTES:
         return JSONResponse(
-            status_code=400,
+            status_code=422,
             content={"error": "Файл слишком большой. Лимит 5 МБ."},
         )
 
@@ -139,7 +139,7 @@ async def delete_media(
 
     target = (UPLOAD_DIR / filename).resolve()
     if not str(target).startswith(str(UPLOAD_DIR.resolve())):
-        return JSONResponse(status_code=400, content={"error": "Неверное имя файла"})
+        return JSONResponse(status_code=422, content={"error": "Неверное имя файла"})
 
     if target.exists():
         try:

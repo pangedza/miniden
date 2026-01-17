@@ -91,11 +91,11 @@
           <button class="btn secondary" type="button" id="apply-promo">Применить</button>
         </div>
         <div class="input-row">
-          <input type="text" placeholder="Ваше имя" id="customer-name" />
-          <input type="text" placeholder="Телефон или ник" id="customer-contact" />
+          <input type="text" placeholder="Ваше имя" id="customer-name" maxlength="100" />
+          <input type="text" placeholder="Телефон или ник" id="customer-contact" maxlength="100" />
         </div>
         <div class="input-row">
-          <textarea id="customer-comment" placeholder="Комментарий к заказу (необязательно)"></textarea>
+          <textarea id="customer-comment" placeholder="Комментарий к заказу (необязательно)" maxlength="500"></textarea>
         </div>
         <div class="input-row">
           <button class="btn secondary" type="button" id="clear-cart">Очистить корзину</button>
@@ -182,6 +182,9 @@
     let finalTotal = 0;
     let adminContactUrl = null;
     let lastCartError = null;
+    const MAX_NAME_LENGTH = 100;
+    const MAX_CONTACT_LENGTH = 100;
+    const MAX_COMMENT_LENGTH = 500;
 
     function resolveTelegramUserId() {
       return window.Telegram?.WebApp?.initDataUnsafe?.user?.id || null;
@@ -189,27 +192,25 @@
 
     function setAdminContactUrl(url) {
       if (!checkoutContactBtn) return;
-      if (!url) return;
+      if (!url) {
+        checkoutContactBtn.removeAttribute('href');
+        checkoutContactBtn.style.display = 'none';
+        return;
+      }
       checkoutContactBtn.href = url;
+      checkoutContactBtn.style.display = '';
     }
 
     async function resolveAdminContactUrl() {
-      const fallbackUrl = 'https://t.me/your_admin_username'; // TODO: заменить на реальный контакт админа
       try {
         const settings = await apiGet('/public/site-settings');
         const social = settings?.social_links || {};
         const contacts = settings?.contacts || {};
-        const candidate =
-          social.telegram ||
-          social.Telegram ||
-          contacts.telegram ||
-          contacts.Telegram ||
-          contacts.tg ||
-          contacts.TG;
-        adminContactUrl = candidate || fallbackUrl;
+        const candidate = contacts.telegram || social.telegram;
+        adminContactUrl = candidate || null;
       } catch (error) {
         console.warn('Failed to load site settings for admin contact', error);
-        adminContactUrl = fallbackUrl;
+        adminContactUrl = null;
       }
       setAdminContactUrl(adminContactUrl);
     }
@@ -227,9 +228,6 @@
       }
       if (checkoutBotInlineHint) {
         checkoutBotInlineHint.style.display = isAvailable ? 'none' : '';
-      }
-      if (checkoutContactBtn) {
-        checkoutContactBtn.style.display = isAvailable ? '' : '';
       }
     }
 
@@ -638,6 +636,22 @@
       }
     }
 
+    function validateCheckoutLengths(customerName, contact, comment) {
+      if (customerName.length > MAX_NAME_LENGTH) {
+        showToast(`Имя не должно превышать ${MAX_NAME_LENGTH} символов.`);
+        return false;
+      }
+      if (contact.length > MAX_CONTACT_LENGTH) {
+        showToast(`Контакт не должен превышать ${MAX_CONTACT_LENGTH} символов.`);
+        return false;
+      }
+      if (comment.length > MAX_COMMENT_LENGTH) {
+        showToast(`Комментарий не должен превышать ${MAX_COMMENT_LENGTH} символов.`);
+        return false;
+      }
+      return true;
+    }
+
     async function checkout() {
       const userId = profile?.telegram_id || telegramUserId || null;
       if (!userId) {
@@ -652,6 +666,10 @@
 
       if (!customerName || !contact) {
         showToast('Укажите имя и способ связи.');
+        return;
+      }
+
+      if (!validateCheckoutLengths(customerName, contact, comment)) {
         return;
       }
 

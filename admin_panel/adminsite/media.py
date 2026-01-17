@@ -76,14 +76,14 @@ async def save_upload(upload: UploadFile) -> dict[str, str]:
     _ensure_dir()
     validation_error = _validate_upload(upload)
     if validation_error:
-        raise HTTPException(status_code=400, detail=validation_error)
+        raise HTTPException(status_code=422, detail=validation_error)
 
     data = await upload.read()
     if not data:
-        raise HTTPException(status_code=400, detail="Файл пустой")
+        raise HTTPException(status_code=422, detail="Файл пустой")
 
     if len(data) > MAX_SIZE_BYTES:
-        raise HTTPException(status_code=400, detail="Файл слишком большой. Лимит 5 МБ.")
+        raise HTTPException(status_code=422, detail="Файл слишком большой. Лимит 5 МБ.")
 
     extension = Path(upload.filename or "").suffix.lower()
     target_name = f"{uuid4().hex}{extension}"
@@ -99,11 +99,11 @@ async def save_upload(upload: UploadFile) -> dict[str, str]:
 
 def delete_media(filename: str) -> dict[str, str]:
     if not filename:
-        raise HTTPException(status_code=400, detail="Не указано имя файла")
+        raise HTTPException(status_code=422, detail="Не указано имя файла")
 
     target = (UPLOAD_DIR / filename).resolve()
     if not str(target).startswith(str(UPLOAD_DIR.resolve())):
-        raise HTTPException(status_code=400, detail="Неверное имя файла")
+        raise HTTPException(status_code=422, detail="Неверное имя файла")
 
     if target.exists():
         try:
