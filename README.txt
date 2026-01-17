@@ -7,6 +7,16 @@ UI Upgrade витрины
 - Карточки товаров приведены к единой стабильной сетке с фиксированной высотой изображения и аккуратными hover-эффектами.
 - Подправлены header, боковая навигация и нижняя корзина для более компактной и ровной компоновки.
 
+AdminSite Task1: меню + type в URL
+---------------------------------
+- Изменённые файлы:
+  - admin_panel/adminsite/templates/base_adminsite.html
+  - admin_panel/adminsite/static/adminsite/constructor.js
+- Как проверить:
+  1. Открыть `/adminsite/constructor`.
+  2. Нажать в верхнем меню «Товары», «Мастер-классы» или «Курсы».
+  3. Убедиться, что URL меняется на `/adminsite/constructor?type=products|masterclasses|courses`, а список категорий перезагружается.
+
 Changelog / История изменений
 -----------------------------
 - 2026-06-XX: Корзина WebApp переведена на единое хранение в БД: браузер использует cookie `cart_session_id`, Telegram WebApp проходит серверную auth через `initData` и использует `tg_user_id`, маршруты `/api/cart*` больше не зависят от localStorage; кнопки корзины ведут на `/cart.html`.

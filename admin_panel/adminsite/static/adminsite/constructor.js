@@ -48,10 +48,18 @@ let items = [];
 let selectedCategory = null;
 let activeItemType = null;
 let activeItemLabel = null;
+let activeUrlType = null;
 
 const TYPE_LABELS = {
   product: 'Товары',
   masterclass: 'Мастер-классы',
+};
+
+const URL_TYPE_DEFAULT = 'products';
+const URL_TYPE_CONFIG = {
+  products: { itemType: 'product', label: 'Товары' },
+  masterclasses: { itemType: 'masterclass', label: 'Мастер-классы' },
+  courses: { itemType: 'masterclass', label: 'Курсы' },
 };
 
 const SECTION_CONFIG = {
@@ -78,6 +86,27 @@ function setActivePanel(panelId) {
   });
 }
 
+function resolveUrlType(value) {
+  if (value && URL_TYPE_CONFIG[value]) {
+    return value;
+  }
+  return URL_TYPE_DEFAULT;
+}
+
+function getUrlTypeConfig() {
+  const params = new URLSearchParams(window.location.search);
+  const urlType = resolveUrlType(params.get('type'));
+  return { urlType, ...URL_TYPE_CONFIG[urlType] };
+}
+
+function resetMenuState() {
+  selectedCategory = null;
+  items = [];
+  categories = [];
+  renderCategories();
+  renderItems();
+}
+
 function setActiveItemType(type, label) {
   activeItemType = type || null;
   activeItemLabel = label || (activeItemType ? TYPE_LABELS[activeItemType] || activeItemType : null);
@@ -95,7 +124,14 @@ function applySectionFromUrl() {
   if (config?.panel) {
     setActivePanel(config.panel);
   }
-  setActiveItemType(config?.type ?? null, config?.label ?? null);
+  const { urlType, itemType, label } = getUrlTypeConfig();
+  const typeChanged = activeUrlType !== urlType;
+  activeUrlType = urlType;
+  setActiveItemType(itemType ?? config?.type ?? null, label ?? config?.label ?? null);
+  if (typeChanged) {
+    resetMenuState();
+  }
+  return typeChanged;
 }
 
 function parseJsonInput(value, fallback = {}) {
@@ -544,7 +580,8 @@ async function reorderItem(index, delta) {
 
 async function loadCategories() {
   try {
-    const response = await apiRequest(API_MENU_CATEGORIES, { method: 'GET' });
+    const typeParam = activeUrlType ? `?type=${encodeURIComponent(activeUrlType)}` : '';
+    const response = await apiRequest(`${API_MENU_CATEGORIES}${typeParam}`, { method: 'GET' });
     categories = response.items || [];
     if (selectedCategory) {
       selectedCategory = categories.find((cat) => cat.id === selectedCategory.id) || null;
@@ -706,6 +743,15 @@ panelTabs.forEach((tab) => {
       setActivePanel(panelId);
     }
   });
+});
+
+window.addEventListener('popstate', async () => {
+  const typeChanged = applySectionFromUrl();
+  if (typeChanged) {
+    setStatus(globalStatus, 'Загрузка данных меню...', 'muted');
+    await loadCategories();
+    setStatus(globalStatus, 'Данные загружены', 'ok');
+  }
 });
 
 async function bootstrap() {
