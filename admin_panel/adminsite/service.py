@@ -5,6 +5,7 @@ import unicodedata
 from typing import Iterable
 
 from fastapi import HTTPException, Request
+from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -100,10 +101,16 @@ def get_category(db: Session, category_id: int) -> AdminSiteCategory:
 
 
 def list_categories(db: Session, type_value: str) -> list[AdminSiteCategory]:
-    validate_type(type_value, db)
+    if type_value == "product":
+        type_filter = or_(
+            AdminSiteCategory.type == type_value,
+            AdminSiteCategory.type.is_(None),
+        )
+    else:
+        type_filter = AdminSiteCategory.type == type_value
     categories = (
         db.query(AdminSiteCategory)
-        .filter(AdminSiteCategory.type == type_value)
+        .filter(type_filter)
         .order_by(AdminSiteCategory.sort, AdminSiteCategory.id)
         .all()
     )
