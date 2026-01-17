@@ -42,6 +42,25 @@ AdminSite Task3: сохранение type в create/edit
   3. Перейти на `/adminsite/constructor?type=products` и убедиться, что категория не отображается.
   4. Создать категорию в продуктах и проверить, что она не появляется в мастер-классах.
 
+AdminSite: черновики, типы контента и предпросмотр
+-------------------------------------------------
+- Черновики страниц:
+  - `PUT /api/adminsite/pages/{pageKey}` сохраняет изменения в draft (public-версия не меняется).
+  - `POST /api/adminsite/pages/{pageKey}/publish` копирует draft → published и публикует страницу.
+  - Статус можно проверить через `GET /api/adminsite/health/page/{pageKey}` (флаг `hasUnpublishedChanges`).
+- Переключение типов контента в AdminSite:
+  - Тип задаётся параметром `?type=` (`products`, `masterclasses`, `courses`) и влияет на фильтр категорий/позиций.
+  - При переходе в соседние разделы (`Категории`, `Главная`, `Меню витрины`) активный `type` сохраняется в URL.
+- Предпросмотр:
+  - В разделе «Главная/настройки» есть кнопка «Предпросмотр» — открывает витрину в новой вкладке.
+  - Если есть несохранённые изменения или неопубликованные черновики, показывается предупреждение, что предпросмотр
+    откроет опубликованную версию.
+- Изменённые файлы:
+  - admin_panel/adminsite/templates/constructor.html
+  - admin_panel/adminsite/static/adminsite/constructor.js
+  - admin_panel/adminsite/static/adminsite/modals.js
+  - services/adminsite_pages.py
+
 Changelog / История изменений
 -----------------------------
 - 2026-06-XX: Корзина WebApp переведена на единое хранение в БД: браузер использует cookie `cart_session_id`, Telegram WebApp проходит серверную auth через `initData` и использует `tg_user_id`, маршруты `/api/cart*` больше не зависят от localStorage; кнопки корзины ведут на `/cart.html`.

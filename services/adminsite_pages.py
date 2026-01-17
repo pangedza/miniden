@@ -270,10 +270,14 @@ def update_page(payload: dict[str, Any], slug: str = DEFAULT_SLUG) -> dict[str, 
             else:
                 page.template_id = data.template_id or DEFAULT_TEMPLATE_ID
                 existing_blocks = page.blocks if isinstance(page.blocks, dict) else {}
-                published_state = existing_blocks.get("published") if isinstance(existing_blocks, dict) else None
+                published_state = (
+                    existing_blocks.get("published")
+                    if "published" in existing_blocks
+                    else None
+                )
                 page.blocks = {
                     "draft": draft_state,
-                    "published": published_state or draft_state,
+                    "published": published_state if published_state is not None else draft_state,
                 }
                 page.theme = {"draft": draft_theme, "published": published_theme}
                 page.updated_at = datetime.utcnow()
