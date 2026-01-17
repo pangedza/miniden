@@ -283,6 +283,7 @@ def add_review_photo(review_id: int, file, media_root: Path) -> list[str]:
         raise ValueError("Неверный формат изображения")
 
     allowed_types = {"image/jpeg", "image/png", "image/webp"}
+    max_bytes = 5 * 1024 * 1024
 
     with get_session() as session:
         review = session.get(ProductReview, review_id)
@@ -303,8 +304,14 @@ def add_review_photo(review_id: int, file, media_root: Path) -> list[str]:
             filename = upload.filename or "image.jpg"
             full_path = _generate_review_photo_path(media_root, review_id, filename)
 
+            content = upload.file.read()
+            if not content:
+                raise ValueError("Пустой файл")
+            if len(content) > max_bytes:
+                raise ValueError("Файл слишком большой. Лимит 5 МБ.")
+
             with full_path.open("wb") as f:
-                f.write(upload.file.read())
+                f.write(content)
 
             relative = full_path.relative_to(media_root).as_posix()
             url = f"/media/{relative}"

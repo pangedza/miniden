@@ -871,8 +871,9 @@ def _notify_admin_about_chat(chat_session, preview_text: str) -> list[int]:
 def _save_uploaded_image(
     file: UploadFile, base_folder: str, *, scope: str = "adminsite"
 ) -> dict[str, Any]:
+    max_bytes = 5 * 1024 * 1024
     if file.content_type not in ("image/jpeg", "image/png", "image/webp"):
-        raise HTTPException(status_code=400, detail="Неверный формат изображения")
+        raise HTTPException(status_code=422, detail="Неверный формат изображения")
 
     base_folder = (base_folder or "").strip("/") or "uploads"
     if base_folder not in UPLOAD_FOLDERS:
@@ -891,6 +892,10 @@ def _save_uploaded_image(
     full_path = target_dir / filename
 
     content = file.file.read()
+    if not content:
+        raise HTTPException(status_code=422, detail="Пустой файл")
+    if len(content) > max_bytes:
+        raise HTTPException(status_code=422, detail="Файл слишком большой. Лимит 5 МБ.")
     with full_path.open("wb") as f:
         f.write(content)
 
@@ -927,15 +932,15 @@ def _save_branding_file(
     filename = file.filename or ""
     ext = Path(filename).suffix.lower()
     if ext not in allowed_extensions:
-        raise HTTPException(status_code=400, detail="Недопустимый формат файла")
+        raise HTTPException(status_code=422, detail="Недопустимый формат файла")
 
     content = file.file.read()
     if not content:
-        raise HTTPException(status_code=400, detail="Пустой файл")
+        raise HTTPException(status_code=422, detail="Пустой файл")
 
     max_bytes = max_size_mb * 1024 * 1024
     if len(content) > max_bytes:
-        raise HTTPException(status_code=400, detail=f"Файл слишком большой (до {max_size_mb} МБ)")
+        raise HTTPException(status_code=422, detail=f"Файл слишком большой (до {max_size_mb} МБ)")
 
     ensure_media_dirs()
     target_dir = MEDIA_ROOT / "branding"
@@ -1313,9 +1318,9 @@ class CartClearPayload(BaseModel):
 class CheckoutPayload(BaseModel):
     user_id: int
     user_name: str | None = Field(None, description="Имя пользователя из Telegram")
-    customer_name: str = Field(..., description="Имя клиента")
-    contact: str = Field(..., description="Способ связи")
-    comment: str | None = None
+    customer_name: str = Field(..., description="Имя клиента", max_length=100)
+    contact: str = Field(..., description="Способ связи", max_length=100)
+    comment: str | None = Field(None, max_length=500)
     promocode: str | None = None
 
 
@@ -1376,8 +1381,8 @@ class TelegramWebAppAuthPayload(BaseModel):
 
 
 class ProfileUpdatePayload(BaseModel):
-    full_name: str | None = None
-    phone: str | None = None
+    full_name: str | None = Field(None, max_length=100)
+    phone: str | None = Field(None, max_length=100)
 
 
 class FaqCreatePayload(BaseModel):
@@ -1408,7 +1413,7 @@ class AvatarUpdatePayload(BaseModel):
 
 class ContactPayload(BaseModel):
     telegram_id: int
-    phone: str | None = None
+    phone: str | None = Field(None, max_length=100)
 
 
 class FavoriteTogglePayload(BaseModel):
@@ -2282,7 +2287,13 @@ def upload_avatar(request: Request, file: UploadFile = File(...)) -> dict:
     """Загрузка файла аватара текущего пользователя."""
 
     if file.content_type not in ("image/jpeg", "image/png", "image/webp"):
-        raise HTTPException(status_code=400, detail="Неверный формат изображения")
+        raise HTTPException(status_code=422, detail="Неверный формат изображения")
+
+    content = file.file.read()
+    if not content:
+        raise HTTPException(status_code=422, detail="Пустой файл")
+    if len(content) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=422, detail="Файл слишком большой. Лимит 5 МБ.")
 
     ensure_media_dirs()
 
@@ -2302,7 +2313,7 @@ def upload_avatar(request: Request, file: UploadFile = File(...)) -> dict:
         full_path = user_dir / filename
 
         with full_path.open("wb") as f:
-            f.write(file.file.read())
+            f.write(content)
 
         relative = full_path.relative_to(MEDIA_ROOT).as_posix()
         user.avatar_url = f"/media/{relative}"
@@ -2771,7 +2782,7 @@ def create_masterclass_review(
             detail = "Masterclass not found"
         elif str(exc) == "rating must be between 1 and 5":
             detail = str(exc)
-        raise HTTPException(status_code=400, detail=detail)
+        raise HTTPException(status_code=422, detail=detail)
 
     return {"success": True, "review_id": review_id, "status": "pending"}
 
@@ -2816,7 +2827,7 @@ def create_product_review(product_id: int, payload: ReviewCreatePayload, request
             detail = "Product not found"
         elif str(exc) == "rating must be between 1 and 5":
             detail = str(exc)
-        raise HTTPException(status_code=400, detail=detail)
+        raise HTTPException(status_code=422, detail=detail)
 
     return {"success": True, "review_id": review_id, "status": "pending"}
 
@@ -2865,7 +2876,7 @@ def upload_review_photo(review_id: int, request: Request, file: list[UploadFile]
         detail = str(exc)
         if detail == "review_not_found":
             raise HTTPException(status_code=404, detail="Review not found")
-        raise HTTPException(status_code=400, detail=detail)
+        raise HTTPException(status_code=422, detail=detail)
 
     return {"ok": True, "photos": photos}
 
