@@ -63,6 +63,7 @@ def init_db() -> None:
     from models import Base, HomeBanner, User  # noqa: WPS433
     from models import (  # noqa: WPS433
         BotAction,
+        BotAutomationRule,
         BotButton,
         BotEventTrigger,
         BotNode,
@@ -442,10 +443,11 @@ def init_db() -> None:
                     event_code="webapp_checkout_created",
                     title="Заказ из WebApp",
                     message_template=(
-                        "🛒 Новый заказ из витрины\n"
+                        "🛒 Новый заказ #{order_id} из витрины\n"
                         "Вы выбрали:\n"
                         "{items}\n"
-                        "Итого: {qty_total} шт, {sum_total} {currency}"
+                        "Итого: {qty_total} шт, {total} {currency}\n"
+                        "Ссылка на заказ: {order_url}"
                     ),
                     buttons_json=[
                         {
@@ -467,6 +469,49 @@ def init_db() -> None:
             session.commit()
 
     _seed_bot_event_triggers()
+
+    def _seed_bot_automation_rules() -> None:
+        from services import automations as automations_service  # noqa: WPS433
+
+        with SessionLocal() as session:
+            existing = (
+                session.query(BotAutomationRule)
+                .filter(
+                    BotAutomationRule.trigger_type
+                    == automations_service.TRIGGER_WEBAPP_ORDER
+                )
+                .first()
+            )
+            if existing:
+                return
+
+            session.add(
+                BotAutomationRule(
+                    title="WebApp заказ: уведомление админу",
+                    trigger_type=automations_service.TRIGGER_WEBAPP_ORDER,
+                    conditions_json=[{"type": "source", "value": "webapp"}],
+                    actions_json=[
+                        {
+                            "type": automations_service.ACTION_SEND_ADMIN_MESSAGE,
+                            "template": {
+                                "title": "🛒 Новый заказ #{order_id}",
+                                "body": (
+                                    "Сумма: {total} ₽\n"
+                                    "Пользователь: {user_name} (id {user_id}, {phone})\n"
+                                    "Заказ: {order_url}"
+                                ),
+                                "items_enabled": True,
+                                "items_fields": ["title", "qty", "price", "sum"],
+                                "items_title": "Состав",
+                            },
+                        }
+                    ],
+                    is_enabled=True,
+                )
+            )
+            session.commit()
+
+    _seed_bot_automation_rules()
 
     def _ensure_bot_templates_table() -> None:
         create_table = """

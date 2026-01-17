@@ -599,7 +599,12 @@ def _format_checkout_items(items: list[dict[str, Any]], currency: str) -> str:
     return "\n".join(lines) if lines else "—"
 
 
-def _build_event_keyboard(buttons: list[dict[str, Any]], *, webapp_url: str) -> dict[str, Any] | None:
+def _build_event_keyboard(
+    buttons: list[dict[str, Any]],
+    *,
+    webapp_url: str,
+    order_url: str = "",
+) -> dict[str, Any] | None:
     if not buttons:
         return None
 
@@ -611,6 +616,7 @@ def _build_event_keyboard(buttons: list[dict[str, Any]], *, webapp_url: str) -> 
         button_type = (button.get("type") or "").strip().lower()
         value = str(button.get("value") or "").strip()
         value = value.replace("{webapp_url}", webapp_url)
+        value = value.replace("{order_url}", order_url)
         if not value:
             continue
         row_index = int(button.get("row") or 0)
@@ -656,6 +662,7 @@ def _build_webapp_automation_context(
     items: list[dict[str, Any]],
     totals: dict[str, Any],
     order_id: int,
+    order_url: str,
 ) -> dict[str, Any]:
     user = users_service.get_user_by_telegram_id(tg_user_id)
     user_name = (
@@ -675,6 +682,7 @@ def _build_webapp_automation_context(
         "user_id": tg_user_id,
         "phone": phone,
         "comment": "",
+        "order_url": order_url,
     }
 
 
@@ -685,11 +693,16 @@ def _apply_webapp_automation_rules(
     items: list[dict[str, Any]],
     totals: dict[str, Any],
     order_id: int,
-) -> bool:
+) -> dict[str, bool]:
     currency = totals.get("currency") or "₽"
     webapp_url = _resolve_webapp_url(request)
+    order_url = _resolve_order_url(request, order_id)
     context = _build_webapp_automation_context(
-        tg_user_id=tg_user_id, items=items, totals=totals, order_id=order_id
+        tg_user_id=tg_user_id,
+        items=items,
+        totals=totals,
+        order_id=order_id,
+        order_url=order_url,
     )
 
     with get_session() as session:
@@ -699,10 +712,11 @@ def _apply_webapp_automation_rules(
         presets = automations_service.list_active_presets(session)
 
     if not rules:
-        return False
+        return {"any_executed": False, "user_message_sent": False}
 
     presets_map = {int(preset.id): preset for preset in presets}
     any_executed = False
+    user_message_sent = False
 
     for rule in rules:
         if not _automation_conditions_match(rule.conditions_json or []):
@@ -787,12 +801,13 @@ def _apply_webapp_automation_rules(
                 )
                 if target_scope == "user":
                     _send_bot_message(tg_user_id, text, reply_markup=reply_markup)
+                    user_message_sent = True
                 else:
                     _send_message_to_admins(text, reply_markup=reply_markup)
                 any_executed = True
                 continue
 
-    return any_executed
+    return {"any_executed": any_executed, "user_message_sent": user_message_sent}
 
 
 def _dispatch_webapp_checkout_created(
@@ -803,16 +818,18 @@ def _dispatch_webapp_checkout_created(
     totals: dict[str, Any],
     order_id: int,
 ) -> None:
-    if _apply_webapp_automation_rules(
+    automation_result = _apply_webapp_automation_rules(
         request=request,
         tg_user_id=tg_user_id,
         items=items,
         totals=totals,
         order_id=order_id,
-    ):
+    )
+    if automation_result.get("user_message_sent"):
         return
 
     webapp_url = _resolve_webapp_url(request)
+    order_url = _resolve_order_url(request, order_id)
     with get_session() as session:
         trigger = (
             session.query(BotEventTrigger)
@@ -832,14 +849,20 @@ def _dispatch_webapp_checkout_created(
             items=items_text,
             qty_total=qty_total,
             sum_total=sum_total,
+            total=sum_total,
             currency=currency,
             order_id=order_id,
             webapp_url=webapp_url,
+            order_url=order_url,
         )
-        keyboard = _build_event_keyboard(trigger.buttons_json or [], webapp_url=webapp_url)
+        keyboard = _build_event_keyboard(
+            trigger.buttons_json or [],
+            webapp_url=webapp_url,
+            order_url=order_url,
+        )
     else:
         text = (
-            "🛒 Новый заказ из витрины\n"
+            f"🛒 Новый заказ #{order_id} из витрины\n"
             f"Вы выбрали:\n{items_text}\n"
             f"Итого: {qty_total} шт, {sum_total} {currency}"
         )
@@ -851,6 +874,15 @@ def _dispatch_webapp_checkout_created(
         }
 
     _send_bot_message(tg_user_id, text, reply_markup=keyboard)
+
+
+def _resolve_order_url(request: Request, order_id: int) -> str:
+    settings = get_settings()
+    if not settings.webapp_admin_url:
+        return ""
+    base_url = settings.webapp_admin_url.rstrip("/")
+    return f"{base_url}/orders/{order_id}"
+
 
 def _notify_admin_about_chat(chat_session, preview_text: str) -> list[int]:
     snippet = (preview_text or "")[:200]
