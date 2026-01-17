@@ -17,6 +17,20 @@ AdminSite Task1: меню + type в URL
   2. Нажать в верхнем меню «Товары», «Мастер-классы» или «Курсы».
   3. Убедиться, что URL меняется на `/adminsite/constructor?type=products|masterclasses|courses`, а список категорий перезагружается.
 
+AdminSite Task2: API type фильтр
+--------------------------------
+- Эндпоинт: `GET /api/adminsite/categories?type=products|masterclasses|courses`
+- Примечания:
+  - Если `type` не указан или неизвестен — используется `products`.
+  - Записи без `type` в БД трактуются как `products`.
+- Примеры:
+  - `GET /api/adminsite/categories` (по умолчанию `products`)
+  - `GET /api/adminsite/categories?type=masterclasses`
+  - `GET /api/adminsite/categories?type=courses`
+- Изменённые файлы:
+  - admin_panel/adminsite/router.py
+  - admin_panel/adminsite/service.py
+
 Changelog / История изменений
 -----------------------------
 - 2026-06-XX: Корзина WebApp переведена на единое хранение в БД: браузер использует cookie `cart_session_id`, Telegram WebApp проходит серверную auth через `initData` и использует `tg_user_id`, маршруты `/api/cart*` больше не зависят от localStorage; кнопки корзины ведут на `/cart.html`.

@@ -34,6 +34,14 @@ from .schemas import (
 
 TypeQuery = Annotated[str, Query(min_length=1)]
 
+ALLOWED_CATEGORY_TYPES = {"products", "masterclasses", "courses"}
+DEFAULT_CATEGORY_TYPE = "products"
+CATEGORY_TYPE_MAP = {
+    "products": "product",
+    "masterclasses": "masterclass",
+    "courses": "course",
+}
+
 router = APIRouter(prefix="/api/adminsite", tags=["AdminSite"])
 logger = logging.getLogger(__name__)
 
@@ -317,11 +325,13 @@ def list_types(request: Request, db: Session = Depends(get_db_session)) -> list[
 @router.get("/categories", response_model=list[CategoryResponse])
 def list_categories(
     request: Request,
-    type: TypeQuery,
+    type: str | None = Query(None),
     db: Session = Depends(get_db_session),
 ):
     service.ensure_admin(request, db)
-    categories = service.list_categories(db, type)
+    normalized = type if type in ALLOWED_CATEGORY_TYPES else DEFAULT_CATEGORY_TYPE
+    category_type = CATEGORY_TYPE_MAP[normalized]
+    categories = service.list_categories(db, category_type)
     return categories
 
 
@@ -408,5 +418,4 @@ def delete_item(
 ):
     service.ensure_admin(request, db)
     return service.delete_item(db, item_id)
-
 
