@@ -13,6 +13,7 @@ from models import HomeBanner, User
 from models import (
     BotAction,
     BotButton,
+    BotAutomationRule,
     BotEventTrigger,
     BotNode,
     BotRuntime,
@@ -397,9 +398,11 @@ def init_db() -> None:
                     title="Заказ из WebApp",
                     message_template=(
                         "🛒 Новый заказ из витрины\n"
+                        "Заказ #{order_id}\n"
+                        "{order_link}\n"
                         "Вы выбрали:\n"
                         "{items}\n"
-                        "Итого: {qty_total} шт, {sum_total} {currency}"
+                        "Итого: {qty_total} шт, {total} {currency}"
                     ),
                     buttons_json=[
                         {
@@ -421,6 +424,41 @@ def init_db() -> None:
             session.commit()
 
     _seed_bot_event_triggers()
+
+    def _seed_bot_automation_rules() -> None:
+        with SessionLocal() as session:
+            existing = (
+                session.query(BotAutomationRule)
+                .filter(BotAutomationRule.trigger_type == "WEBAPP_ORDER_RECEIVED")
+                .filter(BotAutomationRule.title == "WebApp заказ: уведомить админа")
+                .first()
+            )
+            if existing:
+                return
+
+            session.add(
+                BotAutomationRule(
+                    title="WebApp заказ: уведомить админа",
+                    trigger_type="WEBAPP_ORDER_RECEIVED",
+                    conditions_json=[{"type": "source", "value": "webapp"}],
+                    actions_json=[
+                        {
+                            "type": "SEND_ADMIN_MESSAGE",
+                            "template": {
+                                "title": "🛒 Новый заказ #{order_id}",
+                                "body": "Сумма: {total}\nКлиент: {user_name} (id {user_id}, {phone})",
+                                "items_enabled": True,
+                                "items_fields": ["title", "qty", "price", "sum"],
+                                "items_title": "Состав",
+                            },
+                        }
+                    ],
+                    is_enabled=True,
+                )
+            )
+            session.commit()
+
+    _seed_bot_automation_rules()
 
     def _ensure_bot_templates_table() -> None:
         create_table = """
