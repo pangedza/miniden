@@ -165,6 +165,7 @@ class WebappCheckoutTotals(BaseModel):
 
 class WebappCheckoutContext(BaseModel):
     page_url: str | None = None
+    order_link: str | None = None
     user_agent: str | None = None
     created_at: str | None = None
 
@@ -518,6 +519,7 @@ def _dispatch_webapp_checkout_created(
     items: list[dict[str, Any]],
     totals: dict[str, Any],
     order_id: int,
+    client_context: dict[str, Any] | None = None,
 ) -> None:
     automation_result = _apply_webapp_automation_rules(
         request=request,
@@ -540,6 +542,12 @@ def _dispatch_webapp_checkout_created(
     sum_total = int(totals.get("sum_total") or 0)
     currency = totals.get("currency") or "₽"
     items_text = _format_checkout_items(items, currency)
+    raw_order_link = ""
+    if isinstance(client_context, dict):
+        raw_order_link = str(
+            client_context.get("order_link") or client_context.get("page_url") or ""
+        ).strip()
+    order_link = f"Ссылка на заказ: {raw_order_link}" if raw_order_link else ""
 
     if not automation_result["user_sent"]:
         if trigger:
@@ -548,9 +556,11 @@ def _dispatch_webapp_checkout_created(
                 items=items_text,
                 qty_total=qty_total,
                 sum_total=sum_total,
+                total=sum_total,
                 currency=currency,
                 order_id=order_id,
                 webapp_url=webapp_url,
+                order_link=order_link,
             )
             keyboard = _build_event_keyboard(trigger.buttons_json or [], webapp_url=webapp_url)
         else:
@@ -1308,6 +1318,7 @@ def api_public_checkout_from_webapp(payload: WebappCheckoutPayload, request: Req
         items=normalized_items,
         totals=totals_payload,
         order_id=order_id,
+        client_context=client_context,
     )
 
     return {"ok": True, "order_id": order_id, "message": "sent"}
