@@ -1618,8 +1618,16 @@ def api_cart_apply_promocode(
 @router.post("/api/checkout")
 def api_checkout(payload: CheckoutPayload):
     """Оформить заказ из текущей корзины WebApp."""
-    if payload.user_id is None or not users_service.get_user_by_telegram_id(int(payload.user_id)):
-        raise HTTPException(status_code=401, detail="Требуется авторизация")
+    if payload.user_id is None or int(payload.user_id) <= 0:
+        raise HTTPException(status_code=422, detail="user_id is required")
+
+    users_service.get_or_create_user_from_telegram(
+        {
+            "id": payload.user_id,
+            "username": payload.user_name,
+            "first_name": payload.customer_name,
+        }
+    )
 
     cart_data = _build_cart_response(user_id=payload.user_id)
     normalized_items = cart_data.get("items") or []
@@ -1651,14 +1659,6 @@ def api_checkout(payload: CheckoutPayload):
         customer_name=payload.customer_name,
         contact=payload.contact,
         comment=payload.comment or "",
-    )
-
-    users_service.get_or_create_user_from_telegram(
-        {
-            "id": payload.user_id,
-            "username": payload.user_name,
-            "first_name": payload.customer_name,
-        }
     )
 
     order_id = orders_service.add_order(

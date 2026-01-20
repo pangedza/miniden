@@ -106,6 +106,10 @@ function initTelegramContext() {
   }
 }
 
+function resolveTelegramUserId() {
+  return window.Telegram?.WebApp?.initDataUnsafe?.user?.id || null;
+}
+
 function getCartQtyTotal(items) {
   return (items || []).reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
 }
@@ -289,6 +293,10 @@ function renderFooter(settings) {
 
 async function fetchCart() {
   const url = new URL('/api/cart', window.location.origin);
+  const telegramId = resolveTelegramUserId();
+  if (telegramId) {
+    url.searchParams.set('user_id', telegramId);
+  }
   const response = await fetch(url.toString(), { cache: 'no-store' });
   if (!response.ok) {
     const text = await response.text();
@@ -325,10 +333,12 @@ async function refreshCartBar() {
 
 async function addItemToCart(item, qty = 1) {
   const cartType = mapCartType(item.type);
+  const telegramId = resolveTelegramUserId();
   const response = await fetch('/api/cart/add', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
+      user_id: telegramId || undefined,
       product_id: item.id,
       qty,
       type: cartType,

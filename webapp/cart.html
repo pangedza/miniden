@@ -190,6 +190,10 @@
       return window.Telegram?.WebApp?.initDataUnsafe?.user?.id || null;
     }
 
+    function getCartUserId() {
+      return profile?.telegram_id || telegramUserId || null;
+    }
+
     function setAdminContactUrl(url) {
       if (!checkoutContactBtn) return;
       if (!url) {
@@ -520,7 +524,8 @@
       try {
         noteEl.textContent = '';
         lastCartError = null;
-        const cart = await apiGet('/cart');
+        const userId = getCartUserId();
+        const cart = await apiGet('/cart', userId ? { user_id: userId } : undefined);
         currentCart = cart;
         if (!appliedPromo) {
           discountAmount = 0;
@@ -541,7 +546,8 @@
 
     async function updateQty(productId, qty, type) {
       try {
-        await apiPost('/cart/update', { product_id: productId, qty, type: type || 'basket' });
+        const userId = getCartUserId();
+        await apiPost('/cart/update', { user_id: userId, product_id: productId, qty, type: type || 'basket' });
         appliedPromo = null;
         await loadCart();
       } catch (e) {
@@ -551,7 +557,8 @@
 
     async function clearCart() {
       try {
-        await apiPost('/cart/clear');
+        const userId = getCartUserId();
+        await apiPost('/cart/clear', { user_id: userId });
         appliedPromo = null;
         await loadCart();
       } catch (e) {
@@ -567,7 +574,8 @@
       }
 
       try {
-        const result = await apiPost('/cart/apply-promocode', { code });
+        const userId = getCartUserId();
+        const result = await apiPost('/cart/apply-promocode', { user_id: userId, code });
         appliedPromo = result;
         discountAmount = Number(result.discount_amount || 0);
         finalTotal = Number(result.final_total || currentCart.total || 0);
@@ -653,7 +661,7 @@
     }
 
     async function checkout() {
-      const userId = profile?.telegram_id || telegramUserId || null;
+      const userId = getCartUserId();
       if (!userId) {
         showToast('Оформление через бота доступно в Telegram.');
         return;
@@ -788,28 +796,48 @@
       }
     }
 
-    applyPromoBtn.addEventListener('click', applyPromo);
-    removePromoBtn?.addEventListener('click', removePromo);
-    clearBtn.addEventListener('click', clearCart);
-    checkoutBtn.addEventListener('click', openCheckoutModal);
-    checkoutModalClose?.addEventListener('click', closeCheckoutModal);
-    checkoutModalOverlay?.addEventListener('click', closeCheckoutModal);
+    function wrapAction(action, fallbackMessage) {
+      return async (...args) => {
+        try {
+          await action(...args);
+        } catch (error) {
+          console.error(fallbackMessage, error);
+          showToast(fallbackMessage);
+        }
+      };
+    }
+
+    applyPromoBtn.addEventListener('click', wrapAction(applyPromo, 'Не удалось применить промокод.'));
+    removePromoBtn?.addEventListener('click', wrapAction(removePromo, 'Не удалось удалить промокод.'));
+    clearBtn.addEventListener('click', wrapAction(clearCart, 'Не удалось очистить корзину.'));
+    checkoutBtn.addEventListener('click', wrapAction(openCheckoutModal, 'Не удалось открыть оформление.'));
+    checkoutModalClose?.addEventListener('click', wrapAction(closeCheckoutModal, 'Не удалось закрыть окно.'));
+    checkoutModalOverlay?.addEventListener('click', wrapAction(closeCheckoutModal, 'Не удалось закрыть окно.'));
     document.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') closeCheckoutModal();
     });
-    checkoutBotBtn?.addEventListener('click', sendCartToTelegramBot);
-    checkoutBotInlineBtn?.addEventListener('click', sendCartToTelegramBot);
-    checkoutBotCloseBtn?.addEventListener('click', () => {
-      closeTelegramWebApp();
-      closeCheckoutModal();
-    });
+    checkoutBotBtn?.addEventListener('click', wrapAction(sendCartToTelegramBot, 'Не удалось отправить заказ.'));
+    checkoutBotInlineBtn?.addEventListener('click', wrapAction(sendCartToTelegramBot, 'Не удалось отправить заказ.'));
+    checkoutBotCloseBtn?.addEventListener(
+      'click',
+      wrapAction(() => {
+        closeTelegramWebApp();
+        closeCheckoutModal();
+      }, 'Не удалось закрыть окно.')
+    );
 
     async function initCartPage() {
-      telegramUserId = resolveTelegramUserId();
-      await resolveAdminContactUrl();
-      await loadUserProfile();
-      await loadCart();
-      updateTelegramCheckoutAvailability();
+      try {
+        telegramUserId = resolveTelegramUserId();
+        await resolveAdminContactUrl();
+        await loadUserProfile();
+        telegramUserId = getCartUserId();
+        await loadCart();
+        updateTelegramCheckoutAvailability();
+      } catch (error) {
+        console.error('Failed to initialize cart page', error);
+        showToast('Не удалось загрузить корзину. Попробуйте ещё раз.');
+      }
     }
 
     initCartPage();
