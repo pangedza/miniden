@@ -22,7 +22,7 @@ from config import get_settings
 from initdb import init_db
 from utils.logging_config import BOT_LOG_FILE, setup_logging
 
-from handlers import admin, baskets, cart, courses, start, webapp
+from handlers import admin, baskets, cart, checkout, courses, start, webapp
 from handlers import faq, site_chat, support
 from middlewares.user_registration import EnsureUserMiddleware
 
@@ -63,6 +63,7 @@ async def main() -> None:
     dp.include_router(admin.router)
     dp.include_router(baskets.router)
     dp.include_router(cart.router)
+    dp.include_router(checkout.router)
     dp.include_router(courses.router)
     dp.include_router(webapp.router)
     dp.include_router(faq.faq_router)
