@@ -2,6 +2,8 @@ from typing import Iterable
 
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
+from services import menu_catalog
+
 
 def cart_kb(items: Iterable[dict]) -> InlineKeyboardMarkup:
     """
@@ -15,11 +17,15 @@ def cart_kb(items: Iterable[dict]) -> InlineKeyboardMarkup:
     for item in items:
         product_id = str(item.get("product_id"))
         qty = int(item.get("qty", 1))
+        raw_type = item.get("type")
+        normalized_type = menu_catalog.map_legacy_item_type(str(raw_type)) or raw_type or "product"
+        if normalized_type not in menu_catalog.MENU_ITEM_TYPES:
+            normalized_type = "product"
 
         row = [
             InlineKeyboardButton(
                 text="➖",
-                callback_data=f"cart:dec:{product_id}",
+                callback_data=f"cart:dec:{normalized_type}:{product_id}",
             ),
             InlineKeyboardButton(
                 text=str(qty),
@@ -27,11 +33,11 @@ def cart_kb(items: Iterable[dict]) -> InlineKeyboardMarkup:
             ),
             InlineKeyboardButton(
                 text="➕",
-                callback_data=f"cart:inc:{product_id}",
+                callback_data=f"cart:inc:{normalized_type}:{product_id}",
             ),
             InlineKeyboardButton(
                 text="❌",
-                callback_data=f"cart:remove:{product_id}",
+                callback_data=f"cart:remove:{normalized_type}:{product_id}",
             ),
         ]
         inline_keyboard.append(row)
