@@ -106,6 +106,32 @@ Changelog / История изменений
 - Браузер (не Telegram): корзина идентифицируется по cookie `cart_session_id`.
 - Telegram WebApp: при старте выполняется `/api/auth/telegram_webapp` с `initData`, после чего корзина связана с `tg_user_id` и совпадает с ботом.
 
+WebApp корзина и checkout (telegram_id)
+---------------------------------------
+- Реальная страница корзины: `webapp/cart.html` (роут `/cart` отдаёт этот файл).
+- Клиентские файлы корзины:
+  - `webapp/cart.html` (логика кнопок и checkout).
+  - `webapp/js/site_app.js` (нижняя панель корзины и добавление в корзину).
+- Эндпоинты, которые вызывает корзина:
+  - `GET /api/cart?user_id={telegram_id}` — получить корзину.
+  - `POST /api/cart/add` — добавить позицию (body: `user_id`, `product_id`, `qty`, `type`).
+  - `POST /api/cart/update` — изменить количество (body: `user_id`, `product_id`, `qty`, `type`).
+  - `POST /api/cart/clear` — очистить корзину (body: `user_id`).
+  - `POST /api/cart/apply-promocode` — применить промокод (body: `user_id`, `code`).
+  - `POST /api/checkout` — оформить заказ из корзины (body: `user_id`, `customer_name`, `contact`, `comment`, `promocode`).
+  - `POST /api/public/checkout/from-webapp` — отправка корзины в Telegram-бот (используется кнопкой «Оформить в боте»).
+- Примечание: `user_id` = `telegram_id` (FK на `users.telegram_id`).
+
+SQL для проверки связки заказов с users
+---------------------------------------
+```sql
+SELECT o.id, o.user_id AS telegram_id, u.username, o.total_amount, o.status, o.created_at
+FROM orders o
+LEFT JOIN users u ON u.telegram_id = o.user_id
+ORDER BY o.id DESC
+LIMIT 20;
+```
+
 Как проверить корзину (новый поток)
 -----------------------------------
 1. В браузере открыть витрину, добавить товар в корзину, перейти на `/cart.html` и убедиться, что товары отображаются.
