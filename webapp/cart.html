@@ -108,9 +108,9 @@
       <p class="muted">Подтвердите отправку заказа в Telegram-бот</p>
       <div class="checkout-modal__actions" id="checkout-modal-actions">
         <a class="btn secondary" id="checkout-contact-admin" href="#" target="_blank" rel="noopener">Связаться с админом</a>
-        <button class="btn" type="button" id="checkout-bot">Оформить заказ</button>
+        <button class="btn" type="button" id="checkout-bot">Отправить заказ в бот</button>
       </div>
-      <div class="checkout-modal__hint muted" id="checkout-bot-hint">Откройте через Telegram бот</div>
+      <div class="checkout-modal__hint muted" id="checkout-bot-hint">Откройте через Telegram</div>
       <div class="checkout-modal__status muted" id="checkout-bot-status" style="display:none;"></div>
       <button class="btn secondary" type="button" id="checkout-bot-close" style="display:none;">Закрыть</button>
     </div>
@@ -199,12 +199,25 @@
     }
 
     function updateTelegramCheckoutAvailability() {
-      const isAvailable = Boolean(telegramUserId);
+      const hasWebApp = Boolean(window.Telegram?.WebApp);
+      const isAvailable = hasWebApp && Boolean(telegramUserId);
+      const hasItems = Boolean(currentCart.items?.length);
+
       if (checkoutBotBtn) {
         checkoutBotBtn.style.display = isAvailable ? '' : 'none';
+        checkoutBotBtn.disabled = !hasItems;
       }
       if (checkoutBotHint) {
-        checkoutBotHint.style.display = isAvailable ? 'none' : '';
+        if (!isAvailable) {
+          checkoutBotHint.textContent = 'Откройте через Telegram';
+          checkoutBotHint.style.display = '';
+        } else if (!hasItems) {
+          checkoutBotHint.textContent = 'Корзина пуста';
+          checkoutBotHint.style.display = '';
+        } else {
+          checkoutBotHint.textContent = '';
+          checkoutBotHint.style.display = 'none';
+        }
       }
     }
 
@@ -359,6 +372,7 @@
       totalEl.textContent = '0 ₽';
       cartPanel.style.display = 'none';
       updateDebugPanel(currentCart, lastCartError);
+      updateTelegramCheckoutAvailability();
     }
 
     function renderStorageDebug(keys, title) {
@@ -486,6 +500,7 @@
         finalTotal = cart.total || 0;
       }
       updateDebugPanel(cart);
+      updateTelegramCheckoutAvailability();
     }
 
     async function loadCartFromServer() {
@@ -586,19 +601,21 @@
         };
       });
 
+      const computedTotal = Number.isFinite(sumTotal) && sumTotal > 0 ? sumTotal : 0;
+      const promoTotal = Number(finalTotal || 0);
+      const cartTotal = Number(currentCart.total || 0);
+      const total = appliedPromo
+        ? Number.isFinite(promoTotal) && promoTotal > 0
+          ? promoTotal
+          : computedTotal
+        : Number.isFinite(cartTotal) && cartTotal > 0
+          ? cartTotal
+          : computedTotal;
+
       return {
-        tg_user_id: telegramUserId,
+        telegram_id: telegramUserId,
         items: normalizedItems,
-        totals: {
-          qty_total: qtyTotal,
-          sum_total: sumTotal,
-          currency: '₽',
-        },
-        client_context: {
-          page_url: window.location.href,
-          user_agent: navigator.userAgent,
-          created_at: new Date().toISOString(),
-        },
+        total,
       };
     }
 
@@ -607,7 +624,7 @@
         checkoutModalActions.style.display = 'none';
       }
       if (checkoutBotStatus) {
-        const orderLabel = orderId ? `Заказ №${orderId} сохранён` : 'Заказ сохранён';
+        const orderLabel = orderId ? `Заказ №${orderId} сохранён` : 'Заказ отправлен';
         checkoutBotStatus.textContent = orderLabel;
         checkoutBotStatus.style.display = '';
       }
@@ -618,8 +635,8 @@
 
     async function sendCartToTelegramBot() {
       const tg = window.Telegram?.WebApp;
-      if (!telegramUserId) {
-        showToast('Откройте через Telegram бот');
+      if (!tg || !telegramUserId) {
+        showToast('Откройте через Telegram');
         return;
       }
       if (!currentCart.items?.length) {
@@ -627,20 +644,13 @@
         return;
       }
       const payload = buildWebappCheckoutPayload();
-      const headers = { 'Content-Type': 'application/json' };
-      if (tg?.initData) {
-        headers['X-Telegram-Init-Data'] = tg.initData;
-      }
-
       try {
-        const response = await fetch('/api/public/checkout/from-webapp', {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(payload),
-        });
-        const data = await handleResponse(response);
-        const orderId = data?.order_id ?? data?.id ?? '';
-        showCheckoutBotSuccess(orderId);
+        console.log('Отправка заказа в Telegram bot:', payload);
+        tg.sendData(JSON.stringify(payload));
+        showCheckoutBotSuccess('');
+        setTimeout(() => {
+          closeTelegramWebApp();
+        }, 300);
       } catch (error) {
         showToast(error?.message || 'Не удалось оформить заказ. Попробуйте ещё раз.');
       }
