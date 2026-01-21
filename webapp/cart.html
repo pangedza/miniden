@@ -91,19 +91,8 @@
           <button class="btn secondary" type="button" id="apply-promo">Применить</button>
         </div>
         <div class="input-row">
-          <input type="text" placeholder="Ваше имя" id="customer-name" maxlength="100" />
-          <input type="text" placeholder="Телефон или ник" id="customer-contact" maxlength="100" />
-        </div>
-        <div class="input-row">
-          <textarea id="customer-comment" placeholder="Комментарий к заказу (необязательно)" maxlength="500"></textarea>
-        </div>
-        <div class="input-row">
           <button class="btn secondary" type="button" id="clear-cart">Очистить корзину</button>
           <button class="btn" type="button" id="checkout">Оформить заказ</button>
-        </div>
-        <div class="input-row">
-          <button class="btn" type="button" id="checkout-bot-inline">Оформить в боте</button>
-          <div class="muted" id="checkout-bot-inline-hint" style="display:none;">Откройте через Telegram бот</div>
         </div>
       </div>
     </main>
@@ -116,10 +105,10 @@
       <button class="checkout-modal__close" type="button" id="checkout-modal-close" aria-label="Закрыть">✕</button>
     </div>
     <div class="checkout-modal__body">
-      <p class="muted">Выберите способ оформления</p>
+      <p class="muted">Подтвердите отправку заказа в Telegram-бот</p>
       <div class="checkout-modal__actions" id="checkout-modal-actions">
         <a class="btn secondary" id="checkout-contact-admin" href="#" target="_blank" rel="noopener">Связаться с админом</a>
-        <button class="btn" type="button" id="checkout-bot">Оформить в боте</button>
+        <button class="btn" type="button" id="checkout-bot">Оформить заказ</button>
       </div>
       <div class="checkout-modal__hint muted" id="checkout-bot-hint">Откройте через Telegram бот</div>
       <div class="checkout-modal__status muted" id="checkout-bot-status" style="display:none;"></div>
@@ -140,7 +129,6 @@
       cartPage: ['miniden_guest_cart'],
     };
 
-    const adminLink = document.getElementById('admin-link');
     const noteEl = document.getElementById('note');
     const debugEl = document.getElementById('cart-debug');
     const tbody = document.getElementById('cart-body');
@@ -155,9 +143,6 @@
     const clearBtn = document.getElementById('clear-cart');
     const checkoutBtn = document.getElementById('checkout');
     const cartPanel = document.getElementById('cart-panel');
-    const nameInput = document.getElementById('customer-name');
-    const contactInput = document.getElementById('customer-contact');
-    const commentInput = document.getElementById('customer-comment');
     const checkoutModal = document.getElementById('checkout-modal');
     const checkoutModalOverlay = document.getElementById('checkout-modal-overlay');
     const checkoutModalClose = document.getElementById('checkout-modal-close');
@@ -167,11 +152,8 @@
     const checkoutModalActions = document.getElementById('checkout-modal-actions');
     const checkoutBotStatus = document.getElementById('checkout-bot-status');
     const checkoutBotCloseBtn = document.getElementById('checkout-bot-close');
-    const checkoutBotInlineBtn = document.getElementById('checkout-bot-inline');
-    const checkoutBotInlineHint = document.getElementById('checkout-bot-inline-hint');
 
     const isTelegram = !!window.Telegram?.WebApp;
-    let profile = null;
     let telegramUserId = null;
     if (isTelegram && window.Telegram?.WebApp?.ready) {
       window.Telegram.WebApp.ready();
@@ -182,16 +164,13 @@
     let finalTotal = 0;
     let adminContactUrl = null;
     let lastCartError = null;
-    const MAX_NAME_LENGTH = 100;
-    const MAX_CONTACT_LENGTH = 100;
-    const MAX_COMMENT_LENGTH = 500;
 
     function resolveTelegramUserId() {
       return window.Telegram?.WebApp?.initDataUnsafe?.user?.id || null;
     }
 
     function getCartUserId() {
-      return profile?.telegram_id || telegramUserId || null;
+      return telegramUserId || null;
     }
 
     function setAdminContactUrl(url) {
@@ -226,12 +205,6 @@
       }
       if (checkoutBotHint) {
         checkoutBotHint.style.display = isAvailable ? 'none' : '';
-      }
-      if (checkoutBotInlineBtn) {
-        checkoutBotInlineBtn.style.display = isAvailable ? '' : 'none';
-      }
-      if (checkoutBotInlineHint) {
-        checkoutBotInlineHint.style.display = isAvailable ? 'none' : '';
       }
     }
 
@@ -367,11 +340,6 @@
         }
         return entry;
       });
-    }
-
-    function updateAdminLinkVisibility() {
-      if (!adminLink) return;
-      adminLink.style.display = profile?.is_admin ? '' : 'none';
     }
 
     function formatPrice(value) {
@@ -599,116 +567,6 @@
       renderCart(currentCart);
     }
 
-    async function loadUserProfile() {
-      try {
-        profile = await getCurrentUserProfile();
-        updateAdminLinkVisibility();
-        if (profile?.full_name && nameInput && !nameInput.value) {
-          nameInput.value = profile.full_name;
-        }
-        const contactValue = profile?.phone || (profile?.telegram_username ? `@${profile.telegram_username}` : '');
-        if (contactValue && contactInput && !contactInput.value) {
-          contactInput.value = contactValue;
-        }
-      } catch (e) {
-        console.error('Failed to load profile', e);
-        profile = null;
-      }
-    }
-
-    async function updateProfileIfNeeded(customerName, contact) {
-      if (!profile?.telegram_id) return;
-
-      const updates = {};
-      if (!profile.full_name && customerName) {
-        updates.full_name = customerName;
-      }
-      if (!profile.phone && contact) {
-        updates.phone = contact;
-      }
-
-      if (!Object.keys(updates).length) return;
-
-      try {
-        const res = await fetch('/api/profile/update', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(updates),
-        });
-        const data = await res.json();
-        if (data?.ok && data.user) {
-          profile = data.user;
-        }
-      } catch (e) {
-        console.error('Failed to update profile before checkout', e);
-      }
-    }
-
-    function validateCheckoutLengths(customerName, contact, comment) {
-      if (customerName.length > MAX_NAME_LENGTH) {
-        showToast(`Имя не должно превышать ${MAX_NAME_LENGTH} символов.`);
-        return false;
-      }
-      if (contact.length > MAX_CONTACT_LENGTH) {
-        showToast(`Контакт не должен превышать ${MAX_CONTACT_LENGTH} символов.`);
-        return false;
-      }
-      if (comment.length > MAX_COMMENT_LENGTH) {
-        showToast(`Комментарий не должен превышать ${MAX_COMMENT_LENGTH} символов.`);
-        return false;
-      }
-      return true;
-    }
-
-    async function checkout() {
-      const userId = getCartUserId();
-      if (!userId) {
-        showToast('Оформление через бота доступно в Telegram.');
-        return;
-      }
-
-      const customerName = nameInput.value.trim();
-      const contact = contactInput.value.trim();
-      const comment = commentInput.value.trim();
-      const promocode = (appliedPromo?.code || (promoInput.value || '').trim()) || null;
-
-      if (!customerName || !contact) {
-        showToast('Укажите имя и способ связи.');
-        return;
-      }
-
-      if (!validateCheckoutLengths(customerName, contact, comment)) {
-        return;
-      }
-
-      try {
-        await updateProfileIfNeeded(customerName, contact);
-        const result = await apiPost('/checkout', {
-          user_id: userId,
-          user_name: profile?.telegram_username,
-          customer_name: customerName,
-          contact,
-          comment: comment || null,
-          promocode,
-        });
-        showToast(`Заказ оформлен! Номер заказа: ${result.order_id}. Итог: ${formatPrice(result.total)}`);
-        appliedPromo = null;
-        discountAmount = 0;
-        finalTotal = 0;
-        promoInput.value = '';
-        nameInput.value = '';
-        contactInput.value = '';
-        commentInput.value = '';
-        await loadCart();
-      } catch (e) {
-        if (e?.status === 401) {
-          showToast('Оформление через бота доступно в Telegram.');
-          return;
-        }
-        showToast(e?.message || 'Не удалось оформить заказ. Попробуйте ещё раз.');
-      }
-    }
-
     function buildWebappCheckoutPayload() {
       const items = currentCart.items || [];
       let qtyTotal = 0;
@@ -817,7 +675,6 @@
       if (event.key === 'Escape') closeCheckoutModal();
     });
     checkoutBotBtn?.addEventListener('click', wrapAction(sendCartToTelegramBot, 'Не удалось отправить заказ.'));
-    checkoutBotInlineBtn?.addEventListener('click', wrapAction(sendCartToTelegramBot, 'Не удалось отправить заказ.'));
     checkoutBotCloseBtn?.addEventListener(
       'click',
       wrapAction(() => {
@@ -830,8 +687,10 @@
       try {
         telegramUserId = resolveTelegramUserId();
         await resolveAdminContactUrl();
-        await loadUserProfile();
-        telegramUserId = getCartUserId();
+        if (isTelegram && typeof ensureTelegramWebAppAuth === 'function') {
+          await ensureTelegramWebAppAuth();
+        }
+        telegramUserId = resolveTelegramUserId();
         await loadCart();
         updateTelegramCheckoutAvailability();
       } catch (error) {

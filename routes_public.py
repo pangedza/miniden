@@ -51,6 +51,10 @@ from services import user_admin as user_admin_service
 from services import user_stats as user_stats_service
 from services import users as users_service
 from services import webchat_service
+from services.telegram_webapp_auth import (
+    get_telegram_init_data_from_request,
+    validate_telegram_webapp_init_data,
+)
 from utils import site_chat_storage
 from utils.texts import format_order_for_admin
 
@@ -369,6 +373,7 @@ def _build_webapp_automation_context(
     items: list[dict[str, Any]],
     totals: dict[str, Any],
     order_id: int,
+    saved_order_id: int | None = None,
 ) -> dict[str, Any]:
     user = users_service.get_user_by_telegram_id(tg_user_id)
     user_name = (
@@ -382,6 +387,7 @@ def _build_webapp_automation_context(
     )
     return {
         "order_id": order_id,
+        "saved_order_id": saved_order_id,
         "total": total_amount,
         "items": items_text,
         "user_name": user_name,
@@ -398,11 +404,16 @@ def _apply_webapp_automation_rules(
     items: list[dict[str, Any]],
     totals: dict[str, Any],
     order_id: int,
+    saved_order_id: int | None = None,
 ) -> dict[str, bool]:
     currency = totals.get("currency") or "₽"
     webapp_url = _resolve_webapp_url(request)
     context = _build_webapp_automation_context(
-        tg_user_id=tg_user_id, items=items, totals=totals, order_id=order_id
+        tg_user_id=tg_user_id,
+        items=items,
+        totals=totals,
+        order_id=order_id,
+        saved_order_id=saved_order_id,
     )
 
     with get_session() as session:
@@ -519,6 +530,7 @@ def _dispatch_webapp_checkout_created(
     items: list[dict[str, Any]],
     totals: dict[str, Any],
     order_id: int,
+    saved_order_id: int | None = None,
     client_context: dict[str, Any] | None = None,
 ) -> None:
     automation_result = _apply_webapp_automation_rules(
@@ -527,6 +539,7 @@ def _dispatch_webapp_checkout_created(
         items=items,
         totals=totals,
         order_id=order_id,
+        saved_order_id=saved_order_id,
     )
 
     webapp_url = _resolve_webapp_url(request)
@@ -1253,6 +1266,18 @@ def api_public_blocks(page: str | None = None):
 
 @router.post("/api/public/checkout/from-webapp")
 def api_public_checkout_from_webapp(payload: WebappCheckoutPayload, request: Request):
+    init_data = get_telegram_init_data_from_request(request)
+    if not init_data:
+        raise HTTPException(status_code=401, detail="init_data_missing")
+
+    user_data = validate_telegram_webapp_init_data(init_data, BOT_TOKEN)
+    telegram_id = user_data.get("id")
+    if telegram_id is None:
+        raise HTTPException(status_code=401, detail="invalid_user")
+
+    if int(payload.tg_user_id) != int(telegram_id):
+        raise HTTPException(status_code=403, detail="telegram_id_mismatch")
+
     if payload.tg_user_id <= 0:
         raise HTTPException(status_code=422, detail="tg_user_id is required")
     if not payload.items:
@@ -1296,10 +1321,21 @@ def api_public_checkout_from_webapp(payload: WebappCheckoutPayload, request: Req
     totals_payload["sum_total"] = sum_total
 
     client_context = payload.client_context.model_dump() if payload.client_context else None
+    first_name = (user_data.get("first_name") or "").strip()
+    last_name = (user_data.get("last_name") or "").strip()
+    full_name = " ".join(part for part in [first_name, last_name] if part).strip() or None
+    username = (user_data.get("username") or "").strip() or None
 
     with get_session() as session:
-        users_service.get_or_create_user_from_telegram(
-            session, telegram_id=int(payload.tg_user_id)
+        user = users_service.get_or_create_user_from_telegram(
+            session,
+            telegram_id=int(payload.tg_user_id),
+            username=username,
+            full_name=full_name,
+        )
+        contact = user.phone or ""
+        user_name = (
+            user.first_name if user and user.first_name else username or "Пользователь"
         )
         order = CheckoutOrder(
             tg_user_id=int(payload.tg_user_id),
@@ -1310,18 +1346,53 @@ def api_public_checkout_from_webapp(payload: WebappCheckoutPayload, request: Req
         )
         session.add(order)
         session.flush()
-        order_id = int(order.id)
+        checkout_order_id = int(order.id)
+    order_items = [
+        {
+            "product_id": int(item.get("item_id") or 0),
+            "name": item.get("title"),
+            "price": int(item.get("price") or 0),
+            "qty": int(item.get("qty") or 0),
+            "type": item.get("type") or "basket",
+        }
+        for item in normalized_items
+    ]
+    order_text = format_order_for_admin(
+        user_id=int(payload.tg_user_id),
+        user_name=user_name,
+        items=order_items,
+        total=int(totals_payload.get("sum_total") or 0),
+        customer_name=user_name,
+        contact=contact,
+        comment="",
+    )
+    saved_order_id = orders_service.add_order(
+        user_id=int(payload.tg_user_id),
+        user_name=user_name,
+        items=order_items,
+        total=int(totals_payload.get("sum_total") or 0),
+        customer_name=user_name,
+        contact=contact,
+        comment="",
+        order_text=order_text,
+    )
 
     _dispatch_webapp_checkout_created(
         request=request,
         tg_user_id=int(payload.tg_user_id),
         items=normalized_items,
         totals=totals_payload,
-        order_id=order_id,
+        order_id=saved_order_id,
+        saved_order_id=saved_order_id,
         client_context=client_context,
     )
 
-    return {"ok": True, "order_id": order_id, "message": "sent"}
+    return {
+        "ok": True,
+        "order_id": saved_order_id,
+        "checkout_order_id": checkout_order_id,
+        "message": "sent",
+    }
 
 
 @router.post("/api/webapp/order", deprecated=True)

@@ -42,7 +42,13 @@
 
   const loadSession = async () => {
     try {
-      const user = await getCurrentUserProfile();
+      const telegramId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+      if (!telegramId) {
+        setAdminVisibility(null);
+        renderAuthState(null);
+        return;
+      }
+      const user = await apiGet('/me', { telegram_id: telegramId });
       setAdminVisibility(user);
       renderAuthState(user);
     } catch (e) {
@@ -68,13 +74,7 @@
         }
         return;
       }
-
-      startTelegramOAuthFlow();
-    });
-
-    await processTelegramAuthFromUrl().catch((error) => {
-      console.error('Telegram auth via browser failed', error);
-      showToast(error?.message || 'Не удалось авторизоваться через Telegram');
+      showToast('Откройте витрину в Telegram, чтобы авторизоваться.');
     });
 
     if (typeof ensureTelegramWebAppAuth === 'function') {
