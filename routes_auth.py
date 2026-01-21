@@ -19,7 +19,10 @@ from pydantic import BaseModel
 from database import get_session
 from models import AuthSession, User
 from services import users as users_service
-from services.telegram_webapp_auth import authenticate_telegram_webapp_user
+from services.telegram_webapp_auth import (
+    authenticate_telegram_webapp_user,
+    validate_telegram_webapp_init_data,
+)
 from routes_public import (
     BOT_TOKEN,
     COOKIE_MAX_AGE,
@@ -41,59 +44,6 @@ class TelegramAuthPayload(BaseModel):
 
 class TelegramWebAppAuthPayload(BaseModel):
     init_data: str | None = None
-
-
-def _validate_telegram_webapp_init_data(
-    init_data: str, bot_token: str | None = None
-) -> dict[str, Any]:
-    if not init_data:
-        raise HTTPException(status_code=400, detail="init_data_missing")
-
-    try:
-        parsed_pairs = list(parse_qsl(init_data, keep_blank_values=True))
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid init_data format")
-
-    received_hash = None
-    filtered_pairs: list[tuple[str, str]] = []
-    for key, value in parsed_pairs:
-        if key == "hash":
-            received_hash = value
-        else:
-            filtered_pairs.append((key, value))
-
-    if not received_hash:
-        raise HTTPException(status_code=401, detail="invalid_signature")
-
-    resolved_bot_token = bot_token or BOT_TOKEN
-    secret_key = hashlib.sha256(resolved_bot_token.encode()).digest()
-    check_string = "\n".join(f"{k}={v}" for k, v in sorted(filtered_pairs, key=lambda item: item[0]))
-    calculated_hash = hmac.new(secret_key, check_string.encode(), hashlib.sha256).hexdigest()
-
-    if not hmac.compare_digest(calculated_hash, str(received_hash)):
-        logger.warning("Telegram WebApp auth failed: invalid signature")
-        raise HTTPException(status_code=401, detail="invalid_signature")
-
-    data_dict = {k: v for k, v in filtered_pairs}
-
-    auth_date_raw = data_dict.get("auth_date")
-    if auth_date_raw:
-        try:
-            auth_date = int(auth_date_raw)
-        except ValueError:
-            raise HTTPException(status_code=401, detail="invalid_signature")
-
-        if time.time() - auth_date > 24 * 60 * 60:
-            raise HTTPException(status_code=401, detail="invalid_signature")
-
-    user_json = data_dict.get("user")
-    if not user_json:
-        raise HTTPException(status_code=401, detail="invalid_signature")
-
-    try:
-        return json.loads(user_json)
-    except json.JSONDecodeError:
-        raise HTTPException(status_code=400, detail="Invalid user payload")
 
 
 def _parse_telegram_auth_data(auth_payload: str, bot_token: str | None = None) -> dict:
@@ -160,7 +110,7 @@ def api_auth_telegram_webapp(payload: TelegramWebAppAuthPayload, response: Respo
         return {"status": "error", "error": "init_data_missing"}
 
     try:
-        user_data = _validate_telegram_webapp_init_data(init_data, BOT_TOKEN)
+        user_data = validate_telegram_webapp_init_data(init_data, BOT_TOKEN)
     except HTTPException as exc:
         response.status_code = exc.status_code
         error_code = exc.detail if isinstance(exc.detail, str) else "invalid_signature"
@@ -345,7 +295,7 @@ async def api_auth_session(request: Request, response: Response, include_notes: 
             user = await authenticate_telegram_webapp_user(
                 request,
                 session,
-                _validate_telegram_webapp_init_data,
+                validate_telegram_webapp_init_data,
                 response=response,
                 cookie_max_age=COOKIE_MAX_AGE,
             )
