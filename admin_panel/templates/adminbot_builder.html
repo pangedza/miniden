@@ -2,115 +2,325 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Сборка бота</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Конструктор бота — AdminBot</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='adminsite/base.css') }}">
     <style>
-        body { font-family: Arial, sans-serif; margin: 16px; background:#f8fafc; }
-        header { display:flex; gap:12px; margin-bottom:16px; flex-wrap: wrap; }
-        a.button, button { padding: 6px 10px; background: #2563eb; color: #fff; text-decoration: none; border: none; border-radius: 4px; cursor: pointer; }
-        .hero { background:#0f172a; color:#e2e8f0; padding:18px; border-radius:12px; margin-bottom:16px; }
-        .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:12px; }
-        .card { background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:14px; display:flex; flex-direction:column; gap:10px; }
-        .status { display:inline-flex; align-items:center; gap:6px; padding:4px 8px; border-radius:999px; font-size:12px; }
-        .status.ok { background:#dcfce7; color:#166534; }
-        .status.warn { background:#fef9c3; color:#854d0e; }
-        .status.fail { background:#fee2e2; color:#991b1b; }
-        .muted { color:#64748b; font-size:13px; }
-        .actions { display:flex; gap:8px; flex-wrap: wrap; }
-        .wizard { background:#fff; border:1px solid #cbd5e1; border-radius:10px; padding:14px; margin-top:16px; }
-        .wizard-step { display:none; }
-        .wizard-step.active { display:block; }
-        .wizard-actions { display:flex; gap:8px; margin-top:12px; }
+        .builder-hero {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: #0b1220;
+            padding: 24px;
+            border-radius: 14px;
+            margin-bottom: 24px;
+            box-shadow: 0 8px 30px rgba(168, 85, 247, 0.25);
+        }
+        .builder-hero h1 {
+            margin: 0 0 8px;
+            font-size: 28px;
+            font-weight: 800;
+        }
+        .builder-hero p {
+            margin: 0 0 12px;
+            font-size: 15px;
+            opacity: 0.9;
+        }
+        .builder-hero .quick-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 16px;
+        }
+        .section-card {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            height: 100%;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .section-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+        }
+        .section-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 999px;
+            font-size: 13px;
+            font-weight: 600;
+            width: fit-content;
+        }
+        .section-status.ok {
+            background: rgba(52, 211, 153, 0.2);
+            color: var(--success);
+            border: 1px solid var(--success);
+        }
+        .section-status.warn {
+            background: rgba(251, 191, 36, 0.2);
+            color: #fbbf24;
+            border: 1px solid #fbbf24;
+        }
+        .section-status.fail {
+            background: rgba(248, 113, 113, 0.2);
+            color: var(--danger);
+            border: 1px solid var(--danger);
+        }
+        .section-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin: 0;
+            color: var(--text);
+        }
+        .section-description {
+            color: var(--muted);
+            font-size: 14px;
+            line-height: 1.5;
+            flex: 1;
+        }
+        .section-hint {
+            color: var(--muted);
+            font-size: 13px;
+            font-style: italic;
+            padding-top: 8px;
+            border-top: 1px solid var(--border);
+        }
+        .wizard-card {
+            background: var(--card);
+            border: 2px dashed var(--primary);
+            border-radius: 14px;
+            padding: 20px;
+            margin-top: 24px;
+        }
+        .wizard-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+        .wizard-header h3 {
+            margin: 0;
+            color: var(--text);
+            font-size: 20px;
+        }
+        .wizard-close {
+            background: transparent;
+            border: none;
+            color: var(--muted);
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            transition: background 0.2s ease;
+        }
+        .wizard-close:hover {
+            background: var(--border);
+        }
+        .wizard-step {
+            display: none;
+            padding: 16px;
+            background: #0b1220;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+        }
+        .wizard-step.active {
+            display: block;
+        }
+        .wizard-step strong {
+            display: block;
+            font-size: 16px;
+            color: var(--text);
+            margin-bottom: 8px;
+        }
+        .wizard-step p {
+            color: var(--muted);
+            font-size: 14px;
+            margin-bottom: 16px;
+        }
+        .wizard-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .wizard-progress {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        .wizard-progress-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--border);
+            transition: background 0.2s ease;
+        }
+        .wizard-progress-dot.active {
+            background: var(--primary);
+        }
+        .page-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 16px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+        .info-box {
+            background: rgba(168, 85, 247, 0.1);
+            border: 1px solid var(--primary);
+            border-radius: 12px;
+            padding: 16px;
+            max-width: 400px;
+        }
+        .info-box .badge-list {
+            margin-bottom: 10px;
+        }
     </style>
 </head>
 <body>
-<header>
-    <a href="/adminbot" class="button">Главная</a>
-    <a href="/adminbot/builder" class="button" style="background:#0ea5e9;">Сборка бота</a>
-    <a href="/adminbot/integrity" class="button">Проверка целостности</a>
-    <a href="/adminbot/templates" class="button">Шаблоны</a>
-    <a href="/adminbot/nodes" class="button">Узлы</a>
-    <a href="/adminbot/menu-buttons" class="button">Меню</a>
-    <a href="/adminbot/automations" class="button">Автоматизации</a>
-    <a href="/adminbot/runtime" class="button">Работа бота</a>
-    <a href="/adminbot/logout" class="button" style="background:#dc2626;">Выйти</a>
+<header class="site-header">
+    <div class="brand-area">
+        <div class="brand">AdminBot</div>
+    </div>
+    <nav class="main-nav">
+        <a href="/adminbot">Главная</a>
+        <a href="/adminbot/builder" style="background: rgba(0,0,0,0.12);">Конструктор</a>
+        <a href="/adminbot/templates">Шаблоны</a>
+        <a href="/adminbot/nodes">Узлы</a>
+        <a href="/adminbot/triggers">Триггеры</a>
+        <a href="/adminbot/automations">Автоматизации</a>
+        <a href="/adminbot/integrity">Проверка</a>
+        <a href="/adminbot/runtime">Работа бота</a>
+        <form method="post" action="/adminbot/logout" class="logout-form">
+            <button class="btn-secondary" type="submit">Выйти</button>
+        </form>
+    </nav>
 </header>
 
-<div class="hero">
-    <h2>Сборка бота — единый конструктор</h2>
-    <p>Проверяйте статус ключевых разделов и переходите к настройкам без лишних поисков.</p>
-    <p class="muted">Стартовый узел: <strong>{{ start_node_code }}</strong></p>
-    <div class="actions" style="margin-top:8px;">
-        <a href="/adminbot/templates" class="button" style="background:#38bdf8; color:#0b1220;">Быстрая сборка по шаблону</a>
-        <a href="/adminbot/integrity" class="button" style="background:#475569;">Проверить целостность</a>
+<main class="page-container">
+    <div class="page-actions">
+        <div>
+            <h1>Конструктор бота</h1>
+            <p class="muted">Проверьте статус всех разделов и быстро перейдите к настройкам. Всё в одном месте.</p>
+        </div>
+        <div class="info-box">
+            <div class="badge-list">
+                <span class="tag">Быстрый старт</span>
+                <span class="tag">Шаблоны</span>
+                <span class="tag">Проверка</span>
+            </div>
+            <p style="margin:0; font-size:13px;">Используйте шаблоны для быстрой настройки или создавайте свой сценарий с нуля.</p>
+        </div>
     </div>
-</div>
 
-<div class="grid">
-    {% for section in sections %}
-    <div class="card">
-        <div class="status {{ section.status.class }}">
-            <span>{{ section.status.icon }}</span>
-            <span>{{ section.status.label }}</span>
-        </div>
-        <strong>{{ section.title }}</strong>
-        <div class="muted">{{ section.description }}</div>
-        <div class="muted">{{ section.hint }}</div>
-        <div class="actions">
-            <a href="{{ section.url }}" class="button">Настроить</a>
+    <div class="builder-hero">
+        <h1>🚀 Быстрый старт</h1>
+        <p>Стартовый узел: <strong>{{ start_node_code }}</strong></p>
+        <div class="quick-actions">
+            <a href="/adminbot/templates" class="btn-primary">📋 Выбрать шаблон</a>
+            <a href="/adminbot/integrity" class="btn-secondary">🔍 Проверить целостность</a>
         </div>
     </div>
-    {% endfor %}
-</div>
 
-<div class="wizard" id="builder-wizard">
-    <h3>Мастер сборки для новичка (3 шага)</h3>
-    <div class="wizard-step active" data-step="1">
-        <strong>Шаг 1. Профиль пользователя</strong>
-        <p class="muted">Создайте узел «Профиль». Мы предложим добавить «Мои заказы» и «Контакты/Помощь».</p>
-        <div class="wizard-actions">
-            <button type="button" class="button" data-next>Дальше</button>
-            <button type="button" class="button" style="background:#6b7280;" data-skip>Пропустить</button>
+    <div class="grid two-columns">
+        {% for section in sections %}
+        <div class="card section-card">
+            <div class="section-status {{ section.status.class }}">
+                <span>{{ section.status.icon }}</span>
+                <span>{{ section.status.label }}</span>
+            </div>
+            <h3 class="section-title">{{ section.title }}</h3>
+            <p class="section-description">{{ section.description }}</p>
+            {% if section.hint %}
+            <div class="section-hint">💡 {{ section.hint }}</div>
+            {% endif %}
+            <div class="actions">
+                <a href="{{ section.url }}" class="btn-primary">Настроить →</a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="wizard-card" id="builder-wizard">
+        <div class="wizard-header">
+            <h3>📚 Мастер настройки для новичков</h3>
+            <button class="wizard-close" type="button" data-skip aria-label="Закрыть">×</button>
+        </div>
+        <div class="wizard-progress">
+            <div class="wizard-progress-dot active" data-progress="0"></div>
+            <div class="wizard-progress-dot" data-progress="1"></div>
+            <div class="wizard-progress-dot" data-progress="2"></div>
+        </div>
+        <div class="wizard-step active" data-step="1">
+            <strong>Шаг 1: Профиль пользователя</strong>
+            <p>Создайте узел «Профиль» для отображения информации о пользователе. Мы предложим добавить «Мои заказы» и «Контакты/Помощь».</p>
+            <div class="wizard-actions">
+                <button type="button" class="btn-primary" data-next>Дальше →</button>
+                <button type="button" class="btn-secondary" data-skip>Пропустить</button>
+            </div>
+        </div>
+        <div class="wizard-step" data-step="2">
+            <strong>Шаг 2: Корзина и заказы</strong>
+            <p>Включите корзину и автоматизацию заказа из WebApp. При необходимости установите пакет «Корзина + Заказы» для полной функциональности.</p>
+            <div class="wizard-actions">
+                <button type="button" class="btn-primary" data-next>Дальше →</button>
+                <button type="button" class="btn-secondary" data-skip>Пропустить</button>
+            </div>
+        </div>
+        <div class="wizard-step" data-step="3">
+            <strong>Шаг 3: Помощь и обратная связь</strong>
+            <p>Добавьте узлы «Помощь» и «Связаться», чтобы пользователи могли быстро написать администратору и получить поддержку.</p>
+            <div class="wizard-actions">
+                <a href="/adminbot/templates" class="btn-primary">Выбрать шаблон</a>
+                <button type="button" class="btn-secondary" data-skip>Закрыть</button>
+            </div>
         </div>
     </div>
-    <div class="wizard-step" data-step="2">
-        <strong>Шаг 2. Корзина и заказы</strong>
-        <p class="muted">Включите корзину и автоматизацию заказа из WebApp. При необходимости установите пакет «Корзина + Заказы».</p>
-        <div class="wizard-actions">
-            <button type="button" class="button" data-next>Дальше</button>
-            <button type="button" class="button" style="background:#6b7280;" data-skip>Пропустить</button>
-        </div>
-    </div>
-    <div class="wizard-step" data-step="3">
-        <strong>Шаг 3. Помощь и обратная связь</strong>
-        <p class="muted">Добавьте узлы «Помощь» и «Связаться», чтобы пользователи быстро писали админу.</p>
-        <div class="wizard-actions">
-            <a href="/adminbot/templates" class="button">Выбрать шаблон</a>
-            <button type="button" class="button" style="background:#6b7280;" data-skip>Закрыть</button>
-        </div>
-    </div>
-</div>
+</main>
 
 <script>
-    (function () {
-        const wizard = document.getElementById('builder-wizard');
-        if (!wizard) return;
-        const steps = Array.from(wizard.querySelectorAll('.wizard-step'));
-        let current = 0;
+(function () {
+    const wizard = document.getElementById('builder-wizard');
+    if (!wizard) return;
+    
+    const steps = Array.from(wizard.querySelectorAll('.wizard-step'));
+    const progressDots = Array.from(wizard.querySelectorAll('.wizard-progress-dot'));
+    let current = 0;
 
-        function showStep(index) {
-            steps.forEach((step, idx) => step.classList.toggle('active', idx === index));
-        }
-
-        wizard.addEventListener('click', (event) => {
-            if (event.target.matches('[data-next]')) {
-                current = Math.min(current + 1, steps.length - 1);
-                showStep(current);
-            }
-            if (event.target.matches('[data-skip]')) {
-                wizard.style.display = 'none';
-            }
+    function showStep(index) {
+        steps.forEach((step, idx) => {
+            step.classList.toggle('active', idx === index);
         });
-    })();
+        progressDots.forEach((dot, idx) => {
+            dot.classList.toggle('active', idx <= index);
+        });
+    }
+
+    function hideWizard() {
+        wizard.style.display = 'none';
+        localStorage.setItem('adminbot-wizard-hidden', 'true');
+    }
+
+    // Проверяем, был ли мастер скрыт ранее
+    if (localStorage.getItem('adminbot-wizard-hidden') === 'true') {
+        wizard.style.display = 'none';
+    }
+
+    wizard.addEventListener('click', (event) => {
+        if (event.target.matches('[data-next]')) {
+            current = Math.min(current + 1, steps.length - 1);
+            showStep(current);
+        }
+        if (event.target.matches('[data-skip]')) {
+            hideWizard();
+        }
+    });
+})();
 </script>
 </body>
 </html>

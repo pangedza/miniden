@@ -1,50 +1,59 @@
 {% extends "base_adminsite.html" %}
-{% block title %}AdminSite Конструктор меню{% endblock %}
+{% block title %}Конструктор витрины — AdminSite{% endblock %}
 {% block head_extra %}
     <link rel="stylesheet" href="{{ url_for('static', path='adminsite/constructor.css') }}">
 {% endblock %}
 {% block content %}
 <div id="constructor-status-bar"></div>
-<div class="page-actions" style="justify-content: space-between; align-items:flex-start; gap:16px;">
+<div class="page-actions">
     <div>
-        <h1>Меню витрины</h1>
-        <p class="muted">Управляйте категориями, позициями и настройками сайта. Всё работает через единый API меню.</p>
+        <h1>Конструктор витрины</h1>
+        <p class="muted">Управляйте категориями, товарами и настройками сайта. Все изменения применяются сразу.</p>
     </div>
-    <div class="notice" style="max-width: 360px;">
+    <div class="info-box">
         <div class="badge-list">
-            <span class="tag">Категории</span>
-            <span class="tag">Позиции</span>
-            <span class="tag">Настройки</span>
+            <span class="tag">📦 Категории</span>
+            <span class="tag">🛍 Товары</span>
+            <span class="tag">⚙️ Настройки</span>
         </div>
-        <p style="margin-top:10px;">Изменения публикуются сразу после сохранения.</p>
+        <p style="margin:10px 0 0; font-size:13px;">💡 Изменения публикуются сразу после сохранения.</p>
     </div>
 </div>
 
 <div id="global-status" class="status"></div>
 
 <div class="tabs adminsite-tabs" role="tablist" aria-label="Разделы конструктора">
-    <button class="tab active" type="button" data-panel="panel-menu">Меню витрины</button>
-    <button class="tab" type="button" data-panel="panel-settings">Главная/настройки</button>
-    <button class="tab" type="button" data-panel="panel-media">Медиа</button>
+    <button class="tab active" type="button" data-panel="panel-menu">
+        <span>📋</span> Меню витрины
+    </button>
+    <button class="tab" type="button" data-panel="panel-settings">
+        <span>⚙️</span> Настройки
+    </button>
+    <button class="tab" type="button" data-panel="panel-media">
+        <span>🖼️</span> Медиа
+    </button>
 </div>
 
 <section class="panel active" id="panel-menu">
     <div class="card">
         <div class="table-top">
             <div>
-                <h3 style="margin:0;">Категории и позиции</h3>
-                <p class="muted">Добавляйте категории, управляйте сортировкой и активностью. Позиции отображаются сразу на витрине и в боте.</p>
+                <h3 style="margin:0;">📦 Категории и товары</h3>
+                <p class="muted">Создавайте категории и добавляйте товары. Всё отображается сразу на сайте и в боте.</p>
             </div>
             <div class="actions">
-                <button class="btn-secondary" type="button" id="menu-refresh">Обновить</button>
+                <button class="btn-secondary" type="button" id="menu-refresh" title="Обновить список">🔄 Обновить</button>
             </div>
         </div>
         <div class="status" id="status-menu"></div>
         <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px;">
             <div class="card" style="margin:0;">
                 <div class="card-header" style="align-items:center;">
-                    <h4 style="margin:0;">Категории</h4>
-                    <button class="btn-primary" type="button" id="category-add">+ Категория</button>
+                    <div>
+                        <h4 style="margin:0;">📁 Категории</h4>
+                        <p class="muted" style="margin:4px 0 0; font-size:13px;">Группы товаров для удобной навигации</p>
+                    </div>
+                    <button class="btn-primary" type="button" id="category-add">+ Добавить</button>
                 </div>
                 <div id="category-form" class="card" style="margin:0 0 12px; display:none;"></div>
                 <div id="category-list" class="block-list"></div>
@@ -52,10 +61,10 @@
             <div class="card" style="margin:0;">
                 <div class="card-header" style="align-items:center;">
                     <div>
-                        <h4 style="margin:0;">Позиции</h4>
-                        <p class="muted" style="margin:4px 0 0;" id="items-caption">Выберите категорию слева.</p>
+                        <h4 style="margin:0;">🛍 Товары</h4>
+                        <p class="muted" style="margin:4px 0 0; font-size:13px;" id="items-caption">Выберите категорию слева, чтобы увидеть товары</p>
                     </div>
-                    <button class="btn-primary" type="button" id="item-add">+ Позиция</button>
+                    <button class="btn-primary" type="button" id="item-add" disabled title="Сначала выберите категорию">+ Добавить</button>
                 </div>
                 <div id="item-form" class="card" style="margin:0 0 12px; display:none;"></div>
                 <div id="item-list" class="block-list"></div>
@@ -68,56 +77,71 @@
     <div class="card">
         <div class="table-top">
             <div>
-                <h3 style="margin:0;">Настройки сайта</h3>
-                <p class="muted">Бренд, цвета, контакты и hero блок для витрины.</p>
+                <h3 style="margin:0;">⚙️ Настройки сайта</h3>
+                <p class="muted">Бренд, цвета, контакты и главный блок (hero) для витрины.</p>
             </div>
             <div class="actions">
-                <button class="btn-secondary" type="button" id="settings-preview">Предпросмотр</button>
-                <button class="btn-primary" type="button" id="settings-save">Сохранить</button>
+                <button class="btn-secondary" type="button" id="settings-preview">👁️ Предпросмотр</button>
+                <button class="btn-primary" type="button" id="settings-save">💾 Сохранить</button>
             </div>
         </div>
         <div class="status" id="status-settings"></div>
-        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:12px;">
-            <label class="field">
-                <span>Бренд</span>
-                <input type="text" id="settings-brand" placeholder="Название бренда" />
-            </label>
-            <label class="field">
-                <span>Логотип (URL)</span>
-                <input type="text" id="settings-logo" placeholder="/media/adminsite/..." />
-            </label>
-            <label class="field">
-                <span>Primary color</span>
-                <input type="text" id="settings-primary" placeholder="#7a8c70" />
-            </label>
-            <label class="field">
-                <span>Secondary color</span>
-                <input type="text" id="settings-secondary" placeholder="#334155" />
-            </label>
-            <label class="field">
-                <span>Background</span>
-                <input type="text" id="settings-background" placeholder="linear-gradient(...) или #fff" />
-            </label>
-            <label class="field">
-                <span>Hero заголовок</span>
-                <input type="text" id="settings-hero-title" />
-            </label>
-            <label class="field">
-                <span>Hero подзаголовок</span>
-                <textarea id="settings-hero-subtitle" rows="3"></textarea>
-            </label>
-            <label class="field">
-                <span>Hero изображение (URL)</span>
-                <input type="text" id="settings-hero-image" />
-            </label>
-            <label class="field">
-                <span>Контакты (JSON)</span>
-                <textarea id="settings-contacts" rows="4" placeholder='{"phone": "+7...", "email": "hello@"}'></textarea>
-            </label>
-            <label class="field">
-                <span>Соцсети (JSON)</span>
-                <textarea id="settings-social" rows="4" placeholder='{"instagram": "https://..."}'></textarea>
-            </label>
+        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:16px;">
+            <div class="card" style="margin:0; background:#0b1220;">
+                <h4 style="margin:0 0 12px; font-size:16px;">🏷️ Бренд</h4>
+                <label class="field">
+                    <span>Название бренда</span>
+                    <input type="text" id="settings-brand" placeholder="Например: MiniDeN" />
+                </label>
+                <label class="field">
+                    <span>Логотип (URL)</span>
+                    <input type="text" id="settings-logo" placeholder="/media/adminsite/logo.png" />
+                    <small class="muted" style="display:block; margin-top:4px;">💡 Загрузите изображение в разделе "Медиа"</small>
+                </label>
+            </div>
+            <div class="card" style="margin:0; background:#0b1220;">
+                <h4 style="margin:0 0 12px; font-size:16px;">🎨 Цвета</h4>
+                <label class="field">
+                    <span>Основной цвет</span>
+                    <input type="text" id="settings-primary" placeholder="#a855f7" />
+                    <small class="muted" style="display:block; margin-top:4px;">HEX формат, например: #a855f7</small>
+                </label>
+                <label class="field">
+                    <span>Вторичный цвет</span>
+                    <input type="text" id="settings-secondary" placeholder="#334155" />
+                </label>
+                <label class="field">
+                    <span>Фон</span>
+                    <input type="text" id="settings-background" placeholder="#0b1220 или linear-gradient(...)" />
+                </label>
+            </div>
+            <div class="card" style="margin:0; background:#0b1220;">
+                <h4 style="margin:0 0 12px; font-size:16px;">🌟 Главный блок (Hero)</h4>
+                <label class="field">
+                    <span>Заголовок</span>
+                    <input type="text" id="settings-hero-title" placeholder="Приветственный заголовок" />
+                </label>
+                <label class="field">
+                    <span>Подзаголовок</span>
+                    <textarea id="settings-hero-subtitle" rows="3" placeholder="Краткое описание вашего проекта"></textarea>
+                </label>
+                <label class="field">
+                    <span>Изображение (URL)</span>
+                    <input type="text" id="settings-hero-image" placeholder="/media/adminsite/hero.jpg" />
+                </label>
+            </div>
+            <div class="card" style="margin:0; background:#0b1220;">
+                <h4 style="margin:0 0 12px; font-size:16px;">📞 Контакты</h4>
+                <label class="field">
+                    <span>Контакты (JSON)</span>
+                    <textarea id="settings-contacts" rows="4" placeholder='{"phone": "+7 999 123-45-67", "email": "hello@example.com"}'></textarea>
+                    <small class="muted" style="display:block; margin-top:4px;">💡 Формат JSON: {"phone": "...", "email": "..."}</small>
+                </label>
+                <label class="field">
+                    <span>Соцсети (JSON)</span>
+                    <textarea id="settings-social" rows="4" placeholder='{"instagram": "https://instagram.com/...", "telegram": "https://t.me/..."}'></textarea>
+                </label>
+            </div>
         </div>
     </div>
 </section>
@@ -126,33 +150,34 @@
     <div class="card">
         <div class="table-top">
             <div>
-                <h3 style="margin:0;">Медиа-библиотека</h3>
-                <p class="muted">Загружайте изображения и копируйте URL. Файлы сохраняются в /media/adminsite/.</p>
+                <h3 style="margin:0;">🖼️ Медиа-библиотека</h3>
+                <p class="muted">Загружайте изображения для товаров и настроек. Файлы сохраняются в /media/adminsite/</p>
             </div>
             <div class="badge-list">
-                <span class="tag">upload</span>
-                <span class="tag">preview</span>
-                <span class="tag">copy URL</span>
+                <span class="tag">📤 Загрузка</span>
+                <span class="tag">👁️ Просмотр</span>
+                <span class="tag">📋 Копировать URL</span>
             </div>
         </div>
         <div class="status" id="status-media"></div>
         <div class="media-grid">
             <div class="card upload-card">
-                <h4 style="margin-top:0;">Загрузка файла</h4>
-                <p class="muted" style="margin-top:-4px;">jpg, png или webp до 5 МБ</p>
-                <label class="file-input">Выберите файл
+                <h4 style="margin-top:0;">📤 Загрузка изображения</h4>
+                <p class="muted" style="margin-top:4px; margin-bottom:16px;">Поддерживаются форматы: JPG, PNG, WebP<br>Максимальный размер: 5 МБ</p>
+                <label class="file-input">
+                    <span style="display:block; margin-bottom:8px; font-weight:600;">Выберите файл</span>
                     <input type="file" id="media-upload-input" accept="image/jpeg,image/png,image/webp" />
                 </label>
-                <div class="actions" style="margin-top:12px;">
-                    <button class="btn-primary" type="button" id="media-upload-btn">Загрузить</button>
-                    <button class="btn-ghost" type="button" id="media-refresh">Обновить</button>
+                <div class="actions" style="margin-top:16px;">
+                    <button class="btn-primary" type="button" id="media-upload-btn">⬆️ Загрузить</button>
+                    <button class="btn-secondary" type="button" id="media-refresh">🔄 Обновить</button>
                 </div>
                 <div class="status" id="media-upload-status"></div>
             </div>
             <div class="card list-card">
-                <div class="card-header" style="gap:12px;">
-                    <h4 style="margin:0;">Файлы</h4>
-                    <input type="search" id="media-search" placeholder="Поиск по имени" />
+                <div class="card-header" style="gap:12px; margin-bottom:12px;">
+                    <h4 style="margin:0;">📁 Загруженные файлы</h4>
+                    <input type="search" id="media-search" placeholder="🔍 Поиск по имени..." style="max-width:250px;" />
                 </div>
                 <div id="media-list" class="media-list"></div>
             </div>
