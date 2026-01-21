@@ -118,8 +118,17 @@ WebApp корзина и checkout (telegram_id)
   - `POST /api/cart/update` — изменить количество (body: `user_id`, `product_id`, `qty`, `type`).
   - `POST /api/cart/clear` — очистить корзину (body: `user_id`).
   - `POST /api/cart/apply-promocode` — применить промокод (body: `user_id`, `code`).
-  - `POST /api/public/checkout/from-webapp` — отправка корзины в Telegram-бот (используется кнопкой «Оформить заказ»).
 - Примечание: `user_id` = `telegram_id` (FK на `users.telegram_id`).
+
+WebApp → Bot: оформление заказа
+------------------------------
+- В модалке оформления корзины кнопка «Отправить заказ в бот» вызывает `Telegram.WebApp.sendData()`.
+- Payload, который уходит в бота (JSON.stringify):
+  - `telegram_id` — Telegram ID пользователя (из `Telegram.WebApp.initDataUnsafe.user.id`).
+  - `items` — массив позиций корзины с полями:
+    - `item_id`, `title`, `qty`, `price`, `type`, `category_slug`.
+  - `total` — итоговая сумма корзины (с учётом промокода, если применён).
+- После отправки WebApp закрывается через `Telegram.WebApp.close()`.
 
 SQL для проверки связки заказов с users
 ---------------------------------------
@@ -142,16 +151,16 @@ LIMIT 20;
 Как проверить оформление заказа в боте
 --------------------------------------
 1. В Telegram открыть витрину, добавить товары в корзину и перейти на `/cart.html`.
-2. В корзине нажать «Оформить заказ» и подтвердить отправку в бот.
+2. В корзине нажать «Отправить заказ в бот» и подтвердить отправку.
 3. Убедиться, что бот отправил сообщение с составом заказа и кнопкой связи с администратором.
 4. Проверить, что запись появилась в БД через SQL из задачи 1.
 
 WebApp checkout → Telegram (adminbot)
 -------------------------------------
 - В `/cart` кнопка «Оформить заказ» открывает модалку подтверждения: ссылка «Связаться с админом» берётся из `site_settings.contacts.telegram` или `site_settings.social_links.telegram`; если контакт не задан, кнопка скрывается.
-- Витрина берёт `tg_user_id` из `Telegram.WebApp.initDataUnsafe.user.id` и показывает кнопку «Оформить заказ» только для Telegram WebApp.
-- По клику «Оформить заказ» отправляется `POST /api/public/checkout/from-webapp` с items/totals и клиентским контекстом; запрос валидируется по `initData`.
-- Backend сохраняет запись в `orders` (привязка к `telegram_id`), дополнительно пишет raw-данные в `checkout_orders` и диспатчит событие `webapp_checkout_created`.
+- Витрина берёт `tg_user_id` из `Telegram.WebApp.initDataUnsafe.user.id` и показывает кнопку «Отправить заказ в бот» только для Telegram WebApp.
+- По клику «Отправить заказ в бот» отправляется `Telegram.WebApp.sendData()` с payload (см. секцию выше).
+- Далее обработка заказа выполняется в боте (по полученным данным), без прямого HTTP-запроса из WebApp.
 - Событие использует автоматизации AdminBot и отправляет пользователю сообщение со списком позиций и кнопками, настроенными в конструкторе.
 - Обработчик inline-кнопки «Связаться» принимает callback `trigger:contact_manager` (см. `handlers/support.py`).
 - Ограничения загрузок: изображения — до 5 МБ (загрузка товаров/обложек, аватары и фото отзывов).
