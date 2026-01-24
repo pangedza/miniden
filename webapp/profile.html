@@ -10,7 +10,6 @@
   <link rel="icon" id="site-favicon" href="/favicon.ico" />
   <link rel="stylesheet" id="theme-stylesheet" href="css/theme.css" />
   <link rel="stylesheet" href="css/support_widget.css?v=20250605" />
-
 </head>
 <body class="page-profile">
   <header class="top-nav">
@@ -59,113 +58,139 @@
   <div class="app-sidebar-overlay"></div>
   <div id="toast-container"></div>
 
-  <main>
-    <h1>Профиль</h1>
-    <p>Данные берутся из вашего Telegram-профиля MiniDeN и заказов.</p>
+  <main class="profile-page">
+    <div class="profile-container">
+      <section id="auth-card" class="card profile-card profile-auth-card">
+        <div class="card-title">Вход в профиль</div>
+        <p class="hint">Введите телефон и одноразовый код из Telegram-бота MiniDeN.</p>
+        <form id="login-form" class="profile-form" autocomplete="on">
+          <label class="field">
+            <span class="field-label">Телефон</span>
+            <input
+              id="login-phone"
+              name="phone"
+              type="tel"
+              inputmode="tel"
+              placeholder="+7 (999) 123-45-67"
+              autocomplete="tel"
+              required
+            />
+          </label>
+          <label class="field">
+            <span class="field-label">Код</span>
+            <input
+              id="login-code"
+              name="code"
+              type="text"
+              inputmode="numeric"
+              placeholder="123456"
+              autocomplete="one-time-code"
+              required
+            />
+          </label>
+          <button id="login-submit" class="btn profile-button" type="submit">Войти</button>
+          <div id="login-error" class="error-text" role="alert" aria-live="polite"></div>
+        </form>
+        <p class="hint hint-secondary">
+          Как получить код: откройте бот MiniDeN, запросите вход и введите код здесь.
+        </p>
+      </section>
 
-    <div id="status" class="message" style="display:none"></div>
+      <section id="profile-view" class="profile-view" style="display:none;">
+        <section class="card profile-card profile-summary-card">
+          <div class="profile-summary">
+            <div>
+              <div class="card-title">Профиль</div>
+              <div id="profile-status" class="hint profile-status"></div>
+            </div>
+            <button id="logout-button" class="btn secondary profile-logout" type="button">Выйти</button>
+          </div>
+          <div class="profile-meta">
+            <div class="profile-meta-row">
+              <span class="label">Телефон</span>
+              <span class="value" id="profile-phone">—</span>
+            </div>
+            <div class="profile-meta-row">
+              <span class="label">Имя</span>
+              <span class="value" id="profile-name">—</span>
+            </div>
+            <div class="profile-meta-row">
+              <span class="label">Telegram</span>
+              <span class="value" id="profile-telegram">—</span>
+            </div>
+          </div>
+        </section>
 
-    <div class="profile-avatar-wrapper" id="profile-avatar-wrapper" style="display:none;">
-      <div id="profile-avatar" class="profile-avatar">
-        <span id="profile-avatar-initials" class="profile-avatar-initials"></span>
-      </div>
-      <div class="profile-avatar-actions">
-        <input type="file" id="profile-avatar-file-input" accept="image/*" hidden>
-        <button class="btn secondary" id="profile-avatar-choose-btn" type="button">Выбрать фото</button>
-        <div class="profile-avatar-hint">JPG, PNG или WEBP • до 5 МБ</div>
-      </div>
-    </div>
+        <section class="card profile-card">
+          <div class="card-title">Адреса</div>
+          <ul id="addresses-list" class="profile-list"></ul>
+        </section>
 
-    <div class="grid" id="profile-grid" style="display:none">
-      <div class="card">
-        <div class="label">Имя</div>
-        <div class="value editable"><span id="full-name">—</span><button class="edit-btn" id="edit-full-name" title="Редактировать имя">✏️</button></div>
-        <div class="label" style="margin-top: 12px;">Telegram</div>
-        <div class="value" id="username">—</div>
-        <div class="label" style="margin-top: 12px;">Telegram ID</div>
-        <div class="value" id="telegram-id">—</div>
-        <div class="label" style="margin-top: 12px;">Телефон</div>
-        <div class="value editable"><span id="phone">—</span><button class="edit-btn" id="edit-phone" title="Редактировать телефон">✏️</button></div>
-        <div class="label" style="margin-top: 12px;">Дата регистрации</div>
-        <div class="value" id="created-at">—</div>
-      </div>
+        <section class="card profile-card">
+          <div class="card-title">Заказы</div>
+          <ul id="orders-list" class="profile-list"></ul>
+        </section>
 
-      <div class="card">
-        <div class="label">Мои заказы</div>
-        <ul class="list" id="orders-list"></ul>
-      </div>
-
-      <div class="card">
-        <div class="label">Мои мастер-классы</div>
-        <ul class="list" id="courses-list"></ul>
-      </div>
-
-      <div class="card">
-        <div class="label">Избранное</div>
-        <ul class="list" id="favorites-list"></ul>
-      </div>
-
-      <div class="card">
-        <div class="label">Статистика</div>
-        <ul class="list" id="stats-list"></ul>
-      </div>
+        <section class="card profile-card">
+          <div class="card-title">Корзина</div>
+          <ul id="cart-list" class="profile-list"></ul>
+        </section>
+      </section>
     </div>
   </main>
 
-  <section class="section" id="login-hint" style="display: none; text-align: center;">
-    <h2 id="login-hint-title">Вы не авторизованы</h2>
-    <p id="login-hint-description">Профиль, заказы и избранное доступны после входа через Telegram.</p>
-    <button class="btn" id="login-button" type="button">Войти через Telegram</button>
-  </section>
-
-  <div id="profile-actions" style="display: none; gap: 10px; margin-top: 16px;">
-    <button class="btn secondary" id="switch-user-btn" type="button">Сменить пользователя</button>
-    <a class="btn" href="products.html">Перейти в каталог</a>
-  </div>
-
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="js/app.js?v=20251218"></script>
   <script src="js/api.js?v=20250605"></script>
   <script src="js/app_shell.js?v=20251220"></script>
   <script>
-    const statusEl = document.getElementById('status');
-    const loginHint = document.getElementById('login-hint');
-    const profileGrid = document.getElementById('profile-grid');
-    const profileAvatarWrapper = document.getElementById('profile-avatar-wrapper');
-    const avatarDiv = document.getElementById('profile-avatar');
-    const avatarInitialsSpan = document.getElementById('profile-avatar-initials');
-    const avatarFileInput = document.getElementById('profile-avatar-file-input');
-    const avatarChooseBtn = document.getElementById('profile-avatar-choose-btn');
-    const fullNameEl = document.getElementById('full-name');
-    const usernameEl = document.getElementById('username');
-    const telegramIdEl = document.getElementById('telegram-id');
-    const phoneEl = document.getElementById('phone');
-    const createdAtEl = document.getElementById('created-at');
+    const ACCESS_TOKEN_KEY = 'access_token';
+
+    const authCard = document.getElementById('auth-card');
+    const profileView = document.getElementById('profile-view');
+    const loginForm = document.getElementById('login-form');
+    const phoneInput = document.getElementById('login-phone');
+    const codeInput = document.getElementById('login-code');
+    const loginSubmit = document.getElementById('login-submit');
+    const loginError = document.getElementById('login-error');
+    const profileStatus = document.getElementById('profile-status');
+    const logoutButton = document.getElementById('logout-button');
+    const profilePhone = document.getElementById('profile-phone');
+    const profileName = document.getElementById('profile-name');
+    const profileTelegram = document.getElementById('profile-telegram');
+    const addressesList = document.getElementById('addresses-list');
     const ordersList = document.getElementById('orders-list');
-    const coursesList = document.getElementById('courses-list');
-    const favoritesList = document.getElementById('favorites-list');
-    const statsList = document.getElementById('stats-list');
+    const cartList = document.getElementById('cart-list');
     const adminLink = document.getElementById('admin-link');
-    const actions = document.getElementById('profile-actions');
-    const switchUserBtn = document.getElementById('switch-user-btn');
-    const loginButton = document.getElementById('login-button');
-    const loginHintDescription = document.getElementById('login-hint-description');
-    const editFullNameBtn = document.getElementById('edit-full-name');
-    const editPhoneBtn = document.getElementById('edit-phone');
-    const loginButtonDefaultText = loginButton?.textContent || 'Войти через Telegram';
 
     let currentUser = null;
 
-    if (isTelegramWebApp) {
-      if (loginHintDescription) {
-        loginHintDescription.textContent = 'Авторизуем через ваш Telegram-аккаунт...';
-      }
-      if (loginButton) {
-        loginButton.textContent = 'Повторить авторизацию';
-      }
-    } else if (loginHintDescription) {
-      loginHintDescription.innerHTML =
-        'Профиль, заказы и избранное доступны после входа через Telegram. Перейдите на <a href="index.html">главную страницу</a>, выполните вход и вернитесь сюда.';
+    function getToken() {
+      return localStorage.getItem(ACCESS_TOKEN_KEY) || '';
+    }
+
+    function setToken(token) {
+      localStorage.setItem(ACCESS_TOKEN_KEY, token);
+    }
+
+    function clearToken() {
+      localStorage.removeItem(ACCESS_TOKEN_KEY);
+    }
+
+    function showAuth(message = '') {
+      authCard.style.display = 'block';
+      profileView.style.display = 'none';
+      loginError.textContent = message;
+      loginError.style.display = message ? 'block' : 'none';
+      profileStatus.textContent = '';
+      currentUser = null;
+      updateAdminLinkVisibility();
+    }
+
+    function showProfile() {
+      authCard.style.display = 'none';
+      profileView.style.display = 'grid';
+      loginError.textContent = '';
+      loginError.style.display = 'none';
     }
 
     function updateAdminLinkVisibility() {
@@ -173,403 +198,265 @@
       adminLink.style.display = currentUser?.is_admin ? '' : 'none';
     }
 
-    function setStatus(message, isError = false) {
-      if (!message) {
-        statusEl.style.display = 'none';
-        statusEl.textContent = '';
-        statusEl.classList.remove('error');
-        return;
-      }
-      statusEl.textContent = message;
-      statusEl.classList.toggle('error', isError);
-      statusEl.style.display = 'block';
+    function setProfileStatus(message, isError = false) {
+      profileStatus.textContent = message || '';
+      profileStatus.classList.toggle('is-error', Boolean(message) && isError);
     }
 
-    function showLoginHint(message, isError = !isTelegramWebApp) {
-      if (loginHint) {
-        loginHint.style.display = 'block';
+    async function apiFetch(path, options = {}) {
+      const token = getToken();
+      const headers = new Headers(options.headers || {});
+
+      if (token) {
+        headers.set('Authorization', `Bearer ${token}`);
       }
-      if (loginHintDescription) {
-        loginHintDescription.textContent = message || (isTelegramWebApp
-          ? 'Авторизуем через ваш Telegram-аккаунт...'
-          : 'Профиль, заказы и избранное доступны после входа через Telegram.');
+
+      if (options.body && !(options.body instanceof FormData) && !headers.has('Content-Type')) {
+        headers.set('Content-Type', 'application/json');
       }
-      setStatus(message, isError);
-      actions?.style.setProperty('display', 'none');
-      profileGrid?.style.setProperty('display', 'none');
+
+      const response = await fetch(path, {
+        ...options,
+        headers,
+      });
+
+      const text = await response.text();
+      let data = null;
+      if (text) {
+        try {
+          data = JSON.parse(text);
+        } catch (error) {
+          data = null;
+        }
+      }
+
+      if (!response.ok) {
+        const error = new Error(data?.detail || data?.message || `Ошибка ${response.status}`);
+        error.status = response.status;
+        error.payload = data;
+        throw error;
+      }
+
+      return data;
     }
 
-    async function loadProfileData() {
-      try {
-        currentUser = await getCurrentUserProfile({ includeNotes: true, forceRefresh: true });
-      } catch (e) {
-        console.error('Failed to load profile data', e);
-        currentUser = null;
+    function normalizeListPayload(payload, keys) {
+      if (Array.isArray(payload)) return payload;
+      for (const key of keys) {
+        if (Array.isArray(payload?.[key])) {
+          return payload[key];
+        }
       }
+      return [];
+    }
 
-      if (!currentUser) {
-        showLoginHint(
-          isTelegramWebApp
-            ? 'Не удалось авторизоваться через Telegram. Попробуйте закрыть и заново открыть мини-приложение из бота.'
-            : 'Вы не авторизованы. Перейдите на главную страницу и выполните вход через Telegram.',
-          true,
-        );
+    function renderList(listEl, items, renderItem, emptyMessage) {
+      listEl.innerHTML = '';
+      const safeItems = Array.isArray(items) ? items : [];
+
+      if (!safeItems.length) {
+        const emptyLi = document.createElement('li');
+        emptyLi.className = 'profile-empty';
+        emptyLi.textContent = emptyMessage;
+        listEl.appendChild(emptyLi);
         return;
       }
 
+      safeItems.forEach((item) => {
+        const li = renderItem(item);
+        if (li) listEl.appendChild(li);
+      });
+    }
+
+    function renderProfile(user) {
+      profilePhone.textContent = user?.phone || '—';
+      profileName.textContent = user?.name || user?.full_name || '—';
+      profileTelegram.textContent = user?.telegram_username ? `@${user.telegram_username}` : 'не указан';
       updateAdminLinkVisibility();
-      loginHint?.style.setProperty('display', 'none');
-      setStatus('');
-      renderProfile(currentUser);
     }
 
-    async function saveProfileUpdates(updates) {
-      const res = await fetch('/api/profile/update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates || {}),
-      });
+    function renderAddressItem(address) {
+      const li = document.createElement('li');
+      const title = address?.label || address?.title || address?.name || 'Адрес';
+      const line =
+        address?.address ||
+        address?.full_address ||
+        address?.line1 ||
+        [address?.street, address?.city].filter(Boolean).join(', ');
 
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        const message = errorData?.detail || 'Не удалось сохранить изменения';
-        const err = new Error(message);
-        err.status = res.status;
-        throw err;
-      }
+      const titleEl = document.createElement('div');
+      titleEl.className = 'profile-item-title';
+      titleEl.textContent = title;
 
-      const data = await res.json();
-      if (!data?.ok || !data.user) {
-        throw new Error('Не удалось сохранить изменения');
-      }
-      currentUser = data.user;
-      return currentUser;
+      const lineEl = document.createElement('div');
+      lineEl.className = 'profile-item-text';
+      lineEl.textContent = line || 'Адрес будет доступен после добавления.';
+
+      li.appendChild(titleEl);
+      li.appendChild(lineEl);
+      return li;
     }
 
-    function startEditing(field) {
-      if (!currentUser) return;
-      const valueEl = field === 'full_name' ? fullNameEl : phoneEl;
-      const container = valueEl?.parentElement;
-      const editBtn = field === 'full_name' ? editFullNameBtn : editPhoneBtn;
-      if (!valueEl || !container || !editBtn) return;
+    function renderOrderItem(order) {
+      const li = document.createElement('li');
+      const createdAt = order?.created_at ? new Date(order.created_at).toLocaleString('ru-RU') : '';
+      const header = document.createElement('div');
+      header.className = 'profile-item-title';
+      header.textContent = `Заказ #${order?.id ?? '—'}`;
 
-      const currentValue = field === 'full_name' ? (currentUser.full_name || '') : (currentUser.phone || '');
-      const input = document.createElement('input');
-      input.type = 'text';
-      input.value = currentValue;
-      input.className = 'edit-input';
-
-      const saveBtn = document.createElement('button');
-      saveBtn.type = 'button';
-      saveBtn.className = 'edit-save';
-      saveBtn.textContent = 'Сохранить';
-
-      container.replaceChild(input, valueEl);
-      editBtn.style.display = 'none';
-      container.insertBefore(saveBtn, editBtn);
-
-      saveBtn.addEventListener('click', async () => {
-        try {
-          const updates = field === 'full_name' ? { full_name: input.value } : { phone: input.value };
-          const updated = await saveProfileUpdates(updates);
-          container.replaceChild(valueEl, input);
-          if (saveBtn.parentElement === container) container.removeChild(saveBtn);
-          editBtn.style.display = '';
-          renderProfile(updated);
-        } catch (e) {
-          showToast(e?.message || 'Не удалось сохранить изменения');
-          container.replaceChild(valueEl, input);
-          if (saveBtn.parentElement === container) container.removeChild(saveBtn);
-          editBtn.style.display = '';
-          renderProfile(currentUser);
-        }
-      });
-    }
-
-    function renderOrders(orders) {
-      ordersList.innerHTML = '';
-      const activeOrders = (orders || []).filter(
-        (order) => (order.status || '').toLowerCase() !== 'archived'
-      );
-
-      if (!activeOrders.length) {
-        const li = document.createElement('li');
-        li.textContent = 'Активных заказов нет';
-        ordersList.appendChild(li);
-        return;
-      }
-
-      activeOrders.forEach((order) => {
-        const li = document.createElement('li');
-        const dateText = order.created_at ? new Date(order.created_at).toLocaleString('ru-RU') : '';
-        const header = document.createElement('div');
-        const headerText = document.createElement('span');
-        header.className = 'order-header';
-        headerText.textContent = `Заказ #${order.id} — ${order.total} ₽ (${order.status || 'в обработке'}) ${dateText ? '• ' + dateText : ''}`;
-
-        const archiveBtn = document.createElement('button');
-        archiveBtn.type = 'button';
-        archiveBtn.className = 'circle-action-btn archive-btn';
-        archiveBtn.title = 'Убрать в архив';
-        archiveBtn.textContent = '📁';
-
-        archiveBtn.addEventListener('click', async () => {
-          archiveBtn.disabled = true;
-          try {
-            const res = await fetch(`/api/orders/${order.id}/archive`, { method: 'POST' });
-            const text = await res.text();
-            const data = text ? JSON.parse(text) : {};
-            if (!res.ok || !data.ok) {
-              throw new Error(data.detail || 'Не удалось архивировать заказ');
-            }
-            li.remove();
-            if (ordersList.childElementCount === 0) {
-              const emptyLi = document.createElement('li');
-              emptyLi.textContent = 'Активных заказов нет';
-              ordersList.appendChild(emptyLi);
-            }
-            showToast('Заказ отправлен в архив');
-          } catch (err) {
-            archiveBtn.disabled = false;
-            showToast(err?.message || 'Не удалось архивировать заказ');
-          }
-        });
-
-        header.appendChild(headerText);
-        header.appendChild(archiveBtn);
-
-        const list = document.createElement('ul');
-        list.className = 'list';
-
-        (order.items || []).forEach((item) => {
-          const itemLi = document.createElement('li');
-          const prefix = item.type === 'course' ? '🎓' : '🧺';
-          const baseText = `${prefix} ${item.name || 'Товар'} — ${item.qty} × ${item.price ?? 0} ₽`;
-          if (item.type === 'course') {
-            if ((order.status || '').toLowerCase() !== 'paid') {
-              itemLi.textContent = `${baseText} • Ссылка появится после оплаты`;
-            } else {
-              itemLi.textContent = `${baseText} • Доступ открыт в разделе «Мои мастер-классы»`;
-            }
-          } else {
-            itemLi.textContent = baseText;
-          }
-          list.appendChild(itemLi);
-        });
-
-        li.appendChild(header);
-        if (list.childElementCount > 0) {
-          li.appendChild(list);
-        }
-        ordersList.appendChild(li);
-      });
-    }
-
-    function renderCourses(courses) {
-      coursesList.innerHTML = '';
-      if (!courses || !courses.length) {
-        const li = document.createElement('li');
-        li.textContent = 'У вас пока нет доступных мастер-классов';
-        coursesList.appendChild(li);
-        return;
-      }
-
-      courses.forEach((course) => {
-        const li = document.createElement('li');
-        const statusText = course.is_paid ? 'Оплачен' : 'Бесплатный';
-        const linkText = course.masterclass_url
-          ? ` — <a href="${course.masterclass_url}" target="_blank">Перейти</a>`
-          : '';
-        li.innerHTML = `🎓 ${course.name || 'Мастер-класс'} • ${statusText}${linkText}`;
-        coursesList.appendChild(li);
-      });
-    }
-
-    function renderFavorites(favorites) {
-      favoritesList.innerHTML = '';
-      if (!favorites || !favorites.length) {
-        const li = document.createElement('li');
-        li.textContent = 'Избранных товаров пока нет';
-        favoritesList.appendChild(li);
-        return;
-      }
-
-      favorites.forEach((fav) => {
-        const li = document.createElement('li');
-        const prefix = fav.type === 'course' ? '🎓' : '🧺';
-        li.textContent = `${prefix} ${fav.name || 'Товар'} — ${fav.price ?? 0} ₽`;
-        favoritesList.appendChild(li);
-      });
-    }
-
-    function renderStats(stats, ban) {
-      statsList.innerHTML = '';
-      const rows = [
-        `Всего заказов: ${stats?.orders_count ?? 0}`,
-        `Потрачено: ${stats?.total_spent ?? 0} ₽`,
-        stats?.last_order_at ? `Последний заказ: ${new Date(stats.last_order_at).toLocaleString('ru-RU')}` : null,
-        ban?.is_banned ? `Статус: заблокирован (${ban.ban_reason || 'без причины'})` : 'Статус: активен',
+      const meta = document.createElement('div');
+      meta.className = 'profile-item-text';
+      const parts = [
+        order?.status ? `Статус: ${order.status}` : null,
+        Number.isFinite(order?.total) ? `Сумма: ${order.total} ₽` : null,
+        createdAt || null,
       ].filter(Boolean);
+      meta.textContent = parts.join(' • ') || 'Детали заказа появятся после оформления.';
 
-      rows.forEach((row) => {
-        const li = document.createElement('li');
-        li.textContent = row;
-        statsList.appendChild(li);
-      });
+      li.appendChild(header);
+      li.appendChild(meta);
+      return li;
     }
 
-    function setAvatarBackground(url) {
-      if (!avatarDiv) return;
-      if (url) {
-        avatarDiv.style.backgroundImage = `url(${url})`;
-        avatarDiv.classList.add('profile-avatar--with-image');
-      } else {
-        avatarDiv.style.backgroundImage = 'none';
-        avatarDiv.classList.remove('profile-avatar--with-image');
-      }
+    function renderCartItem(item) {
+      const li = document.createElement('li');
+      const title = item?.name || item?.title || 'Позиция';
+      const qty = item?.qty ?? item?.quantity ?? 1;
+      const price = item?.price ?? item?.unit_price;
+      const total = Number.isFinite(price) ? `${price} ₽` : 'цена уточняется';
+
+      const titleEl = document.createElement('div');
+      titleEl.className = 'profile-item-title';
+      titleEl.textContent = title;
+
+      const metaEl = document.createElement('div');
+      metaEl.className = 'profile-item-text';
+      metaEl.textContent = `Количество: ${qty} • ${total}`;
+
+      li.appendChild(titleEl);
+      li.appendChild(metaEl);
+      return li;
     }
 
-    function updateAvatar(profile) {
-      setAvatarBackground(profile.avatar_url);
-
-      if (avatarInitialsSpan) {
-        let initials = '';
-        if (profile.full_name) {
-          const parts = profile.full_name.trim().split(' ');
-          if (parts.length >= 2) {
-            initials = (parts[0][0] + parts[1][0]).toUpperCase();
-          } else {
-            initials = parts[0][0].toUpperCase();
-          }
-        } else if (profile.username) {
-          initials = profile.username[0].toUpperCase();
-        } else {
-          initials = '🙂';
-        }
-        avatarInitialsSpan.textContent = initials;
-      }
-
-      if (profileAvatarWrapper) {
-        profileAvatarWrapper.style.display = 'flex';
-      }
-    }
-
-    function previewAvatar(file) {
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = () => {
-        setAvatarBackground(reader.result);
-      };
-      reader.readAsDataURL(file);
-    }
-
-    async function uploadAvatarFile(file) {
-      if (!file) return;
-
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const res = await fetch('/api/profile/avatar', { method: 'POST', body: formData });
-      const text = await res.text();
-      const data = text ? JSON.parse(text) : {};
-      if (!res.ok || !data.ok) {
-        const message = data.detail || 'Не удалось загрузить аватар';
-        throw new Error(message);
-      }
-
-      currentUser = data.profile || currentUser;
-      updateAvatar(currentUser);
-      showToast('Аватар обновлён');
-    }
-
-    function renderProfile(profile) {
-      fullNameEl.textContent = profile.full_name || '—';
-      usernameEl.textContent = profile.telegram_username ? `@${profile.telegram_username}` : 'ник не указан';
-      telegramIdEl.textContent = profile.telegram_id ?? '—';
-      phoneEl.textContent = profile.phone || '—';
-      createdAtEl.textContent = profile.created_at ? new Date(profile.created_at).toLocaleDateString('ru-RU') : '—';
-      updateAvatar(profile);
-      renderOrders(profile.orders || []);
-      renderCourses(profile.courses || []);
-      renderFavorites(profile.favorites || []);
-      renderStats(profile.stats || {}, profile.ban || {});
-      profileGrid.style.display = 'grid';
-      actions?.style.setProperty('display', 'flex');
-      editFullNameBtn.style.display = '';
-      editPhoneBtn.style.display = '';
-    }
-
-    async function logout() {
+    async function loadAddresses() {
       try {
-        await fetch('/api/auth/logout', { method: 'POST' });
-      } catch (e) {
-        console.warn('Logout request failed', e);
-      }
-
-      if (isTelegramWebApp && window.Telegram?.WebApp?.close) {
-        profileGrid?.style.setProperty('display', 'none');
-        actions?.style.setProperty('display', 'none');
-        setStatus('Вы вышли. Чтобы войти другим пользователем, откройте WebApp заново из бота.', false);
-        setTimeout(() => window.Telegram.WebApp.close(), 200);
-      } else {
-        window.location.href = '/index.html';
+        const data = await apiFetch('/api/me/addresses');
+        const addresses = normalizeListPayload(data, ['addresses', 'items', 'data']);
+        renderList(addressesList, addresses, renderAddressItem, 'Пока нет адресов');
+      } catch (error) {
+        if (error.status === 404) {
+          renderList(addressesList, [], renderAddressItem, 'Пока нет адресов');
+          return;
+        }
+        console.warn('Не удалось загрузить адреса', error);
+        renderList(addressesList, [], renderAddressItem, 'Не удалось загрузить адреса');
       }
     }
 
-    switchUserBtn?.addEventListener('click', logout);
-    editFullNameBtn?.addEventListener('click', () => startEditing('full_name'));
-    editPhoneBtn?.addEventListener('click', () => startEditing('phone'));
-    avatarChooseBtn?.addEventListener('click', () => avatarFileInput?.click());
-    avatarFileInput?.addEventListener('change', async () => {
-      const file = avatarFileInput.files?.[0];
-      if (!file) return;
-      previewAvatar(file);
+    async function loadOrders() {
       try {
-        await uploadAvatarFile(file);
-      } catch (err) {
-        showToast(err?.message || 'Не удалось загрузить аватар');
-      } finally {
-        avatarFileInput.value = '';
-      }
-    });
-    loginButton?.addEventListener('click', async () => {
-      if (isTelegramWebApp) {
-        loginButton.disabled = true;
-        loginButton.textContent = 'Повторить авторизацию';
-        try {
-          await loadProfileData();
-        } finally {
-          loginButton.disabled = false;
-          loginButton.textContent = isTelegramWebApp ? 'Повторить авторизацию' : loginButtonDefaultText;
+        const data = await apiFetch('/api/me/orders');
+        const orders = normalizeListPayload(data, ['orders', 'items', 'data']);
+        renderList(ordersList, orders, renderOrderItem, 'Пока нет заказов');
+      } catch (error) {
+        if (error.status === 404) {
+          renderList(ordersList, [], renderOrderItem, 'Пока нет заказов');
+          return;
         }
+        console.warn('Не удалось загрузить заказы', error);
+        renderList(ordersList, [], renderOrderItem, 'Не удалось загрузить заказы');
+      }
+    }
+
+    async function loadCart() {
+      try {
+        const data = await apiFetch('/api/me/cart');
+        const cartItems = normalizeListPayload(data, ['items', 'cart_items', 'data']);
+        renderList(cartList, cartItems, renderCartItem, 'Корзина пуста');
+      } catch (error) {
+        if (error.status === 404) {
+          renderList(cartList, [], renderCartItem, 'Корзина пуста');
+          return;
+        }
+        console.warn('Не удалось загрузить корзину', error);
+        renderList(cartList, [], renderCartItem, 'Не удалось загрузить корзину');
+      }
+    }
+
+    async function loadProfile() {
+      try {
+        const user = await apiFetch('/api/me');
+        currentUser = user?.user || user;
+        if (!currentUser) {
+          throw new Error('Профиль не найден');
+        }
+        renderProfile(currentUser);
+        showProfile();
+        setProfileStatus('Данные профиля обновлены.');
+        await Promise.all([loadAddresses(), loadOrders(), loadCart()]);
+      } catch (error) {
+        console.warn('Не удалось загрузить профиль', error);
+        if (error.status === 401) {
+          clearToken();
+          showAuth('Сессия истекла. Введите телефон и код ещё раз.');
+          return;
+        }
+        showAuth(error.message || 'Не удалось загрузить профиль');
+      }
+    }
+
+    loginForm?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const phone = (phoneInput.value || '').trim();
+      const code = (codeInput.value || '').trim();
+
+      if (!phone || !code) {
+        showAuth('Введите телефон и код.');
         return;
       }
 
-      startTelegramOAuthFlow();
+      loginSubmit.disabled = true;
+      loginSubmit.textContent = 'Входим…';
+      loginError.textContent = '';
+      loginError.style.display = 'none';
+
+      try {
+        const data = await apiFetch('/api/auth/verify-code', {
+          method: 'POST',
+          body: JSON.stringify({ phone, code }),
+        });
+        const token = data?.access_token || data?.token;
+        if (!token) {
+          throw new Error('Сервер не вернул токен');
+        }
+        setToken(token);
+        codeInput.value = '';
+        await loadProfile();
+      } catch (error) {
+        console.warn('Ошибка входа', error);
+        showAuth(error.message || 'Не удалось выполнить вход');
+      } finally {
+        loginSubmit.disabled = false;
+        loginSubmit.textContent = 'Войти';
+      }
     });
 
-    if (isTelegramWebApp && window.Telegram?.WebApp?.ready) {
-      window.Telegram.WebApp.ready();
-    }
-
-    async function handleNonWebAppProfile() {
-      await processTelegramAuthFromUrl().catch((error) => {
-        console.error('Failed to authorize via Telegram auth params', error);
-        showToast(error?.message || 'Не удалось авторизоваться через Telegram');
-      });
-    }
+    logoutButton?.addEventListener('click', () => {
+      clearToken();
+      showAuth('Вы вышли из профиля.');
+      phoneInput.focus();
+    });
 
     document.addEventListener('DOMContentLoaded', async () => {
-      if (isTelegramWebApp) {
-        showLoginHint('Авторизуем через ваш Telegram-аккаунт...', false);
-      } else {
-        await handleNonWebAppProfile();
+      if (!getToken()) {
+        showAuth('');
+        phoneInput.focus();
+        return;
       }
-
-      await loadProfileData();
+      setProfileStatus('Загружаем профиль…');
+      await loadProfile();
     });
   </script>
   <script src="js/support_widget.js?v=20250605" defer></script>
-
 </body>
 </html>
