@@ -323,6 +323,9 @@ ReplyKeyboard-меню из конструктора AdminBot
 - Новый раздел `/adminbot/menu-buttons` позволяет создавать, редактировать и выключать кнопки нижней клавиатуры.
 - Поля кнопки: `text`, `action_type` (node/command/url/webapp), `action_payload`, `row`, `position`, `is_active`.
 - Бот на /start и «Меню» запрашивает активные `menu_buttons` и строит ReplyKeyboard по row/position. Если список пуст — показывает только кнопку «Меню».
+- Кнопки `Мои товары` / `Мои работы` / `Мои мастер-классы` принудительно открываются как WebApp-ссылки на `https://miniden.ru/c/<slug>?type=...`, даже если в конструкторе указан другой тип действия.
+- Slug’и для этих кнопок настраиваются через переменные окружения `BOT_PRODUCTS_CATEGORY_SLUG`, `BOT_WORKS_CATEGORY_SLUG`, `BOT_MASTERCLASSES_CATEGORY_SLUG` (по умолчанию: `korzinki`, `works`, `masterclasses`), домен — `BOT_BASE_ORIGIN` (по умолчанию `https://miniden.ru`).
+- Для deep-link на конкретную позицию можно использовать формат `https://miniden.ru/i/<id>?type=product`.
 - Для URL/WebApp бот отправляет сообщение с inline-кнопкой открытия ссылки.
 - В форме узла добавлен флаг «Очищать чат перед показом узла» (`clear_chat`): при включении бот пытается удалить предыдущие сообщения бота перед новым экраном (best effort).
 
