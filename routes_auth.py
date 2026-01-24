@@ -70,6 +70,12 @@ class VerifyCodePayload(BaseModel):
     code: str
 
 
+class BotCreateCodePayload(BaseModel):
+    phone: str
+    telegram_id: int
+    telegram_username: str | None = None
+
+
 class AuthResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
@@ -255,6 +261,48 @@ def api_auth_request_code(payload: RequestCodePayload, db: Session = Depends(get
     logger.info("Login code generated for phone=%s code=%s", normalized_phone, code)
 
     return {"ok": True}
+
+
+@router.post("/api/bot/auth/create-code")
+def api_bot_auth_create_code(payload: BotCreateCodePayload, db: Session = Depends(get_db)):
+    try:
+        normalized_phone = normalize_phone(payload.phone)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    user = users_service.get_or_create_user_by_phone(db, normalized_phone)
+    if user.telegram_id != int(payload.telegram_id):
+        user = users_service.attach_telegram_id(
+            db,
+            user=user,
+            telegram_id=int(payload.telegram_id),
+            username=payload.telegram_username,
+        )
+
+    code = _generate_login_code()
+    code_hash = _hash_login_code(phone=normalized_phone, code=code)
+    expires_at = datetime.utcnow() + timedelta(seconds=LOGIN_CODE_TTL_SECONDS)
+
+    _invalidate_previous_codes(db, normalized_phone)
+
+    login_code = LoginCode(
+        phone=normalized_phone,
+        code_hash=code_hash,
+        telegram_id=user.telegram_id,
+        expires_at=expires_at,
+        created_at=datetime.utcnow(),
+        attempts=0,
+    )
+    db.add(login_code)
+    db.flush()
+
+    logger.info(
+        "Bot login code generated for phone=%s telegram_id=%s",
+        normalized_phone,
+        user.telegram_id,
+    )
+
+    return {"code": code, "expires_in_seconds": LOGIN_CODE_TTL_SECONDS}
 
 
 @router.post("/api/auth/verify-code", response_model=AuthResponse)
