@@ -110,7 +110,7 @@
         <a class="btn secondary" id="checkout-contact-admin" href="#" target="_blank" rel="noopener">Связаться с админом</a>
         <button class="btn" type="button" id="checkout-bot">Отправить заказ в бот</button>
       </div>
-      <div class="checkout-modal__hint muted" id="checkout-bot-hint">Откройте через Telegram</div>
+      <div class="checkout-modal__hint muted" id="checkout-bot-hint">Откройте в Telegram</div>
       <div class="checkout-modal__status muted" id="checkout-bot-status" style="display:none;"></div>
       <button class="btn secondary" type="button" id="checkout-bot-close" style="display:none;">Закрыть</button>
     </div>
@@ -153,7 +153,9 @@
     const checkoutBotStatus = document.getElementById('checkout-bot-status');
     const checkoutBotCloseBtn = document.getElementById('checkout-bot-close');
 
-    const isTelegram = !!window.Telegram?.WebApp;
+    const telegramInitData = window.Telegram?.WebApp?.initData;
+    const isTelegram = Boolean(window.Telegram && window.Telegram.WebApp && telegramInitData);
+    const isDevMode = Boolean(DEBUG_CART) || ['localhost', '127.0.0.1'].includes(window.location.hostname) || window.location.hostname.endsWith('.local');
     let telegramUserId = null;
     if (isTelegram && window.Telegram?.WebApp?.ready) {
       window.Telegram.WebApp.ready();
@@ -198,27 +200,58 @@
       setAdminContactUrl(adminContactUrl);
     }
 
+    function buildTelegramDeepLink() {
+      const botUsername = window.TELEGRAM_BOT_USERNAME || 'BotMiniden_bot';
+      const url = new URL(`https://t.me/${botUsername}`);
+      url.searchParams.set('startapp', 'checkout');
+      return url.toString();
+    }
+
+    function updateTelegramDebugBadge() {
+      if (!debugEl || !isDevMode) return;
+      const badgeHtml = `<strong>TG mode:</strong> ${isTelegram}`;
+      if (DEBUG_CART) {
+        let badgeEl = debugEl.querySelector('[data-tg-mode-badge]');
+        if (!badgeEl) {
+          badgeEl = document.createElement('div');
+          badgeEl.dataset.tgModeBadge = 'true';
+          debugEl.prepend(badgeEl);
+        }
+        badgeEl.innerHTML = badgeHtml;
+      } else {
+        debugEl.innerHTML = `<div data-tg-mode-badge="true">${badgeHtml}</div>`;
+        debugEl.style.display = 'block';
+      }
+    }
+
     function updateTelegramCheckoutAvailability() {
-      const hasWebApp = Boolean(window.Telegram?.WebApp);
-      const isAvailable = hasWebApp && Boolean(telegramUserId);
       const hasItems = Boolean(currentCart.items?.length);
+      const botDeepLink = buildTelegramDeepLink();
 
       if (checkoutBotBtn) {
-        checkoutBotBtn.style.display = isAvailable ? '' : 'none';
-        checkoutBotBtn.disabled = !hasItems;
+        checkoutBotBtn.style.display = '';
+        checkoutBotBtn.disabled = isTelegram ? !hasItems : false;
+        checkoutBotBtn.textContent = isTelegram ? 'Отправить заказ в бот' : 'Открыть в Telegram';
+        checkoutBotBtn.dataset.mode = isTelegram ? 'telegram' : 'browser';
+        checkoutBotBtn.dataset.telegramLink = botDeepLink;
       }
+
       if (checkoutBotHint) {
-        if (!isAvailable) {
-          checkoutBotHint.textContent = 'Откройте через Telegram';
-          checkoutBotHint.style.display = '';
-        } else if (!hasItems) {
-          checkoutBotHint.textContent = 'Корзина пуста';
-          checkoutBotHint.style.display = '';
+        if (isTelegram) {
+          if (!hasItems) {
+            checkoutBotHint.textContent = 'Корзина пуста';
+            checkoutBotHint.style.display = '';
+          } else {
+            checkoutBotHint.textContent = '';
+            checkoutBotHint.style.display = 'none';
+          }
         } else {
-          checkoutBotHint.textContent = '';
-          checkoutBotHint.style.display = 'none';
+          checkoutBotHint.textContent = 'Откройте в Telegram';
+          checkoutBotHint.style.display = '';
         }
       }
+
+      updateTelegramDebugBadge();
     }
 
     function resetCheckoutBotState() {
@@ -389,7 +422,11 @@
     }
 
     function updateDebugPanel(cart, errorMessage = null) {
-      if (!DEBUG_CART || !debugEl) return;
+      if (!debugEl) return;
+      if (!DEBUG_CART) {
+        updateTelegramDebugBadge();
+        return;
+      }
       const items = cart?.items || [];
       const count = items.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
       const total = Number(cart?.total || 0);
@@ -407,6 +444,7 @@
         ${storageBottom}
         ${storageCart}
       `;
+      updateTelegramDebugBadge();
       debugEl.style.display = 'block';
     }
 
@@ -634,9 +672,14 @@
     }
 
     async function sendCartToTelegramBot() {
-      const tg = window.Telegram?.WebApp;
-      if (!tg || !telegramUserId) {
-        showToast('Откройте через Telegram');
+      const botDeepLink = buildTelegramDeepLink();
+      const tg = isTelegram ? window.Telegram?.WebApp : null;
+      if (!tg) {
+        window.open(botDeepLink, '_blank', 'noopener');
+        return;
+      }
+      if (!telegramUserId) {
+        showToast('Не удалось определить Telegram-пользователя. Откройте мини-приложение из бота.');
         return;
       }
       if (!currentCart.items?.length) {
