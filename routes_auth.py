@@ -271,13 +271,16 @@ def api_bot_auth_create_code(payload: BotCreateCodePayload, db: Session = Depend
         raise HTTPException(status_code=400, detail=str(exc))
 
     user = users_service.get_or_create_user_by_phone(db, normalized_phone)
-    if user.telegram_id != int(payload.telegram_id):
+    payload_telegram_id = int(payload.telegram_id)
+    if user.telegram_id is None:
         user = users_service.attach_telegram_id(
             db,
             user=user,
-            telegram_id=int(payload.telegram_id),
+            telegram_id=payload_telegram_id,
             username=payload.telegram_username,
         )
+    elif user.telegram_id != payload_telegram_id:
+        raise HTTPException(status_code=409, detail="telegram_id_conflict")
 
     code = _generate_login_code()
     code_hash = _hash_login_code(phone=normalized_phone, code=code)

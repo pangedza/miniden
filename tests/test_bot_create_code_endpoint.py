@@ -5,6 +5,8 @@ from pathlib import Path
 import sys
 
 import pytest
+from datetime import datetime
+from fastapi import HTTPException
 from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -126,3 +128,17 @@ def test_bot_create_code_invalidates_previous_codes(db_session: Session) -> None
     assert len(codes) == 2
     assert codes[0].used_at is not None
     assert codes[1].used_at is None
+
+
+def test_bot_create_code_conflict_when_phone_bound_to_other_telegram_id(db_session: Session) -> None:
+    existing = User(phone="79991234567", telegram_id=100, created_at=datetime.utcnow())
+    db_session.add(existing)
+    db_session.flush()
+
+    payload = BotCreateCodePayload(phone="79991234567", telegram_id=200, telegram_username="bot")
+
+    with pytest.raises(HTTPException) as exc_info:
+        api_bot_auth_create_code(payload, db=db_session)
+
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.detail == "telegram_id_conflict"
