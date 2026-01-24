@@ -2,6 +2,12 @@ const API_BASE = "/api";
 const TELEGRAM_AUTH_PATH = "/auth/telegram";
 const AUTH_SESSION_PATH = "/auth/session";
 const TELEGRAM_BOT_USERNAME = "BotMiniden_bot";
+const TELEGRAM_WEBAPP_JWT_PATH = "/auth/telegram-webapp";
+const TELEGRAM_WEBAPP_LEGACY_PATH = "/auth/telegram_webapp";
+const ACCESS_TOKEN_KEY = "miniden_access_token";
+
+const isBrowser = typeof window !== "undefined";
+const baseFetch = isBrowser ? window.fetch.bind(window) : fetch;
 
 function buildUrl(path, params = {}) {
   const url = new URL(`${API_BASE}${path}`, window.location.origin);
@@ -50,27 +56,177 @@ async function handleResponse(res) {
   return data;
 }
 
-async function apiGet(path, params) {
-  const res = await fetch(buildUrl(path, params));
-  return handleResponse(res);
-}
-
-async function apiPost(path, body) {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  return handleResponse(res);
-}
-
-const isTelegramWebApp = !!(window.Telegram && window.Telegram.WebApp);
+const isTelegramWebApp = isBrowser && !!(window.Telegram && window.Telegram.WebApp);
 let telegramWebAppAuthPromise = null;
+let authBootstrapPromise = null;
+let bootstrapCompleted = false;
 
 function normalizeError(message, status) {
   const error = new Error(message);
   if (status) error.status = status;
   return error;
+}
+
+function getStoredAccessToken() {
+  if (!isBrowser) return null;
+  try {
+    return localStorage.getItem(ACCESS_TOKEN_KEY);
+  } catch (error) {
+    console.warn("Failed to read access token from storage", error);
+    return null;
+  }
+}
+
+function storeAccessToken(token) {
+  if (!isBrowser) return;
+  try {
+    if (token) {
+      localStorage.setItem(ACCESS_TOKEN_KEY, token);
+    } else {
+      localStorage.removeItem(ACCESS_TOKEN_KEY);
+    }
+  } catch (error) {
+    console.warn("Failed to persist access token", error);
+  }
+}
+
+function isApiRequest(url) {
+  try {
+    const resolved = new URL(url, window.location.origin);
+    return resolved.origin === window.location.origin && resolved.pathname.startsWith(`${API_BASE}/`);
+  } catch (error) {
+    return String(url || "").startsWith(`${API_BASE}/`);
+  }
+}
+
+function mergeHeaders(existing, extra) {
+  const headers = new Headers(existing || {});
+  Object.entries(extra || {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      headers.set(key, value);
+    }
+  });
+  return headers;
+}
+
+async function performTelegramWebAppLogin(initData) {
+  const init_data = (initData || "").trim();
+  if (!init_data) {
+    throw normalizeError("init_data_missing", 400);
+  }
+
+  const response = await baseFetch(`${API_BASE}${TELEGRAM_WEBAPP_JWT_PATH}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ init_data }),
+  });
+
+  if (!response.ok) {
+    const error = new Error("telegram_webapp_login_failed");
+    error.status = response.status;
+    throw error;
+  }
+
+  const payload = await response.json();
+  const token = payload?.access_token || null;
+  if (token) {
+    storeAccessToken(token);
+  }
+  return token;
+}
+
+async function bootstrapTelegramWebAppAuth({ force = false } = {}) {
+  if (!isBrowser) return null;
+  if (!isTelegramWebApp) return null;
+
+  if (force) {
+    telegramWebAppAuthPromise = null;
+    authBootstrapPromise = null;
+    bootstrapCompleted = false;
+  }
+
+  if (bootstrapCompleted && !force) {
+    return getStoredAccessToken();
+  }
+
+  if (authBootstrapPromise) return authBootstrapPromise;
+
+  const tg = window.Telegram?.WebApp;
+  const initData = tg?.initData;
+  if (!initData) {
+    bootstrapCompleted = true;
+    return getStoredAccessToken();
+  }
+
+  authBootstrapPromise = (async () => {
+    try {
+      const token = await performTelegramWebAppLogin(initData);
+      bootstrapCompleted = true;
+      return token;
+    } catch (error) {
+      console.warn("Telegram WebApp JWT bootstrap failed", error);
+      bootstrapCompleted = true;
+      return getStoredAccessToken();
+    } finally {
+      authBootstrapPromise = null;
+    }
+  })();
+
+  return authBootstrapPromise;
+}
+
+async function authFetch(input, init = {}, options = {}) {
+  if (!isBrowser) {
+    return baseFetch(input, init);
+  }
+
+  const { skipAuth = false, retryOn401 = true } = options;
+  const url = typeof input === "string" ? input : input?.url;
+
+  if (!url || skipAuth || !isApiRequest(url)) {
+    return baseFetch(input, init);
+  }
+
+  await bootstrapTelegramWebAppAuth();
+
+  const token = getStoredAccessToken();
+  const headers = mergeHeaders(init?.headers, token ? { Authorization: `Bearer ${token}` } : {});
+  const response = await baseFetch(input, { ...init, headers });
+
+  if (response.status !== 401 || !retryOn401 || !isTelegramWebApp) {
+    return response;
+  }
+
+  storeAccessToken(null);
+  const refreshedToken = await bootstrapTelegramWebAppAuth({ force: true });
+  if (!refreshedToken) {
+    return response;
+  }
+
+  const retryHeaders = mergeHeaders(init?.headers, { Authorization: `Bearer ${refreshedToken}` });
+  return baseFetch(input, { ...init, headers: retryHeaders });
+}
+
+if (isBrowser) {
+  window.authFetch = authFetch;
+  window.fetch = function patchedFetch(input, init) {
+    return authFetch(input, init);
+  };
+  bootstrapTelegramWebAppAuth();
+}
+
+async function apiGet(path, params) {
+  const res = await authFetch(buildUrl(path, params));
+  return handleResponse(res);
+}
+
+async function apiPost(path, body, options = {}) {
+  const res = await authFetch(`${API_BASE}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  return handleResponse(res);
 }
 
 function getTelegramAuthQueryFromUrl() {
@@ -134,7 +290,7 @@ function startTelegramOAuthFlow() {
 
 async function fetchAuthSession(includeNotes) {
   const params = includeNotes ? { include_notes: true } : undefined;
-  const res = await fetch(buildUrl(AUTH_SESSION_PATH, params));
+  const res = await authFetch(buildUrl(AUTH_SESSION_PATH, params));
 
   if (res.status === 401 || res.status === 404) {
     return null;
@@ -197,7 +353,7 @@ async function ensureTelegramWebAppAuth() {
   const tg = window.Telegram?.WebApp;
   if (!tg?.initData) return null;
 
-  telegramWebAppAuthPromise = apiPost("/auth/telegram_webapp", {
+  telegramWebAppAuthPromise = apiPost(TELEGRAM_WEBAPP_LEGACY_PATH, {
     init_data: tg.initData,
   })
     .then((res) => res?.user || null)
@@ -303,6 +459,9 @@ function showToast(message, title = "MiniDeN", durationMs = 2500) {
 
 window.apiGet = apiGet;
 window.apiPost = apiPost;
+window.authFetch = authFetch;
+window.bootstrapTelegramWebAppAuth = bootstrapTelegramWebAppAuth;
+window.getStoredAccessToken = getStoredAccessToken;
 window.getCurrentUser = getCurrentUser;
 window.getCurrentUserProfile = getCurrentUserProfile;
 window.ensureTelegramWebAppAuth = ensureTelegramWebAppAuth;
