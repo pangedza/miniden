@@ -84,28 +84,35 @@ def _build_order_user_keyboard(order_id: int | None) -> InlineKeyboardMarkup:
 
 
 def _parse_webapp_order_payload(payload: dict) -> tuple[list[dict], int] | None:
-    if payload.get("type") != "webapp_order":
+    payload_type = payload.get("type")
+    cart: dict | None = None
+    items: list | None = None
+    raw_total = None
+
+    if payload_type == "webapp_order":
+        cart = payload.get("cart")
+        if not isinstance(cart, dict):
+            logging.warning("webapp_order payload without cart: %s", payload)
+            return None
+        items = cart.get("items")
+        raw_total = cart.get("total")
+    elif payload_type is None and payload.get("telegram_id") and isinstance(payload.get("items"), list):
+        items = payload.get("items")
+        raw_total = payload.get("total")
+        logging.info("Legacy webapp order payload detected")
+    else:
         return None
 
-    cart = payload.get("cart")
-    if not isinstance(cart, dict):
-        return None
-
-    items = cart.get("items")
     if not isinstance(items, list):
-        return None
-
-    raw_total = cart.get("total")
-    try:
-        total = int(float(raw_total))
-    except (TypeError, ValueError):
+        logging.warning("webapp order payload without items list: %s", payload)
         return None
 
     parsed_items: list[dict] = []
+    total_from_items = 0
     for item in items:
         if not isinstance(item, dict):
             continue
-        raw_id = item.get("id") or item.get("product_id")
+        raw_id = item.get("id") or item.get("product_id") or item.get("item_id")
         try:
             product_id = int(raw_id)
         except (TypeError, ValueError):
@@ -120,6 +127,7 @@ def _parse_webapp_order_payload(payload: dict) -> tuple[list[dict], int] | None:
             price = 0
         if qty <= 0:
             continue
+        total_from_items += price * qty
         title = item.get("title") or item.get("name") or f"Товар #{product_id}"
         parsed_items.append(
             {
@@ -132,7 +140,16 @@ def _parse_webapp_order_payload(payload: dict) -> tuple[list[dict], int] | None:
         )
 
     if not parsed_items:
+        logging.warning("webapp order payload has no valid items: %s", payload)
         return None
+
+    try:
+        total = int(float(raw_total))
+    except (TypeError, ValueError):
+        total = total_from_items
+
+    if total <= 0:
+        total = total_from_items
 
     return parsed_items, total
 
@@ -217,10 +234,16 @@ async def handle_webapp_data(message: Message) -> None:
         logging.exception("Не удалось разобрать web_app_data: %s", raw)
         return
 
-    if data.get("type") == "webapp_order":
+    should_handle_order = data.get("type") == "webapp_order" or (
+        data.get("type") is None
+        and data.get("telegram_id")
+        and isinstance(data.get("items"), list)
+    )
+    if should_handle_order:
         webapp_order = _parse_webapp_order_payload(data)
         if webapp_order is None:
-            await message.answer("Не удалось прочитать заказ")
+            logging.warning("Не удалось распознать заказ из web_app_data: %s", data)
+            await message.answer("Не удалось распознать заказ. Попробуйте ещё раз из корзины.")
             return
         items, total = webapp_order
         user_name = (
