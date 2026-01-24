@@ -1,4 +1,5 @@
 from typing import Any, Sequence
+from urllib.parse import urlencode
 
 from aiogram.types import KeyboardButton, ReplyKeyboardMarkup, WebAppInfo
 
@@ -28,6 +29,51 @@ def _extract_button_field(button: Any, field: str, default: Any = None) -> Any:
     return getattr(button, field, default)
 
 
+def _normalize_button_text(text: str) -> str:
+    return " ".join((text or "").casefold().split())
+
+
+def _build_category_url(slug: str, *, item_type: str | None = None, settings=None) -> str | None:
+    normalized_slug = (slug or "").strip().strip("/")
+    if not normalized_slug:
+        return None
+
+    settings = settings or get_settings()
+    base_origin = (settings.bot_base_origin or "https://miniden.ru").rstrip("/")
+    params: dict[str, str] = {}
+    if item_type:
+        params["type"] = item_type
+
+    query = f"?{urlencode(params)}" if params else ""
+    return f"{base_origin}/c/{normalized_slug}{query}"
+
+
+def _special_menu_webapp_url(text: str, *, settings=None) -> str | None:
+    settings = settings or get_settings()
+    normalized = _normalize_button_text(text)
+    slug_map: dict[str, tuple[str, str]] = {
+        _normalize_button_text("Мои товары"): (
+            settings.bot_products_category_slug,
+            "product",
+        ),
+        _normalize_button_text("Мои работы"): (
+            settings.bot_works_category_slug,
+            "product",
+        ),
+        _normalize_button_text("Мои мастер-классы"): (
+            settings.bot_masterclasses_category_slug,
+            "masterclass",
+        ),
+    }
+
+    slug_and_type = slug_map.get(normalized)
+    if not slug_and_type:
+        return None
+
+    slug, item_type = slug_and_type
+    return _build_category_url(slug, item_type=item_type, settings=settings)
+
+
 def get_main_menu(
     menu_buttons: Sequence[Any] | None = None, *, include_fallback: bool = True
 ) -> ReplyKeyboardMarkup | None:
@@ -38,6 +84,7 @@ def get_main_menu(
     """
 
     prepared_rows: dict[int, list[KeyboardButton]] = {}
+    settings = get_settings()
 
     for button in menu_buttons or []:
         text = (_extract_button_field(button, "text") or "").strip()
@@ -50,6 +97,11 @@ def get_main_menu(
             or _extract_button_field(button, "webapp_url", "")
             or _extract_button_field(button, "url", "")
         ).strip()
+        special_webapp_url = _special_menu_webapp_url(text, settings=settings)
+
+        if special_webapp_url:
+            action_type = "WEBAPP"
+            action_url = special_webapp_url
 
         if not text:
             continue

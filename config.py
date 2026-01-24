@@ -43,6 +43,10 @@ class Settings:
     webapp_cart_url: str | None = None
     webapp_profile_url: str | None = None
     webapp_admin_url: str | None = None
+    bot_base_origin: str = "https://miniden.ru"
+    bot_products_category_slug: str = "korzinki"
+    bot_works_category_slug: str = "works"
+    bot_masterclasses_category_slug: str = "masterclasses"
 
     # 🔹 Новые поля для проверки подписки на канал
     required_channel_id: int | str | None = None  # username без @ или -1001234567890
@@ -149,6 +153,10 @@ def get_settings() -> Settings:
     webapp_cart_url = os.getenv("WEBAPP_CART_URL") or None
     webapp_profile_url = os.getenv("WEBAPP_PROFILE_URL") or None
     webapp_admin_url = os.getenv("WEBAPP_ADMIN_URL") or None
+    bot_base_origin = (os.getenv("BOT_BASE_ORIGIN") or "https://miniden.ru").strip() or "https://miniden.ru"
+    bot_products_category_slug = (os.getenv("BOT_PRODUCTS_CATEGORY_SLUG") or "korzinki").strip() or "korzinki"
+    bot_works_category_slug = (os.getenv("BOT_WORKS_CATEGORY_SLUG") or "works").strip() or "works"
+    bot_masterclasses_category_slug = (os.getenv("BOT_MASTERCLASSES_CATEGORY_SLUG") or "masterclasses").strip() or "masterclasses"
 
     return Settings(
         bot_token=token,
@@ -168,4 +176,8 @@ def get_settings() -> Settings:
         webapp_cart_url=webapp_cart_url,
         webapp_profile_url=webapp_profile_url,
         webapp_admin_url=webapp_admin_url,
+        bot_base_origin=bot_base_origin.rstrip("/"),
+        bot_products_category_slug=bot_products_category_slug,
+        bot_works_category_slug=bot_works_category_slug,
+        bot_masterclasses_category_slug=bot_masterclasses_category_slug,
     )
