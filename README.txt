@@ -1,6 +1,68 @@
 MiniDeN — Telegram-бот и веб-магазин
 ====================================
 
+Auth v2: телефон + код из Telegram-бота
+---------------------------------------
+- Telegram WebApp `initData` больше не обязателен для профиля: `GET /api/me` теперь принимает JWT-токен (Bearer) и при его наличии игнорирует legacy `telegram_id` в query-параметрах.
+- Новый поток авторизации:
+  1. `POST /api/auth/request-code` с телефоном создаёт/обновляет пользователя и генерирует одноразовый код (код не возвращается).
+  2. Код должен быть отправлен пользователю ботом и затем подтверждён через `POST /api/auth/verify-code`.
+  3. После успешной проверки возвращается `access_token`, который используется в `Authorization: Bearer <token>`.
+- Одноразовые коды хранятся в таблице `login_codes` только в виде hash, TTL — 5 минут, лимит попыток — 5.
+
+Как тестировать (curl)
+---------------------
+1) Запросить код (код не вернётся в ответе):
+
+```bash
+curl -X POST http://localhost:8000/api/auth/request-code   -H "Content-Type: application/json"   -d '{"phone": "+7 (999) 123-45-67"}'
+```
+
+2) В dev-режиме код можно посмотреть в логах сервера (строка `Login code generated ...`). В production отправка кода должна выполняться ботом.
+
+3) Подтвердить код:
+
+```bash
+curl -X POST http://localhost:8000/api/auth/verify-code   -H "Content-Type: application/json"   -d '{"phone": "+7 (999) 123-45-67", "code": "123456"}'
+```
+
+Пример успешного ответа:
+
+```json
+{
+  "access_token": "<jwt>",
+  "token_type": "bearer",
+  "user": {
+    "id": 1,
+    "telegram_id": null,
+    "phone": "79991234567"
+  }
+}
+```
+
+4) Получить текущего пользователя по токену:
+
+```bash
+curl http://localhost:8000/api/me   -H "Authorization: Bearer <jwt>"
+```
+
+5) Получить данные текущего пользователя:
+
+```bash
+curl http://localhost:8000/api/me/orders   -H "Authorization: Bearer <jwt>"
+
+curl http://localhost:8000/api/me/cart   -H "Authorization: Bearer <jwt>"
+
+curl http://localhost:8000/api/me/addresses   -H "Authorization: Bearer <jwt>"
+```
+
+Ошибки и истечение кода
+-----------------------
+- TTL кода — 5 минут: после этого `verify-code` вернёт `code_expired`.
+- Неверный код увеличивает счётчик попыток и возвращает `code_invalid`.
+- После 5 неудачных попыток код становится невалидным (`code_attempts_exceeded`).
+- Для подписи JWT и hash-кодов требуется `JWT_SECRET`. Если он не задан, API вернёт `jwt_secret_missing`/`code_salt_missing` — добавьте секрет вручную в окружение.
+
 UI Upgrade витрины
 ------------------
 - Освежён визуальный стиль витрины: спокойные фоны, мягкие границы и тени без визуального шума.

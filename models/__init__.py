@@ -329,11 +329,11 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    telegram_id = Column(BigInteger, unique=True, nullable=False, index=True)
+    telegram_id = Column(BigInteger, unique=True, nullable=True, index=True)
     username = Column(String, nullable=True)
     first_name = Column(String, nullable=True)
     last_name = Column(String, nullable=True)
-    phone = Column(String, nullable=True)
+    phone = Column(String, unique=True, nullable=True, index=True)
     avatar_url = Column(Text, nullable=True)
     is_admin = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -554,6 +554,23 @@ class AuthSession(Base):
     token = Column(String, primary_key=True, index=True)
     telegram_id = Column(BigInteger, nullable=True, index=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class LoginCode(Base):
+    __tablename__ = "login_codes"
+
+    __table_args__ = (
+        Index("ix_login_codes_phone_created", "phone", "created_at"),
+    )
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    phone = Column(String(32), nullable=False, index=True)
+    code_hash = Column(String(128), nullable=False)
+    telegram_id = Column(BigInteger, nullable=True, index=True)
+    expires_at = Column(DateTime, nullable=False, index=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    used_at = Column(DateTime, nullable=True, index=True)
+    attempts = Column(Integer, nullable=False, default=0, server_default="0")
 
 
 class HomeBanner(Base):
@@ -857,6 +874,7 @@ __all__ = [
     "ProductReview",
     "PromoCode",
     "AuthSession",
+    "LoginCode",
     "ProductBasket",
     "ProductCourse",
     "UserBan",

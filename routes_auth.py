@@ -1,4 +1,4 @@
-"""Роуты авторизации (Telegram Login/WebApp)."""
+"""Роуты авторизации (Telegram Login/WebApp + phone OTP)."""
 
 from __future__ import annotations
 
@@ -6,18 +6,24 @@ import hashlib
 import hmac
 import json
 import logging
+import os
+import secrets
 import time
 from datetime import datetime, timedelta
 from typing import Any
 from urllib.parse import parse_qsl
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
-from database import get_session
-from models import AuthSession, User
+from database import get_db, get_session
+from models import AuthSession, LoginCode, User
+from services import cart as cart_service
+from services import orders as orders_service
 from services import users as users_service
 from services.telegram_webapp_auth import (
     authenticate_telegram_webapp_user,
@@ -30,12 +36,16 @@ from routes_public import (
     _get_current_user_from_cookie,
 )
 from utils.jwt_auth import create_access_token, get_current_user_from_token
+from utils.phone import normalize_phone
 
 router = APIRouter()
 
 logger = logging.getLogger(__name__)
 
 AUTH_SESSION_TTL_SECONDS = 600
+LOGIN_CODE_TTL_SECONDS = 5 * 60
+LOGIN_CODE_MAX_ATTEMPTS = 5
+LOGIN_CODE_LENGTH = 6
 
 
 class TelegramAuthPayload(BaseModel):
@@ -51,11 +61,86 @@ class TelegramWebAppAuthPayload(BaseModel):
         populate_by_name = True
 
 
+class RequestCodePayload(BaseModel):
+    phone: str
+
+
+class VerifyCodePayload(BaseModel):
+    phone: str
+    code: str
+
+
+class AuthResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: dict[str, Any]
+
+
 def _normalize_init_data(init_data: str | None) -> str:
     normalized = (init_data or "").strip()
     if normalized.startswith("?"):
         normalized = normalized[1:]
     return normalized
+
+
+def _get_code_salt() -> str:
+    secret = os.getenv("JWT_SECRET", "").strip()
+    if secret:
+        return secret
+    if BOT_TOKEN:
+        return BOT_TOKEN
+    raise HTTPException(status_code=500, detail="code_salt_missing")
+
+
+def _hash_login_code(*, phone: str, code: str) -> str:
+    salt = _get_code_salt()
+    payload = f"{phone}:{code}:{salt}"
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _generate_login_code() -> str:
+    upper_bound = 10**LOGIN_CODE_LENGTH
+    return f"{secrets.randbelow(upper_bound):0{LOGIN_CODE_LENGTH}d}"
+
+
+def _serialize_user(user: User) -> dict[str, Any]:
+    return {
+        "id": user.id,
+        "telegram_id": user.telegram_id,
+        "username": user.username,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "phone": user.phone,
+        "is_admin": bool(user.is_admin),
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+    }
+
+
+def _invalidate_previous_codes(session: Session, phone: str) -> None:
+    session.query(LoginCode).where(
+        LoginCode.phone == phone,
+        LoginCode.used_at.is_(None),
+    ).update({LoginCode.used_at: datetime.utcnow()}, synchronize_session=False)
+
+
+def _latest_code_for_phone(session: Session, phone: str) -> LoginCode | None:
+    stmt = (
+        select(LoginCode)
+        .where(LoginCode.phone == phone)
+        .order_by(LoginCode.created_at.desc(), LoginCode.id.desc())
+        .limit(1)
+    )
+    return session.scalar(stmt)
+
+
+def _validate_code_record(code_record: LoginCode) -> None:
+    now = datetime.utcnow()
+    if code_record.used_at is not None:
+        raise HTTPException(status_code=400, detail="code_used")
+    if code_record.expires_at <= now:
+        raise HTTPException(status_code=400, detail="code_expired")
+    if code_record.attempts >= LOGIN_CODE_MAX_ATTEMPTS:
+        raise HTTPException(status_code=400, detail="code_attempts_exceeded")
 
 
 def _upsert_user_from_webapp_data(user_data: dict[str, Any]) -> User:
@@ -139,6 +224,93 @@ def _extract_user_from_auth_data(data: dict[str, Any]) -> dict[str, Any]:
         except json.JSONDecodeError:
             raise HTTPException(status_code=400, detail="Invalid user payload")
     return data
+
+
+@router.post("/api/auth/request-code")
+def api_auth_request_code(payload: RequestCodePayload, db: Session = Depends(get_db)):
+    try:
+        normalized_phone = normalize_phone(payload.phone)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    user = users_service.get_or_create_user_by_phone(db, normalized_phone)
+
+    code = _generate_login_code()
+    code_hash = _hash_login_code(phone=normalized_phone, code=code)
+    expires_at = datetime.utcnow() + timedelta(seconds=LOGIN_CODE_TTL_SECONDS)
+
+    _invalidate_previous_codes(db, normalized_phone)
+
+    login_code = LoginCode(
+        phone=normalized_phone,
+        code_hash=code_hash,
+        telegram_id=user.telegram_id,
+        expires_at=expires_at,
+        created_at=datetime.utcnow(),
+        attempts=0,
+    )
+    db.add(login_code)
+    db.flush()
+
+    logger.info("Login code generated for phone=%s code=%s", normalized_phone, code)
+
+    return {"ok": True}
+
+
+@router.post("/api/auth/verify-code", response_model=AuthResponse)
+def api_auth_verify_code(payload: VerifyCodePayload, db: Session = Depends(get_db)):
+    try:
+        normalized_phone = normalize_phone(payload.phone)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    code_record = _latest_code_for_phone(db, normalized_phone)
+    if not code_record:
+        raise HTTPException(status_code=400, detail="code_not_found")
+
+    _validate_code_record(code_record)
+
+    expected_hash = _hash_login_code(phone=normalized_phone, code=payload.code.strip())
+    if not hmac.compare_digest(expected_hash, code_record.code_hash):
+        code_record.attempts = int(code_record.attempts or 0) + 1
+        if code_record.attempts >= LOGIN_CODE_MAX_ATTEMPTS:
+            code_record.used_at = datetime.utcnow()
+        db.flush()
+        raise HTTPException(status_code=400, detail="code_invalid")
+
+    user = db.scalar(select(User).where(User.phone == normalized_phone))
+    if not user:
+        raise HTTPException(status_code=404, detail="user_not_found")
+
+    code_record.used_at = datetime.utcnow()
+    if user.telegram_id and code_record.telegram_id is None:
+        code_record.telegram_id = user.telegram_id
+    db.flush()
+
+    access_token = create_access_token(user_id=user.id, telegram_id=user.telegram_id)
+
+    return AuthResponse(access_token=access_token, user=_serialize_user(user))
+
+
+@router.get("/api/me/orders")
+def api_me_orders(current_user: User = Depends(get_current_user_from_token)):
+    if current_user.telegram_id is None:
+        return {"items": []}
+    orders = orders_service.get_orders_by_user(int(current_user.telegram_id))
+    return {"items": orders}
+
+
+@router.get("/api/me/cart")
+def api_me_cart(current_user: User = Depends(get_current_user_from_token)):
+    if current_user.telegram_id is None:
+        return {"items": [], "removed": []}
+    items, removed = cart_service.get_cart_items(int(current_user.telegram_id))
+    return {"items": items, "removed": removed}
+
+
+@router.get("/api/me/addresses")
+def api_me_addresses(current_user: User = Depends(get_current_user_from_token)):
+    return {"items": []}
 
 
 @router.post("/api/auth/telegram_webapp")
@@ -240,231 +412,52 @@ def api_auth_me(current_user: User = Depends(get_current_user_from_token)):
         "username": current_user.username,
         "first_name": current_user.first_name,
         "last_name": current_user.last_name,
-        "is_admin": current_user.is_admin,
+        "phone": current_user.phone,
+        "is_admin": bool(current_user.is_admin),
     }
-
-
-@router.post("/api/auth/create-token")
-def api_auth_create_token():
-    """
-    Создать новую сессию авторизации для deeplink-а из бота.
-    Возвращает {"ok": true, "token": "..."}.
-    """
-    token = str(uuid4())
-    with get_session() as s:
-        s.add(AuthSession(token=token))
-    return {"ok": True, "token": token}
-
-
-@router.get("/api/auth/check")
-def api_auth_check(token: str, response: Response, include_notes: bool = False):
-    """
-    Проверить токен AuthSession, выданный по deeplink-у из бота.
-    При успешной проверке возвращает профиль пользователя в едином формате.
-    """
-    with get_session() as s:
-        session = s.query(AuthSession).filter(AuthSession.token == token).first()
-        if not session:
-            response.status_code = 404
-            return {"ok": False, "reason": "not_found"}
-
-        if session.created_at and datetime.utcnow() - session.created_at > timedelta(seconds=AUTH_SESSION_TTL_SECONDS):
-            response.status_code = 410
-            return {"ok": False, "reason": "expired"}
-
-        if not session.telegram_id:
-            return {"ok": False, "reason": "pending"}
-
-        telegram_id = int(session.telegram_id)
-
-        user = s.query(User).filter(User.telegram_id == telegram_id).first()
-        if not user:
-            user = User(telegram_id=telegram_id)
-            s.add(user)
-            s.flush()
-
-        profile = _build_user_profile(s, user, include_notes=include_notes)
-
-    if not profile:
-        response.status_code = 404
-        return {"ok": False, "reason": "not_found"}
-
-    response.set_cookie(
-        key="tg_user_id",
-        value=str(telegram_id),
-        httponly=True,
-        max_age=COOKIE_MAX_AGE,
-        samesite="lax",
-    )
-
-    return profile
-
-
-@router.get("/api/auth/telegram-login")
-def api_auth_telegram_login(request: Request):
-    """
-    Авторизация через Telegram Login Widget (браузер на сайте).
-    Telegram делает GET на этот URL с параметрами:
-    id, first_name, last_name, username, photo_url, auth_date, hash.
-    Алгоритм проверки: https://core.telegram.org/widgets/login
-    """
-    params = dict(request.query_params)
-    received_hash = params.pop("hash", None)
-    if not received_hash:
-        raise HTTPException(status_code=400, detail="Missing hash")
-
-    data_check_string = "\n".join(
-        f"{k}={v}" for k, v in sorted(params.items()) if v is not None and v != ""
-    )
-
-    secret_key = hashlib.sha256(BOT_TOKEN.encode()).digest()
-    calculated_hash = hmac.new(
-        secret_key,
-        data_check_string.encode(),
-        hashlib.sha256,
-    ).hexdigest()
-
-    if not hmac.compare_digest(calculated_hash, received_hash):
-        raise HTTPException(status_code=400, detail="Invalid login data")
-
-    auth_date = int(params.get("auth_date", "0") or 0)
-    if auth_date and time.time() - auth_date > 86400:
-        raise HTTPException(status_code=400, detail="Login data is too old")
-
-    user_data = {
-        "id": int(params["id"]),
-        "first_name": params.get("first_name") or "",
-        "last_name": params.get("last_name") or "",
-        "username": params.get("username") or "",
-        "photo_url": params.get("photo_url") or "",
-    }
-
-    try:
-        user = users_service.get_or_create_user_from_telegram(user_data)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid user data")
-
-    response = RedirectResponse(url="/profile.html", status_code=302)
-    response.set_cookie(
-        key="tg_user_id",
-        value=str(user.telegram_id),
-        max_age=COOKIE_MAX_AGE,
-        httponly=True,
-        samesite="lax",
-    )
-    return response
 
 
 @router.get("/api/auth/session")
-async def api_auth_session(request: Request, response: Response, include_notes: bool = False):
-    """
-    Авторизация из браузера или Telegram WebApp по cookie tg_user_id.
-
-    Если cookie отсутствует, пробует авторизовать пользователя по initData
-    из запроса Telegram WebApp. Если сессия не найдена — возвращает
-    `{"authenticated": false}` без ошибки 401.
-    """
+def get_auth_session():
+    token = str(uuid4())
+    expires_at = datetime.utcnow() + timedelta(seconds=AUTH_SESSION_TTL_SECONDS)
     with get_session() as session:
-        user = _get_current_user_from_cookie(session, request)
-        if not user:
-            user = await authenticate_telegram_webapp_user(
-                request,
-                session,
-                validate_telegram_webapp_init_data,
-                response=response,
-                cookie_max_age=COOKIE_MAX_AGE,
-            )
-
-        if not user:
-            return {"authenticated": False}
-
-        try:
-            profile = _build_user_profile(session, user, include_notes=include_notes)
-        except HTTPException as exc:
-            raise HTTPException(status_code=exc.status_code, detail=exc.detail)
-
-    return {"authenticated": True, "user": profile}
+        session.add(AuthSession(token=token))
+    return {"token": token, "expires_at": expires_at.isoformat()}
 
 
-@router.post("/api/auth/telegram")
-def api_auth_telegram(payload: TelegramAuthPayload, response: Response):
-    """
-    Единый endpoint авторизации через Telegram WebApp или Login Widget.
-
-    Поддерживает:
-      * init_data — строка initData из Telegram WebApp;
-      * auth_query — query-string из Telegram Login Widget или deeplink-а.
-    """
-
-    if (payload.init_data is None and payload.auth_query is None) or (
-        payload.init_data is not None and payload.auth_query is not None
-    ):
-        raise HTTPException(status_code=400, detail="Provide exactly one of init_data or auth_query")
-
-    raw_auth_payload = payload.init_data or payload.auth_query or ""
-
-    try:
-        validated_data = _parse_telegram_auth_data(raw_auth_payload, BOT_TOKEN)
-    except HTTPException:
-        raise
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid telegram auth data")
-
-    user_data = _extract_user_from_auth_data(validated_data)
-
-    telegram_id = user_data.get("id")
-    if telegram_id is None:
-        raise HTTPException(status_code=400, detail="Missing user id")
-
-    try:
-        telegram_id_int = int(telegram_id)
-    except (TypeError, ValueError):
-        raise HTTPException(status_code=400, detail="Invalid user id")
-
-    first_name = user_data.get("first_name") or ""
-    last_name = user_data.get("last_name") or ""
-    full_name = " ".join(part for part in [first_name, last_name] if part).strip() or None
-    phone = user_data.get("phone") or user_data.get("phone_number")
-
-    with get_session() as session:
-        try:
-            user = users_service.get_or_create_user_from_telegram(
-                session,
-                telegram_id=telegram_id_int,
-                username=user_data.get("username"),
-                full_name=full_name,
-                phone=phone,
-            )
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid user data")
-        except HTTPException:
-            raise
-        except Exception:
-            raise HTTPException(status_code=500, detail="Failed to authorize user")
-
-        response.set_cookie(
-            key="tg_user_id",
-            value=str(user.telegram_id),
-            httponly=True,
-            max_age=COOKIE_MAX_AGE,
-            samesite="lax",
-        )
-
-        return {
-            "status": "ok",
-            "user": {
-                "id": user.id,
-                "telegram_id": user.telegram_id,
-                "username": user.username,
-            },
-        }
+@router.get("/api/auth/telegram")
+def auth_telegram(request: Request, response: Response):
+    user = authenticate_telegram_webapp_user(request)
+    response.set_cookie(
+        key="tg_user_id",
+        value=str(user.telegram_id),
+        httponly=True,
+        max_age=COOKIE_MAX_AGE,
+        samesite="lax",
+    )
+    return {"status": "ok", "user": {"id": user.id, "telegram_id": user.telegram_id}}
 
 
-@router.post("/api/auth/logout")
-def api_auth_logout(response: Response):
-    """
-    Logout для обычного сайта: сбрасывает cookie tg_user_id.
-    Используется кнопкой "Выйти"/"Сменить пользователя".
-    """
-    response.delete_cookie("tg_user_id", path="/")
-    return {"ok": True}
+@router.get("/api/auth/status")
+def auth_status(request: Request):
+    user = _get_current_user_from_cookie(request)
+    if not user:
+        return {"authenticated": False}
+    return {"authenticated": True, "user": {"id": user.id, "telegram_id": user.telegram_id}}
+
+
+@router.get("/api/auth/telegram/login")
+def auth_telegram_login(auth_payload: str = Query(..., alias="auth_payload")):
+    parsed = _parse_telegram_auth_data(auth_payload)
+    user_data = _extract_user_from_auth_data(parsed)
+    user = _upsert_user_from_webapp_data(user_data)
+    redirect = RedirectResponse(url="/lk.html")
+    redirect.set_cookie(
+        key="tg_user_id",
+        value=str(user.telegram_id),
+        httponly=True,
+        max_age=COOKIE_MAX_AGE,
+        samesite="lax",
+    )
+    return redirect
