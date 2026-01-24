@@ -9,6 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
   <link rel="icon" id="site-favicon" href="/favicon.ico" />
   <link rel="stylesheet" id="theme-stylesheet" href="css/theme.css" />
+  <link rel="stylesheet" href="css/profile.css?v=20260124" />
   <link rel="stylesheet" href="css/support_widget.css?v=20250605" />
 </head>
 <body class="page-profile">
@@ -143,7 +144,7 @@
   <script src="js/api.js?v=20250605"></script>
   <script src="js/app_shell.js?v=20251220"></script>
   <script>
-    const ACCESS_TOKEN_KEY = 'access_token';
+    const LEGACY_ACCESS_TOKEN_KEY = 'miniden_access_token';
 
     const authCard = document.getElementById('auth-card');
     const profileView = document.getElementById('profile-view');
@@ -164,16 +165,58 @@
 
     let currentUser = null;
 
+    function readStorage(key) {
+      try {
+        return localStorage.getItem(key);
+      } catch (error) {
+        console.warn('Storage read failed', error);
+        return '';
+      }
+    }
+
+    function writeStorage(key, value) {
+      try {
+        if (value) {
+          localStorage.setItem(key, value);
+        } else {
+          localStorage.removeItem(key);
+        }
+      } catch (error) {
+        console.warn('Storage write failed', error);
+      }
+    }
+
     function getToken() {
-      return localStorage.getItem(ACCESS_TOKEN_KEY) || '';
+      if (typeof window.getToken === 'function') {
+        return window.getToken() || '';
+      }
+      return readStorage('access_token') || '';
     }
 
     function setToken(token) {
-      localStorage.setItem(ACCESS_TOKEN_KEY, token);
+      if (typeof window.setToken === 'function') {
+        window.setToken(token);
+        return;
+      }
+      writeStorage('access_token', token);
     }
 
     function clearToken() {
-      localStorage.removeItem(ACCESS_TOKEN_KEY);
+      if (typeof window.clearToken === 'function') {
+        window.clearToken();
+        return;
+      }
+      writeStorage('access_token', '');
+    }
+
+    function migrateLegacyToken() {
+      const current = getToken();
+      if (current) return current;
+      const legacyToken = readStorage(LEGACY_ACCESS_TOKEN_KEY);
+      if (!legacyToken) return '';
+      setToken(legacyToken);
+      writeStorage(LEGACY_ACCESS_TOKEN_KEY, '');
+      return legacyToken;
     }
 
     function showAuth(message = '') {
@@ -238,6 +281,23 @@
       }
 
       return data;
+    }
+
+    function renderSectionMessage(listEl, message) {
+      renderList(listEl, [], () => null, message);
+    }
+
+    function handleSectionError(error, listEl, emptyMessage) {
+      if (error?.status === 404 || error?.status === 405) {
+        renderSectionMessage(listEl, 'Раздел пока не подключён');
+        return true;
+      }
+      if (error?.status === 401) {
+        renderSectionMessage(listEl, 'Нужен повторный вход');
+        return true;
+      }
+      renderSectionMessage(listEl, emptyMessage);
+      return false;
     }
 
     function normalizeListPayload(payload, keys) {
@@ -339,47 +399,44 @@
     }
 
     async function loadAddresses() {
+      renderSectionMessage(addressesList, 'Загрузка адресов…');
       try {
         const data = await apiFetch('/api/me/addresses');
         const addresses = normalizeListPayload(data, ['addresses', 'items', 'data']);
         renderList(addressesList, addresses, renderAddressItem, 'Пока нет адресов');
       } catch (error) {
-        if (error.status === 404) {
-          renderList(addressesList, [], renderAddressItem, 'Пока нет адресов');
-          return;
+        const handled = handleSectionError(error, addressesList, 'Не удалось загрузить адреса');
+        if (!handled) {
+          console.warn('Не удалось загрузить адреса', error);
         }
-        console.warn('Не удалось загрузить адреса', error);
-        renderList(addressesList, [], renderAddressItem, 'Не удалось загрузить адреса');
       }
     }
 
     async function loadOrders() {
+      renderSectionMessage(ordersList, 'Загрузка заказов…');
       try {
         const data = await apiFetch('/api/me/orders');
         const orders = normalizeListPayload(data, ['orders', 'items', 'data']);
         renderList(ordersList, orders, renderOrderItem, 'Пока нет заказов');
       } catch (error) {
-        if (error.status === 404) {
-          renderList(ordersList, [], renderOrderItem, 'Пока нет заказов');
-          return;
+        const handled = handleSectionError(error, ordersList, 'Не удалось загрузить заказы');
+        if (!handled) {
+          console.warn('Не удалось загрузить заказы', error);
         }
-        console.warn('Не удалось загрузить заказы', error);
-        renderList(ordersList, [], renderOrderItem, 'Не удалось загрузить заказы');
       }
     }
 
     async function loadCart() {
+      renderSectionMessage(cartList, 'Загрузка корзины…');
       try {
         const data = await apiFetch('/api/me/cart');
         const cartItems = normalizeListPayload(data, ['items', 'cart_items', 'data']);
         renderList(cartList, cartItems, renderCartItem, 'Корзина пуста');
       } catch (error) {
-        if (error.status === 404) {
-          renderList(cartList, [], renderCartItem, 'Корзина пуста');
-          return;
+        const handled = handleSectionError(error, cartList, 'Не удалось загрузить корзину');
+        if (!handled) {
+          console.warn('Не удалось загрузить корзину', error);
         }
-        console.warn('Не удалось загрузить корзину', error);
-        renderList(cartList, [], renderCartItem, 'Не удалось загрузить корзину');
       }
     }
 
@@ -448,7 +505,8 @@
     });
 
     document.addEventListener('DOMContentLoaded', async () => {
-      if (!getToken()) {
+      const token = migrateLegacyToken();
+      if (!token) {
         showAuth('');
         phoneInput.focus();
         return;
