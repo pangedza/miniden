@@ -56,6 +56,7 @@ from services.telegram_webapp_auth import (
     validate_telegram_webapp_init_data,
 )
 from utils import site_chat_storage
+from utils.jwt_auth import decode_access_token
 from utils.texts import format_order_for_admin
 
 router = APIRouter()
@@ -733,6 +734,27 @@ def _get_cart_user_id_from_cookie(request: Request) -> int | None:
         return None
 
 
+def _get_cart_user_id_from_authorization(request: Request) -> int | None:
+    authorization = request.headers.get("Authorization")
+    if not authorization:
+        return None
+
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token:
+        return None
+
+    try:
+        payload = decode_access_token(token.strip())
+    except HTTPException:
+        return None
+
+    telegram_id_raw = payload.get("telegram_id")
+    try:
+        return int(telegram_id_raw)
+    except (TypeError, ValueError):
+        return None
+
+
 def _ensure_cart_session_id(request: Request, response: Response) -> str:
     session_id = request.cookies.get(CART_SESSION_COOKIE)
     if session_id:
@@ -753,6 +775,10 @@ def _resolve_cart_identity(
     response: Response,
     user_id: int | None = None,
 ) -> tuple[int | None, str | None]:
+    auth_user_id = _get_cart_user_id_from_authorization(request)
+    if auth_user_id is not None:
+        return auth_user_id, None
+
     if user_id is not None:
         return int(user_id), None
 
@@ -1687,26 +1713,29 @@ def api_cart_apply_promocode(
 
 
 @router.post("/api/checkout")
-def api_checkout(payload: CheckoutPayload):
+def api_checkout(payload: CheckoutPayload, request: Request):
     """Оформить заказ из текущей корзины WebApp."""
-    if payload.user_id is None or int(payload.user_id) <= 0:
+    auth_user_id = _get_cart_user_id_from_authorization(request)
+    resolved_user_id = auth_user_id or payload.user_id
+    if resolved_user_id is None or int(resolved_user_id) <= 0:
         raise HTTPException(status_code=422, detail="user_id is required")
+    resolved_user_id = int(resolved_user_id)
 
     users_service.get_or_create_user_from_telegram(
         {
-            "id": payload.user_id,
+            "id": resolved_user_id,
             "username": payload.user_name,
             "first_name": payload.customer_name,
         }
     )
 
-    cart_data = _build_cart_response(user_id=payload.user_id)
+    cart_data = _build_cart_response(user_id=resolved_user_id)
     normalized_items = cart_data.get("items") or []
     removed_items = cart_data.get("removed_items") or []
     total = int(cart_data.get("total") or 0)
 
     if not normalized_items:
-        cart_service.clear_cart(payload.user_id)
+        cart_service.clear_cart(resolved_user_id)
         raise HTTPException(status_code=400, detail="No valid items in cart")
 
     user_name = payload.user_name or "webapp"
@@ -1714,7 +1743,7 @@ def api_checkout(payload: CheckoutPayload):
     promo_result = None
     if payload.promocode:
         promo_result = promocodes_service.validate_promocode(
-            payload.promocode, payload.user_id, normalized_items
+            payload.promocode, resolved_user_id, normalized_items
         )
         if not promo_result:
             raise HTTPException(status_code=400, detail="Invalid promocode")
@@ -1723,7 +1752,7 @@ def api_checkout(payload: CheckoutPayload):
     final_total = int(promo_result.get("final_total", total)) if promo_result else total
 
     order_text = format_order_for_admin(
-        user_id=payload.user_id,
+        user_id=resolved_user_id,
         user_name=user_name,
         items=normalized_items,
         total=final_total,
@@ -1733,7 +1762,7 @@ def api_checkout(payload: CheckoutPayload):
     )
 
     order_id = orders_service.add_order(
-        user_id=payload.user_id,
+        user_id=resolved_user_id,
         user_name=user_name,
         items=normalized_items,
         total=final_total,
@@ -1748,7 +1777,7 @@ def api_checkout(payload: CheckoutPayload):
     if promo_result:
         promocodes_service.increment_usage(promo_result.get("code"))
 
-    cart_service.clear_cart(payload.user_id)
+    cart_service.clear_cart(resolved_user_id)
 
     return {
         "ok": True,
