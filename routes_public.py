@@ -1886,14 +1886,40 @@ def api_cart_clear(
 
 
 @router.get("/api/me")
-def api_me(telegram_id: int):
-    """
-    Вернуть профиль пользователя (личный кабинет) по его telegram_id.
-    Формат ответа совпадает с /api/auth/telegram, чтобы фронту было удобно.
-    """
-    with get_session() as session:
-        user = session.query(User).filter(User.telegram_id == telegram_id).first()
-        profile = _build_user_profile(session, user, include_notes=True)
+def api_me(request: Request, telegram_id: int | None = Query(default=None)):
+    """Вернуть профиль по JWT-токену или по legacy telegram_id."""
+
+    auth_header = request.headers.get("Authorization")
+    resolved_user: User | None = None
+
+    if auth_header:
+        scheme, _, token = auth_header.partition(" ")
+        if scheme.lower() != "bearer" or not token:
+            raise HTTPException(status_code=401, detail="token_invalid")
+        payload = decode_access_token(token.strip())
+        user_id_raw = payload.get("user_id")
+        try:
+            user_id = int(user_id_raw)
+        except (TypeError, ValueError):
+            user_id = None
+
+        with get_session() as session:
+            if user_id is not None:
+                resolved_user = session.get(User, user_id)
+            if resolved_user is None and payload.get("telegram_id") is not None:
+                try:
+                    telegram_id_from_token = int(payload["telegram_id"])
+                except (TypeError, ValueError):
+                    raise HTTPException(status_code=401, detail="token_invalid")
+                resolved_user = session.query(User).filter(User.telegram_id == telegram_id_from_token).first()
+            profile = _build_user_profile(session, resolved_user, include_notes=True)
+    else:
+        if telegram_id is None:
+            raise HTTPException(status_code=400, detail="telegram_id_required")
+        with get_session() as session:
+            resolved_user = session.query(User).filter(User.telegram_id == telegram_id).first()
+            profile = _build_user_profile(session, resolved_user, include_notes=True)
+
     if not profile:
         raise HTTPException(status_code=404, detail="User not found")
 

@@ -45,7 +45,7 @@ def _sign(signing_input: str, secret: str) -> str:
 def create_access_token(
     *,
     user_id: int,
-    telegram_id: int,
+    telegram_id: int | None = None,
     ttl_seconds: int = ACCESS_TOKEN_TTL_SECONDS,
 ) -> str:
     if ttl_seconds <= 0:
@@ -55,10 +55,11 @@ def create_access_token(
     now = int(time.time())
     payload: dict[str, Any] = {
         "user_id": int(user_id),
-        "telegram_id": int(telegram_id),
         "iat": now,
         "exp": now + int(ttl_seconds),
     }
+    if telegram_id is not None:
+        payload["telegram_id"] = int(telegram_id)
 
     header_segment = _b64url_encode(json.dumps({"alg": ALGORITHM, "typ": "JWT"}, separators=(",", ":")).encode("utf-8"))
     payload_segment = _b64url_encode(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
@@ -120,13 +121,25 @@ def get_current_user_from_token(
     token = _extract_bearer_token(authorization)
     payload = decode_access_token(token)
 
-    telegram_id_raw = payload.get("telegram_id")
+    user_id_raw = payload.get("user_id")
+    user: User | None = None
     try:
-        telegram_id = int(telegram_id_raw)
+        user_id = int(user_id_raw)
     except (TypeError, ValueError):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="token_invalid")
+        user_id = None
 
-    user = db.query(User).filter(User.telegram_id == telegram_id).first()
+    if user_id is not None:
+        user = db.get(User, user_id)
+
+    if user is None:
+        telegram_id_raw = payload.get("telegram_id")
+        try:
+            telegram_id = int(telegram_id_raw)
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="token_invalid")
+
+        user = db.query(User).filter(User.telegram_id == telegram_id).first()
+
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="user_not_found")
 

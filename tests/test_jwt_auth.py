@@ -18,13 +18,21 @@ def _set_jwt_secret(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("JWT_SECRET", "test-secret")
 
 
-def test_create_and_decode_access_token_roundtrip():
+def test_create_and_decode_access_token_roundtrip_with_telegram_id():
     token = create_access_token(user_id=123, telegram_id=456, ttl_seconds=60)
     payload = decode_access_token(token)
 
     assert payload["user_id"] == 123
     assert payload["telegram_id"] == 456
     assert payload["exp"] >= payload["iat"]
+
+
+def test_create_and_decode_access_token_without_telegram_id():
+    token = create_access_token(user_id=321, ttl_seconds=60)
+    payload = decode_access_token(token)
+
+    assert payload["user_id"] == 321
+    assert "telegram_id" not in payload
 
 
 def test_decode_access_token_rejects_tampered_token():

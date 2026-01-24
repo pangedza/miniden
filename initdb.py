@@ -63,11 +63,61 @@ def init_db() -> None:
             "ALTER TABLE site_settings ADD COLUMN IF NOT EXISTS hero_enabled BOOLEAN NOT NULL DEFAULT TRUE",
             "ALTER TABLE cart_items ADD COLUMN IF NOT EXISTS session_id VARCHAR(64)",
             "ALTER TABLE cart_items ALTER COLUMN user_id DROP NOT NULL",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR",
+            "ALTER TABLE users ALTER COLUMN telegram_id DROP NOT NULL",
         ]
 
         with engine.begin() as conn:
             for statement in alter_statements:
                 conn.execute(text(statement))
+
+            conn.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_users_phone "
+                    "ON users(phone) WHERE phone IS NOT NULL"
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_users_telegram_id "
+                    "ON users(telegram_id) WHERE telegram_id IS NOT NULL"
+                )
+            )
+
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS login_codes (
+                        id BIGSERIAL PRIMARY KEY,
+                        phone VARCHAR(32) NOT NULL,
+                        code_hash VARCHAR(128) NOT NULL,
+                        telegram_id BIGINT,
+                        expires_at TIMESTAMP NOT NULL,
+                        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                        used_at TIMESTAMP,
+                        attempts INTEGER NOT NULL DEFAULT 0
+                    )
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_login_codes_phone_created "
+                    "ON login_codes(phone, created_at)"
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_login_codes_expires_at "
+                    "ON login_codes(expires_at)"
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_login_codes_used_at "
+                    "ON login_codes(used_at)"
+                )
+            )
 
             conn.execute(
                 text("ALTER TABLE menu_items DROP CONSTRAINT IF EXISTS ck_menu_items_type")
