@@ -6,6 +6,7 @@ from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 
 from config import ADMIN_IDS_SET
+from utils.telegram import answer_with_thread, send_message_with_thread
 from services import admin_notes as admin_notes_service
 from services import bans as bans_service
 from services import orders as orders_service
@@ -100,17 +101,17 @@ def _build_orders_menu_kb() -> types.InlineKeyboardMarkup:
 
 
 async def _send_web_admin_redirect_message(target_message: types.Message) -> None:
-    await target_message.answer(WEB_ADMIN_REDIRECT_TEXT)
+    await answer_with_thread(target_message, WEB_ADMIN_REDIRECT_TEXT)
 
 
 async def _send_web_admin_redirect_callback(callback: types.CallbackQuery) -> None:
     if callback.message:
-        await callback.message.answer(WEB_ADMIN_REDIRECT_TEXT)
+        await answer_with_thread(callback.message, WEB_ADMIN_REDIRECT_TEXT)
     await callback.answer()
 
 
 async def _send_orders_menu(message: types.Message) -> None:
-    await message.answer(
+    await answer_with_thread(message,
         "📦 <b>Раздел заказов</b>\nВыберите, какие заказы показать:",
         reply_markup=_build_orders_menu_kb(),
     )
@@ -131,7 +132,7 @@ async def open_admin_panel(message: types.Message, state: FSMContext):
 
     await state.clear()
 
-    await message.answer(
+    await answer_with_thread(message,
         "⚙️ Админ-панель.\nВыберите категорию:", reply_markup=get_admin_menu()
     )
 
@@ -141,7 +142,7 @@ async def admin_client_menu_hint(message: types.Message):
     if not _is_admin(message.from_user.id):
         return
 
-    await message.answer(
+    await answer_with_thread(message,
         "Отправьте команду <code>/client &lt;telegram_id&gt;</code>, "
         "чтобы открыть профиль нужного клиента."
     )
@@ -152,7 +153,7 @@ async def admin_ban_menu_hint(message: types.Message):
     if not _is_admin(message.from_user.id):
         return
 
-    await message.answer(
+    await answer_with_thread(message,
         "Используйте команды:\n"
         "• <code>/ban &lt;user_id&gt; [причина]</code>\n"
         "• <code>/unban &lt;user_id&gt;</code>"
@@ -213,7 +214,7 @@ async def admin_notes_menu_hint(message: types.Message):
     if not _is_admin(message.from_user.id):
         return
 
-    await message.answer(
+    await answer_with_thread(message,
         "Работа с заметками:\n"
         "• <code>/note &lt;user_id&gt; &lt;текст&gt;</code> — добавить заметку\n"
         "• <code>/notes &lt;user_id&gt;</code> — посмотреть заметки"
@@ -268,7 +269,7 @@ async def admin_back_panel(callback: types.CallbackQuery, state: FSMContext):
     except Exception:
         pass
 
-    await callback.message.answer(
+    await answer_with_thread(callback.message,
         "⚙️ Админ-панель.\nВыберите категорию:", reply_markup=get_admin_menu()
     )
 
@@ -288,7 +289,7 @@ async def admin_home_cb(callback: types.CallbackQuery, state: FSMContext):
     except Exception:
         pass
 
-    await callback.message.answer(
+    await answer_with_thread(callback.message,
         "Главное меню:",
         reply_markup=_get_reply_menu(),
     )
@@ -326,7 +327,7 @@ async def _send_course_access_list(target_message: types.Message) -> None:
     courses = [{"id": item["id"], "name": item["title"]} for item in raw_courses]
     text = "🎓 Выберите курс для управления доступом:" if courses else "Пока нет курсов для управления доступом."
 
-    await target_message.answer(
+    await answer_with_thread(target_message,
         text,
         reply_markup=course_access_list_kb(courses),
     )
@@ -335,7 +336,7 @@ async def _send_course_access_list(target_message: types.Message) -> None:
 async def _send_course_access_info(target_message: types.Message, course_id: int) -> None:
     course = menu_catalog.get_item_by_id(course_id, include_inactive=False, item_type="course")
     if not course:
-        await target_message.answer("Курс не найден или недоступен.")
+        await answer_with_thread(target_message, "Курс не найден или недоступен.")
         return
 
     users = orders_service.get_course_users(course_id)
@@ -363,7 +364,7 @@ async def _send_course_access_info(target_message: types.Message, course_id: int
         if len(users) > 10:
             lines.append(f"… и ещё {len(users) - 10} пользователей")
 
-    await target_message.answer(
+    await answer_with_thread(target_message,
         "\n".join(lines).strip(),
         reply_markup=course_access_actions_kb(course_id),
     )
@@ -413,7 +414,7 @@ async def admin_course_access_grant(callback: types.CallbackQuery, state: FSMCon
     await state.update_data(course_id=course_id)
     await state.set_state(CourseAccessState.waiting_grant_user_id)
 
-    await callback.message.answer(
+    await answer_with_thread(callback.message,
         f"Введите user_id для выдачи доступа к курсу <b>{course['title']}</b> (ID: <code>{course_id}</code>):"
     )
     await callback.answer()
@@ -444,7 +445,7 @@ async def admin_course_access_revoke(callback: types.CallbackQuery, state: FSMCo
     await state.update_data(course_id=course_id)
     await state.set_state(CourseAccessState.waiting_revoke_user_id)
 
-    await callback.message.answer(
+    await answer_with_thread(callback.message,
         f"Введите user_id для отзыва доступа к курсу <b>{course['title']}</b> (ID: <code>{course_id}</code>):"
     )
     await callback.answer()
@@ -481,13 +482,13 @@ async def admin_course_access_grant_user(message: types.Message, state: FSMConte
 
     if not course_id:
         await state.clear()
-        await message.answer("Курс не найден в состоянии. Попробуйте снова.")
+        await answer_with_thread(message, "Курс не найден в состоянии. Попробуйте снова.")
         return
 
     try:
         user_id = int((message.text or "").strip())
     except ValueError:
-        await message.answer("Нужно ввести числовой user_id. Попробуйте ещё раз:")
+        await answer_with_thread(message, "Нужно ввести числовой user_id. Попробуйте ещё раз:")
         return
 
     success = orders_service.grant_course_access(
@@ -501,12 +502,12 @@ async def admin_course_access_grant_user(message: types.Message, state: FSMConte
     await state.clear()
 
     if success:
-        await message.answer(
+        await answer_with_thread(message,
             f"Доступ к курсу ID {course_id} выдан пользователю <code>{user_id}</code>."
         )
         await _send_course_access_info(message, course_id)
     else:
-        await message.answer("Не удалось выдать доступ. Попробуйте позже.")
+        await answer_with_thread(message, "Не удалось выдать доступ. Попробуйте позже.")
 
 
 @router.message(CourseAccessState.waiting_revoke_user_id)
@@ -520,13 +521,13 @@ async def admin_course_access_revoke_user(message: types.Message, state: FSMCont
 
     if not course_id:
         await state.clear()
-        await message.answer("Курс не найден в состоянии. Попробуйте снова.")
+        await answer_with_thread(message, "Курс не найден в состоянии. Попробуйте снова.")
         return
 
     try:
         user_id = int((message.text or "").strip())
     except ValueError:
-        await message.answer("Нужно ввести числовой user_id. Попробуйте ещё раз:")
+        await answer_with_thread(message, "Нужно ввести числовой user_id. Попробуйте ещё раз:")
         return
 
     success = orders_service.revoke_course_access(user_id=user_id, course_id=course_id)
@@ -534,12 +535,12 @@ async def admin_course_access_revoke_user(message: types.Message, state: FSMCont
     await state.clear()
 
     if success:
-        await message.answer(
+        await answer_with_thread(message,
             f"Доступ к курсу ID {course_id} отозван у пользователя <code>{user_id}</code>."
         )
         await _send_course_access_info(message, course_id)
     else:
-        await message.answer("Не удалось отозвать доступ. Возможно, его и так не было.")
+        await answer_with_thread(message, "Не удалось отозвать доступ. Возможно, его и так не было.")
 
 
 # =====================================================================
@@ -572,7 +573,7 @@ async def admin_debug_commands(message: types.Message) -> None:
     else:
         lines.append("(нет админских команд)")
 
-    await message.answer("\n".join(lines))
+    await answer_with_thread(message, "\n".join(lines))
 
 
 # =====================================================================
@@ -587,7 +588,7 @@ async def admin_ban_user(message: types.Message) -> None:
 
     parts = (message.text or "").split(maxsplit=2)
     if len(parts) < 2:
-        await message.answer(
+        await answer_with_thread(message,
             "Использование: <code>/ban &lt;user_id&gt; [причина]</code>"
         )
         return
@@ -595,7 +596,7 @@ async def admin_ban_user(message: types.Message) -> None:
     try:
         target_user_id = int(parts[1])
     except ValueError:
-        await message.answer(
+        await answer_with_thread(message,
             "Использование: <code>/ban &lt;user_id&gt; [причина]</code>"
         )
         return
@@ -608,7 +609,7 @@ async def admin_ban_user(message: types.Message) -> None:
     if reason:
         response += f" Причина: {reason}"
 
-    await message.answer(response)
+    await answer_with_thread(message, response)
 
 
 @router.message(Command("unban"))
@@ -618,18 +619,18 @@ async def admin_unban_user(message: types.Message) -> None:
 
     parts = (message.text or "").split(maxsplit=1)
     if len(parts) < 2:
-        await message.answer("Использование: <code>/unban &lt;user_id&gt;</code>")
+        await answer_with_thread(message, "Использование: <code>/unban &lt;user_id&gt;</code>")
         return
 
     try:
         target_user_id = int(parts[1])
     except ValueError:
-        await message.answer("Использование: <code>/unban &lt;user_id&gt;</code>")
+        await answer_with_thread(message, "Использование: <code>/unban &lt;user_id&gt;</code>")
         return
 
     bans_service.unban_user(target_user_id)
 
-    await message.answer(f"Пользователь {target_user_id} разбанен.")
+    await answer_with_thread(message, f"Пользователь {target_user_id} разбанен.")
 
 
 @router.message(Command("note"))
@@ -639,7 +640,7 @@ async def admin_add_note(message: types.Message) -> None:
 
     parts = (message.text or "").split(maxsplit=2)
     if len(parts) < 3:
-        await message.answer(
+        await answer_with_thread(message,
             "Использование: <code>/note &lt;user_id&gt; &lt;текст заметки&gt;</code>"
         )
         return
@@ -647,21 +648,21 @@ async def admin_add_note(message: types.Message) -> None:
     try:
         target_user_id = int(parts[1])
     except ValueError:
-        await message.answer(
+        await answer_with_thread(message,
             "Использование: <code>/note &lt;user_id&gt; &lt;текст заметки&gt;</code>"
         )
         return
 
     note_text = parts[2].strip()
     if not note_text:
-        await message.answer("Текст заметки не может быть пустым.")
+        await answer_with_thread(message, "Текст заметки не может быть пустым.")
         return
 
     admin_notes_service.add_note(
         user_id=target_user_id, admin_id=message.from_user.id, note=note_text
     )
 
-    await message.answer("Заметка добавлена.")
+    await answer_with_thread(message, "Заметка добавлена.")
 
 
 @router.message(Command("notes"))
@@ -671,22 +672,22 @@ async def admin_show_notes(message: types.Message) -> None:
 
     parts = (message.text or "").split(maxsplit=1)
     if len(parts) < 2:
-        await message.answer("Использование: <code>/notes &lt;user_id&gt;</code>")
+        await answer_with_thread(message, "Использование: <code>/notes &lt;user_id&gt;</code>")
         return
 
     try:
         target_user_id = int(parts[1])
     except ValueError:
-        await message.answer("Использование: <code>/notes &lt;user_id&gt;</code>")
+        await answer_with_thread(message, "Использование: <code>/notes &lt;user_id&gt;</code>")
         return
 
     notes = admin_notes_service.list_notes(target_user_id)
     if not notes:
-        await message.answer("Заметок для этого пользователя пока нет.")
+        await answer_with_thread(message, "Заметок для этого пользователя пока нет.")
         return
 
     notes_text = format_user_notes(notes)
-    await message.answer(
+    await answer_with_thread(message,
         "\n".join(
             [f"📝 Заметки для клиента <code>{target_user_id}</code>", "", notes_text]
         ).strip()
@@ -708,13 +709,13 @@ async def admin_client_profile(message: types.Message) -> None:
     usage_text = "Использование: <code>/client &lt;telegram_id_пользователя&gt;</code>"
     parts = (message.text or "").split(maxsplit=1)
     if len(parts) < 2:
-        await message.answer(usage_text)
+        await answer_with_thread(message, usage_text)
         return
 
     try:
         target_user_id = int(parts[1].strip())
     except ValueError:
-        await message.answer(usage_text)
+        await answer_with_thread(message, usage_text)
         return
 
     user_stats = user_stats_service.get_user_order_stats(target_user_id)
@@ -734,7 +735,7 @@ async def admin_client_profile(message: types.Message) -> None:
     )
 
     if not has_data:
-        await message.answer(
+        await answer_with_thread(message,
             "По этому пользователю пока нет данных (заказов и курсов не найдено)."
         )
         return
@@ -747,7 +748,7 @@ async def admin_client_profile(message: types.Message) -> None:
         notes=notes,
         notes_limit=5,
     )
-    await message.answer(text)
+    await answer_with_thread(message, text)
 
 
 # =====================================================================
@@ -801,7 +802,7 @@ async def admin_orders_filter(callback: types.CallbackQuery):
     try:
         await callback.message.edit_text(text, reply_markup=_build_orders_menu_kb())
     except Exception:
-        await callback.message.answer(text, reply_markup=_build_orders_menu_kb())
+        await answer_with_thread(callback.message, text, reply_markup=_build_orders_menu_kb())
 
     for order in orders:
         status = order.get("status", orders_service.STATUS_NEW)
@@ -813,7 +814,7 @@ async def admin_orders_filter(callback: types.CallbackQuery):
             f"user_id=<code>{user_id}</code>",
         ]
 
-        await callback.message.answer(
+        await answer_with_thread(callback.message,
             "\n".join(header_lines),
             reply_markup=_build_order_actions_kb(order_id, user_id),
         )
@@ -853,7 +854,7 @@ async def admin_order_open(callback: types.CallbackQuery) -> None:
         ]
     )
 
-    await callback.message.answer(format_order_detail_text(order), reply_markup=kb)
+    await answer_with_thread(callback.message, format_order_detail_text(order), reply_markup=kb)
     await callback.answer()
 
 
@@ -886,7 +887,7 @@ async def admin_order_paid(callback: types.CallbackQuery) -> None:
         if granted_count > 0:
             admin_text += f"\nОткрыт доступ к {granted_count} курсам пользователю."
 
-        await callback.message.answer(admin_text)
+        await answer_with_thread(callback.message, admin_text)
 
         # Уведомляем пользователя о статусе/доступе
         try:
@@ -908,15 +909,18 @@ async def admin_order_paid(callback: types.CallbackQuery) -> None:
 
             if user_text:
                 try:
-                    await callback.message.bot.send_message(
-                        chat_id=user_id, text=user_text
+                    await send_message_with_thread(
+                        callback.message.bot,
+                        chat_id=user_id,
+                        text=user_text,
+                        source_message=callback.message,
                     )
                 except Exception as e:
                     print(
                         f"Failed to notify user {user_id} about order {order_id}: {e}"
                     )
     else:
-        await callback.message.answer("Не удалось изменить статус заказа.")
+        await answer_with_thread(callback.message, "Не удалось изменить статус заказа.")
 
     await callback.answer()
 
@@ -941,7 +945,7 @@ async def admin_order_archive(callback: types.CallbackQuery) -> None:
         order_id, orders_service.STATUS_ARCHIVED
     )
     if success:
-        await callback.message.answer(f"Заказ №{order_id} отправлен в архив.")
+        await answer_with_thread(callback.message, f"Заказ №{order_id} отправлен в архив.")
 
         order = orders_service.get_order_by_id(order_id)
         try:
@@ -951,18 +955,20 @@ async def admin_order_archive(callback: types.CallbackQuery) -> None:
 
         if user_id:
             try:
-                await callback.message.bot.send_message(
+                await send_message_with_thread(
+                    callback.message.bot,
                     chat_id=user_id,
                     text=format_order_status_changed_for_user(
                         order_id, orders_service.STATUS_ARCHIVED
                     ),
+                    source_message=callback.message,
                 )
             except Exception as e:
                 print(
                     f"Failed to notify user {user_id} about order {order_id}: {e}"
                 )
     else:
-        await callback.message.answer("Не удалось изменить статус заказа.")
+        await answer_with_thread(callback.message, "Не удалось изменить статус заказа.")
 
     await callback.answer()
 
@@ -1000,7 +1006,7 @@ async def admin_order_client_profile(callback: types.CallbackQuery) -> None:
     )
 
     if not has_data:
-        await callback.message.answer(
+        await answer_with_thread(callback.message,
             "По этому пользователю пока нет данных (заказов и курсов не найдено)."
         )
         await callback.answer()
@@ -1014,7 +1020,7 @@ async def admin_order_client_profile(callback: types.CallbackQuery) -> None:
         notes=notes,
         notes_limit=5,
     )
-    await callback.message.answer(text)
+    await answer_with_thread(callback.message, text)
     await callback.answer()
 
 
@@ -1027,7 +1033,7 @@ async def admin_go_main(message: types.Message, state: FSMContext):
         return
 
     await state.clear()
-    await message.answer(
+    await answer_with_thread(message,
         "Главное меню:",
         reply_markup=_get_reply_menu(),
     )

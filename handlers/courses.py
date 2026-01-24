@@ -2,6 +2,7 @@ from aiogram import F, Router, types
 from aiogram.types import CallbackQuery
 
 from config import ADMIN_IDS
+from utils.telegram import answer_with_thread
 from services.subscription import ensure_subscribed
 
 router = Router()
@@ -21,7 +22,7 @@ async def courses_entry(message: types.Message) -> None:
     if not await ensure_subscribed(message, message.bot, is_admin=is_admin):
         return
 
-    await message.answer(WEBAPP_COURSES_MESSAGE)
+    await answer_with_thread(message, WEBAPP_COURSES_MESSAGE)
 
 
 @router.callback_query(F.data.startswith("courses:list:"))
@@ -33,7 +34,7 @@ async def courses_list_callback(callback: CallbackQuery) -> None:
     if not await ensure_subscribed(callback, callback.message.bot, is_admin=is_admin):
         return
 
-    await callback.message.answer(WEBAPP_COURSES_MESSAGE)
+    await answer_with_thread(callback.message, WEBAPP_COURSES_MESSAGE)
     await callback.answer()
 
 
@@ -58,7 +59,7 @@ async def courses_catalog_callback(callback: CallbackQuery) -> None:
         await callback.answer("Некорректные данные запроса 😕", show_alert=True)
         return
 
-    await callback.message.answer(WEBAPP_COURSES_MESSAGE)
+    await answer_with_thread(callback.message, WEBAPP_COURSES_MESSAGE)
     await callback.answer()
 
 
@@ -71,5 +72,5 @@ async def add_course_to_cart(callback: CallbackQuery) -> None:
     if not await ensure_subscribed(callback, callback.message.bot, is_admin=is_admin):
         return
 
-    await callback.message.answer(WEBAPP_COURSES_MESSAGE)
+    await answer_with_thread(callback.message, WEBAPP_COURSES_MESSAGE)
     await callback.answer()

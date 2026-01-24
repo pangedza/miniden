@@ -1502,3 +1502,30 @@ Telegram WebApp initData login -> JWT
     "cart": { "items": [...], "total": 1000 }
   }
 - Бот также поддерживает legacy формат: { telegram_id, items, total } (без type)
+
+Bot: Telegram topics — прокидывание message_thread_id
+-----------------------------------------------------
+- Исправлено падение `TelegramBadRequest: channel_direct_messages_topic must be specified` в чатах/каналах с включёнными топиками.
+- Добавлен единый хелпер `utils/telegram.py`, который автоматически прокидывает `message_thread_id`, если он есть у исходного сообщения и отправка идёт в тот же чат.
+- Все вызовы `message.answer(...)` и `bot.send_message(...)` в bot-части переведены на `answer_with_thread(...)` / `send_message_with_thread(...)`.
+
+Изменённые файлы
+----------------
+- `utils/telegram.py`
+- `handlers/__init__.py`
+- `handlers/start.py`
+- `handlers/help.py`
+- `handlers/cart.py`
+- `handlers/faq.py`
+- `handlers/admin.py`
+- `handlers/courses.py`
+- `handlers/login.py`
+- `handlers/site_chat.py`
+- `handlers/webapp.py`
+- `handlers/support.py`
+- `handlers/baskets.py`
+- `handlers/profile.py`
+- `handlers/checkout.py`
+- `handlers/payments.py`
+- `services/subscription.py`
+- `README.txt`

@@ -2,6 +2,7 @@ from aiogram import F, Router, types
 from aiogram.types import CallbackQuery
 
 from config import ADMIN_IDS
+from utils.telegram import answer_with_thread
 from services.subscription import ensure_subscribed
 
 router = Router()
@@ -21,7 +22,7 @@ async def show_baskets(message: types.Message) -> None:
     if not await ensure_subscribed(message, message.bot, is_admin=is_admin):
         return
 
-    await message.answer(WEBAPP_BASKETS_MESSAGE)
+    await answer_with_thread(message, WEBAPP_BASKETS_MESSAGE)
 
 
 @router.callback_query(F.data.startswith("catalog:"))
@@ -45,7 +46,7 @@ async def baskets_page_callback(callback: CallbackQuery) -> None:
         await callback.answer("Некорректные данные запроса 😕", show_alert=True)
         return
 
-    await callback.message.answer(WEBAPP_BASKETS_MESSAGE)
+    await answer_with_thread(callback.message, WEBAPP_BASKETS_MESSAGE)
     await callback.answer()
 
 
@@ -58,7 +59,7 @@ async def add_basket_to_cart(callback: CallbackQuery) -> None:
     if not await ensure_subscribed(callback, callback.message.bot, is_admin=is_admin):
         return
 
-    await callback.message.answer(WEBAPP_BASKETS_MESSAGE)
+    await answer_with_thread(callback.message, WEBAPP_BASKETS_MESSAGE)
     await callback.answer()
 
 
@@ -71,7 +72,7 @@ async def add_to_favorites(callback: CallbackQuery) -> None:
     if not await ensure_subscribed(callback, callback.message.bot, is_admin=is_admin):
         return
 
-    await callback.message.answer(WEBAPP_BASKETS_MESSAGE)
+    await answer_with_thread(callback.message, WEBAPP_BASKETS_MESSAGE)
     await callback.answer()
 
 
@@ -84,5 +85,5 @@ async def remove_from_favorites(callback: CallbackQuery) -> None:
     if not await ensure_subscribed(callback, callback.message.bot, is_admin=is_admin):
         return
 
-    await callback.message.answer(WEBAPP_BASKETS_MESSAGE)
+    await answer_with_thread(callback.message, WEBAPP_BASKETS_MESSAGE)
     await callback.answer()

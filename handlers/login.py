@@ -9,6 +9,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
 from config import get_settings
+from utils.telegram import answer_with_thread
 from services.subscription import ensure_subscribed
 
 router = Router()
@@ -71,7 +72,7 @@ async def login_entry(message: types.Message, state: FSMContext) -> None:
 
     await state.clear()
     await state.set_state(LoginState.waiting_for_phone)
-    await message.answer("Введите номер телефона в формате +7...")
+    await answer_with_thread(message, "Введите номер телефона в формате +7...")
 
 
 @router.message(LoginState.waiting_for_phone)
@@ -83,7 +84,7 @@ async def login_receive_phone(message: types.Message, state: FSMContext) -> None
         raw_phone = (message.text or "").strip()
 
     if not raw_phone:
-        await message.answer("Не вижу номер телефона. Отправьте его текстом или контактом.")
+        await answer_with_thread(message, "Не вижу номер телефона. Отправьте его текстом или контактом.")
         return
 
     phone = _normalize_phone(raw_phone)
@@ -103,7 +104,7 @@ async def login_receive_phone(message: types.Message, state: FSMContext) -> None
 
         if code:
             minutes = _format_minutes(expires_in_seconds)
-            await message.answer(
+            await answer_with_thread(message,
                 f"Код для входа: {code}. Действует {minutes} минут."
             )
             return
@@ -112,7 +113,7 @@ async def login_receive_phone(message: types.Message, state: FSMContext) -> None
 
     if status == 404:
         logger.error("Create-code endpoint not found: %s", CREATE_CODE_ENDPOINT)
-        await message.answer(
+        await answer_with_thread(message,
             "Не удалось получить код, попробуйте позже. "
             "Похоже, endpoint /api/bot/auth/create-code ещё не подключён — сообщите администратору."
         )
@@ -125,4 +126,4 @@ async def login_receive_phone(message: types.Message, state: FSMContext) -> None
     else:
         logger.error("Create-code API unexpected response status=%s response=%s", status, response)
 
-    await message.answer("Не удалось получить код, попробуйте позже")
+    await answer_with_thread(message, "Не удалось получить код, попробуйте позже")

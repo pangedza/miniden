@@ -5,6 +5,7 @@ import aiohttp
 from aiogram import F, Router, types
 
 from handlers.support import remember_user_question
+from utils.telegram import answer_with_thread
 
 API_BASE_URL = os.getenv("API_URL") or (os.getenv("BASE_URL", "http://localhost:8000").rstrip("/") + "/api")
 
@@ -53,7 +54,7 @@ def _truncate(text: str, limit: int = 60) -> str:
 async def show_faq_categories(message: types.Message):
     data = await _get_json("/faq") or []
     if not data:
-        await message.answer("База знаний пока пуста.")
+        await answer_with_thread(message, "База знаний пока пуста.")
         return
 
     categories = []
@@ -63,7 +64,7 @@ async def show_faq_categories(message: types.Message):
             categories.append(category)
 
     if not categories:
-        await message.answer("Категории не найдены.")
+        await answer_with_thread(message, "Категории не найдены.")
         return
 
     keyboard = types.InlineKeyboardMarkup(
@@ -72,7 +73,7 @@ async def show_faq_categories(message: types.Message):
             for category in categories
         ]
     )
-    await message.answer("Выберите раздел", reply_markup=keyboard)
+    await answer_with_thread(message, "Выберите раздел", reply_markup=keyboard)
 
 
 @faq_router.callback_query(F.data.startswith("faq:cat:"))
@@ -128,5 +129,5 @@ async def load_question(callback: types.CallbackQuery):
             ]
         ]
     )
-    await callback.message.answer(f"<b>{question}</b>\n\n{answer}", reply_markup=keyboard)
+    await answer_with_thread(callback.message, f"<b>{question}</b>\n\n{answer}", reply_markup=keyboard)
     await callback.answer()
