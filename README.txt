@@ -1,3 +1,18 @@
+Profile.html: RangeError getToken recursion fix + единый auth-модуль
+---------------------------------------------------------------------
+- Устранён `RangeError: Maximum call stack size exceeded`: локальный `getToken()` больше не вызывает `window.getToken()` рекурсивно.
+- Весь профильный JS обёрнут в IIFE и использует безопасный модуль `auth` без засорения глобальной области видимости.
+- Убран дублирующий источник токен-хелперов: страница использует функции из `webapp/js/api.js`, но через заранее сохранённые ссылки.
+- Добавлен автологин из query string `?phone=&code=`: попытка выполняется один раз, после чего параметры очищаются через `history.replaceState`.
+- Логика входа: `POST /api/auth/verify-code` -> сохранить `localStorage['access_token']` -> `loadProfile()`.
+- UI профиля дополнительно приведён к стилю витрины: мягкие градиенты, hover-эффект карточек, аккуратные состояния ошибок.
+
+Изменённые файлы
+----------------
+- `webapp/profile.html`
+- `webapp/css/profile.css`
+- `README.txt`
+
 Profile.html: фикс ACCESS_TOKEN_KEY + iiko-минимализм
 ----------------------------------------------------
 - Устранена ошибка `Identifier 'ACCESS_TOKEN_KEY' has already been declared`: константа теперь объявляется только в `webapp/js/api.js`, а `profile.html` использует `window.getToken/setToken/clearToken`.
