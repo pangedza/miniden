@@ -1307,3 +1307,15 @@ Telegram WebApp initData login -> JWT
 -----------------
 - `BOT_TOKEN` и `JWT_SECRET` не хранятся в базе данных.
 - `JWT_SECRET` нужно задать вручную в окружении сервера (например, через systemd/секреты деплоя).
+
+## Telegram WebApp: корзина и оформление
+- Корзина реализована как статическая страница: `webapp/cart.html`
+- Определение Telegram WebApp: `Boolean(window.Telegram?.WebApp)`
+- user_id берётся из `Telegram.WebApp.initDataUnsafe.user.id`
+- Формат отправки заказа в бот (tg.sendData):
+  {
+    "type": "webapp_order",
+    "telegram_id": 123,
+    "cart": { "items": [...], "total": 1000 }
+  }
+- Бот также поддерживает legacy формат: { telegram_id, items, total } (без type)
