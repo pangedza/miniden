@@ -144,80 +144,89 @@
   <script src="js/api.js?v=20250605"></script>
   <script src="js/app_shell.js?v=20251220"></script>
   <script>
-    const LEGACY_ACCESS_TOKEN_KEY = 'miniden_access_token';
+    (function () {
+      const ACCESS_TOKEN_KEY = 'access_token';
+      const LEGACY_ACCESS_TOKEN_KEY = 'miniden_access_token';
 
-    const authCard = document.getElementById('auth-card');
-    const profileView = document.getElementById('profile-view');
-    const loginForm = document.getElementById('login-form');
-    const phoneInput = document.getElementById('login-phone');
-    const codeInput = document.getElementById('login-code');
-    const loginSubmit = document.getElementById('login-submit');
-    const loginError = document.getElementById('login-error');
-    const profileStatus = document.getElementById('profile-status');
-    const logoutButton = document.getElementById('logout-button');
-    const profilePhone = document.getElementById('profile-phone');
-    const profileName = document.getElementById('profile-name');
-    const profileTelegram = document.getElementById('profile-telegram');
-    const addressesList = document.getElementById('addresses-list');
-    const ordersList = document.getElementById('orders-list');
-    const cartList = document.getElementById('cart-list');
-    const adminLink = document.getElementById('admin-link');
+      const apiTokenGet = typeof window.getToken === 'function' ? window.getToken.bind(window) : null;
+      const apiTokenSet = typeof window.setToken === 'function' ? window.setToken.bind(window) : null;
+      const apiTokenClear = typeof window.clearToken === 'function' ? window.clearToken.bind(window) : null;
 
-    let currentUser = null;
+      const auth = {
+        getToken() {
+          if (apiTokenGet) {
+            return apiTokenGet() || '';
+          }
+          try {
+            return localStorage.getItem(ACCESS_TOKEN_KEY) || '';
+          } catch (error) {
+            console.warn('Storage read failed', error);
+            return '';
+          }
+        },
+        setToken(token) {
+          if (apiTokenSet) {
+            apiTokenSet(token);
+            return;
+          }
+          try {
+            if (token) {
+              localStorage.setItem(ACCESS_TOKEN_KEY, token);
+            } else {
+              localStorage.removeItem(ACCESS_TOKEN_KEY);
+            }
+          } catch (error) {
+            console.warn('Storage write failed', error);
+          }
+        },
+        clearToken() {
+          if (apiTokenClear) {
+            apiTokenClear();
+            return;
+          }
+          try {
+            localStorage.removeItem(ACCESS_TOKEN_KEY);
+          } catch (error) {
+            console.warn('Storage write failed', error);
+          }
+        },
+        migrateLegacyToken() {
+          const current = auth.getToken();
+          if (current) return current;
+          try {
+            const legacyToken = localStorage.getItem(LEGACY_ACCESS_TOKEN_KEY) || '';
+            if (!legacyToken) return '';
+            auth.setToken(legacyToken);
+            localStorage.removeItem(LEGACY_ACCESS_TOKEN_KEY);
+            return legacyToken;
+          } catch (error) {
+            console.warn('Storage read failed', error);
+            return '';
+          }
+        },
+        hasToken() {
+          return Boolean(auth.getToken());
+        },
+      };
 
-    function readStorage(key) {
-      try {
-        return localStorage.getItem(key);
-      } catch (error) {
-        console.warn('Storage read failed', error);
-        return '';
-      }
-    }
+      const authCard = document.getElementById('auth-card');
+      const profileView = document.getElementById('profile-view');
+      const loginForm = document.getElementById('login-form');
+      const phoneInput = document.getElementById('login-phone');
+      const codeInput = document.getElementById('login-code');
+      const loginSubmit = document.getElementById('login-submit');
+      const loginError = document.getElementById('login-error');
+      const profileStatus = document.getElementById('profile-status');
+      const logoutButton = document.getElementById('logout-button');
+      const profilePhone = document.getElementById('profile-phone');
+      const profileName = document.getElementById('profile-name');
+      const profileTelegram = document.getElementById('profile-telegram');
+      const addressesList = document.getElementById('addresses-list');
+      const ordersList = document.getElementById('orders-list');
+      const cartList = document.getElementById('cart-list');
+      const adminLink = document.getElementById('admin-link');
 
-    function writeStorage(key, value) {
-      try {
-        if (value) {
-          localStorage.setItem(key, value);
-        } else {
-          localStorage.removeItem(key);
-        }
-      } catch (error) {
-        console.warn('Storage write failed', error);
-      }
-    }
-
-    function getToken() {
-      if (typeof window.getToken === 'function') {
-        return window.getToken() || '';
-      }
-      return readStorage('access_token') || '';
-    }
-
-    function setToken(token) {
-      if (typeof window.setToken === 'function') {
-        window.setToken(token);
-        return;
-      }
-      writeStorage('access_token', token);
-    }
-
-    function clearToken() {
-      if (typeof window.clearToken === 'function') {
-        window.clearToken();
-        return;
-      }
-      writeStorage('access_token', '');
-    }
-
-    function migrateLegacyToken() {
-      const current = getToken();
-      if (current) return current;
-      const legacyToken = readStorage(LEGACY_ACCESS_TOKEN_KEY);
-      if (!legacyToken) return '';
-      setToken(legacyToken);
-      writeStorage(LEGACY_ACCESS_TOKEN_KEY, '');
-      return legacyToken;
-    }
+      let currentUser = null;
 
     function showAuth(message = '') {
       authCard.style.display = 'block';
@@ -247,7 +256,7 @@
     }
 
     async function apiFetch(path, options = {}) {
-      const token = getToken();
+      const token = auth.getToken();
       const headers = new Headers(options.headers || {});
 
       if (token) {
@@ -261,127 +270,128 @@
       const response = await fetch(path, {
         ...options,
         headers,
+        credentials: options.credentials || 'same-origin',
       });
 
-      const text = await response.text();
-      let data = null;
-      if (text) {
-        try {
-          data = JSON.parse(text);
-        } catch (error) {
-          data = null;
-        }
-      }
+      if (response.status === 204) return null;
+
+      const contentType = response.headers.get('content-type') || '';
+      const isJson = contentType.includes('application/json');
+      const payload = isJson ? await response.json().catch(() => null) : await response.text();
 
       if (!response.ok) {
-        const error = new Error(data?.detail || data?.message || `Ошибка ${response.status}`);
+        const detail = isJson ? payload?.detail || payload?.message : payload;
+        const error = new Error(detail || `Ошибка ${response.status}`);
         error.status = response.status;
-        error.payload = data;
+        error.payload = payload;
         throw error;
       }
 
-      return data;
+      return payload;
     }
 
-    function renderSectionMessage(listEl, message) {
-      renderList(listEl, [], () => null, message);
+    function renderProfile(user) {
+      const phone = user?.phone || user?.phone_number || user?.login || '—';
+      const name = user?.full_name || user?.name || user?.first_name || 'Гость MiniDeN';
+      const telegram = user?.telegram_username ? `@${user.telegram_username}` : 'не привязан';
+
+      profilePhone.textContent = phone;
+      profileName.textContent = name;
+      profileTelegram.textContent = telegram;
+      updateAdminLinkVisibility();
     }
 
-    function handleSectionError(error, listEl, emptyMessage) {
-      if (error?.status === 404 || error?.status === 405) {
-        renderSectionMessage(listEl, 'Раздел пока не подключён');
-        return true;
-      }
-      if (error?.status === 401) {
-        renderSectionMessage(listEl, 'Нужен повторный вход');
-        return true;
-      }
-      renderSectionMessage(listEl, emptyMessage);
-      return false;
+    function renderSectionMessage(target, message, cssClass = 'profile-empty') {
+      if (!target) return;
+      const li = document.createElement('li');
+      li.className = cssClass;
+      li.textContent = message;
+      target.replaceChildren(li);
     }
 
-    function normalizeListPayload(payload, keys) {
+    function normalizeListPayload(payload, keys = []) {
       if (Array.isArray(payload)) return payload;
       for (const key of keys) {
         if (Array.isArray(payload?.[key])) {
           return payload[key];
         }
       }
+      if (Array.isArray(payload?.items)) return payload.items;
+      if (Array.isArray(payload?.data)) return payload.data;
       return [];
     }
 
-    function renderList(listEl, items, renderItem, emptyMessage) {
-      listEl.innerHTML = '';
-      const safeItems = Array.isArray(items) ? items : [];
-
-      if (!safeItems.length) {
-        const emptyLi = document.createElement('li');
-        emptyLi.className = 'profile-empty';
-        emptyLi.textContent = emptyMessage;
-        listEl.appendChild(emptyLi);
+    function renderList(target, items, renderer, emptyMessage) {
+      if (!target) return;
+      if (!items.length) {
+        renderSectionMessage(target, emptyMessage);
         return;
       }
-
-      safeItems.forEach((item) => {
-        const li = renderItem(item);
-        if (li) listEl.appendChild(li);
+      const fragment = document.createDocumentFragment();
+      items.forEach((item) => {
+        const node = renderer(item);
+        if (node) fragment.appendChild(node);
       });
+      target.replaceChildren(fragment);
     }
 
-    function renderProfile(user) {
-      profilePhone.textContent = user?.phone || '—';
-      profileName.textContent = user?.name || user?.full_name || '—';
-      profileTelegram.textContent = user?.telegram_username ? `@${user.telegram_username}` : 'не указан';
-      updateAdminLinkVisibility();
+    function handleSectionError(error, target, fallbackMessage) {
+      if (!error) return false;
+      if (error.status === 401) {
+        auth.clearToken();
+        showAuth('Сессия истекла. Введите телефон и код ещё раз.');
+        return true;
+      }
+      if (error.status === 404 || error.status === 405) {
+        renderSectionMessage(target, 'Раздел пока не подключён');
+        return true;
+      }
+      renderSectionMessage(target, fallbackMessage, 'profile-empty profile-empty--error');
+      return false;
     }
 
     function renderAddressItem(address) {
       const li = document.createElement('li');
-      const title = address?.label || address?.title || address?.name || 'Адрес';
-      const line =
-        address?.address ||
-        address?.full_address ||
-        address?.line1 ||
-        [address?.street, address?.city].filter(Boolean).join(', ');
+      const title = address?.title || address?.label || 'Адрес';
+      const text = address?.address || address?.full_address || address?.line || 'Адрес скоро появится';
 
       const titleEl = document.createElement('div');
       titleEl.className = 'profile-item-title';
       titleEl.textContent = title;
 
-      const lineEl = document.createElement('div');
-      lineEl.className = 'profile-item-text';
-      lineEl.textContent = line || 'Адрес будет доступен после добавления.';
+      const textEl = document.createElement('div');
+      textEl.className = 'profile-item-text';
+      textEl.textContent = text;
 
       li.appendChild(titleEl);
-      li.appendChild(lineEl);
+      li.appendChild(textEl);
       return li;
     }
 
     function renderOrderItem(order) {
       const li = document.createElement('li');
-      const createdAt = order?.created_at ? new Date(order.created_at).toLocaleString('ru-RU') : '';
-      const header = document.createElement('div');
-      header.className = 'profile-item-title';
-      header.textContent = `Заказ #${order?.id ?? '—'}`;
+      const number = order?.number || order?.id || '—';
+      const status = order?.status || order?.state || 'в обработке';
+      const total = order?.total || order?.amount || order?.sum;
+      const totalText = Number.isFinite(total) ? `${total} ₽` : total ? `${total} ₽` : 'сумма уточняется';
 
-      const meta = document.createElement('div');
-      meta.className = 'profile-item-text';
-      const parts = [
-        order?.status ? `Статус: ${order.status}` : null,
-        Number.isFinite(order?.total) ? `Сумма: ${order.total} ₽` : null,
-        createdAt || null,
-      ].filter(Boolean);
-      meta.textContent = parts.join(' • ') || 'Детали заказа появятся после оформления.';
+      const titleEl = document.createElement('div');
+      titleEl.className = 'profile-item-title';
+      titleEl.textContent = `Заказ №${number}`;
 
-      li.appendChild(header);
-      li.appendChild(meta);
+      const metaEl = document.createElement('div');
+      metaEl.className = 'profile-item-text';
+      metaEl.textContent = `Статус: ${status} • ${totalText}`;
+
+      li.appendChild(titleEl);
+      li.appendChild(metaEl);
       return li;
     }
 
     function renderCartItem(item) {
       const li = document.createElement('li');
-      const title = item?.name || item?.title || 'Позиция';
-      const qty = item?.qty ?? item?.quantity ?? 1;
+      const title = item?.title || item?.name || item?.product_name || 'Товар';
+      const qty = item?.qty || item?.quantity ?? 1;
       const price = item?.price ?? item?.unit_price;
       const total = Number.isFinite(price) ? `${price} ₽` : 'цена уточняется';
 
@@ -454,11 +464,60 @@
       } catch (error) {
         console.warn('Не удалось загрузить профиль', error);
         if (error.status === 401) {
-          clearToken();
+          auth.clearToken();
           showAuth('Сессия истекла. Введите телефон и код ещё раз.');
           return;
         }
         showAuth(error.message || 'Не удалось загрузить профиль');
+      }
+    }
+
+    async function verifyCode(phone, code) {
+      const data = await apiFetch('/api/auth/verify-code', {
+        method: 'POST',
+        body: JSON.stringify({ phone, code }),
+      });
+      const token = data?.access_token || data?.token;
+      if (!token) {
+        throw new Error('Сервер не вернул токен');
+      }
+      auth.setToken(token);
+      return token;
+    }
+
+    async function attemptAutoLoginFromQuery() {
+      const params = new URLSearchParams(window.location.search);
+      const phone = (params.get('phone') || '').trim();
+      const code = (params.get('code') || '').trim();
+      if (!phone || !code) return false;
+
+      params.delete('phone');
+      params.delete('code');
+      const nextQuery = params.toString();
+      const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ''}${window.location.hash}`;
+      window.history.replaceState({}, document.title, nextUrl);
+
+      phoneInput.value = phone;
+      codeInput.value = code;
+      loginError.textContent = '';
+      loginError.style.display = 'none';
+      setProfileStatus('Подтверждаем вход…');
+
+      loginSubmit.disabled = true;
+      loginSubmit.textContent = 'Входим…';
+
+      try {
+        await verifyCode(phone, code);
+        codeInput.value = '';
+        await loadProfile();
+        return true;
+      } catch (error) {
+        console.warn('Автовход не выполнен', error);
+        showAuth(error.message || 'Не удалось выполнить вход по ссылке');
+        return false;
+      } finally {
+        loginSubmit.disabled = false;
+        loginSubmit.textContent = 'Войти';
       }
     }
 
@@ -476,17 +535,10 @@
       loginSubmit.textContent = 'Входим…';
       loginError.textContent = '';
       loginError.style.display = 'none';
+      setProfileStatus('Подтверждаем вход…');
 
       try {
-        const data = await apiFetch('/api/auth/verify-code', {
-          method: 'POST',
-          body: JSON.stringify({ phone, code }),
-        });
-        const token = data?.access_token || data?.token;
-        if (!token) {
-          throw new Error('Сервер не вернул токен');
-        }
-        setToken(token);
+        await verifyCode(phone, code);
         codeInput.value = '';
         await loadProfile();
       } catch (error) {
@@ -499,22 +551,28 @@
     });
 
     logoutButton?.addEventListener('click', () => {
-      clearToken();
+      auth.clearToken();
       showAuth('Вы вышли из профиля.');
       phoneInput.focus();
     });
 
     document.addEventListener('DOMContentLoaded', async () => {
-      const token = migrateLegacyToken();
-      if (!token) {
+      auth.migrateLegacyToken();
+
+      const autoLoggedIn = await attemptAutoLoginFromQuery();
+      if (autoLoggedIn) return;
+
+      if (!auth.hasToken()) {
         showAuth('');
         phoneInput.focus();
         return;
       }
+
       setProfileStatus('Загружаем профиль…');
       await loadProfile();
     });
-  </script>
+  })();
+</script>
   <script src="js/support_widget.js?v=20250605" defer></script>
 </body>
 </html>
