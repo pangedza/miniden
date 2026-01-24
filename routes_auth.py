@@ -12,9 +12,9 @@ from typing import Any
 from urllib.parse import parse_qsl
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import RedirectResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from database import get_session
 from models import AuthSession, User
@@ -29,6 +29,7 @@ from routes_public import (
     _build_user_profile,
     _get_current_user_from_cookie,
 )
+from utils.jwt_auth import create_access_token, get_current_user_from_token
 
 router = APIRouter()
 
@@ -43,7 +44,47 @@ class TelegramAuthPayload(BaseModel):
 
 
 class TelegramWebAppAuthPayload(BaseModel):
-    init_data: str | None = None
+    init_data: str | None = Field(default=None, alias="initData")
+
+    class Config:
+        allow_population_by_field_name = True
+        populate_by_name = True
+
+
+def _normalize_init_data(init_data: str | None) -> str:
+    normalized = (init_data or "").strip()
+    if normalized.startswith("?"):
+        normalized = normalized[1:]
+    return normalized
+
+
+def _upsert_user_from_webapp_data(user_data: dict[str, Any]) -> User:
+    telegram_id = user_data.get("id")
+    if telegram_id is None:
+        raise HTTPException(status_code=400, detail="invalid_user")
+
+    first_name = (user_data.get("first_name") or "").strip()
+    last_name = (user_data.get("last_name") or "").strip()
+    full_name = " ".join(part for part in [first_name, last_name] if part) or None
+
+    with get_session() as session:
+        try:
+            user = users_service.get_or_create_user_from_telegram(
+                session,
+                telegram_id=int(telegram_id),
+                username=user_data.get("username"),
+                full_name=full_name,
+                phone=user_data.get("phone"),
+            )
+        except ValueError:
+            raise HTTPException(status_code=400, detail="invalid_user")
+        except HTTPException:
+            raise
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.exception("Failed to upsert telegram user", exc_info=exc)
+            raise HTTPException(status_code=500, detail="authorization_failed")
+
+    return user
 
 
 def _parse_telegram_auth_data(auth_payload: str, bot_token: str | None = None) -> dict:
@@ -104,7 +145,7 @@ def _extract_user_from_auth_data(data: dict[str, Any]) -> dict[str, Any]:
 def api_auth_telegram_webapp(payload: TelegramWebAppAuthPayload, response: Response):
     """Авторизация WebApp через init_data внутри Telegram."""
 
-    init_data = (payload.init_data or "").strip()
+    init_data = _normalize_init_data(payload.init_data)
     if not init_data:
         response.status_code = 400
         return {"status": "error", "error": "init_data_missing"}
@@ -125,48 +166,82 @@ def api_auth_telegram_webapp(payload: TelegramWebAppAuthPayload, response: Respo
         response.status_code = 400
         return {"status": "error", "error": "invalid_user"}
 
-    first_name = user_data.get("first_name") or ""
-    last_name = user_data.get("last_name") or ""
-    full_name = " ".join(part for part in [first_name, last_name] if part).strip() or None
+    try:
+        user = _upsert_user_from_webapp_data(user_data)
+    except HTTPException as exc:
+        response.status_code = exc.status_code
+        error_code = exc.detail if isinstance(exc.detail, str) else "authorization_failed"
+        return {"status": "error", "error": error_code}
 
-    with get_session() as session:
-        try:
-            user = users_service.get_or_create_user_from_telegram(
-                session,
-                telegram_id=int(telegram_id),
-                username=user_data.get("username"),
-                full_name=full_name,
-                phone=user_data.get("phone"),
-            )
-        except ValueError:
-            response.status_code = 400
-            return {"status": "error", "error": "invalid_user"}
-        except Exception:
-            response.status_code = 500
-            return {"status": "error", "error": "authorization_failed"}
+    response.set_cookie(
+        key="tg_user_id",
+        value=str(user.telegram_id),
+        httponly=True,
+        max_age=COOKIE_MAX_AGE,
+        samesite="lax",
+    )
 
-        response.set_cookie(
-            key="tg_user_id",
-            value=str(user.telegram_id),
-            httponly=True,
-            max_age=COOKIE_MAX_AGE,
-            samesite="lax",
-        )
+    logger.info(
+        "Telegram WebApp auth succeeded: telegram_id=%s, user_id=%s",
+        user.telegram_id,
+        user.id,
+    )
 
-        logger.info(
-            "Telegram WebApp auth succeeded: telegram_id=%s, user_id=%s",
-            user.telegram_id,
-            user.id,
-        )
+    return {
+        "status": "ok",
+        "user": {
+            "id": user.id,
+            "telegram_id": user.telegram_id,
+            "username": user.username,
+        },
+    }
 
-        return {
-            "status": "ok",
-            "user": {
-                "id": user.id,
-                "telegram_id": user.telegram_id,
-                "username": user.username,
-            },
-        }
+
+@router.post("/api/auth/telegram-webapp")
+def api_auth_telegram_webapp_jwt(payload: TelegramWebAppAuthPayload, response: Response):
+    """Авторизация Telegram WebApp с выдачей JWT access_token."""
+
+    init_data = _normalize_init_data(payload.init_data)
+    if not init_data:
+        raise HTTPException(status_code=400, detail="init_data_missing")
+
+    user_data = validate_telegram_webapp_init_data(init_data, BOT_TOKEN)
+    user = _upsert_user_from_webapp_data(user_data)
+    access_token = create_access_token(user_id=user.id, telegram_id=user.telegram_id)
+
+    response.set_cookie(
+        key="tg_user_id",
+        value=str(user.telegram_id),
+        httponly=True,
+        max_age=COOKIE_MAX_AGE,
+        samesite="lax",
+    )
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": {
+            "id": user.id,
+            "telegram_id": user.telegram_id,
+            "username": user.username,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+        },
+    }
+
+
+@router.get("/api/auth/me")
+def api_auth_me(current_user: User = Depends(get_current_user_from_token)):
+    """Минимальная проверка JWT-токена для будущей защиты роутов."""
+
+    return {
+        "id": current_user.id,
+        "telegram_id": current_user.telegram_id,
+        "username": current_user.username,
+        "first_name": current_user.first_name,
+        "last_name": current_user.last_name,
+        "is_admin": current_user.is_admin,
+    }
 
 
 @router.post("/api/auth/create-token")

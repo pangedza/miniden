@@ -1271,3 +1271,36 @@ API endpoint: POST /api/public/checkout/from-webapp
   { "ok": true, "order_id": 42, "message": "sent" }
 
 Deprecated: `POST /api/webapp/order` возвращает 410 и заменён на `/api/public/checkout/from-webapp`.
+
+Telegram WebApp initData login -> JWT
+------------------------------------
+- Новый endpoint: `POST /api/auth/telegram-webapp`.
+- Запрос:
+  ```json
+  { "initData": "<Telegram.WebApp.initData>" }
+  ```
+- Что делает backend:
+  1. Валидирует подпись `initData` по алгоритму Telegram WebApp через `BOT_TOKEN`.
+  2. Извлекает пользователя (`telegram_id`, `first_name`, `username`).
+  3. Создаёт или обновляет запись в `users` по `telegram_id`.
+  4. Возвращает JWT `access_token` с payload: `user_id`, `telegram_id`, `iat`, `exp`.
+- Ответ:
+  ```json
+  {
+    "access_token": "<jwt>",
+    "token_type": "bearer",
+    "user": {
+      "id": 1,
+      "telegram_id": 123456789,
+      "username": "demo",
+      "first_name": "Demo",
+      "last_name": null
+    }
+  }
+  ```
+- Для проверки токена добавлен `GET /api/auth/me` (ожидает заголовок `Authorization: Bearer <jwt>`).
+
+Важно про секреты
+-----------------
+- `BOT_TOKEN` и `JWT_SECRET` не хранятся в базе данных.
+- `JWT_SECRET` нужно задать вручную в окружении сервера (например, через systemd/секреты деплоя).
