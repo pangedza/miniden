@@ -1,6 +1,7 @@
 from aiogram import Router, types, F
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery
+from utils.telegram import answer_with_thread
 
 router = Router()
 
@@ -14,28 +15,28 @@ HELP_MESSAGE = (
 @router.message(Command("help"))
 @router.message(F.text == "❓ Помощь")
 async def cmd_help(message: types.Message) -> None:
-    await message.answer(HELP_MESSAGE)
+    await answer_with_thread(message, HELP_MESSAGE)
 
 
 @router.callback_query(F.data == "help:main")
 async def cb_help_main(callback: CallbackQuery) -> None:
-    await callback.message.answer(HELP_MESSAGE)
+    await answer_with_thread(callback.message, HELP_MESSAGE)
     await callback.answer()
 
 
 @router.callback_query(F.data == "help:order")
 async def cb_help_order(callback: CallbackQuery) -> None:
-    await callback.message.answer(HELP_MESSAGE)
+    await answer_with_thread(callback.message, HELP_MESSAGE)
     await callback.answer()
 
 
 @router.callback_query(F.data == "help:payment")
 async def cb_help_payment(callback: CallbackQuery) -> None:
-    await callback.message.answer(HELP_MESSAGE)
+    await answer_with_thread(callback.message, HELP_MESSAGE)
     await callback.answer()
 
 
 @router.callback_query(F.data == "help:course")
 async def cb_help_course(callback: CallbackQuery) -> None:
-    await callback.message.answer(HELP_MESSAGE)
+    await answer_with_thread(callback.message, HELP_MESSAGE)
     await callback.answer()

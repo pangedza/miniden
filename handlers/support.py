@@ -6,6 +6,7 @@ from aiogram import F, Router, types
 
 from config import ADMIN_IDS, ADMIN_IDS_SET
 from config import get_settings
+from utils.telegram import answer_with_thread, send_message_with_thread
 
 support_router = Router()
 
@@ -23,7 +24,7 @@ async def contact_manager(callback: types.CallbackQuery):
     user = callback.from_user
     settings = get_settings()
     question = USER_LAST_QUESTION.get(user.id) or "—"
-    await callback.message.answer("Я передал ваш вопрос менеджеру, скоро он ответит.")
+    await answer_with_thread(callback.message, "Я передал ваш вопрос менеджеру, скоро он ответит.")
 
     admin_message = (
         "Новый запрос от пользователя: "
@@ -34,7 +35,12 @@ async def contact_manager(callback: types.CallbackQuery):
 
     admin_chat_ids = ADMIN_IDS or ([] if settings.admin_chat_id is None else [settings.admin_chat_id])
     for chat_id in admin_chat_ids:
-        sent = await callback.bot.send_message(chat_id, admin_message)
+        sent = await send_message_with_thread(
+            callback.bot,
+            chat_id,
+            admin_message,
+            source_message=callback.message,
+        )
         ADMIN_REPLY_TARGETS[sent.message_id] = user.id
 
     await callback.answer()
@@ -55,4 +61,9 @@ async def relay_admin_reply(message: types.Message):
     if not response_text:
         return
 
-    await message.bot.send_message(target_user_id, response_text)
+    await send_message_with_thread(
+        message.bot,
+        target_user_id,
+        response_text,
+        source_message=message,
+    )

@@ -48,6 +48,7 @@ from services.subscription import (
 )
 from keyboards.main_menu import get_main_menu
 from utils.texts import format_start_text, format_subscription_required_text
+from utils.telegram import answer_photo_with_thread, answer_with_thread, send_message_with_thread
 
 
 BASE_ORIGIN = (os.getenv("BASE_URL") or os.getenv("API_URL") or "http://localhost:8000").rstrip("/")
@@ -76,7 +77,7 @@ BOT_MESSAGE_LIMIT = 50
 
 async def _safe_answer(message: types.Message, text: str, **kwargs) -> types.Message | None:
     try:
-        return await message.answer(text, **kwargs)
+        return await answer_with_thread(message, text, **kwargs)
     except (TelegramNetworkError, ClientError, asyncio.TimeoutError):
         logger.warning(
             "Не удалось отправить сообщение из-за сетевой ошибки Telegram", exc_info=True
@@ -97,7 +98,7 @@ async def _safe_answer_photo(
         if delay:
             await asyncio.sleep(delay)
         try:
-            return await message.answer_photo(**kwargs)
+            return await answer_photo_with_thread(message, **kwargs)
         except (TelegramNetworkError, ClientError, asyncio.TimeoutError) as exc:
             last_exception = exc
             logger.warning(
@@ -1032,7 +1033,13 @@ async def _execute_single_action(
             admin_ids = _get_admin_telegram_ids()
             for admin_id in admin_ids:
                 try:
-                    await message.bot.send_message(admin_id, text, parse_mode=node.parse_mode)
+                    await send_message_with_thread(
+                        message.bot,
+                        admin_id,
+                        text,
+                        parse_mode=node.parse_mode,
+                        source_message=message,
+                    )
                 except Exception as exc:  # noqa: WPS440
                     logger.error("[ACTION] SEND_ADMIN_MESSAGE failed: %s", exc)
             return False, None

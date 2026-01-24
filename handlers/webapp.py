@@ -11,6 +11,7 @@ from aiogram.types import (
 )
 
 from config import get_settings
+from utils.telegram import answer_with_thread, send_message_with_thread
 from services import menu_catalog, orders as orders_service, users as users_service
 from services.cart import add_to_cart
 from utils.texts import format_order_for_admin, format_price
@@ -203,7 +204,7 @@ async def _handle_adminsite_payload(message: Message, payload: dict) -> None:
         added_count += 1
 
     reply_markup = _build_adminsite_menu()
-    await message.answer(
+    await answer_with_thread(message,
         f"Добавлено: {added_count} позиций", reply_markup=reply_markup, disable_notification=True
     )
 
@@ -243,7 +244,7 @@ async def handle_webapp_data(message: Message) -> None:
         webapp_order = _parse_webapp_order_payload(data)
         if webapp_order is None:
             logging.warning("Не удалось распознать заказ из web_app_data: %s", data)
-            await message.answer("Не удалось распознать заказ. Попробуйте ещё раз из корзины.")
+            await answer_with_thread(message, "Не удалось распознать заказ. Попробуйте ещё раз из корзины.")
             return
         items, total = webapp_order
         user_name = (
@@ -281,7 +282,7 @@ async def handle_webapp_data(message: Message) -> None:
             )
         lines.append("")
         lines.append(f"Итого: <b>{format_price(total)}</b>")
-        await message.answer(
+        await answer_with_thread(message,
             "\n".join(lines),
             reply_markup=_build_order_user_keyboard(order_id),
         )
@@ -294,7 +295,12 @@ async def handle_webapp_data(message: Message) -> None:
             )
             for admin_id in admin_ids:
                 try:
-                    await message.bot.send_message(admin_id, admin_message)
+                    await send_message_with_thread(
+                        message.bot,
+                        admin_id,
+                        admin_message,
+                        source_message=message,
+                    )
                 except Exception:
                     logging.exception("Не удалось отправить заказ админу %s", admin_id)
         return
@@ -348,9 +354,9 @@ async def handle_webapp_data(message: Message) -> None:
     keyboard = _build_cart_keyboard()
     response_text = f"✅ Добавлено в корзину: {product_name} (x{qty_int}). Открыть корзину?"
     if keyboard:
-        await message.answer(response_text, reply_markup=keyboard)
+        await answer_with_thread(message, response_text, reply_markup=keyboard)
     else:
-        await message.answer(f"{response_text}\n\nНажми 🛒 Корзина")
+        await answer_with_thread(message, f"{response_text}\n\nНажми 🛒 Корзина")
 
 
 @router.callback_query(F.data.startswith("webapp:order:cancel:"))

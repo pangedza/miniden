@@ -7,6 +7,7 @@ from aiogram import F, Router
 from aiogram.types import Message
 
 from config import get_settings
+from utils.telegram import answer_with_thread
 from utils import site_chat_storage
 
 API_BASE_URL = os.getenv("API_URL") or os.getenv("BASE_URL", "http://localhost:8000")
@@ -70,7 +71,7 @@ async def handle_manager_reply(message: Message):
             reply.message_id
         )
     if not session_id:
-        await message.answer(
+        await answer_with_thread(message,
             "❌ Не вижу номер чата (#ID). Ответь реплаем на уведомление о запросе."
         )
         return
@@ -81,14 +82,14 @@ async def handle_manager_reply(message: Message):
 
     text = message.text or message.caption
     if not text:
-        await message.answer("❌ Пустое сообщение.")
+        await answer_with_thread(message, "❌ Пустое сообщение.")
         return
 
     try:
         await _post_manager_reply(API_BASE_URL, session_id, text)
     except Exception as exc:
         logging.exception("Failed to send manager reply to backend")
-        await message.answer(f"❌ Ошибка отправки на сайт: {exc}")
+        await answer_with_thread(message, f"❌ Ошибка отправки на сайт: {exc}")
         return
 
-    await message.answer(f"✅ Отправлено на сайт (чат #{session_id})")
+    await answer_with_thread(message, f"✅ Отправлено на сайт (чат #{session_id})")

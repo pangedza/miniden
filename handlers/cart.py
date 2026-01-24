@@ -4,6 +4,7 @@ from aiogram.types import CallbackQuery
 from aiogram.fsm.context import FSMContext
 
 from config import ADMIN_IDS
+from utils.telegram import answer_with_thread
 from keyboards.cart_keyboards import cart_kb
 from services import cart as cart_service
 from services import menu_catalog
@@ -68,7 +69,7 @@ async def _send_cart(message: types.Message, *, edit: bool = False) -> None:
     if edit:
         await message.edit_text(text, reply_markup=keyboard)
     else:
-        await message.answer(text, reply_markup=keyboard)
+        await answer_with_thread(message, text, reply_markup=keyboard)
 
 
 @router.message(F.text == "🛒 Корзина")
@@ -91,7 +92,7 @@ async def clear_user_cart(message: types.Message) -> None:
         return
 
     cart_service.clear_cart(user_id)
-    await message.answer("Корзина очищена.")
+    await answer_with_thread(message, "Корзина очищена.")
 
 
 @router.callback_query(F.data == "cart:nop")

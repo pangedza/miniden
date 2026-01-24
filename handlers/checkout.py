@@ -8,6 +8,7 @@ from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 
 from config import get_settings
+from utils.telegram import answer_with_thread
 from services import cart as cart_service
 from services.subscription import ensure_subscribed
 
@@ -55,12 +56,12 @@ async def _post_checkout(payload: dict) -> tuple[int, dict | None]:
 async def start_checkout_flow(target_message: types.Message, state: FSMContext) -> None:
     items, _ = cart_service.get_cart_items(target_message.from_user.id)
     if not items:
-        await target_message.answer("Корзина пуста. Добавьте товары из каталога.")
+        await answer_with_thread(target_message, "Корзина пуста. Добавьте товары из каталога.")
         return
 
     await state.clear()
     await state.set_state(CheckoutState.waiting_for_name)
-    await target_message.answer("Введите ваше имя для заказа:")
+    await answer_with_thread(target_message, "Введите ваше имя для заказа:")
 
 
 @router.message(Command(commands=["checkout", "order"]))
@@ -79,24 +80,24 @@ async def start_checkout(message: types.Message, state: FSMContext) -> None:
 async def process_name(message: types.Message, state: FSMContext) -> None:
     name = message.text.strip()
     if not name:
-        await message.answer("Имя не должно быть пустым. Попробуйте снова.")
+        await answer_with_thread(message, "Имя не должно быть пустым. Попробуйте снова.")
         return
 
     await state.update_data(customer_name=name)
     await state.set_state(CheckoutState.waiting_for_contact)
-    await message.answer("Введите контакт для связи (телефон, Telegram или email):")
+    await answer_with_thread(message, "Введите контакт для связи (телефон, Telegram или email):")
 
 
 @router.message(CheckoutState.waiting_for_contact)
 async def process_contact(message: types.Message, state: FSMContext) -> None:
     contact = message.text.strip()
     if not contact:
-        await message.answer("Контакт не должен быть пустым. Попробуйте снова.")
+        await answer_with_thread(message, "Контакт не должен быть пустым. Попробуйте снова.")
         return
 
     await state.update_data(contact=contact)
     await state.set_state(CheckoutState.waiting_for_comment)
-    await message.answer(
+    await answer_with_thread(message,
         "Добавьте комментарий к заказу (или отправьте '-' если комментарий не нужен):"
     )
 
@@ -122,18 +123,18 @@ async def process_comment(message: types.Message, state: FSMContext) -> None:
     if status == 200 and response:
         order_id = response.get("order_id")
         total = response.get("total")
-        await message.answer(f"✅ Заказ создан! Номер: {order_id}. Сумма: {total} ₽.")
+        await answer_with_thread(message, f"✅ Заказ создан! Номер: {order_id}. Сумма: {total} ₽.")
         return
 
     if status == 401:
-        await message.answer("Не удалось оформить заказ: требуется авторизация.")
+        await answer_with_thread(message, "Не удалось оформить заказ: требуется авторизация.")
         return
 
     detail = None
     if isinstance(response, dict):
         detail = response.get("detail")
 
-    await message.answer(
+    await answer_with_thread(message,
         f"Не удалось оформить заказ. {detail or 'Попробуйте позже.'}"
     )
 
@@ -141,7 +142,7 @@ async def process_comment(message: types.Message, state: FSMContext) -> None:
 @router.message(Command("cancel"))
 async def cancel_checkout(message: types.Message, state: FSMContext) -> None:
     if await state.get_state() is None:
-        await message.answer("Активное оформление заказа не найдено.")
+        await answer_with_thread(message, "Активное оформление заказа не найдено.")
         return
     await state.clear()
-    await message.answer("Оформление заказа отменено.")
+    await answer_with_thread(message, "Оформление заказа отменено.")

@@ -5,6 +5,7 @@ from aiogram import Bot
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from config import ADMIN_IDS, get_settings
+from utils.telegram import answer_with_thread
 from utils.texts import format_subscription_required_text
 
 
@@ -187,7 +188,7 @@ async def ensure_subscribed(
     text = format_subscription_required_text()
 
     if isinstance(message_or_callback, CallbackQuery):
-        await message_or_callback.message.answer(text, reply_markup=keyboard)
+        await answer_with_thread(message_or_callback.message, text, reply_markup=keyboard)
         try:
             await message_or_callback.answer(
                 "Подписка на канал обязательна для продолжения.", show_alert=True

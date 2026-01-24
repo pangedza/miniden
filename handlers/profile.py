@@ -3,6 +3,7 @@ from aiogram.filters import Command
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 
 from config import ADMIN_IDS, get_settings
+from utils.telegram import answer_with_thread
 from services.subscription import ensure_subscribed
 
 router = Router()
@@ -45,7 +46,7 @@ async def show_profile(message: types.Message) -> None:
     if banner:
         await message.answer_photo(photo=banner, caption="👤 Ваш профиль")
 
-    await message.answer(WEBAPP_PROFILE_MESSAGE, reply_markup=_build_profile_keyboard())
+    await answer_with_thread(message, WEBAPP_PROFILE_MESSAGE, reply_markup=_build_profile_keyboard())
 
 
 @router.message(F.text == "❤️ Избранное")
@@ -57,7 +58,7 @@ async def show_favorites(message: types.Message) -> None:
     if not await ensure_subscribed(message, message.bot, is_admin=is_admin):
         return
 
-    await message.answer(WEBAPP_PROFILE_MESSAGE, reply_markup=_build_profile_keyboard())
+    await answer_with_thread(message, WEBAPP_PROFILE_MESSAGE, reply_markup=_build_profile_keyboard())
 
 
 @router.callback_query(F.data == "profile:orders:active")
@@ -68,7 +69,7 @@ async def profile_orders_active(callback: types.CallbackQuery) -> None:
     if not await ensure_subscribed(callback, callback.message.bot, is_admin=is_admin):
         return
 
-    await callback.message.answer(WEBAPP_PROFILE_MESSAGE, reply_markup=_build_profile_keyboard())
+    await answer_with_thread(callback.message, WEBAPP_PROFILE_MESSAGE, reply_markup=_build_profile_keyboard())
     await callback.answer()
 
 
@@ -80,7 +81,7 @@ async def profile_orders_finished(callback: types.CallbackQuery) -> None:
     if not await ensure_subscribed(callback, callback.message.bot, is_admin=is_admin):
         return
 
-    await callback.message.answer(WEBAPP_PROFILE_MESSAGE, reply_markup=_build_profile_keyboard())
+    await answer_with_thread(callback.message, WEBAPP_PROFILE_MESSAGE, reply_markup=_build_profile_keyboard())
     await callback.answer()
 
 
@@ -92,7 +93,7 @@ async def profile_courses(callback: types.CallbackQuery) -> None:
     if not await ensure_subscribed(callback, callback.message.bot, is_admin=is_admin):
         return
 
-    await callback.message.answer(WEBAPP_PROFILE_MESSAGE, reply_markup=_build_profile_keyboard())
+    await answer_with_thread(callback.message, WEBAPP_PROFILE_MESSAGE, reply_markup=_build_profile_keyboard())
     await callback.answer()
 
 
@@ -104,5 +105,5 @@ async def profile_open_webapp(callback: types.CallbackQuery) -> None:
     if not await ensure_subscribed(callback, callback.message.bot, is_admin=is_admin):
         return
 
-    await callback.message.answer(WEBAPP_PROFILE_MESSAGE, reply_markup=_build_profile_keyboard())
+    await answer_with_thread(callback.message, WEBAPP_PROFILE_MESSAGE, reply_markup=_build_profile_keyboard())
     await callback.answer()
